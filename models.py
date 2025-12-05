@@ -18,6 +18,7 @@ class ImageAsset:
     file_path: str
     width: int
     height: int
+    transparent_color: Optional[Tuple[int, int, int]] = None
 
     def to_dict(self) -> Dict:
         return {
@@ -25,6 +26,7 @@ class ImageAsset:
             "file_path": self.file_path,
             "width": self.width,
             "height": self.height,
+            "transparent_color": list(self.transparent_color) if self.transparent_color else None,
         }
 
     @staticmethod
@@ -34,6 +36,7 @@ class ImageAsset:
             file_path=data["file_path"],
             width=int(data["width"]),
             height=int(data["height"]),
+            transparent_color=tuple(data["transparent_color"]) if data.get("transparent_color") else None,  # type: ignore[arg-type]
         )
 
 

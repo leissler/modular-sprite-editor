@@ -61,26 +61,53 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda _: self.Close(), self.m_quit)
 
     def _add_toolbar_tools(self) -> None:
-        size = (16, 16)
+        size = (24, 24)
         self.t_modules = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Modules", self._make_tool_bitmap(wx.Colour(70, 130, 180), size)
+            wx.ID_ANY, "Modules", self._make_icon("modules", size)
         )
         self.t_frames = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Frames", self._make_tool_bitmap(wx.Colour(40, 180, 90), size)
+            wx.ID_ANY, "Frames", self._make_icon("frames", size)
         )
         self.t_anims = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Animations", self._make_tool_bitmap(wx.Colour(200, 150, 60), size)
+            wx.ID_ANY, "Animations", self._make_icon("animations", size)
         )
         self.toolbar.ToggleTool(self.t_modules.GetId(), True)
 
-    def _make_tool_bitmap(self, color: wx.Colour, size: tuple[int, int]) -> wx.Bitmap:
-        bmp = wx.Bitmap(*size)
+    def _make_icon(self, kind: str, size: tuple[int, int]) -> wx.Bitmap:
+        w, h = size
+        bmp = wx.Bitmap(w, h, 32)
         dc = wx.MemoryDC(bmp)
-        dc.SetBackground(wx.Brush(color))
+        dc.SetBackground(wx.Brush(wx.Colour(0, 0, 0, 0)))
         dc.Clear()
-        pen = wx.Pen(wx.Colour(255, 255, 255))
-        dc.SetPen(pen)
-        dc.DrawLine(2, size[1] // 2, size[0] - 2, size[1] // 2)
+
+        if kind == "modules":
+            dc.SetPen(wx.Pen(wx.Colour(70, 130, 180), width=2))
+            dc.DrawRectangle(4, 4, w - 8, h - 8)
+            dc.SetPen(wx.Pen(wx.Colour(70, 130, 180), width=1))
+            for x in range(6, w - 6, 6):
+                dc.DrawLine(x, 6, x, h - 6)
+            for y in range(6, h - 6, 6):
+                dc.DrawLine(6, y, w - 6, y)
+            dc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=1))
+            dc.DrawLine(6, 6, w - 6, h - 6)
+        elif kind == "frames":
+            dc.SetPen(wx.Pen(wx.Colour(40, 180, 90), width=2))
+            dc.SetBrush(wx.Brush(wx.Colour(40, 180, 90, 40)))
+            dc.DrawRectangle(6, 6, w - 12, h - 12)
+            dc.SetPen(wx.Pen(wx.Colour(30, 140, 70), width=2))
+            dc.SetBrush(wx.Brush(wx.Colour(30, 140, 70, 50)))
+            dc.DrawRectangle(10, 10, w - 14, h - 14)
+        elif kind == "animations":
+            dc.SetBrush(wx.Brush(wx.Colour(200, 150, 60)))
+            dc.SetPen(wx.Pen(wx.Colour(200, 150, 60)))
+            points = [(8, 6), (18, 12), (8, 18)]
+            dc.DrawPolygon(points)
+            dc.SetPen(wx.Pen(wx.Colour(120, 120, 120), width=2))
+            dc.DrawLine(4, 6, 4, 18)
+            dc.DrawLine(4, 18, 6, 18)
+            dc.SetPen(wx.Pen(wx.Colour(220, 200, 120), width=2, style=wx.PENSTYLE_DOT))
+            dc.DrawLine(12, 6, 20, 6)
+            dc.DrawLine(12, 18, 20, 18)
         dc.SelectObject(wx.NullBitmap)
         return bmp
 
@@ -154,7 +181,13 @@ class MainFrame(wx.Frame):
 def main() -> None:
     app = wx.App()
     frame = MainFrame()
+    app.SetTopWindow(frame)
     frame.Show()
+    frame.Raise()
+    wx.CallAfter(frame.Raise)
+    wx.CallAfter(frame.SetFocus)
+    wx.CallLater(200, frame.Raise)
+    wx.CallLater(200, frame.SetFocus)
     app.MainLoop()
 
 
