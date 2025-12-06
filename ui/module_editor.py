@@ -30,6 +30,7 @@ class ModuleCanvas(wx.Panel):
         self._panning = False
         self._panning_alt = False
         self._pivot_drag = False
+        self._move_drag = False
         self._hover_pivot = False
         self._last_clamp_time: float = 0.0
         self._last_clamp_dir: int = 0  # 1 for max, -1 for min
@@ -40,6 +41,12 @@ class ModuleCanvas(wx.Panel):
         self.on_pick_color: Optional[Callable[[Tuple[float, float]], None]] = None
         self.on_module_clicked: Optional[Callable[[str], None]] = None
         self.on_module_clicked: Optional[Callable[[str], None]] = None
+        self.on_deselect: Optional[Callable[[], None]] = None
+        self.on_edit_end: Optional[Callable[[], None]] = None
+        self._resize_handle: Optional[str] = None
+        self._resize_start_rect: Optional[Tuple[int, int, int, int]] = None
+        self._move_start_rect: Optional[Tuple[int, int, int, int]] = None
+        self._move_start_pivot: Optional[Tuple[int, int]] = None
         self._start = wx.Point()
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.Bind(wx.EVT_PAINT, self.on_paint)
@@ -146,44 +153,79 @@ class ModuleCanvas(wx.Panel):
         if self.pick_mode and self.on_pick_color:
             self.on_pick_color(world)
             return
+
+        # Priority 1: Alt (Pan)
         if event.AltDown():
             self.on_pan_start(event)
             self._panning_alt = True
             return
-        # Hit-test module overlays first
-        hit = self._hit_module_overlay(world) if not event.AltDown() else None
-        if hit:
-            hit_id, hit_selected = hit
-            # If clicked on the current selection, move pivot
-            if hit_selected and self.selection:
-                self.pivot = (int(world[0]), int(world[1]))
-                if self.on_pivot_changed:
-                    self.on_pivot_changed(self.pivot)
-                self.Refresh(False)
-                return
-            # Otherwise select the clicked module
-            if self.on_module_clicked:
-                self.on_module_clicked(hit_id)
-                return
-        # Move pivot if a module is already selected and we didn't click another module
-        if self.selection and not hit:
+
+        # Priority 2: Shift (Pivot Move) - ONLY if a module is selected AND has size
+        has_size = False
+        if self.selection:
+            _, _, w, h = self.selection
+            if abs(w) > 0 or abs(h) > 0:
+                has_size = True
+
+        if self.selection and has_size and event.ShiftDown():
             self.pivot = (int(world[0]), int(world[1]))
             if self.on_pivot_changed:
                 self.on_pivot_changed(self.pivot)
+            self._pivot_drag = True
+            self._start = pos
+            self.CaptureMouse()
             self.Refresh(False)
             return
-        if self._is_over_pivot(world):
-            self._pivot_drag = True
-        else:
-            self._selecting = True
-            self.selection_style = "active"
-            self.selection = (int(world[0]), int(world[1]), 0, 0)
+
+        # Priority 3: Resize Handle
+        handle = self._hit_handle(world) if self.selection else None
+        if handle:
+            self._resize_handle = handle
+            self._resize_start_rect = self.selection
+            self._start = pos
+            self.CaptureMouse()
+            self.Refresh(False)
+            return
+
+        # Priority 3.5: Move Selection
+        if self.selection:
+             x, y, w, h = self.selection
+             # Normalize for hit testing
+             if w < 0: x += w; w = -w
+             if h < 0: y += h; h = -h
+             if x <= world[0] <= x + w and y <= world[1] <= y + h:
+                 self._move_drag = True
+                 self._move_start_rect = self.selection
+                 self._move_start_pivot = self.pivot
+                 self._start = pos
+                 self.CaptureMouse()
+                 self.Refresh(False)
+                 return
+
+        # Priority 4: Module Overlay (Select)
+        hit = self._hit_module_overlay(world)
+        if hit:
+            hit_id, hit_selected = hit
+            if self.on_module_clicked:
+                self.on_module_clicked(hit_id)
+                return
+
+        # Priority 5: Empty Space (Deselect & New Selection)
+        if self.selection:
+             if self.on_deselect:
+                 self.on_deselect()
+        
+        # Start new selection
+        self._selecting = True
+        self.selection_style = "active"
+        self.selection = (int(world[0]), int(world[1]), 0, 0)
         self._start = pos
         self.CaptureMouse()
 
     def on_left_up(self, _: wx.MouseEvent) -> None:
         if self.HasCapture():
             self.ReleaseMouse()
+
         if self._selecting and self.selection:
             # Normalize selection
             x, y, w, h = self.selection
@@ -199,6 +241,26 @@ class ModuleCanvas(wx.Panel):
                 self.pivot = (int(x + w // 2), int(y + h // 2))
             if self.on_selection_changed:
                 self.on_selection_changed(self.selection)
+            if self.on_edit_end:
+                self.on_edit_end()
+        
+        if self._resize_handle:
+            self._resize_handle = None
+            self._resize_start_rect = None
+            if self.on_edit_end:
+                self.on_edit_end()
+
+        if self._move_drag:
+            self._move_drag = False
+            self._move_start_rect = None
+            self._move_start_pivot = None
+            if self.on_edit_end:
+                 self.on_edit_end()
+
+        if self._pivot_drag:
+            if self.on_edit_end:
+                self.on_edit_end()
+
         self._selecting = False
         self._pivot_drag = False
         self._panning_alt = False
@@ -206,11 +268,9 @@ class ModuleCanvas(wx.Panel):
         self.Refresh(False)
 
     def on_right_down(self, event: wx.MouseEvent) -> None:
-        world = self.screen_to_world(event.GetPosition())
-        self.pivot = (int(world[0]), int(world[1]))
-        if self.on_pivot_changed:
-            self.on_pivot_changed(self.pivot)
-        self.Refresh(False)
+        # Prevent right-click (Ctrl+Click on Mac) from moving pivot
+        # Pivot movement is now strictly Shift+Left Click (Priority 2 in on_left_down)
+        pass
 
     def on_pan_start(self, event: wx.MouseEvent) -> None:
         self._panning = True
@@ -225,12 +285,27 @@ class ModuleCanvas(wx.Panel):
     def on_mouse_move(self, event: wx.MouseEvent) -> None:
         pos = event.GetPosition()
         world = self.screen_to_world(pos)
-        hovering = self._is_over_pivot(world)
-        if hovering != self._hover_pivot and not self.pick_mode:
-            self._hover_pivot = hovering
-            self.SetCursor(wx.Cursor(wx.CURSOR_CROSS if hovering else wx.CURSOR_DEFAULT))
-        if self.pick_mode:
-            self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+        
+        # Cursor update
+        # Cursor update
+        if not self._panning and not self._selecting and not self._resize_handle and not self._move_drag:
+            handle = self._hit_handle(world) if self.selection else None
+            if handle:
+                cursors = {
+                    "nw": wx.CURSOR_SIZENWSE, "n": wx.CURSOR_SIZENS, "ne": wx.CURSOR_SIZENESW,
+                    "w": wx.CURSOR_SIZEWE, "e": wx.CURSOR_SIZEWE,
+                    "sw": wx.CURSOR_SIZENESW, "s": wx.CURSOR_SIZENS, "se": wx.CURSOR_SIZENWSE
+                }
+                self.SetCursor(wx.Cursor(cursors.get(handle, wx.CURSOR_DEFAULT)))
+            elif self._is_over_pivot(world) and event.ShiftDown() and self.selection and (abs(self.selection[2]) > 0 or abs(self.selection[3]) > 0):
+                self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+            elif self.pick_mode:
+                self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+            elif self.selection and self._hit_rect(world, self.selection):
+                self.SetCursor(wx.Cursor(wx.CURSOR_SIZING))
+            else:
+                self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+
         if self._panning and event.Dragging():
             dx = (pos.x - self._start.x) / self.zoom
             dy = (pos.y - self._start.y) / self.zoom
@@ -243,6 +318,59 @@ class ModuleCanvas(wx.Panel):
             h = world[1] - y
             self.selection = (int(x), int(y), int(w), int(h))
             self.Refresh(False)
+        elif self._resize_handle and self.selection and self._resize_start_rect and event.Dragging():
+            # Handle resizing with edge anchoring to prevent jitter
+            rx, ry, rw, rh = self._resize_start_rect
+            # Fixed anchors
+            anchor_right = rx + rw
+            anchor_bottom = ry + rh
+            
+            # Delta from start
+            start_world = self.screen_to_world(self._start)
+            dx = world[0] - start_world[0]
+            dy = world[1] - start_world[1]
+            
+            # Calculate new potential edges
+            new_left = rx
+            new_top = ry
+            new_right = anchor_right
+            new_bottom = anchor_bottom
+            
+            if "w" in self._resize_handle:
+                new_left = int(rx + dx)
+            elif "e" in self._resize_handle:
+                new_right = int(anchor_right + dx)
+            
+            if "n" in self._resize_handle:
+                new_top = int(ry + dy)
+            elif "s" in self._resize_handle:
+                new_bottom = int(anchor_bottom + dy)
+                
+            # Normalize
+            if new_right < new_left:
+                new_left, new_right = new_right, new_left
+            if new_bottom < new_top:
+                new_top, new_bottom = new_bottom, new_top
+                
+            self.selection = (new_left, new_top, new_right - new_left, new_bottom - new_top)
+            self.Refresh(False)
+
+        elif self._move_drag and self.selection and self._move_start_rect and event.Dragging():
+            start_world = self.screen_to_world(self._start)
+            dx = int(world[0] - start_world[0])
+            dy = int(world[1] - start_world[1])
+            
+            x, y, w, h = self._move_start_rect
+            self.selection = (x + dx, y + dy, w, h)
+            
+            if self._move_start_pivot:
+                px, py = self._move_start_pivot
+                self.pivot = (px + dx, py + dy)
+                if self.on_pivot_changed:
+                    self.on_pivot_changed(self.pivot)
+            
+            self.Refresh(False)
+
         elif self._pivot_drag and self.pivot is not None and event.Dragging():
             self.pivot = (int(world[0]), int(world[1]))
             if self.on_pivot_changed:
@@ -285,6 +413,9 @@ class ModuleCanvas(wx.Panel):
                 gc.SetPen(pen)
                 gc.SetBrush(wx.TRANSPARENT_BRUSH)
                 gc.DrawRectangle(sx0, sy0, w * self.zoom, h * self.zoom)
+                # Draw handles
+                self._draw_handles(gc, sx0, sy0, w * self.zoom, h * self.zoom)
+
         # Module overlays (unselected)
         if self.module_overlays:
             pen_unselected = wx.Pen(wx.Colour(80, 170, 220, 90), width=1, style=wx.PENSTYLE_SHORT_DASH)
@@ -298,13 +429,56 @@ class ModuleCanvas(wx.Panel):
                 gc.SetPen(pen_unselected)
                 gc.DrawRectangle(sx0, sy0, w * self.zoom, h * self.zoom)
         if self.pivot and self.selection:
-            sx, sy = self.world_to_screen(self.pivot)
-            color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
-            gc.SetPen(wx.Pen(color, width=2))
-            gc.StrokeLine(sx - 8, sy, sx + 8, sy)
-            gc.StrokeLine(sx, sy - 8, sx, sy + 8)
-            gc.SetPen(wx.Pen(color.ChangeLightness(130), width=1))
-            gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
+            # Only draw pivot if selection has size OR we are actively dragging/hovering it
+            # This prevents the "red crosshair" from showing up on a simple click (empty selection)
+            has_size = abs(self.selection[2]) > 0 or abs(self.selection[3]) > 0
+            if has_size or self._pivot_drag or self._hover_pivot:
+                sx, sy = self.world_to_screen(self.pivot)
+                color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
+                gc.SetPen(wx.Pen(color, width=2))
+                gc.StrokeLine(sx - 8, sy, sx + 8, sy)
+                gc.StrokeLine(sx, sy - 8, sx, sy + 8)
+
+    def _draw_handles(self, gc: wx.GraphicsContext, x: float, y: float, w: float, h: float) -> None:
+        size = 6
+        half = size / 2
+        gc.SetBrush(wx.Brush(wx.Colour(255, 255, 255)))
+        gc.SetPen(wx.Pen(wx.Colour(0, 0, 0)))
+        
+        # Corners
+        coords = [
+            (x - half, y - half), (x + w - half, y - half),
+            (x + w - half, y + h - half), (x - half, y + h - half),
+            (x + w/2 - half, y - half), (x + w - half, y + h/2 - half),
+            (x + w/2 - half, y + h - half), (x - half, y + h/2 - half)
+        ]
+        for cx, cy in coords:
+            gc.DrawRectangle(cx, cy, size, size)
+
+    def _hit_handle(self, world: Tuple[float, float]) -> Optional[str]:
+        if not self.selection:
+            return None
+        x, y, w, h = self.selection
+        # Normalize
+        if w < 0: x += w; w = -w
+        if h < 0: y += h; h = -h
+        
+        tol = 8 / self.zoom # Tolerance in world units
+        wx, wy = world
+        
+        # Check corners first
+        if abs(wx - x) < tol and abs(wy - y) < tol: return "nw"
+        if abs(wx - (x+w)) < tol and abs(wy - y) < tol: return "ne"
+        if abs(wx - (x+w)) < tol and abs(wy - (y+h)) < tol: return "se"
+        if abs(wx - x) < tol and abs(wy - (y+h)) < tol: return "sw"
+        
+        # Check edges
+        if abs(wy - y) < tol and x < wx < x+w: return "n"
+        if abs(wy - (y+h)) < tol and x < wx < x+w: return "s"
+        if abs(wx - x) < tol and y < wy < y+h: return "w"
+        if abs(wx - (x+w)) < tol and y < wy < y+h: return "e"
+        
+        return None
 
     def _hit_module_overlay(self, world: Tuple[float, float]) -> Optional[Tuple[str, bool]]:
         for rect, is_sel, mid in reversed(self.module_overlays):
@@ -312,14 +486,6 @@ class ModuleCanvas(wx.Panel):
             if x <= world[0] <= x + w and y <= world[1] <= y + h:
                 return (mid, is_sel)
         return None
-        if self.pivot and self.selection:
-            sx, sy = self.world_to_screen(self.pivot)
-            color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
-            gc.SetPen(wx.Pen(color, width=2))
-            gc.StrokeLine(sx - 8, sy, sx + 8, sy)
-            gc.StrokeLine(sx, sy - 8, sx, sy + 8)
-            gc.SetPen(wx.Pen(color.ChangeLightness(130), width=1))
-            gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
 
     def _draw_grid(self, gc: wx.GraphicsContext) -> None:
         # Infinite grid in center-origin space
@@ -384,6 +550,12 @@ class ModuleCanvas(wx.Panel):
         px, py = self.pivot
         return abs(world[0] - px) < 6 and abs(world[1] - py) < 6
 
+    def _hit_rect(self, world: Tuple[float, float], rect: Tuple[int, int, int, int]) -> bool:
+        x, y, w, h = rect
+        if w < 0: x += w; w = -w
+        if h < 0: y += h; h = -h
+        return x <= world[0] <= x + w and y <= world[1] <= y + h
+
 
 class ModuleEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
@@ -430,9 +602,7 @@ class ModuleEditorPanel(wx.Panel):
         self.module_list.InsertColumn(2, "Pivot", width=90)
         mod_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_create_module = wx.Button(mod_box, label="Create from selection")
-        self.btn_update_module = wx.Button(mod_box, label="Update module")
         mod_btns.Add(self.btn_create_module, 1, wx.RIGHT, 4)
-        mod_btns.Add(self.btn_update_module, 1)
         mod_edit_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_rename_module = wx.Button(mod_box, label="Rename")
         self.btn_delete_module = wx.Button(mod_box, label="Delete")
@@ -489,7 +659,6 @@ class ModuleEditorPanel(wx.Panel):
         self.btn_remove_img.Bind(wx.EVT_BUTTON, self.on_remove_image)
         self.image_list.Bind(wx.EVT_LISTBOX, self.on_select_image)
         self.btn_create_module.Bind(wx.EVT_BUTTON, self.on_create_module)
-        self.btn_update_module.Bind(wx.EVT_BUTTON, self.on_update_module)
         self.btn_delete_module.Bind(wx.EVT_BUTTON, self.on_delete_module)
         self.btn_rename_module.Bind(wx.EVT_BUTTON, self.on_rename_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
@@ -498,7 +667,10 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.on_selection_changed = self._on_canvas_selection
         self.canvas.on_pivot_changed = self._on_canvas_pivot
         self.canvas.on_pick_color = self.on_canvas_pick_color
+        self.canvas.on_pick_color = self.on_canvas_pick_color
         self.canvas.on_module_clicked = self.on_canvas_module_clicked
+        self.canvas.on_deselect = self.on_canvas_deselect
+        self.canvas.on_edit_end = self._autosave_current_module
         self.chk_grid.Bind(wx.EVT_CHECKBOX, self.on_toggle_grid)
         self.grid_w.Bind(wx.EVT_SPINCTRL, self.on_change_grid_spacing)
         self.grid_h.Bind(wx.EVT_SPINCTRL, self.on_change_grid_spacing)
@@ -510,6 +682,7 @@ class ModuleEditorPanel(wx.Panel):
         self._picking_transparent: bool = False
         self._suppress_module_events: bool = False
         self._modules_view: list[Module] = []
+        self._last_canvas_selection: Optional[str] = None
         # Initialize visual grid spacing from controls
         self.on_change_grid_spacing(wx.CommandEvent())
 
@@ -620,16 +793,7 @@ class ModuleEditorPanel(wx.Panel):
                     self.select_module(m_obj.id)
                     break
         # Update overlays on canvas
-        overlays = []
-        for m in self._modules_view:
-            is_sel = m.id == self.selected_module_id
-            overlays.append(((m.rect[0], m.rect[1], m.rect[2], m.rect[3]), is_sel, m.id))
-        if self.selected_module_id is None:
-            # Clear selection highlight on canvas
-            self.canvas.selection = None
-            self.canvas.pivot = None
-            self.canvas.set_selection_style("active")
-        self.canvas.set_module_overlays(overlays)
+        self._rebuild_overlays()
 
     def _unselect_all_modules(self) -> None:
         self._suppress_module_events = True
@@ -651,6 +815,7 @@ class ModuleEditorPanel(wx.Panel):
     def on_deselect_module(self, _: wx.ListEvent) -> None:
         if self._suppress_module_events:
             return
+        self._autosave_current_module()
         self.selected_module_id = None
         self.canvas.selection = None
         self.canvas.pivot = None
@@ -658,6 +823,8 @@ class ModuleEditorPanel(wx.Panel):
         self.refresh_modules()
 
     def select_module(self, module_id: str) -> None:
+        if module_id != self.selected_module_id:
+            self._autosave_current_module()
         self.selected_module_id = module_id
         mod = self.project.get_module(module_id)
         if mod:
@@ -668,6 +835,7 @@ class ModuleEditorPanel(wx.Panel):
             self.pivot_label.SetLabel(f"Pivot (local): {mod.pivot}")
             self.canvas.set_selection_style("module")
             self.canvas.Refresh(False)
+        self._rebuild_overlays()
 
     def _on_canvas_selection(self, rect: Optional[Tuple[int, int, int, int]]) -> None:
         self.selection_label.SetLabel(f"Selection: {rect}" if rect else "Selection: -")
@@ -695,21 +863,6 @@ class ModuleEditorPanel(wx.Panel):
             pivot_abs[1] - rect[1],
         ) if pivot_abs else (rect[2] // 2, rect[3] // 2)
         mod = self.project.create_module(name, self.selected_image_id, rect, pivot)
-        self.refresh_modules(select_id=mod.id)
-
-    def on_update_module(self, _: wx.CommandEvent) -> None:
-        if not self.selected_module_id:
-            return
-        mod = self.project.get_module(self.selected_module_id)
-        if not mod:
-            return
-        if self.canvas.selection:
-            mod.rect = self.canvas.selection
-        if self.canvas.pivot:
-            mod.pivot = (
-                int(self.canvas.pivot[0] - mod.rect[0]),
-                int(self.canvas.pivot[1] - mod.rect[1]),
-            )
         self.refresh_modules(select_id=mod.id)
 
     def on_delete_module(self, _: wx.CommandEvent) -> None:
@@ -870,15 +1023,7 @@ class ModuleEditorPanel(wx.Panel):
             # Force rebuild when toggling to ensure fresh bitmap
             disp = self._get_display_bitmap(asset, bmp, force=True)
             self.canvas.set_bitmap(disp, (asset.width, asset.height))
-            # Restore overlays and selection
-            overlays = [((m.rect[0], m.rect[1], m.rect[2], m.rect[3]), m.id == self.selected_module_id, m.id) for m in self._modules_view]
-            self.canvas.set_module_overlays(overlays)
-            if self.selected_module_id:
-                mod = self.project.get_module(self.selected_module_id)
-                if mod:
-                    self.canvas.selection = (mod.rect[0], mod.rect[1], mod.rect[2], mod.rect[3])
-                    self.canvas.pivot = (mod.rect[0] + mod.pivot[0], mod.rect[1] + mod.pivot[1])
-                    self.canvas.set_selection_style("module")
+            self._rebuild_overlays()
             self.canvas.Refresh(False)
 
     def on_pick_from_image(self, _: wx.CommandEvent) -> None:
@@ -912,14 +1057,7 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.set_bitmap(disp, (asset.width, asset.height))
         self.canvas.set_transparent_view(self.transparent_view)
         # Restore overlays and selection after picking
-        overlays = [((m.rect[0], m.rect[1], m.rect[2], m.rect[3]), m.id == self.selected_module_id, m.id) for m in self._modules_view]
-        self.canvas.set_module_overlays(overlays)
-        if self.selected_module_id:
-            mod = self.project.get_module(self.selected_module_id)
-            if mod:
-                self.canvas.selection = (mod.rect[0], mod.rect[1], mod.rect[2], mod.rect[3])
-                self.canvas.pivot = (mod.rect[0] + mod.pivot[0], mod.rect[1] + mod.pivot[1])
-                self.canvas.set_selection_style("module")
+        self._rebuild_overlays()
         self.canvas.Refresh(False)
         self._picking_transparent = False
         self.canvas.pick_mode = False
@@ -937,4 +1075,45 @@ class ModuleEditorPanel(wx.Panel):
                 self.module_list.EnsureVisible(idx)
                 self._suppress_module_events = False
                 self.select_module(module_id)
+                break
+
+    def on_canvas_deselect(self) -> None:
+        self._unselect_all_modules()
+        self._autosave_current_module()
+        self.selected_module_id = None
+        self.canvas.selection = None
+        self.canvas.pivot = None
+        self.canvas.set_selection_style("active")
+        self.refresh_modules()
+
+    def _rebuild_overlays(self) -> None:
+        overlays = []
+        for m in self._modules_view:
+            is_sel = m.id == self.selected_module_id
+            overlays.append(((m.rect[0], m.rect[1], m.rect[2], m.rect[3]), is_sel, m.id))
+        if self.selected_module_id is None:
+            # Clear selection highlight on canvas
+            self.canvas.selection = None
+            self.canvas.pivot = None
+            self.canvas.set_selection_style("active")
+        self.canvas.set_module_overlays(overlays)
+
+    def _autosave_current_module(self) -> None:
+        if not self.selected_module_id:
+            return
+        mod = self.project.get_module(self.selected_module_id)
+        if not mod:
+            return
+        if self.canvas.selection:
+            mod.rect = self.canvas.selection
+        if self.canvas.pivot:
+            mod.pivot = (
+                int(self.canvas.pivot[0] - mod.rect[0]),
+                int(self.canvas.pivot[1] - mod.rect[1]),
+            )
+        # Update list item
+        for i in range(self.module_list.GetItemCount()):
+            if self._modules_view[i].id == mod.id:
+                self.module_list.SetItem(i, 1, f"{mod.rect[0]},{mod.rect[1]} {mod.rect[2]}x{mod.rect[3]}")
+                self.module_list.SetItem(i, 2, f"{mod.pivot[0]},{mod.pivot[1]}")
                 break
