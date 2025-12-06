@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 import hashlib
 import os
 import time
@@ -43,6 +44,7 @@ class ModuleCanvas(wx.Panel):
         self.on_module_clicked: Optional[Callable[[str], None]] = None
         self.on_deselect: Optional[Callable[[], None]] = None
         self.on_edit_end: Optional[Callable[[], None]] = None
+        self.on_delete: Optional[Callable[[], None]] = None
         self._resize_handle: Optional[str] = None
         self._resize_start_rect: Optional[Tuple[int, int, int, int]] = None
         self._move_start_rect: Optional[Tuple[int, int, int, int]] = None
@@ -57,6 +59,14 @@ class ModuleCanvas(wx.Panel):
         self.Bind(wx.EVT_MIDDLE_UP, self.on_pan_end)
         self.Bind(wx.EVT_MOTION, self.on_mouse_move)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
+        self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+
+    def on_key_down(self, event: wx.KeyEvent) -> None:
+        key = event.GetKeyCode()
+        if key == wx.WXK_DELETE or key == wx.WXK_BACK:
+             if self.on_delete:
+                 self.on_delete()
+        event.Skip()
         self.on_selection_changed: Optional[Callable[[Optional[Tuple[int, int, int, int]]], None]] = None
         self.on_pivot_changed: Optional[Callable[[Optional[Tuple[int, int]]], None]] = None
 
@@ -404,7 +414,8 @@ class ModuleCanvas(wx.Panel):
                 h = -h
             sx0, sy0 = self.world_to_screen((x, y))
             if self.selection_style == "active":
-                gc.SetPen(wx.Pen(wx.Colour(40, 120, 200), width=2))
+                # Selected module: White dashed
+                gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=2, style=wx.PENSTYLE_SHORT_DASH))
                 gc.SetBrush(wx.Brush(wx.Colour(40, 120, 200, 40)))
                 gc.DrawRectangle(sx0, sy0, w * self.zoom, h * self.zoom)
             else:
@@ -418,7 +429,8 @@ class ModuleCanvas(wx.Panel):
 
         # Module overlays (unselected)
         if self.module_overlays:
-            pen_unselected = wx.Pen(wx.Colour(80, 170, 220, 90), width=1, style=wx.PENSTYLE_SHORT_DASH)
+            # Unselected: 80% Grey (approx 200), Dashed
+            pen_unselected = wx.Pen(wx.Colour(200, 200, 200), width=1, style=wx.PENSTYLE_SHORT_DASH)
             for rect, is_sel, _mid in self.module_overlays:
                 if is_sel:
                     # Selected module is already highlighted separately; skip overlay here
@@ -583,14 +595,13 @@ class ModuleEditorPanel(wx.Panel):
         img_sizer.Add(img_btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         # Transparency controls
         trans_row = wx.BoxSizer(wx.HORIZONTAL)
+        trans_lbl = wx.StaticText(img_box, label="Transparent color:")
         self.trans_swatch = wx.Panel(img_box, size=(24, 18))
         self.trans_swatch.SetBackgroundColour(wx.Colour(0, 0, 0))
-        self.chk_trans_view = wx.CheckBox(img_box, label="Transparent view")
-        self.chk_trans_view.SetValue(True)
         self.btn_pick_from_image = wx.Button(img_box, label="Pick from image")
-        trans_row.Add(self.btn_pick_from_image, 1, wx.RIGHT, 6)
-        trans_row.Add(self.trans_swatch, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 6)
-        trans_row.Add(self.chk_trans_view, 0, wx.ALIGN_CENTER_VERTICAL)
+        trans_row.Add(trans_lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        trans_row.Add(self.trans_swatch, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        trans_row.Add(self.btn_pick_from_image, 1, wx.ALIGN_CENTER_VERTICAL)
         img_sizer.Add(trans_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
 
         # Modules
@@ -600,16 +611,32 @@ class ModuleEditorPanel(wx.Panel):
         self.module_list.InsertColumn(0, "Name", width=120)
         self.module_list.InsertColumn(1, "Rect", width=120)
         self.module_list.InsertColumn(2, "Pivot", width=90)
-        mod_btns = wx.BoxSizer(wx.HORIZONTAL)
+        
+        # Row 1: Create Module
+        mod_create_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_create_module = wx.Button(mod_box, label="Create from selection")
-        mod_btns.Add(self.btn_create_module, 1, wx.RIGHT, 4)
+        mod_create_sizer.Add(self.btn_create_module, 1, wx.EXPAND)
+        
+        # Row 2: Auto Detect + Gap
+        mod_auto_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_auto_detect = wx.Button(mod_box, label="Auto Detect")
+        mod_auto_sizer.Add(self.btn_auto_detect, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
+        
+        # Gap setting
+        gap_lbl = wx.StaticText(mod_box, label="Merge Gap:")
+        self.spin_gap = wx.SpinCtrl(mod_box, min=0, max=10, initial=1, size=(60, -1))
+        mod_auto_sizer.Add(gap_lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        mod_auto_sizer.Add(self.spin_gap, 0, wx.ALIGN_CENTER_VERTICAL)
+
         mod_edit_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_rename_module = wx.Button(mod_box, label="Rename")
         self.btn_delete_module = wx.Button(mod_box, label="Delete")
         mod_edit_btns.Add(self.btn_rename_module, 1, wx.RIGHT, 4)
         mod_edit_btns.Add(self.btn_delete_module, 1)
+
         mod_sizer.Add(self.module_list, 1, wx.EXPAND | wx.ALL, 4)
-        mod_sizer.Add(mod_btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        mod_sizer.Add(mod_create_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        mod_sizer.Add(mod_auto_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         mod_sizer.Add(mod_edit_btns, 0, wx.EXPAND | wx.ALL, 4)
 
         # Grid slicing controls
@@ -643,7 +670,10 @@ class ModuleEditorPanel(wx.Panel):
         controls.Add(self.grid_h, 0, wx.RIGHT, 12)
         self.chk_grid = wx.CheckBox(self, label="Show Grid")
         self.chk_grid.SetValue(True)
-        controls.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL)
+        controls.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.chk_trans_view = wx.CheckBox(self, label="Transparency")
+        self.chk_trans_view.SetValue(True)
+        controls.Add(self.chk_trans_view, 0, wx.ALIGN_CENTER_VERTICAL)
         canvas_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         self.selection_label = wx.StaticText(self, label="Selection: -")
         self.pivot_label = wx.StaticText(self, label="Pivot: -")
@@ -659,6 +689,7 @@ class ModuleEditorPanel(wx.Panel):
         self.btn_remove_img.Bind(wx.EVT_BUTTON, self.on_remove_image)
         self.image_list.Bind(wx.EVT_LISTBOX, self.on_select_image)
         self.btn_create_module.Bind(wx.EVT_BUTTON, self.on_create_module)
+        self.btn_auto_detect.Bind(wx.EVT_BUTTON, self.on_auto_detect)
         self.btn_delete_module.Bind(wx.EVT_BUTTON, self.on_delete_module)
         self.btn_rename_module.Bind(wx.EVT_BUTTON, self.on_rename_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
@@ -671,6 +702,7 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.on_module_clicked = self.on_canvas_module_clicked
         self.canvas.on_deselect = self.on_canvas_deselect
         self.canvas.on_edit_end = self._autosave_current_module
+        self.canvas.on_delete = self.on_delete_module
         self.chk_grid.Bind(wx.EVT_CHECKBOX, self.on_toggle_grid)
         self.grid_w.Bind(wx.EVT_SPINCTRL, self.on_change_grid_spacing)
         self.grid_h.Bind(wx.EVT_SPINCTRL, self.on_change_grid_spacing)
@@ -865,7 +897,127 @@ class ModuleEditorPanel(wx.Panel):
         mod = self.project.create_module(name, self.selected_image_id, rect, pivot)
         self.refresh_modules(select_id=mod.id)
 
-    def on_delete_module(self, _: wx.CommandEvent) -> None:
+    def on_auto_detect(self, _: wx.CommandEvent) -> None:
+        if not self.selected_image_id:
+            wx.MessageBox("Select an image first", "Info")
+            return
+        
+        bmp = self._bitmap_cache.get(self.selected_image_id)
+        if not bmp:
+            return
+
+        img = bmp.ConvertToImage()
+        
+        # Apply transparent color if set
+        asset = self.project.get_image(self.selected_image_id)
+        if asset and asset.transparent_color:
+            img = self._apply_transparency_to_image(img, asset.transparent_color)
+
+        if not img.HasAlpha():
+            wx.MessageBox("Image has no alpha channel. Cannot detect sprites.", "Error")
+            return
+
+        w, h = img.GetWidth(), img.GetHeight()
+        alpha = img.GetAlpha() # bytes object
+        
+        # 0 = unvisited/transparent, 1 = visited/opaque
+        visited = bytearray(w * h)
+        rects: list[Tuple[int, int, int, int]] = []
+        
+        # Iterative scanning with Flood Fill
+        with wx.BusyCursor():
+            # Clear existing modules for this image first
+            self.project.modules = [m for m in self.project.modules if m.image_id != self.selected_image_id]
+
+            for y in range(h):
+                for x in range(w):
+                    idx = y * w + x
+                    # If opaque (>10 threshold) and handling unvisited
+                    if alpha[idx] > 10 and visited[idx] == 0:
+                        # Start Flood Fill
+                        min_x, max_x = x, x
+                        min_y, max_y = y, y
+                        q = deque([(x, y)])
+                        visited[idx] = 1
+                        
+                        while q:
+                            cx, cy = q.popleft()
+                            
+                            # Expand bounds
+                            if cx < min_x: min_x = cx
+                            if cx > max_x: max_x = cx
+                            if cy < min_y: min_y = cy
+                            if cy > max_y: max_y = cy
+                            
+                            # Check 8 neighbors (including diagonals)
+                            neighbors = [
+                                (-1, 0), (1, 0), (0, -1), (0, 1),
+                                (-1, -1), (1, -1), (-1, 1), (1, 1)
+                            ]
+                            for dx, dy in neighbors:
+                                nx, ny = cx + dx, cy + dy
+                                if 0 <= nx < w and 0 <= ny < h:
+                                    nidx = ny * w + nx
+                                    if visited[nidx] == 0 and alpha[nidx] > 10:
+                                        visited[nidx] = 1
+                                        q.append((nx, ny))
+                        
+                        rects.append((min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
+        
+        # Merge overlapping rects
+        gap = self.spin_gap.GetValue()
+        merged = True
+        while merged:
+            merged = False
+            new_rects = []
+            used = [False] * len(rects)
+            
+            for i in range(len(rects)):
+                if used[i]: continue
+                r1 = rects[i]
+                
+                # Try to merge r1 with any subsequent rect
+                for j in range(i + 1, len(rects)):
+                    if used[j]: continue
+                    r2 = rects[j]
+                    
+                    # Intersect check with gap tolerance
+                    # r1: x, y, w, h
+                    # r2: x, y, w, h
+                    x1, y1, w1, h1 = r1
+                    x2, y2, w2, h2 = r2
+                    
+                    # Expand r1 by gap for the check
+                    check_x1 = x1 - gap
+                    check_y1 = y1 - gap
+                    check_w1 = w1 + 2 * gap
+                    check_h1 = h1 + 2 * gap
+                    
+                    if not (check_x1 + check_w1 <= x2 or x2 + w2 <= check_x1 or check_y1 + check_h1 <= y2 or y2 + h2 <= check_y1):
+                        # Overlap/Proximity! Merge into r1 (Union of ORIGINAL rects)
+                        nx = min(x1, x2)
+                        ny = min(y1, y2)
+                        nw = max(x1 + w1, x2 + w2) - nx
+                        nh = max(y1 + h1, y2 + h2) - ny
+                        r1 = (nx, ny, nw, nh)
+                        used[j] = True
+                        merged = True
+                
+                new_rects.append(r1)
+            rects = new_rects
+
+        # bulk create modules
+        count = 0
+        for rx, ry, rw, rh in rects:
+             name = f"Module {len(self.project.modules) + 1}"
+             pivot = (rw // 2, rh // 2)
+             mod = self.project.create_module(name, self.selected_image_id, (rx, ry, rw, rh), pivot)
+             count += 1
+        
+        self.refresh_modules()
+        wx.MessageBox(f"Detected {count} modules.", "Success")
+
+    def on_delete_module(self, _event: wx.CommandEvent = None) -> None:
         if not self.selected_module_id:
             return
         self.project.modules = [m for m in self.project.modules if m.id != self.selected_module_id]
