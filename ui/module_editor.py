@@ -61,14 +61,15 @@ class ModuleCanvas(wx.Panel):
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
+        self.on_selection_changed: Optional[Callable[[Optional[Tuple[int, int, int, int]]], None]] = None
+        self.on_pivot_changed: Optional[Callable[[Optional[Tuple[int, int]]], None]] = None
+
     def on_key_down(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
         if key == wx.WXK_DELETE or key == wx.WXK_BACK:
              if self.on_delete:
                  self.on_delete()
         event.Skip()
-        self.on_selection_changed: Optional[Callable[[Optional[Tuple[int, int, int, int]]], None]] = None
-        self.on_pivot_changed: Optional[Callable[[Optional[Tuple[int, int]]], None]] = None
 
     # Transform helpers
     def world_to_screen(self, pt: Tuple[float, float]) -> Tuple[float, float]:
@@ -103,6 +104,10 @@ class ModuleCanvas(wx.Panel):
         self.zoom = zoom
         self.Refresh(False)
 
+    def center_view(self, world_pt: Tuple[float, float]) -> None:
+        self.pan = (-world_pt[0], -world_pt[1])
+        self.Refresh(False)
+
     def get_view_state(self) -> Tuple[Tuple[float, float], float]:
         return (self.pan, self.zoom)
 
@@ -119,8 +124,8 @@ class ModuleCanvas(wx.Panel):
         rotation = event.GetWheelRotation()
         factor = 1.1 if rotation > 0 else 0.9
         now = time.monotonic()
-        max_zoom = 16.0
-        min_zoom = 0.2
+        max_zoom = 32.0
+        min_zoom = 1.0
         # Ignore if already clamped and trying to go further, and swallow quick bounce-back
         if rotation > 0 and self.zoom >= max_zoom - 1e-5:
             self._last_clamp_time = now
@@ -230,6 +235,8 @@ class ModuleCanvas(wx.Panel):
         self.selection_style = "active"
         self.selection = (int(world[0]), int(world[1]), 0, 0)
         self._start = pos
+        if self.on_selection_changed:
+            self.on_selection_changed(self.selection)
         self.CaptureMouse()
 
     def on_left_up(self, _: wx.MouseEvent) -> None:
@@ -327,6 +334,8 @@ class ModuleCanvas(wx.Panel):
             w = world[0] - x
             h = world[1] - y
             self.selection = (int(x), int(y), int(w), int(h))
+            if self.on_selection_changed:
+                self.on_selection_changed(self.selection)
             self.Refresh(False)
         elif self._resize_handle and self.selection and self._resize_start_rect and event.Dragging():
             # Handle resizing with edge anchoring to prevent jitter
@@ -363,6 +372,8 @@ class ModuleCanvas(wx.Panel):
                 new_top, new_bottom = new_bottom, new_top
                 
             self.selection = (new_left, new_top, new_right - new_left, new_bottom - new_top)
+            if self.on_selection_changed:
+                self.on_selection_changed(self.selection)
             self.Refresh(False)
 
         elif self._move_drag and self.selection and self._move_start_rect and event.Dragging():
@@ -372,6 +383,8 @@ class ModuleCanvas(wx.Panel):
             
             x, y, w, h = self._move_start_rect
             self.selection = (x + dx, y + dy, w, h)
+            if self.on_selection_changed:
+                 self.on_selection_changed(self.selection)
             
             if self._move_start_pivot:
                 px, py = self._move_start_pivot
@@ -507,7 +520,7 @@ class ModuleCanvas(wx.Panel):
         spacing_x, spacing_y = self.grid_spacing
 
         if self.show_grid:
-            grid_pen = wx.Pen(wx.Colour(80, 80, 80), width=1, style=wx.PENSTYLE_SOLID)
+            grid_pen = wx.Pen(wx.Colour(160, 160, 160), width=1, style=wx.PENSTYLE_SOLID)
             gc.SetPen(grid_pen)
             start_x = int((left_world // spacing_x) * spacing_x)
             start_y = int((top_world // spacing_y) * spacing_y)
@@ -605,32 +618,32 @@ class ModuleEditorPanel(wx.Panel):
         img_sizer.Add(trans_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
 
         # Modules
-        mod_box = wx.StaticBox(self, label="Modules")
-        mod_sizer = wx.StaticBoxSizer(mod_box, wx.VERTICAL)
-        self.module_list = wx.ListCtrl(mod_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.mod_box = wx.StaticBox(self, label="Modules")
+        mod_sizer = wx.StaticBoxSizer(self.mod_box, wx.VERTICAL)
+        self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.module_list.InsertColumn(0, "Name", width=120)
         self.module_list.InsertColumn(1, "Rect", width=120)
         self.module_list.InsertColumn(2, "Pivot", width=90)
         
         # Row 1: Create Module
         mod_create_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_create_module = wx.Button(mod_box, label="Create from selection")
+        self.btn_create_module = wx.Button(self.mod_box, label="Create from selection")
         mod_create_sizer.Add(self.btn_create_module, 1, wx.EXPAND)
         
         # Row 2: Auto Detect + Gap
         mod_auto_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_auto_detect = wx.Button(mod_box, label="Auto Detect")
+        self.btn_auto_detect = wx.Button(self.mod_box, label="Auto Detect")
         mod_auto_sizer.Add(self.btn_auto_detect, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
         
         # Gap setting
-        gap_lbl = wx.StaticText(mod_box, label="Merge Gap:")
-        self.spin_gap = wx.SpinCtrl(mod_box, min=0, max=10, initial=1, size=(60, -1))
+        gap_lbl = wx.StaticText(self.mod_box, label="Merge Gap:")
+        self.spin_gap = wx.SpinCtrl(self.mod_box, min=0, max=10, initial=1, size=(60, -1))
         mod_auto_sizer.Add(gap_lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         mod_auto_sizer.Add(self.spin_gap, 0, wx.ALIGN_CENTER_VERTICAL)
 
         mod_edit_btns = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_rename_module = wx.Button(mod_box, label="Rename")
-        self.btn_delete_module = wx.Button(mod_box, label="Delete")
+        self.btn_rename_module = wx.Button(self.mod_box, label="Rename")
+        self.btn_delete_module = wx.Button(self.mod_box, label="Delete")
         mod_edit_btns.Add(self.btn_rename_module, 1, wx.RIGHT, 4)
         mod_edit_btns.Add(self.btn_delete_module, 1)
 
@@ -675,10 +688,14 @@ class ModuleEditorPanel(wx.Panel):
         self.chk_trans_view.SetValue(True)
         controls.Add(self.chk_trans_view, 0, wx.ALIGN_CENTER_VERTICAL)
         canvas_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        self.selection_label = wx.StaticText(self, label="Selection: -")
-        self.pivot_label = wx.StaticText(self, label="Pivot: -")
-        canvas_sizer.Add(self.selection_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        canvas_sizer.Add(self.pivot_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        
+        # Status labels
+        status_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.selection_label = wx.StaticText(self, label="Selection: -", size=(300, -1))
+        self.pivot_label = wx.StaticText(self, label="Pivot: -", size=(200, -1))
+        status_sizer.Add(self.selection_label, 0, wx.RIGHT, 15)
+        status_sizer.Add(self.pivot_label, 0)
+        canvas_sizer.Add(status_sizer, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
 
         main_sizer.Add(sidebar, 0, wx.EXPAND)
         main_sizer.Add(canvas_sizer, 1, wx.EXPAND)
@@ -699,7 +716,7 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.on_pivot_changed = self._on_canvas_pivot
         self.canvas.on_pick_color = self.on_canvas_pick_color
         self.canvas.on_pick_color = self.on_canvas_pick_color
-        self.canvas.on_module_clicked = self.on_canvas_module_clicked
+        self.canvas.on_module_clicked = lambda mid: self.select_module(mid, center_view=False)
         self.canvas.on_deselect = self.on_canvas_deselect
         self.canvas.on_edit_end = self._autosave_current_module
         self.canvas.on_delete = self.on_delete_module
@@ -806,6 +823,10 @@ class ModuleEditorPanel(wx.Panel):
             else self.project.modules
         )
         self._modules_view = mods
+        
+        # Update title with count
+        self.mod_box.SetLabel(f"Modules ({len(mods)})")
+        
         if select_id is None and self.selected_module_id and self.selected_module_id not in [m.id for m in mods]:
             self.selected_module_id = None
         for m in self._modules_view:
@@ -838,11 +859,11 @@ class ModuleEditorPanel(wx.Panel):
             return
         idx = event.GetIndex()
         if 0 <= idx < len(self._modules_view):
-            self._unselect_all_modules()
             self._suppress_module_events = True
-            self.module_list.SetItemState(idx, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
+            # self._unselect_all_modules() # Removed to prevent scroll jump
             self._suppress_module_events = False
-            self.select_module(self._modules_view[idx].id)
+            # Pass center_view=True when selecting from list
+            self.select_module(self._modules_view[idx].id, center_view=True)
 
     def on_deselect_module(self, _: wx.ListEvent) -> None:
         if self._suppress_module_events:
@@ -852,9 +873,8 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.selection = None
         self.canvas.pivot = None
         self.canvas.set_selection_style("active")
-        self.refresh_modules()
 
-    def select_module(self, module_id: str) -> None:
+    def select_module(self, module_id: str, center_view: bool = False) -> None:
         if module_id != self.selected_module_id:
             self._autosave_current_module()
         self.selected_module_id = module_id
@@ -866,6 +886,28 @@ class ModuleEditorPanel(wx.Panel):
             self.selection_label.SetLabel(f"Selection: {mod.rect}")
             self.pivot_label.SetLabel(f"Pivot (local): {mod.pivot}")
             self.canvas.set_selection_style("module")
+            
+            # Auto-center view on the selected module
+            if center_view:
+                cx = mod.rect[0] + mod.rect[2] / 2
+                cy = mod.rect[1] + mod.rect[3] / 2
+                self.canvas.center_view((cx, cy))
+            
+            # Sync list selection
+            for idx, m_view in enumerate(self._modules_view):
+                if m_view.id == module_id:
+                    # Check if actually needs update to avoid recursion/flicker
+                    if not (self.module_list.GetItemState(idx, wx.LIST_STATE_SELECTED) & wx.LIST_STATE_SELECTED):
+                        self._suppress_module_events = True
+                        # Clear others first ensures clean state without relying on control behavior
+                        for i in range(self.module_list.GetItemCount()):
+                             if i != idx and (self.module_list.GetItemState(i, wx.LIST_STATE_SELECTED) & wx.LIST_STATE_SELECTED):
+                                  self.module_list.SetItemState(i, 0, wx.LIST_STATE_SELECTED)
+                        self.module_list.SetItemState(idx, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
+                        self.module_list.EnsureVisible(idx)
+                        self._suppress_module_events = False
+                    break
+            
             self.canvas.Refresh(False)
         self._rebuild_overlays()
 
@@ -1166,6 +1208,7 @@ class ModuleEditorPanel(wx.Panel):
 
     def on_toggle_trans_view(self, event: wx.CommandEvent) -> None:
         self.transparent_view = event.IsChecked()
+        self.canvas.set_transparent_view(self.transparent_view)
         self.canvas.set_transparent_view(self.transparent_view)
         if not self.selected_image_id:
             return
