@@ -83,11 +83,12 @@ class ModuleCanvas(wx.Panel):
             (pt.y - cy) / self.zoom - self.pan[1],
         )
 
-    def set_bitmap(self, bmp: Optional[wx.Bitmap], size: Tuple[int, int]) -> None:
+    def set_bitmap(self, bmp: Optional[wx.Bitmap], size: Tuple[int, int], reset_state: bool = True) -> None:
         self.bitmap = bmp
         self.image_size = size
-        self.selection = None
-        self.pivot = None
+        if reset_state:
+            self.selection = None
+            self.pivot = None
         self.Refresh(False)
 
     def set_selection_style(self, style: str) -> None:
@@ -205,18 +206,6 @@ class ModuleCanvas(wx.Panel):
         # Priority 3.5: Move Selection
         if self.selection:
              x, y, w, h = self.selection
-             # Normalize for hit testing
-             if w < 0: x += w; w = -w
-             if h < 0: y += h; h = -h
-             if x <= world[0] <= x + w and y <= world[1] <= y + h:
-                 self._move_drag = True
-                 self._move_start_rect = self.selection
-                 self._move_start_pivot = self.pivot
-                 self._start = pos
-                 self.CaptureMouse()
-                 self.Refresh(False)
-                 return
-
         # Priority 4: Module Overlay (Select)
         hit = self._hit_module_overlay(world)
         if hit:
@@ -225,18 +214,28 @@ class ModuleCanvas(wx.Panel):
                 self.on_module_clicked(hit_id)
                 return
 
-        # Priority 5: Empty Space (Deselect & New Selection)
-        if self.selection:
-             if self.on_deselect:
-                 self.on_deselect()
-        
-        # Start new selection
-        self._selecting = True
-        self.selection_style = "active"
-        self.selection = (int(world[0]), int(world[1]), 0, 0)
-        self._start = pos
-        if self.on_selection_changed:
-            self.on_selection_changed(self.selection)
+        # Check for move (clicking inside existing selection)
+        if self.selection and self._hit_rect(world, self.selection):
+             self._move_drag = True
+             self._move_start_rect = self.selection
+             self._move_start_pivot = self.pivot
+             self._start = pos
+             # Clicking inside selection shouldn't deselect, but pass event?
+             # Actually if we just click and release, it selects it. 
+             # But if we are ALREADY selected, we just prep for move.
+        else:
+            # Clicking outside or starting new selection
+            if self.on_deselect:
+                self.on_deselect()
+            
+            self._selecting = True
+            self.selection_style = "active"
+            self.selection = (int(world[0]), int(world[1]), 0, 0)
+            self._start = pos
+            
+            # Notify change immediately to clear old status
+            if self.on_selection_changed:
+                self.on_selection_changed(self.selection)
         self.CaptureMouse()
 
     def on_left_up(self, _: wx.MouseEvent) -> None:
@@ -1202,13 +1201,12 @@ class ModuleEditorPanel(wx.Panel):
                 }
                 self._update_transparency_controls(asset)
                 bmp = self._bitmap_cache.get(asset.id)
-                disp = self._get_display_bitmap(asset, bmp, force=True)
-                self.canvas.set_bitmap(disp, (asset.width, asset.height))
+                display_bmp = self._get_display_bitmap(asset, bmp)
+                self.canvas.set_bitmap(display_bmp, (asset.width, asset.height), reset_state=False)
                 self.canvas.set_transparent_view(self.transparent_view)
 
     def on_toggle_trans_view(self, event: wx.CommandEvent) -> None:
         self.transparent_view = event.IsChecked()
-        self.canvas.set_transparent_view(self.transparent_view)
         self.canvas.set_transparent_view(self.transparent_view)
         if not self.selected_image_id:
             return
@@ -1217,7 +1215,7 @@ class ModuleEditorPanel(wx.Panel):
         if asset:
             # Force rebuild when toggling to ensure fresh bitmap
             disp = self._get_display_bitmap(asset, bmp, force=True)
-            self.canvas.set_bitmap(disp, (asset.width, asset.height))
+            self.canvas.set_bitmap(disp, (asset.width, asset.height), reset_state=False)
             self._rebuild_overlays()
             self.canvas.Refresh(False)
 
