@@ -519,7 +519,7 @@ class ModuleCanvas(wx.Panel):
         spacing_x, spacing_y = self.grid_spacing
 
         if self.show_grid:
-            grid_pen = wx.Pen(wx.Colour(160, 160, 160), width=1, style=wx.PENSTYLE_SOLID)
+            grid_pen = wx.Pen(wx.Colour(100, 100, 100), width=1, style=wx.PENSTYLE_SOLID)
             gc.SetPen(grid_pen)
             start_x = int((left_world // spacing_x) * spacing_x)
             start_y = int((top_world // spacing_y) * spacing_y)
