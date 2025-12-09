@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import uuid
+import re
+import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -187,12 +189,17 @@ class AFrame:
     frame_id: str
     duration_ms: int
     offset: Tuple[int, int] = (0, 0)
+    # Adding flip support for Animations as per Aurora format
+    flip_x: bool = False
+    flip_y: bool = False
 
     def to_dict(self) -> Dict:
         return {
             "frame_id": self.frame_id,
             "duration_ms": self.duration_ms,
             "offset": list(self.offset),
+            "flip_x": self.flip_x,
+            "flip_y": self.flip_y,
         }
 
     @staticmethod
@@ -201,6 +208,8 @@ class AFrame:
             frame_id=data["frame_id"],
             duration_ms=int(data["duration_ms"]),
             offset=tuple(int(v) for v in data.get("offset", (0, 0))),  # type: ignore[arg-type]
+            flip_x=bool(data.get("flip_x", False)),
+            flip_y=bool(data.get("flip_y", False)),
         )
 
 
@@ -208,8 +217,8 @@ class AFrame:
 class Animation:
     id: str
     name: str
-    playback_type: str
-    loop_count: Optional[int]
+    playback_type: str = "Loop"
+    loop_count: Optional[int] = 0
     aframes: List[AFrame] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -226,10 +235,158 @@ class Animation:
         return Animation(
             id=data["id"],
             name=data["name"],
-            playback_type=data["playback_type"],
+            playback_type=data.get("playback_type", "Loop"),
             loop_count=data.get("loop_count"),
             aframes=[AFrame.from_dict(af) for af in data.get("aframes", [])],
         )
+
+
+class AuroraSpriteParser:
+    """Parses AuroraGT .sprite format."""
+    
+    @staticmethod
+    def parse(content: str, base_path: str) -> "Project":
+        project = Project()
+        
+        # 1. Parse Images
+        image_pattern = re.compile(r'IMAGE\s+(0x[\da-fA-F]+)\s+"([^"]+)"')
+        images_map = {} # Map index to absolute path
+        
+        image_index = 0
+        for match in image_pattern.finditer(content):
+            img_hex_id, filename = match.groups()
+            
+            # Construct absolute path
+            abs_path = os.path.join(base_path, filename)
+            
+            # Create ImageAsset
+            # Using filename as ID or hex ID? 
+            # Modules refer to it by index in my previous logic, but actually 
+            # MD line has `MD_IMAGE 0` (index?) or `MD_IMAGE id`?
+            # Start of file: IMAGE 0x0001 "..."
+            # Module line: MD 0x1000 MD_IMAGE 0 ...
+            # The '0' is likely the image index in the list of IMAGE definitions.
+            
+            # Let's create an asset
+            # We use abs_path as ID to deduplicate? Or just use the hex ID?
+            # Let's use the absolute path as ID for simplicity in loading, 
+            # Or better, generate a clean ID and store path.
+            
+            # In existing code, I used images list to look up by index.
+            images_map[image_index] = abs_path
+            
+            # Add to project.images so app can load it
+            # We don't know width/height yet without loading, but ImageAsset requires it.
+            # We can put 0, 0 for now or try to check file? 
+            # app.py might load it.
+            # Actually, standard flow: App loads Project -> App loads Bitmaps from Assets.
+            
+            img_asset = ImageAsset(
+                id=abs_path, # Use path as ID so Modules can reference it easily
+                file_path=abs_path,
+                width=0, # Unknown until load
+                height=0 
+            )
+            project.images.append(img_asset)
+            image_index += 1
+
+        # 2. Parse Modules
+        md_pattern = re.compile(r'MD\s+(0x[\da-fA-F]+)\s+MD_IMAGE\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+"([^"]+)"')
+        
+        for match in md_pattern.finditer(content):
+            md_id, img_idx, x, y, w, h, name = match.groups()
+            
+            img_idx_int = int(img_idx)
+            # Lookup path
+            img_path = images_map.get(img_idx_int, "missing.png")
+            
+            module = Module(
+                id=md_id, # Keep Hex ID
+                name=name,
+                image_id=img_path, # This matches the ImageAsset.id we set above
+                rect=(int(x), int(y), int(w), int(h)),
+                pivot=(0, 0)
+            )
+            project.modules.append(module)
+
+        # 3. Parse Frames and Animations using line scanning
+        current_block = None
+        current_obj = None
+        
+        lines = content.splitlines()
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            i += 1
+            if not line or line.startswith("//"):
+                continue
+                
+            if line.startswith("FRAME"):
+                match = re.search(r'FRAME\s+"([^"]+)"', line)
+                if match:
+                    name = match.group(1)
+                    current_block = "FRAME"
+                    current_obj = Frame(id=generate_id("frm"), name=name)
+                    
+            elif line.startswith("ANIM"):
+                match = re.search(r'ANIM\s+"([^"]+)"', line)
+                if match:
+                    name = match.group(1)
+                    current_block = "ANIM"
+                    current_obj = Animation(id=generate_id("anim"), name=name)
+                    
+            elif line.startswith("}"):
+                if current_block == "FRAME":
+                    if isinstance(current_obj, Frame):
+                        project.frames.append(current_obj)
+                elif current_block == "ANIM":
+                    if isinstance(current_obj, Animation):
+                        project.animations.append(current_obj)
+                current_block = None
+                current_obj = None
+            else:
+                if current_block == "FRAME" and isinstance(current_obj, Frame):
+                    if re.match(r'^0x[\da-fA-F]+$', line):
+                        current_obj.id = line
+                    elif line.startswith("FM"):
+                        parts = line.split()
+                        ref_id = parts[1]
+                        ox = int(parts[2])
+                        oy = int(parts[3])
+                        
+                        flip_x = "+FLIP_X" in line
+                        flip_y = "+FLIP_Y" in line
+                        
+                        fmod = FModule(
+                            id=generate_id("fmod"),
+                            ref_type="module",
+                            ref_id=ref_id,
+                            position=(ox, oy),
+                            flip_x=flip_x,
+                            flip_y=flip_y
+                        )
+                        current_obj.fmodules.append(fmod)
+                        
+                elif current_block == "ANIM" and isinstance(current_obj, Animation):
+                    if re.match(r'^0x[\da-fA-F]+$', line):
+                        current_obj.id = line
+                    elif line.startswith("AF"):
+                        parts = line.split()
+                        ref_id = parts[1]
+                        duration = int(parts[2])
+                        ox = int(parts[3])
+                        oy = int(parts[4])
+                        flip_x = "+FLIP_X" in line
+                        
+                        af = AFrame(
+                            frame_id=ref_id,
+                            duration_ms=duration, # Assuming these are ticks/ms
+                            offset=(ox, oy),
+                            flip_x=flip_x
+                        )
+                        current_obj.aframes.append(af)
+
+        return project
 
 
 class Project:
@@ -239,7 +396,6 @@ class Project:
         self.frames: List[Frame] = []
         self.animations: List[Animation] = []
 
-    # Lookup helpers
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
         return next((img for img in self.images if img.id == image_id), None)
 
@@ -252,7 +408,23 @@ class Project:
     def get_animation(self, animation_id: str) -> Optional[Animation]:
         return next((a for a in self.animations if a.id == animation_id), None)
 
-    # Persistence
+    def frame_has_cycle(self, frame_id: str) -> bool:
+        visited = set()
+        def visit(fid: str, stack: List[str]) -> bool:
+            if fid in stack:
+                return True
+            frame = self.get_frame(fid)
+            if not frame:
+                return False
+            stack.append(fid)
+            for fm in frame.fmodules:
+                if fm.ref_type == "frame" and visit(fm.ref_id, stack):
+                    return True
+            stack.pop()
+            visited.add(fid)
+            return False
+        return visit(frame_id, [])
+
     def to_dict(self) -> Dict:
         return {
             "images": [img.to_dict() for img in self.images],
@@ -276,59 +448,11 @@ class Project:
 
     @staticmethod
     def from_json(path: str) -> "Project":
-        with open(path, "r", encoding="utf-8") as f:
+        if path.endswith(".sprite"):
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            return AuroraSpriteParser.parse(content, os.path.dirname(path))
+            
+        with open(path, "r") as f:
             data = json.load(f)
         return Project.from_dict(data)
-
-    # Cycle detection for frames that nest frames
-    def frame_has_cycle(self, frame_id: str) -> bool:
-        visited = set()
-
-        def visit(fid: str, stack: List[str]) -> bool:
-            if fid in stack:
-                return True
-            frame = self.get_frame(fid)
-            if not frame:
-                return False
-            stack.append(fid)
-            for fm in frame.fmodules:
-                if fm.ref_type == "frame" and visit(fm.ref_id, stack):
-                    return True
-            stack.pop()
-            visited.add(fid)
-            return False
-
-        return visit(frame_id, [])
-
-    # Convenience creators
-    def create_image(self, file_path: str, width: int, height: int) -> ImageAsset:
-        image = ImageAsset(
-            id=generate_id("img"), file_path=file_path, width=width, height=height
-        )
-        self.images.append(image)
-        return image
-
-    def create_module(
-        self, name: str, image_id: str, rect: Tuple[int, int, int, int], pivot: Tuple[int, int]
-    ) -> Module:
-        module = Module(
-            id=generate_id("mod"), name=name, image_id=image_id, rect=rect, pivot=pivot
-        )
-        self.modules.append(module)
-        return module
-
-    def create_frame(self, name: str) -> Frame:
-        frame = Frame(id=generate_id("frm"), name=name)
-        self.frames.append(frame)
-        return frame
-
-    def create_animation(self, name: str) -> Animation:
-        anim = Animation(
-            id=generate_id("anim"),
-            name=name,
-            playback_type="loop",
-            loop_count=-1,
-            aframes=[],
-        )
-        self.animations.append(anim)
-        return anim

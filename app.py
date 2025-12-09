@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
+import sys
 from typing import Optional
 
 import wx
@@ -11,10 +14,63 @@ from ui.animation_editor import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.module_editor import ModuleEditorPanel
 
+APP_NAME = "Modular Sprite Editor"
+
+def _mac_force_app_menu_title(title: str) -> None:
+    """macOS-only: override the application menu title when running under Python."""
+    if sys.platform != "darwin":
+        return
+
+    try:
+        objc_path = ctypes.util.find_library("objc")
+        if not objc_path:
+            return
+
+        objc = ctypes.cdll.LoadLibrary(objc_path)
+        objc.objc_getClass.restype = ctypes.c_void_p
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+
+        def cls(name: str) -> ctypes.c_void_p:
+            return objc.objc_getClass(name.encode("utf-8"))
+
+        def sel(name: str) -> ctypes.c_void_p:
+            return objc.sel_registerName(name.encode("utf-8"))
+
+        # Create small helpers with concrete signatures to avoid ctypes restype errors.
+        msg = objc.objc_msgSend
+        msg.restype = ctypes.c_void_p
+        msg.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        msg_ccharp = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_char_p)(("objc_msgSend", objc))
+        msg_long = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_long)(("objc_msgSend", objc))
+        msg_void = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(("objc_msgSend", objc))
+
+        ns_app = msg(cls("NSApplication"), sel("sharedApplication"))
+        if not ns_app:
+            return
+
+        main_menu = msg(ns_app, sel("mainMenu"))
+        if not main_menu:
+            return
+
+        first_item = msg_long(main_menu, sel("itemAtIndex:"), 0)
+        if not first_item:
+            return
+
+        ns_title = msg_ccharp(cls("NSString"), sel("stringWithUTF8String:"), title.encode("utf-8"))
+        if not ns_title:
+            return
+
+        msg_void(first_item, sel("setTitle:"), ns_title)
+    except Exception:
+        # If anything goes wrong, leave the default title to avoid crashing the app.
+        pass
+
 
 class MainFrame(wx.Frame):
     def __init__(self) -> None:
-        super().__init__(None, title="Modular Sprite Editor", size=(1200, 800))
+        super().__init__(None, title=APP_NAME, size=(1200, 800))
         self.project: Project = Project()
         self.current_path: Optional[str] = None
 
@@ -35,33 +91,53 @@ class MainFrame(wx.Frame):
         sizer.Add(self.book, 1, wx.EXPAND)
         self.SetSizer(sizer)
 
-        self.Bind(wx.EVT_TOOL, self.on_switch_tool)
-        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.toolbar.Bind(wx.EVT_TOOL, self.on_switch_tool)
 
     # UI construction
     def _build_menu(self) -> None:
         menubar = wx.MenuBar()
         file_menu = wx.Menu()
-        self.m_new = file_menu.Append(wx.ID_NEW, "&New\tCtrl+N")
-        self.m_open = file_menu.Append(wx.ID_OPEN, "&Open...\tCtrl+O")
-        self.m_save = file_menu.Append(wx.ID_SAVE, "&Save\tCtrl+S")
-        self.m_save_as = file_menu.Append(wx.ID_SAVEAS, "Save &As...")
-        file_menu.AppendSeparator()
-        self.m_quit = file_menu.Append(wx.ID_EXIT, "Quit")
+        
+        # Standard items, simplified accelerators to avoid parsing issues
+        self.m_open = file_menu.Append(wx.ID_OPEN, "&Open...\tCtrl+O", "Open an existing project")
+        self.m_save = file_menu.Append(wx.ID_SAVE, "&Save\tCtrl+S", "Save the current project")
+        self.m_save_as = file_menu.Append(wx.ID_ANY, "Save &As...\tCtrl+Shift+S", "Save with a new name")
+        #file_menu.AppendSeparator()
+        
+        file_menu.Bind(wx.EVT_MENU, self.on_save_as, self.m_save_as)
+        file_menu.Bind(wx.EVT_MENU, self.on_open, self.m_open)
+        file_menu.Bind(wx.EVT_MENU, self.on_save, self.m_save)
+        
         menubar.Append(file_menu, "&File")
-        menubar.Append(wx.Menu(), "&Edit")
-        menubar.Append(wx.Menu(), "&View")
-        menubar.Append(wx.Menu(), "&Help")
+
         self.SetMenuBar(menubar)
 
-        self.Bind(wx.EVT_MENU, self.on_new, self.m_new)
-        self.Bind(wx.EVT_MENU, self.on_open, self.m_open)
-        self.Bind(wx.EVT_MENU, self.on_save, self.m_save)
-        self.Bind(wx.EVT_MENU, self.on_save_as, self.m_save_as)
-        self.Bind(wx.EVT_MENU, lambda _: self.Close(), self.m_quit)
+        # Explicit accelerator table for reliability (Cmd on macOS, Ctrl elsewhere)
+        """
+        accel = wx.AcceleratorTable(
+            [
+                (wx.ACCEL_CMD, ord("N"), wx.ID_NEW),
+                (wx.ACCEL_CMD, ord("O"), wx.ID_OPEN),
+                (wx.ACCEL_CMD, ord("S"), wx.ID_SAVE),
+                (wx.ACCEL_CMD | wx.ACCEL_SHIFT, ord("S"), ID_SAVE_AS),
+                #(wx.ACCEL_CMD, ord("Q"), ID_QUIT_APP),
+            ]
+        )
+        self.SetAcceleratorTable(accel)
+        """
+
+        _mac_force_app_menu_title(APP_NAME)
+
+
 
     def _add_toolbar_tools(self) -> None:
         size = (24, 24)
+        
+        # File Tools
+        #self.toolbar.AddTool(wx.ID_OPEN, "Open", wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_TOOLBAR, size))
+        #self.toolbar.AddTool(wx.ID_SAVE, "Save", wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_TOOLBAR, size))
+        #self.toolbar.AddSeparator()
+        
         self.t_modules = self.toolbar.AddRadioTool(
             wx.ID_ANY, "Modules", self._make_icon("modules", size)
         )
@@ -121,7 +197,7 @@ class MainFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Open project",
-            wildcard="JSON files (*.json)|*.json",
+            wildcard="JSON files (*.json)|*.json|AuroraGT Sprite (*.sprite)|*.sprite",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         ) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
@@ -139,20 +215,40 @@ class MainFrame(wx.Frame):
         wx.MessageBox(f"Saved to {self.current_path}", "Saved")
 
     def on_save_as(self, _: wx.CommandEvent) -> None:
-        with wx.FileDialog(
+        print("DEBUG: Save As triggered")
+        try:
+            with wx.FileDialog(
+                self,
+                "Save project",
+                wildcard="JSON files (*.json)|*.json",
+                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+            ) as dlg:
+                if dlg.ShowModal() != wx.ID_OK:
+                    return
+                path = dlg.GetPath()
+                if not path.lower().endswith(".json"):
+                    path += ".json"
+                self.project.to_json(path)
+                self.current_path = path
+                wx.MessageBox(f"Saved to {path}", "Saved")
+        except Exception as exc:
+            wx.LogError(f"Save As failed: {exc}")
+
+
+    def on_about(self, _: wx.CommandEvent) -> None:
+        wx.MessageBox(
+            "Modular Sprite Editor\nA simple modular sprite editing tool built with wxPython.",
+            f"About {APP_NAME}",
+            wx.OK | wx.ICON_INFORMATION,
             self,
-            "Save project",
-            wildcard="JSON files (*.json)|*.json",
-            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
-        ) as dlg:
-            if dlg.ShowModal() != wx.ID_OK:
-                return
-            path = dlg.GetPath()
-            if not path.lower().endswith(".json"):
-                path += ".json"
-            self.project.to_json(path)
-            self.current_path = path
-            wx.MessageBox(f"Saved to {path}", "Saved")
+        )
+
+    def on_preferences(self, _: wx.CommandEvent) -> None:
+        wx.MessageBox("Preferences are not implemented yet.", "Preferences", wx.OK, self)
+
+    def _on_menu_debug(self, event: wx.CommandEvent) -> None:
+        print(f"MENU DEBUG: id={event.GetId()} source={event.GetEventObject()}")
+        event.Skip()
 
     def on_close(self, event: wx.CloseEvent) -> None:
         event.Skip()
@@ -160,6 +256,15 @@ class MainFrame(wx.Frame):
     # Toolbar switching
     def on_switch_tool(self, event: wx.CommandEvent) -> None:
         tool_id = event.GetId()
+        # Handle File Tools from Toolbar
+        if tool_id == wx.ID_OPEN:
+            self.on_open(event)
+            return
+        elif tool_id == wx.ID_SAVE:
+            self.on_save(event)
+            return
+
+        # Handle View Tools
         if tool_id == self.t_modules.GetId():
             self.book.ChangeSelection(0)
         elif tool_id == self.t_frames.GetId():
@@ -178,16 +283,24 @@ class MainFrame(wx.Frame):
         self.animation_editor.set_project(self.project)
 
 
+class SpriteEditorApp(wx.App):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Set names on the app instance so macOS uses them for the application menu.
+        self.SetAppName(APP_NAME)
+        self.SetAppDisplayName(APP_NAME)
+        self.SetVendorName(APP_NAME)
+        self.SetVendorDisplayName(APP_NAME)
+
+    def OnInit(self) -> bool:  # type: ignore[N802]
+        frame = MainFrame()
+        frame.Show()
+        self.SetTopWindow(frame)
+        return True
+
 def main() -> None:
-    app = wx.App()
-    frame = MainFrame()
-    app.SetTopWindow(frame)
-    frame.Show()
-    frame.Raise()
-    wx.CallAfter(frame.Raise)
-    wx.CallAfter(frame.SetFocus)
-    wx.CallLater(200, frame.Raise)
-    wx.CallLater(200, frame.SetFocus)
+    # redirect=False is CRITICAL to see console output if things go wrong
+    app = SpriteEditorApp(False)
     app.MainLoop()
 
 

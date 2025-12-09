@@ -13,34 +13,29 @@ import wx
 from models import ImageAsset, Module, Project, generate_id
 
 
-class ModuleCanvas(wx.Panel):
+from ui.base_canvas import BaseCanvas
+
+class ModuleCanvas(BaseCanvas):
     """Top-left origin canvas for selecting module rects and pivots."""
 
     def __init__(self, parent: wx.Window):
-        super().__init__(parent, style=wx.BORDER_SIMPLE)
+        super().__init__(parent)
         self.bitmap: Optional[wx.Bitmap] = None
         self.image_size: Tuple[int, int] = (0, 0)
         self.selection: Optional[Tuple[int, int, int, int]] = None
         self.pivot: Optional[Tuple[int, int]] = None
-        self.zoom: float = 1.0
-        self.pan: Tuple[float, float] = (0.0, 0.0)  # screen center equals world (0,0)
+        
         self.transparent_view: bool = True
-        self.selection_style: str = "active"  # "active" (filled) or "module" (outline only)
-        self.module_overlays: list[Tuple[Tuple[int, int, int, int], bool, str]] = []  # (rect, is_selected, id)
+        self.selection_style: str = "active"
+        self.module_overlays: list[Tuple[Tuple[int, int, int, int], bool, str]] = []
+        
         self._selecting = False
-        self._panning = False
-        self._panning_alt = False
         self._pivot_drag = False
         self._move_drag = False
         self._hover_pivot = False
-        self._last_clamp_time: float = 0.0
-        self._last_clamp_dir: int = 0  # 1 for max, -1 for min
-        self.show_grid: bool = True
-        self.grid_spacing: Tuple[int, int] = (32, 32)
-        self.transparent_view: bool = True
+        
         self.pick_mode: bool = False
         self.on_pick_color: Optional[Callable[[Tuple[float, float]], None]] = None
-        self.on_module_clicked: Optional[Callable[[str], None]] = None
         self.on_module_clicked: Optional[Callable[[str], None]] = None
         self.on_deselect: Optional[Callable[[], None]] = None
         self.on_edit_end: Optional[Callable[[], None]] = None
@@ -49,16 +44,11 @@ class ModuleCanvas(wx.Panel):
         self._resize_start_rect: Optional[Tuple[int, int, int, int]] = None
         self._move_start_rect: Optional[Tuple[int, int, int, int]] = None
         self._move_start_pivot: Optional[Tuple[int, int]] = None
-        self._start = wx.Point()
-        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.Bind(wx.EVT_PAINT, self.on_paint)
+        
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_left_up)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
-        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_pan_start)
-        self.Bind(wx.EVT_MIDDLE_UP, self.on_pan_end)
         self.Bind(wx.EVT_MOTION, self.on_mouse_move)
-        self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
         self.on_selection_changed: Optional[Callable[[Optional[Tuple[int, int, int, int]]], None]] = None
@@ -71,17 +61,7 @@ class ModuleCanvas(wx.Panel):
                  self.on_delete()
         event.Skip()
 
-    # Transform helpers
-    def world_to_screen(self, pt: Tuple[float, float]) -> Tuple[float, float]:
-        cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
-        return (cx + (pt[0] + self.pan[0]) * self.zoom, cy + (pt[1] + self.pan[1]) * self.zoom)
 
-    def screen_to_world(self, pt: wx.Point) -> Tuple[float, float]:
-        cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
-        return (
-            (pt.x - cx) / self.zoom - self.pan[0],
-            (pt.y - cy) / self.zoom - self.pan[1],
-        )
 
     def set_bitmap(self, bmp: Optional[wx.Bitmap], size: Tuple[int, int], reset_state: bool = True) -> None:
         self.bitmap = bmp
@@ -98,69 +78,6 @@ class ModuleCanvas(wx.Panel):
         self, overlays: list[Tuple[Tuple[int, int, int, int], bool, str]]
     ) -> None:
         self.module_overlays = overlays
-        self.Refresh(False)
-
-    def set_view_state(self, pan: Tuple[float, float], zoom: float) -> None:
-        self.pan = pan
-        self.zoom = zoom
-        self.Refresh(False)
-
-    def center_view(self, world_pt: Tuple[float, float]) -> None:
-        self.pan = (-world_pt[0], -world_pt[1])
-        self.Refresh(False)
-
-    def get_view_state(self) -> Tuple[Tuple[float, float], float]:
-        return (self.pan, self.zoom)
-
-    def set_grid_spacing(self, spacing: Tuple[int, int]) -> None:
-        self.grid_spacing = spacing
-        self.Refresh(False)
-
-    def set_show_grid(self, show: bool) -> None:
-        self.show_grid = show
-        self.Refresh(False)
-
-    # Events
-    def on_mousewheel(self, event: wx.MouseEvent) -> None:
-        rotation = event.GetWheelRotation()
-        factor = 1.1 if rotation > 0 else 0.9
-        now = time.monotonic()
-        max_zoom = 32.0
-        min_zoom = 1.0
-        # Ignore if already clamped and trying to go further, and swallow quick bounce-back
-        if rotation > 0 and self.zoom >= max_zoom - 1e-5:
-            self._last_clamp_time = now
-            self._last_clamp_dir = 1
-            return
-        if rotation < 0 and self.zoom <= min_zoom + 1e-5:
-            self._last_clamp_time = now
-            self._last_clamp_dir = -1
-            return
-        if self._last_clamp_dir == 1 and rotation < 0 and (now - self._last_clamp_time) < 0.2:
-            return
-        if self._last_clamp_dir == -1 and rotation > 0 and (now - self._last_clamp_time) < 0.2:
-            return
-
-        old_zoom = self.zoom
-        new_zoom = max(min_zoom, min(max_zoom, self.zoom * factor))
-        if abs(new_zoom - old_zoom) < 1e-6:
-            return
-        mouse_pos = event.GetPosition()
-        world_before = self.screen_to_world(mouse_pos)
-        self.zoom = new_zoom
-        cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
-        self.pan = (
-            (mouse_pos.x - cx) / new_zoom - world_before[0],
-            (mouse_pos.y - cy) / new_zoom - world_before[1],
-        )
-        if self.zoom >= max_zoom - 1e-5 and rotation > 0:
-            self._last_clamp_time = now
-            self._last_clamp_dir = 1
-        elif self.zoom <= min_zoom + 1e-5 and rotation < 0:
-            self._last_clamp_time = now
-            self._last_clamp_dir = -1
-        else:
-            self._last_clamp_dir = 0
         self.Refresh(False)
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
@@ -287,15 +204,6 @@ class ModuleCanvas(wx.Panel):
         # Prevent right-click (Ctrl+Click on Mac) from moving pivot
         # Pivot movement is now strictly Shift+Left Click (Priority 2 in on_left_down)
         pass
-
-    def on_pan_start(self, event: wx.MouseEvent) -> None:
-        self._panning = True
-        self._start = event.GetPosition()
-        self.CaptureMouse()
-
-    def on_pan_end(self, _: wx.MouseEvent) -> None:
-        if self.HasCapture():
-            self.ReleaseMouse()
         self._panning = False
 
     def on_mouse_move(self, event: wx.MouseEvent) -> None:
@@ -553,16 +461,7 @@ class ModuleCanvas(wx.Panel):
             gc.StrokeLine(round(x0), round(y0), round(x0), round(y1))
             gc.StrokeLine(round(x1), round(y0), round(x1), round(y1))
 
-    def _draw_checkerboard(self, dc: wx.DC) -> None:
-        size = self.GetClientSize()
-        step = 8
-        c1 = wx.Colour(60, 60, 60)
-        c2 = wx.Colour(80, 80, 80)
-        for y in range(0, size.height, step):
-            for x in range(0, size.width, step):
-                dc.SetBrush(wx.Brush(c1 if (x // step + y // step) % 2 == 0 else c2))
-                dc.SetPen(wx.TRANSPARENT_PEN)
-                dc.DrawRectangle(x, y, step, step)
+
 
     def set_transparent_view(self, enable: bool) -> None:
         self.transparent_view = enable
