@@ -67,9 +67,14 @@ class FrameCanvas(BaseCanvas):
             self._draw_message(gc, "No frame selected")
             return
         
-        # Sort by Z-order for drawing (back to front)
-        for fm in sorted(self.frame.fmodules, key=lambda f: f.z_order):
-            self._draw_fmodule(gc, fm)
+        # Draw modules in list order (first in list = back, drawn first)
+        for fm in self.frame.fmodules:
+            self._draw_fmodule_content(gc, fm)
+            
+        # Pas 2: Draw Selection Overlays (on top of all content)
+        for fm in self.frame.fmodules:
+            if fm.id in self.selected_fmodules:
+                self._draw_fmodule_overlay(gc, fm)
             
         if self.show_collision:
             for rect in self.frame.collision_rects:
@@ -84,7 +89,7 @@ class FrameCanvas(BaseCanvas):
         cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
         gc.DrawText(text, cx - tw / 2, cy - th / 2)
 
-    def _draw_fmodule(self, gc: wx.GraphicsContext, fm: FModule) -> None:
+    def _draw_fmodule_content(self, gc: wx.GraphicsContext, fm: FModule) -> None:
         bounds = self._fmodule_bounds(fm)
         x0, y0, x1, y1 = bounds
         sx0, sy0 = self.world_to_screen((x0, y0))
@@ -98,17 +103,28 @@ class FrameCanvas(BaseCanvas):
                  bmp = self._get_module_bitmap(mod)
                  if bmp:
                      # High Quality (Nearest Neighbor) Scaling hack for GraphicsContext
-                     # GraphicsContext tends to blur. We rescale the image manually to 
-                     # the target screen size using NEAREST, then draw it 1:1.
-                     
                      target_w, target_h = int(round(w)), int(round(h))
                      if target_w > 0 and target_h > 0:
                          img = bmp.ConvertToImage()
+                         
+                         # Apply flipping
+                         if fm.flip_x:
+                             img = img.Mirror(horizontally=True)
+                         if fm.flip_y:
+                             img = img.Mirror(horizontally=False) # Vertical flip
+                             
                          img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
                          scaled_bmp = img.ConvertToBitmap()
                          
                          gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
-        
+
+    def _draw_fmodule_overlay(self, gc: wx.GraphicsContext, fm: FModule) -> None:
+        bounds = self._fmodule_bounds(fm)
+        x0, y0, x1, y1 = bounds
+        sx0, sy0 = self.world_to_screen((x0, y0))
+        sx1, sy1 = self.world_to_screen((x1, y1))
+        w, h = sx1 - sx0, sy1 - sy0
+
         # Selection Outline
         if fm.id in self.selected_fmodules:
             gc.SetBrush(wx.TRANSPARENT_BRUSH)
@@ -116,22 +132,9 @@ class FrameCanvas(BaseCanvas):
             gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=1, style=wx.PENSTYLE_SHORT_DASH))
             gc.DrawRectangle(sx0, sy0, w, h)
             
-        # Draw label if zoomed out? 
-        # User said "very blurry", so they are looking closely. 
-        # Maybe skip label if image is drawn? 
-        # Only draw label if zoom is sufficient AND (selected OR no image found)
-        # For now, keep label logic but maybe fade it?
-        
-        label = f"{fm.ref_type}:{fm.ref_id}"
-        # Only draw label if zoom is big enough
-        if self.zoom > 0.5 and self.show_grid: # show_grid is proxy for 'debug info'?
-             pass # Skip label per visual request ("crisp pixel look", text distracts?)
-             # Or keep it minimal.
-             
-        if fm.id in self.selected_fmodules:
-             # Draw label
-             gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
-             # gc.DrawText(label, sx0 + 4, sy0 - 20) # Draw above?
+            # Draw label
+            gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
+            # gc.DrawText(label, sx0 + 4, sy0 - 20) # Draw above?
 
     def _get_pivot_offset(self, fm: FModule) -> Tuple[int, int]:
         if fm.ref_type == "module":
@@ -213,9 +216,15 @@ class FrameCanvas(BaseCanvas):
         self.Refresh(False)
 
     # Helpers
+    def hit_test(self, world_pt: Tuple[float, float]) -> Optional[FModule]:
+        return self._hit_test(world_pt)
+
     def _hit_test(self, world_pt: Tuple[float, float]) -> Optional[FModule]:
-        # Reverse iterate for Z-order (top first)
-        for fm in reversed(sorted(self.frame.fmodules, key=lambda f: f.z_order)):
+        if not self.frame:
+            return None
+            
+        # Iterate reversed (last in list = top, check timestamps first)
+        for fm in reversed(self.frame.fmodules):
             x0, y0, x1, y1 = self._fmodule_bounds(fm)
             if x0 <= world_pt[0] <= x1 and y0 <= world_pt[1] <= y1:
                 return fm
@@ -291,8 +300,7 @@ class FrameCanvas(BaseCanvas):
             ref_type="module",
             ref_id=module_id,
             position=(int(world_pt[0]), int(world_pt[1])),
-            flip_x=False, flip_y=False, rotation_degrees=0.0,
-            z_order=len(self.frame.fmodules)
+            flip_x=False, flip_y=False, rotation_degrees=0.0
         )
         self.frame.fmodules.append(fm)
         self.Refresh(False)

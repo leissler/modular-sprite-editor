@@ -159,6 +159,146 @@ class FrameEditorPanel(wx.Panel):
         
         self.palette.refresh_modules()
         self.refresh_frames()
+        
+        # Canvas Interaction Events
+        # Canvas Interaction Events
+        self.canvas.Bind(wx.EVT_RIGHT_DOWN, self.on_canvas_right_down)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_key_down)
+
+    def on_canvas_right_down(self, event: wx.MouseEvent):
+        # Hit test to see if we clicked a module
+        pos = self.canvas.screen_to_world(event.GetPosition())
+        clicked_fmod = self.canvas.hit_test(pos)
+        
+        menu = wx.Menu()
+        
+        if clicked_fmod:
+            # clicked_fmod is an object, but selected_fmodules stores IDs
+            if clicked_fmod.id not in self.canvas.selected_fmodules:
+                self.canvas.selected_fmodules = [clicked_fmod.id]
+                self.canvas.Refresh()
+                
+            # Module actions
+            flip_x_item = menu.Append(wx.ID_ANY, "Flip Horizontal (X)")
+            flip_y_item = menu.Append(wx.ID_ANY, "Flip Vertical (Y)")
+            menu.AppendSeparator()
+            
+            # Use ID for binding, binding to item object is flaky depending on wx version/context
+            self.Bind(wx.EVT_MENU, self.on_flip_x, id=flip_x_item.GetId())
+            self.Bind(wx.EVT_MENU, self.on_flip_y, id=flip_y_item.GetId())
+            
+            menu.AppendSeparator()
+            menu.AppendSeparator()
+            z_up_item = menu.Append(wx.ID_ANY, "Move Forward (Cmd \u2191)")
+            z_down_item = menu.Append(wx.ID_ANY, "Move Backwards (Cmd \u2193)")
+            z_top_item = menu.Append(wx.ID_ANY, "To Front (Shift Cmd \u2191)")
+            z_bottom_item = menu.Append(wx.ID_ANY, "To Back (Shift Cmd \u2193)")
+            
+            self.Bind(wx.EVT_MENU, lambda e: self._change_z_order("up"), id=z_up_item.GetId())
+            self.Bind(wx.EVT_MENU, lambda e: self._change_z_order("down"), id=z_down_item.GetId())
+            self.Bind(wx.EVT_MENU, lambda e: self._change_z_order("top"), id=z_top_item.GetId())
+            self.Bind(wx.EVT_MENU, lambda e: self._change_z_order("bottom"), id=z_bottom_item.GetId())
+            
+            menu.AppendSeparator()
+            delete_item = menu.Append(wx.ID_ANY, "Delete (Del/Backspace)")
+            self.Bind(wx.EVT_MENU, lambda e: self._delete_selected_modules(), id=delete_item.GetId())
+
+        if menu.GetMenuItemCount() > 0:
+            self.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_flip_x(self, event):
+        self._toggle_flip(param="x")
+
+    def on_flip_y(self, event):
+        self._toggle_flip(param="y")
+
+    def _toggle_flip(self, param: str):
+         frame = self.canvas.frame
+         if not frame: return
+         
+         changed = False
+         for fm in frame.fmodules:
+             if fm.id in self.canvas.selected_fmodules:
+                 if param == "x":
+                     fm.flip_x = not fm.flip_x
+                 elif param == "y":
+                     fm.flip_y = not fm.flip_y
+                 changed = True
+         
+         if changed:
+             self.canvas.Refresh()
+
+    def _change_z_order(self, direction: str):
+        if not self.canvas.frame or not self.canvas.selected_fmodules:
+            return
+            
+        target_id = self.canvas.selected_fmodules[0]
+        fmodules = self.canvas.frame.fmodules
+        
+        # 1. Find index
+        try:
+            current_idx = next(i for i, f in enumerate(fmodules) if f.id == target_id)
+        except StopIteration:
+            return
+            
+        # 2. Modify List
+        if direction == "up":
+            if current_idx < len(fmodules) - 1:
+                fmodules[current_idx], fmodules[current_idx+1] = fmodules[current_idx+1], fmodules[current_idx]
+        elif direction == "down":
+            if current_idx > 0:
+                fmodules[current_idx], fmodules[current_idx-1] = fmodules[current_idx-1], fmodules[current_idx]
+        elif direction == "top":
+            item = fmodules.pop(current_idx)
+            fmodules.append(item)
+        elif direction == "bottom":
+            item = fmodules.pop(current_idx)
+            fmodules.insert(0, item)
+            
+        self.canvas.Refresh()
+
+    def _delete_selected_modules(self):
+        if not self.canvas.frame or not self.canvas.selected_fmodules:
+            return
+            
+        # Ensure we don't modify list while iterating if we were doing that
+        # Rebuild list excluding deleted ones
+        selected = set(self.canvas.selected_fmodules)
+        new_list = [fm for fm in self.canvas.frame.fmodules if fm.id not in selected]
+        
+        self.canvas.frame.fmodules = new_list
+        self.canvas.selected_fmodules = []
+        self.canvas.Refresh()
+
+    def on_key_down(self, event: wx.KeyEvent):
+        # Checking if canvas or panel has focus might be needed, 
+        # but CHAR_HOOK catches globally in this window.
+        keycode = event.GetKeyCode()
+        
+        # Only process if we are visible?
+        if not self.IsShownOnScreen():
+            event.Skip()
+            return
+
+        if keycode == ord('X'):
+            self._toggle_flip("x")
+        elif keycode == ord('Y'):
+            self._toggle_flip("y")
+        elif (keycode == wx.WXK_UP) and (event.CmdDown() or event.ControlDown()):
+             if event.ShiftDown():
+                 self._change_z_order("top")
+             else:
+                 self._change_z_order("up")
+        elif (keycode == wx.WXK_DOWN) and (event.CmdDown() or event.ControlDown()):
+             if event.ShiftDown():
+                 self._change_z_order("bottom")
+             else:
+                 self._change_z_order("down")
+        elif keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK:
+             self._delete_selected_modules()
+        else:
+            event.Skip()
 
     def on_auto_create_frame(self) -> Optional[Frame]:
         # Called by canvas when dropping on empty
@@ -200,7 +340,14 @@ class FrameEditorPanel(wx.Panel):
             self.canvas.set_frame(frame)
     
     def on_add_frame(self, _):
-        frame = self.project.create_frame(f"Frame {len(self.project.frames)+1}")
+        # Manually create frame (models.py doesn't have create_frame helper on Project)
+        new_frame_id = generate_id("frm")
+        frame = Frame(
+            id=new_frame_id,
+            name=f"Frame {len(self.project.frames)+1}"
+        )
+        self.project.frames.append(frame)
+        
         self.selected_frame_id = frame.id
         self.refresh_frames(select_id=frame.id)
         self.canvas.set_frame(frame)

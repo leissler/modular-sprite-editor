@@ -81,7 +81,6 @@ class FModule:
     flip_x: bool = False
     flip_y: bool = False
     rotation_degrees: float = 0.0
-    z_order: int = 0
 
     def to_dict(self) -> Dict:
         return {
@@ -92,7 +91,6 @@ class FModule:
             "flip_x": self.flip_x,
             "flip_y": self.flip_y,
             "rotation_degrees": self.rotation_degrees,
-            "z_order": self.z_order,
         }
 
     @staticmethod
@@ -106,7 +104,6 @@ class FModule:
             flip_x=bool(data.get("flip_x", False)),
             flip_y=bool(data.get("flip_y", False)),
             rotation_degrees=float(data.get("rotation_degrees", 0.0)),
-            z_order=int(data.get("z_order", 0)),
         )
 
 
