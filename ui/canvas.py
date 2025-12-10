@@ -173,23 +173,56 @@ class FrameCanvas(BaseCanvas):
         clicked = self._hit_test(pos_world)
         
         if clicked:
-            self.selected_fmodules = [clicked.id]
-            self._dragging_ids = [clicked.id]
+            if event.ShiftDown():
+                if clicked.id in self.selected_fmodules:
+                    self.selected_fmodules.remove(clicked.id)
+                else:
+                    self.selected_fmodules.append(clicked.id)
+            else:
+                if clicked.id not in self.selected_fmodules:
+                    self.selected_fmodules = [clicked.id]
+                # If already selected, do not clear others (allows group drag)
+                
+            self._dragging_ids = self.selected_fmodules[:]
             self._drag_start_world = pos_world
-            self._drag_start_positions = {clicked.id: clicked.position}
+            
+            # Record start positions for ALL dragging modules
+            self._drag_start_positions = {}
+            for mid in self._dragging_ids:
+                fm = next((f for f in self.frame.fmodules if f.id == mid), None)
+                if fm:
+                    self._drag_start_positions[mid] = fm.position
+                    
             self.CaptureMouse()
             if self.on_selection_changed:
                 self.on_selection_changed(self.selected_fmodules)
         else:
-            self.selected_fmodules = []
-            if self.on_selection_changed:
-                self.on_selection_changed([])
+            if not event.ShiftDown():
+                self.selected_fmodules = []
+                if self.on_selection_changed:
+                    self.on_selection_changed([])
         self.Refresh(False)
 
     def on_left_up(self, event: wx.MouseEvent) -> None:
         if self._panning:
             self.on_pan_end(event)
         
+        # Check if this was a click (not a drag) on a multi-selection
+        if self._drag_start_world and not self._panning and not event.ShiftDown():
+            pos_world = self.screen_to_world(event.GetPosition())
+            dx = pos_world[0] - self._drag_start_world[0]
+            dy = pos_world[1] - self._drag_start_world[1]
+            dist_sq = dx*dx + dy*dy
+            
+            # If moved less than ~3 pixels, treat as click
+            if dist_sq < 9: 
+                clicked = self._hit_test(pos_world)
+                if clicked and len(self.selected_fmodules) > 1:
+                     self.selected_fmodules = [clicked.id]
+                     if self.on_selection_changed:
+                         self.on_selection_changed(self.selected_fmodules)
+                     self.Refresh(False)
+
         if self.HasCapture():
             self.ReleaseMouse()
         self._dragging_ids = []

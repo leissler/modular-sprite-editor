@@ -109,8 +109,22 @@ class ModulePalette(wx.ListCtrl):
             mid = self.module_ids[idx]
             text_data = wx.TextDataObject(f"MODULE:{mid}")
             source = wx.DropSource(self)
+            source = wx.DropSource(self)
             source.SetData(text_data)
             source.DoDragDrop(wx.Drag_CopyOnly)
+
+    def select_module(self, module_id: str):
+        try:
+            idx = self.module_ids.index(module_id)
+            # Deselect all
+            for i in range(self.GetItemCount()):
+                self.Select(i, on=False)
+            
+            # Select and scroll to item
+            self.Select(idx, on=True)
+            self.EnsureVisible(idx)
+        except ValueError:
+            pass # Module not found
 
 class FrameEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
@@ -127,6 +141,7 @@ class FrameEditorPanel(wx.Panel):
         # Frames List
         left_sizer.Add(wx.StaticText(left_panel, label="Frames"), 0, wx.ALL, 5)
         self.frame_list = wx.ListBox(left_panel)
+        self.frame_list.Bind(wx.EVT_CONTEXT_MENU, self.on_frame_list_context_menu)
         left_sizer.Add(self.frame_list, 1, wx.EXPAND | wx.ALL, 5)
         
         frame_btns = wx.BoxSizer(wx.HORIZONTAL)
@@ -164,6 +179,20 @@ class FrameEditorPanel(wx.Panel):
         # Canvas Interaction Events
         self.canvas.Bind(wx.EVT_RIGHT_DOWN, self.on_canvas_right_down)
         self.Bind(wx.EVT_CHAR_HOOK, self.on_key_down)
+
+        # Sync selection
+        self.canvas.on_selection_changed = self.on_canvas_selection_changed
+        
+    def on_canvas_selection_changed(self, selected_ids: List[str]):
+        if not selected_ids:
+            return
+            
+        # For now just sync different module types if one selected
+        # If multiple, maybe just the first one?
+        fid = selected_ids[0]
+        fm = next((f for f in self.project.get_frame(self.selected_frame_id).fmodules if f.id == fid), None)
+        if fm and fm.ref_type == "module":
+            self.palette.select_module(fm.ref_id)
 
     def on_canvas_right_down(self, event: wx.MouseEvent):
         # Hit test to see if we clicked a module
@@ -233,29 +262,51 @@ class FrameEditorPanel(wx.Panel):
         if not self.canvas.frame or not self.canvas.selected_fmodules:
             return
             
-        target_id = self.canvas.selected_fmodules[0]
         fmodules = self.canvas.frame.fmodules
+        selected_ids = set(self.canvas.selected_fmodules)
         
-        # 1. Find index
-        try:
-            current_idx = next(i for i, f in enumerate(fmodules) if f.id == target_id)
-        except StopIteration:
+        # Get indices of all selected items
+        # Create list of (index, item) tuples
+        indices = [i for i, f in enumerate(fmodules) if f.id in selected_ids]
+        
+        if not indices: 
             return
-            
-        # 2. Modify List
+
         if direction == "up":
-            if current_idx < len(fmodules) - 1:
-                fmodules[current_idx], fmodules[current_idx+1] = fmodules[current_idx+1], fmodules[current_idx]
+            # Move UP: Iterate from highest index down. 
+            # Swap with next item if next item is NOT selected.
+            # This allows a block to move up past unselected items, but stay relative to each other.
+            for i in reversed(indices):
+                if i < len(fmodules) - 1:
+                    # Check if next item is unselected. If it IS selected, we can't "move up" into it (it will move too)
+                    # Actually simpler: just swap with next if next is not in current active selection set (indices).
+                    # But we are modifying list in place.
+                    next_idx = i + 1
+                    if fmodules[next_idx].id not in selected_ids:
+                         fmodules[i], fmodules[next_idx] = fmodules[next_idx], fmodules[i]
+                         
         elif direction == "down":
-            if current_idx > 0:
-                fmodules[current_idx], fmodules[current_idx-1] = fmodules[current_idx-1], fmodules[current_idx]
+            # Move DOWN: Iterate from lowest index up.
+            for i in indices:
+                if i > 0:
+                    prev_idx = i - 1
+                    if fmodules[prev_idx].id not in selected_ids:
+                        fmodules[i], fmodules[prev_idx] = fmodules[prev_idx], fmodules[i]
+
         elif direction == "top":
-            item = fmodules.pop(current_idx)
-            fmodules.append(item)
-        elif direction == "bottom":
-            item = fmodules.pop(current_idx)
-            fmodules.insert(0, item)
+            # Extract all selected, append to end
+            # Maintain relative order of selected
+            selected_items = [fmodules[i] for i in indices]
+            # Remove from list (indices change, so filter)
+            fmodules[:] = [f for f in fmodules if f.id not in selected_ids]
+            fmodules.extend(selected_items)
             
+        elif direction == "bottom":
+             # Extract all selected, insert at front
+             selected_items = [fmodules[i] for i in indices]
+             fmodules[:] = [f for f in fmodules if f.id not in selected_ids]
+             fmodules[0:0] = selected_items
+             
         self.canvas.Refresh()
 
     def _delete_selected_modules(self):
@@ -317,6 +368,75 @@ class FrameEditorPanel(wx.Panel):
         if select_id and self.frame_list.GetSelection() == wx.NOT_FOUND:
             self.frame_list.SetSelection(wx.NOT_FOUND)
             
+    def on_frame_list_context_menu(self, event):
+        sel = self.frame_list.GetSelection()
+        if sel == wx.NOT_FOUND:
+            return
+            
+        fid = self.frame_list.GetClientData(sel)
+        
+        menu = wx.Menu()
+        dup_item = menu.Append(wx.ID_ANY, "Duplicate Frame")
+        menu.AppendSeparator()
+        flip_h_item = menu.Append(wx.ID_ANY, "Flip Horizontal (X)")
+        flip_v_item = menu.Append(wx.ID_ANY, "Flip Vertical (Y)")
+        
+        self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), id=dup_item.GetId())
+        self.Bind(wx.EVT_MENU, lambda e: self._flip_frame(fid, "x"), id=flip_h_item.GetId())
+        self.Bind(wx.EVT_MENU, lambda e: self._flip_frame(fid, "y"), id=flip_v_item.GetId())
+        
+        self.PopupMenu(menu)
+        menu.Destroy()
+        
+    def _duplicate_frame(self, fid: str):
+        frame = self.project.get_frame(fid)
+        if not frame: return
+        
+        # Deep copy via serialization
+        data = frame.to_dict()
+        new_frame = Frame.from_dict(data)
+        
+        # Ensure unique IDs
+        new_frame.id = generate_id("frame")
+        new_frame.name = f"{frame.name} (Copy)"
+        
+        # Regenerate FModule IDs to avoid sharing references
+        for fm in new_frame.fmodules:
+            fm.id = generate_id("fmod")
+            
+        self.project.frames.append(new_frame)
+        self.refresh_frames(select_id=new_frame.id)
+        self.on_select_frame(None) # Event arg ignored manually called
+        self.canvas.Refresh()
+
+    def _flip_frame(self, fid: str, axis: str):
+        frame = self.project.get_frame(fid)
+        if not frame: return
+        
+        for fm in frame.fmodules:
+            # Need module info for bounds/pivot compensation
+            mod = self.project.get_module(fm.ref_id)
+            if not mod: continue
+            
+            w, h = mod.rect[2], mod.rect[3]
+            px, py = mod.pivot
+            
+            if axis == "x":
+                # Flip X pos relative to 0 (origin)
+                # Formula: new_x = -old_x + (2*px - w)
+                # This compensates for the pivot remaining fixed in image-space even when flipped.
+                new_x = -fm.position[0] + (2 * px - w)
+                fm.position = (new_x, fm.position[1])
+                # Flip the module itself
+                fm.flip_x = not fm.flip_x
+            elif axis == "y":
+                # Formula: new_y = -old_y + (2*py - h)
+                new_y = -fm.position[1] + (2 * py - h)
+                fm.position = (fm.position[0], new_y)
+                fm.flip_y = not fm.flip_y
+                
+        self.canvas.Refresh()
+            
     def refresh_choices(self):
         """Called by app.py when switching tools."""
         self.palette.refresh_modules()
@@ -332,7 +452,7 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.set_frame(None)
 
     def on_select_frame(self, event):
-        idx = event.GetSelection()
+        idx = event.GetSelection() if event else self.frame_list.GetSelection()
         if idx != wx.NOT_FOUND:
             fid = self.frame_list.GetClientData(idx)
             self.selected_frame_id = fid

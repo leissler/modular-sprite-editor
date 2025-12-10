@@ -14,7 +14,7 @@ from ui.animation_editor import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.module_editor import ModuleEditorPanel
 
-APP_NAME = "Modular Sprite Editor"
+APP_NAME = "RetroSpine"
 
 def _mac_force_app_menu_title(title: str) -> None:
     """macOS-only: override the application menu title when running under Python."""
