@@ -126,22 +126,155 @@ class ModulePalette(wx.ListCtrl):
         except ValueError:
             pass # Module not found
 
+class FrameListDropTarget(wx.TextDropTarget):
+    def __init__(self, editor: FrameEditorPanel):
+        super().__init__()
+        self.editor = editor
+        self.last_item = -1
+        self.last_scroll_time = 0.0
+        self.last_line_y = -1
+        self.overlay = wx.Overlay()
+        
+    def _get_insertion_point(self, x, y) -> Tuple[int, int]:
+        """Calculates (insert_index, y_coord) for the insertion line."""
+        list_ctrl = self.editor.frame_list
+        idx, flags = list_ctrl.HitTest(wx.Point(x, y))
+        
+        if idx != wx.NOT_FOUND:
+            rect = list_ctrl.GetItemRect(idx)
+            mid = rect.y + rect.height // 2
+            
+            if y < mid:
+                # Insert Before
+                return idx, rect.y
+            else:
+                # Insert After
+                return idx + 1, rect.y + rect.height
+        else:
+            # Below limits?
+            count = list_ctrl.GetItemCount()
+            if count > 0:
+                rect = list_ctrl.GetItemRect(count - 1)
+                if y > rect.y + rect.height:
+                    return count, rect.y + rect.height
+                
+            # Empty list
+            if count == 0:
+                return 0, 0
+                
+            return wx.NOT_FOUND, -1
+        
+    def OnDragOver(self, x, y, defResult):
+        # Auto-scroll
+        # Throttled to avoid rocketing through the list
+        import time
+        now = time.time()
+        
+        list_ctrl = self.editor.frame_list
+        w, h = list_ctrl.GetClientSize()
+        
+        # Only scroll if "near edge" (overshoot isn't reliably detected by DropTarget)
+        should_scroll = False
+        scroll_dy = 0
+        
+        offset = 20
+        if y < offset:
+            scroll_dy = -20 # Scroll Up 20px
+            should_scroll = True
+        elif y > h - offset:
+            scroll_dy = 20 # Scroll Down 20px
+            should_scroll = True
+            
+        if should_scroll and (now - self.last_scroll_time > 0.1): # 0.1s throttle (~10 items/sec)
+            top = list_ctrl.GetTopItem()
+            count_per_page = list_ctrl.GetCountPerPage()
+            total = list_ctrl.GetItemCount()
+            
+            if scroll_dy < 0: # Up
+                 if top > 0:
+                     list_ctrl.EnsureVisible(top - 1)
+                     self.last_scroll_time = now
+            elif scroll_dy > 0: # Down
+                 # Calculate last visible item
+                 # EnsureVisible(last + 1) scrolls it into view (usually 1 step)
+                 next_idx = top + count_per_page
+                 if next_idx < total:
+                     list_ctrl.EnsureVisible(next_idx)
+                     self.last_scroll_time = now
+
+        # Visual Feedback: Insertion Line using Overlay
+        ins_idx, line_y = self._get_insertion_point(x, y)
+        
+        if line_y != self.last_line_y:
+            dc = wx.ClientDC(list_ctrl)
+            odc = wx.DCOverlay(self.overlay, dc)
+            odc.Clear()
+            
+            if line_y != -1:
+                dc.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
+                dc.DrawLine(0, line_y, w, line_y)
+                
+            del odc # Finishes the overlay drawing
+            self.last_line_y = line_y
+        
+        return defResult
+
+    def OnLeave(self):
+        self.editor.frame_list.Refresh() 
+        # Overlay clear usually needs DCOverlay.Clear() but we don't catch OnLeave reliably?
+        # Creating a temp overlay context to clear:
+        dc = wx.ClientDC(self.editor.frame_list)
+        odc = wx.DCOverlay(self.overlay, dc)
+        odc.Clear()
+        del odc
+        self.overlay.Reset()
+        self.last_line_y = -1
+
+    def OnDropText(self, x, y, data):
+        # Cleanup
+        self.OnLeave()
+        
+        if not data.startswith("FRAME:"):
+            return False
+            
+        try:
+            src_idx = int(data.split(":")[1])
+        except ValueError:
+            return False
+            
+        # Find target index using helper
+        target_idx, _ = self._get_insertion_point(x, y)
+        if target_idx == wx.NOT_FOUND:
+            target_idx = self.editor.frame_list.GetItemCount()
+            
+        self.editor.move_frame(src_idx, target_idx)
+        return True
+
 class FrameEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent)
         self.project = project
         self.selected_frame_id: Optional[str] = None
         
+        # Layout
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
-        # Left Split: Palette & Frames
-        left_panel = wx.Panel(self, size=(250, -1))
+        # Left Panel: Frames List + Module Palette
+        left_panel = wx.Panel(self)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         
-        # Frames List
+        # Frames List (ListCtrl for better DnD and Inline Rename)
         left_sizer.Add(wx.StaticText(left_panel, label="Frames"), 0, wx.ALL, 5)
-        self.frame_list = wx.ListBox(left_panel)
+        self.frame_list = wx.ListCtrl(left_panel, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
+        self.frame_list.InsertColumn(0, "Frame", width=180) # Auto-size later?
         self.frame_list.Bind(wx.EVT_CONTEXT_MENU, self.on_frame_list_context_menu)
+        
+        # QoL: Rename & Reorder
+        self.frame_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_frame_dclick) # Double click
+        self.frame_list.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_frame_begin_drag)
+        self.frame_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_frame_end_edit)
+        self.frame_list.SetDropTarget(FrameListDropTarget(self))
+        
         left_sizer.Add(self.frame_list, 1, wx.EXPAND | wx.ALL, 5)
         
         frame_btns = wx.BoxSizer(wx.HORIZONTAL)
@@ -168,7 +301,7 @@ class FrameEditorPanel(wx.Panel):
         self.SetSizer(main_sizer)
         
         # Bindings
-        self.Bind(wx.EVT_LISTBOX, self.on_select_frame, self.frame_list)
+        self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_frame, self.frame_list)
         self.btn_add.Bind(wx.EVT_BUTTON, self.on_add_frame)
         self.btn_del.Bind(wx.EVT_BUTTON, self.on_delete_frame)
         
@@ -331,6 +464,13 @@ class FrameEditorPanel(wx.Panel):
         if not self.IsShownOnScreen():
             event.Skip()
             return
+            
+        # If a text control has focus (e.g. rename list item), skip CHAR_HOOK logic
+        # so the native widget handles Backspace/Delete.
+        focus = wx.Window.FindFocus()
+        if focus and isinstance(focus, wx.TextCtrl):
+             event.Skip()
+             return
 
         if keycode == ord('X'):
             self._toggle_flip("x")
@@ -360,20 +500,28 @@ class FrameEditorPanel(wx.Panel):
         return None
 
     def refresh_frames(self, select_id: Optional[str] = None):
-        self.frame_list.Clear()
+        self.frame_list.DeleteAllItems()
+        target_idx = -1
         for idx, f in enumerate(self.project.frames):
-            self.frame_list.Append(f.name, clientData=f.id)
+            self.frame_list.InsertItem(idx, f.name)
+            self.frame_list.SetItemData(idx, idx) # We track by index mostly now, or map later if needed.
+            # Storing ID would require String->Int map in C++, py ListCtrl is finicky. 
+            # We assume order matches project.frames.
+            
             if select_id and f.id == select_id:
-                self.frame_list.SetSelection(idx)
-        if select_id and self.frame_list.GetSelection() == wx.NOT_FOUND:
-            self.frame_list.SetSelection(wx.NOT_FOUND)
+                target_idx = idx
+                
+        if target_idx != -1:
+            self.frame_list.Select(target_idx)
+            self.frame_list.EnsureVisible(target_idx)
             
     def on_frame_list_context_menu(self, event):
-        sel = self.frame_list.GetSelection()
+        sel = self.frame_list.GetFirstSelected()
         if sel == wx.NOT_FOUND:
             return
             
-        fid = self.frame_list.GetClientData(sel)
+        # Assuming list order == project order
+        fid = self.project.frames[sel].id
         
         menu = wx.Menu()
         dup_item = menu.Append(wx.ID_ANY, "Duplicate Frame")
@@ -442,6 +590,52 @@ class FrameEditorPanel(wx.Panel):
         self.palette.refresh_modules()
         # In new design, frame list is always visible, but good update point
         self.refresh_frames(self.selected_frame_id)
+
+    # QoL Implementations
+    def on_frame_dclick(self, event):
+        idx = event.GetIndex()
+        if idx != -1:
+            self.frame_list.EditLabel(idx)
+
+    def on_frame_end_edit(self, event):
+        if event.IsEditCancelled():
+            return
+            
+        new_name = event.GetLabel()
+        idx = event.GetIndex()
+        
+        if 0 <= idx < len(self.project.frames):
+            frame = self.project.frames[idx]
+            if new_name and new_name != frame.name:
+                frame.name = new_name
+                # self.refresh_frames(frame.id) # No need to refresh entire list, label is updated by Ctrl
+                
+    def on_frame_begin_drag(self, event):
+        idx = event.GetIndex()
+        if idx != -1:
+            text_data = wx.TextDataObject(f"FRAME:{idx}")
+            source = wx.DropSource(self.frame_list)
+            source.SetData(text_data)
+            source.DoDragDrop(wx.Drag_DefaultMove)
+            
+    def move_frame(self, src_idx: int, target_idx: int):
+        if src_idx == target_idx:
+            return
+            
+        # Reorder in project
+        if 0 <= src_idx < len(self.project.frames):
+            frame = self.project.frames.pop(src_idx)
+            
+            # Adjust target index if shifting
+            if target_idx > src_idx:
+                target_idx -= 1
+            
+            # Clamp
+            target_idx = max(0, min(target_idx, len(self.project.frames)))
+            
+            self.project.frames.insert(target_idx, frame)
+            self.refresh_frames(frame.id)
+            self.on_select_frame(None)
             
     def set_project(self, project: Project):
         self.project = project
@@ -452,12 +646,15 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.set_frame(None)
 
     def on_select_frame(self, event):
-        idx = event.GetSelection() if event else self.frame_list.GetSelection()
-        if idx != wx.NOT_FOUND:
-            fid = self.frame_list.GetClientData(idx)
-            self.selected_frame_id = fid
-            frame = self.project.get_frame(fid)
-            self.canvas.set_frame(frame)
+        idx = event.GetIndex() if event else self.frame_list.GetFirstSelected()
+        if idx != -1:
+            # Assume list order == project order
+            if 0 <= idx < len(self.project.frames):
+                frame = self.project.frames[idx]
+                self.selected_frame_id = frame.id
+                self.canvas.set_frame(frame)
+        else:
+            self.canvas.set_frame(None)
     
     def on_add_frame(self, _):
         # Manually create frame (models.py doesn't have create_frame helper on Project)
