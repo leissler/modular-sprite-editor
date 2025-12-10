@@ -16,14 +16,15 @@ class BaseCanvas(wx.Panel):
         super().__init__(parent, style=style)
         
         # View State
-        self.zoom: float = 1.0
-        self.pan: Tuple[float, float] = (0.0, 0.0)
+        self.zoom: float = 10.0
+        self.pan: Tuple[float, float] = (0, 0)
         self.grid_spacing: Tuple[int, int] = (32, 32)
         self.show_grid: bool = True
         
         # Internal Interaction State
+        self._wheel_accumulator = 0
         self._panning = False
-        self._panning_alt = False
+        self._last_pan_pos: Optional[wx.Point] = None
         self._last_clamp_time: float = 0.0
         self._last_clamp_dir: int = 0
         self._start = wx.Point()
@@ -140,25 +141,53 @@ class BaseCanvas(wx.Panel):
 
     # --- Interaction ---
     def on_mousewheel(self, event: wx.MouseEvent) -> None:
-        rotation = event.GetWheelRotation()
-        factor = 1.1 if rotation > 0 else 0.9
+        if event.LeftIsDown() or event.MiddleIsDown() or event.RightIsDown():
+             return
+
+        # Accumulate rotation to handle high-res trackpads
+        self._wheel_accumulator += event.GetWheelRotation()
+        
+        # Threshold for zoom step. 
+        # Standard mouse is 120 per notch. Trackpads can send tiny amounts.
+        # We process in chunks to avoid jitter.
+        step_size = 10 # Smaller than 120 to be responsive, but large enough to eat jitter
+        
+        if abs(self._wheel_accumulator) < step_size:
+            return
+            
+        steps = int(self._wheel_accumulator / step_size)
+        remainder = self._wheel_accumulator % step_size
+        
+        # Keep the sign of remainder consistent with accumulator if simple modulo fails logic
+        # Actually simple truncation is fine, we just update accumulator to remainder
+        self._wheel_accumulator -= (steps * step_size)
+        
+        # Avoid huge jumps if events stacked up
+        steps = max(-5, min(5, steps))
+        
+        if steps == 0:
+            return
+
+        factor = 1.1 ** steps # Exponential zoom for multiple steps
         now = time.monotonic()
         max_zoom = 32.0
         min_zoom = 1.0
 
         # Bounce protection logic
-        if rotation > 0 and self.zoom >= max_zoom - 1e-5:
+        # We use 'steps' as proxy for rotation direction
+        if steps > 0 and self.zoom >= max_zoom - 1e-5:
             self._last_clamp_time = now
             self._last_clamp_dir = 1
             return
-        if rotation < 0 and self.zoom <= min_zoom + 1e-5:
+        if steps < 0 and self.zoom <= min_zoom + 1e-5:
             self._last_clamp_time = now
             self._last_clamp_dir = -1
             return
-        if self._last_clamp_dir == 1 and rotation < 0 and (now - self._last_clamp_time) < 0.2:
+        if self._last_clamp_dir == 1 and steps < 0 and (now - self._last_clamp_time) < 0.2:
             return
-        if self._last_clamp_dir == -1 and rotation > 0 and (now - self._last_clamp_time) < 0.2:
+        if self._last_clamp_dir == -1 and steps > 0 and (now - self._last_clamp_time) < 0.2:
             return
+
 
         old_zoom = self.zoom
         new_zoom = max(min_zoom, min(max_zoom, self.zoom * factor))
@@ -176,15 +205,6 @@ class BaseCanvas(wx.Panel):
             (mouse_pos.y - cy) / new_zoom - world_before[1],
         )
         
-        # Clamp feedback state
-        if self.zoom >= max_zoom - 1e-5 and rotation > 0:
-            self._last_clamp_time = now
-            self._last_clamp_dir = 1
-        elif self.zoom <= min_zoom + 1e-5 and rotation < 0:
-            self._last_clamp_time = now
-            self._last_clamp_dir = -1
-        else:
-            self._last_clamp_dir = 0
             
         self.Refresh(False)
 
