@@ -16,10 +16,16 @@ class ModulePalette(wx.ListCtrl):
         self.image_list = wx.ImageList(64, 64)
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag)
+        self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_item_selected)
+        self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_item_deselected)
+        
+        # Map item_idx -> (normal_image_idx, selected_image_idx)
+        self.item_images = {}
 
     def refresh_modules(self):
         self.DeleteAllItems()
         self.image_list.RemoveAll()
+        self.item_images.clear()
         
         # Cache loaded images to avoid re-reading from disk for every module
         # Key: image_id, Value: wx.Image
@@ -75,9 +81,10 @@ class ModulePalette(wx.ListCtrl):
                         
                         # Draw centered horizontally, but aligned to BOTTOM vertically
                         # to reduce gap between image and text.
-                        # Box is 64x64. Reserve 0px padding at bottom (User requested minimal gap).
+                        # Box is 64x64. Reserve 2px padding at bottom for border.
+                        # (Previously 0 padding caused overlap with highlight)
                         off_x = (64 - new_w) // 2
-                        off_y = 64 - new_h 
+                        off_y = 64 - new_h - 2
                         dc.DrawBitmap(sub_img.ConvertToBitmap(), off_x, off_y, True)
                     else:
                         dc.SetPen(wx.Pen(wx.Colour(200, 50, 50)))
@@ -96,12 +103,42 @@ class ModulePalette(wx.ListCtrl):
             
             dc.SelectObject(wx.NullBitmap)
             
-            idx = self.image_list.Add(bmp)
-            self.InsertItem(self.GetItemCount(), mod.name, idx)
+            # Create Selected Version
+            sel_bmp = bmp.GetSubBitmap(wx.Rect(0, 0, 64, 64))
+            dc_sel = wx.MemoryDC(sel_bmp)
+            
+            # Draw highlight border ONLY (no fill)
+            # Content is max 56x56 centered (approx 4px margin).
+            # Draw border at edges to avoid overlap.
+            # Using 1,1 62x62 with 2px pen implies striking approx pixels 0-2 and 61-63.
+            dc_sel.SetBrush(wx.TRANSPARENT_BRUSH)
+            # Pen alignment is usually CENTER. width 2 -> +/- 1 pixel.
+            # Drawing at 1 -> range 0 to 2.
+            # Drawing at 62 -> range 61 to 63.
+            # Grid 0..63.
+            dc_sel.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
+            dc_sel.DrawRoundedRectangle(1, 1, 62, 62, 4)
+            dc_sel.SelectObject(wx.NullBitmap)
+            
+            idx_norm = self.image_list.Add(bmp)
+            idx_sel = self.image_list.Add(sel_bmp)
+            
+            self.InsertItem(self.GetItemCount(), mod.name, idx_norm)
             item_idx = self.GetItemCount() - 1
             self.SetItemData(item_idx, item_idx) 
+            self.item_images[item_idx] = (idx_norm, idx_sel)
                 
         self.module_ids = [m.id for m in self.project.modules]
+
+    def on_item_selected(self, event):
+        idx = event.GetIndex()
+        if idx in self.item_images:
+            self.SetItemImage(idx, self.item_images[idx][1]) # Set Selected Image
+
+    def on_item_deselected(self, event):
+        idx = event.GetIndex()
+        if idx in self.item_images:
+             self.SetItemImage(idx, self.item_images[idx][0]) # Set Normal Image
 
     def on_begin_drag(self, event):
         idx = event.GetIndex()
@@ -109,20 +146,25 @@ class ModulePalette(wx.ListCtrl):
             mid = self.module_ids[idx]
             text_data = wx.TextDataObject(f"MODULE:{mid}")
             source = wx.DropSource(self)
-            source = wx.DropSource(self)
             source.SetData(text_data)
             source.DoDragDrop(wx.Drag_CopyOnly)
 
     def select_module(self, module_id: str):
         try:
             idx = self.module_ids.index(module_id)
-            # Deselect all
-            for i in range(self.GetItemCount()):
-                self.Select(i, on=False)
+            # Deselect all? The control handles graphical deselect if we change focus,
+            # but modifying image requires triggering deselect event or manual.
+            # Programmatic SetItemState triggers EVT_LIST_ITEM_SELECTED/DESELECTED usually?
+            # Let's hope so. If not, manual update needed.
             
-            # Select and scroll to item
-            self.Select(idx, on=True)
+            # Native ListCtrl behavior: setting state to selected usually deselects others if SINGLE_SEL.
+            
+            # Ensure visible
             self.EnsureVisible(idx)
+            
+            # Set State
+            self.SetItemState(idx, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
+            
         except ValueError:
             pass # Module not found
 
