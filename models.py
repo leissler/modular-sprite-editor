@@ -108,30 +108,45 @@ class FModule:
 
 
 @dataclass
-class CollisionRect:
+class CollisionType:
+    id: str
     name: str
-    x: int
-    y: int
-    width: int
-    height: int
+    color: Tuple[int, int, int] # RGB
 
     def to_dict(self) -> Dict:
         return {
+            "id": self.id,
             "name": self.name,
-            "x": self.x,
-            "y": self.y,
-            "width": self.width,
-            "height": self.height,
+            "color": list(self.color),
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "CollisionType":
+        return CollisionType(
+            id=data["id"],
+            name=data["name"],
+            color=tuple(data["color"]), # type: ignore
+        )
+
+@dataclass
+class CollisionRect:
+    id: str
+    type_id: str
+    rect: Tuple[int, int, int, int] # x,y,w,h relative to frame origin
+
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "type_id": self.type_id,
+            "rect": list(self.rect),
         }
 
     @staticmethod
     def from_dict(data: Dict) -> "CollisionRect":
         return CollisionRect(
-            name=data.get("name", ""),
-            x=int(data["x"]),
-            y=int(data["y"]),
-            width=int(data["width"]),
-            height=int(data["height"]),
+            id=data["id"],
+            type_id=data["type_id"],
+            rect=tuple(data["rect"]), # type: ignore
         )
 
 
@@ -168,16 +183,15 @@ class Frame:
 
     @staticmethod
     def from_dict(data: Dict) -> "Frame":
+        fmodules = [FModule.from_dict(fm_data) for fm_data in data.get("fmodules", [])]
+        collision_rects = [CollisionRect.from_dict(cr_data) for cr_data in data.get("collision_rects", [])]
+        control_points = [ControlPoint.from_dict(cp_data) for cp_data in data.get("control_points", [])]
         return Frame(
             id=data["id"],
             name=data["name"],
-            fmodules=[FModule.from_dict(fm) for fm in data.get("fmodules", [])],
-            collision_rects=[
-                CollisionRect.from_dict(cr) for cr in data.get("collision_rects", [])
-            ],
-            control_points=[
-                ControlPoint.from_dict(cp) for cp in data.get("control_points", [])
-            ],
+            fmodules=fmodules,
+            collision_rects=collision_rects,
+            control_points=control_points,
         )
 
 
@@ -386,12 +400,14 @@ class AuroraSpriteParser:
         return project
 
 
+@dataclass
 class Project:
-    def __init__(self) -> None:
-        self.images: List[ImageAsset] = []
-        self.modules: List[Module] = []
-        self.frames: List[Frame] = []
-        self.animations: List[Animation] = []
+    name: str = "New Project"
+    images: List[ImageAsset] = field(default_factory=list)
+    modules: List[Module] = field(default_factory=list)
+    frames: List[Frame] = field(default_factory=list)
+    animations: List[Animation] = field(default_factory=list)
+    collision_types: List[CollisionType] = field(default_factory=list)
 
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
         return next((img for img in self.images if img.id == image_id), None)
@@ -424,10 +440,12 @@ class Project:
 
     def to_dict(self) -> Dict:
         return {
+            "name": self.name,
             "images": [img.to_dict() for img in self.images],
             "modules": [m.to_dict() for m in self.modules],
             "frames": [f.to_dict() for f in self.frames],
             "animations": [a.to_dict() for a in self.animations],
+            "collision_types": [ct.to_dict() for ct in self.collision_types],
         }
 
     def to_json(self, path: str) -> None:
@@ -436,12 +454,20 @@ class Project:
 
     @staticmethod
     def from_dict(data: Dict) -> "Project":
-        project = Project()
-        project.images = [ImageAsset.from_dict(img) for img in data.get("images", [])]
-        project.modules = [Module.from_dict(m) for m in data.get("modules", [])]
-        project.frames = [Frame.from_dict(fr) for fr in data.get("frames", [])]
-        project.animations = [Animation.from_dict(a) for a in data.get("animations", [])]
-        return project
+        images = [ImageAsset.from_dict(img) for img in data.get("images", [])]
+        modules = [Module.from_dict(m) for m in data.get("modules", [])]
+        frames = [Frame.from_dict(f) for f in data.get("frames", [])]
+        animations = [Animation.from_dict(a) for a in data.get("animations", [])]
+        collision_types = [CollisionType.from_dict(ct) for ct in data.get("collision_types", [])]
+        
+        return Project(
+            name=data.get("name", "New Project"),
+            images=images,
+            modules=modules,
+            frames=frames,
+            animations=animations,
+            collision_types=collision_types,
+        )
 
     @staticmethod
     def from_json(path: str) -> "Project":

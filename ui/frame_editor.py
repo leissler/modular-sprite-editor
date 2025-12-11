@@ -6,7 +6,9 @@ from typing import Optional
 import wx
 
 from models import Project, Frame, generate_id
+from models import Project, Frame, generate_id
 from ui.canvas import FrameCanvas
+from ui.collision_manager import CollisionManagerPanel
 
 class ModulePalette(wx.ListCtrl):
     """Visual list of modules draggable onto the canvas."""
@@ -322,14 +324,26 @@ class FrameEditorPanel(wx.Panel):
         frame_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add = wx.Button(left_panel, label="+")
         self.btn_del = wx.Button(left_panel, label="-")
-        frame_btns.Add(self.btn_add, 1)
-        frame_btns.Add(self.btn_del, 1)
+        self.btn_mode = wx.ToggleButton(left_panel, label="Mode: Modules")
+        self.chk_show_col = wx.CheckBox(left_panel, label="Show Colliders")
+        
+        frame_btns.Add(self.btn_add, 0)
+        frame_btns.Add(self.btn_del, 0)
+        frame_btns.Add(self.btn_mode, 1, wx.LEFT, 5)
+        
         left_sizer.Add(frame_btns, 0, wx.EXPAND | wx.ALL, 5)
+        left_sizer.Add(self.chk_show_col, 0, wx.ALL, 5)
 
         # Module Palette
-        left_sizer.Add(wx.StaticText(left_panel, label="Modules (Drag to Canvas)"), 0, wx.ALL, 5)
+        self.lbl_modules = wx.StaticText(left_panel, label="Modules (Drag to Canvas)")
+        left_sizer.Add(self.lbl_modules, 0, wx.ALL, 5)
         self.palette = ModulePalette(left_panel, project)
         left_sizer.Add(self.palette, 1, wx.EXPAND | wx.ALL, 5)
+        
+        # Collision Manager (Hidden by default)
+        self.col_manager = CollisionManagerPanel(left_panel, project, on_change=self.on_col_type_change)
+        left_sizer.Add(self.col_manager, 1, wx.EXPAND | wx.ALL, 5)
+        left_sizer.Hide(self.col_manager)
         
         left_panel.SetSizer(left_sizer)
         
@@ -346,9 +360,12 @@ class FrameEditorPanel(wx.Panel):
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_frame, self.frame_list)
         self.btn_add.Bind(wx.EVT_BUTTON, self.on_add_frame)
         self.btn_del.Bind(wx.EVT_BUTTON, self.on_delete_frame)
+        self.btn_mode.Bind(wx.EVT_TOGGLEBUTTON, self.on_toggle_mode)
+        self.chk_show_col.Bind(wx.EVT_CHECKBOX, self.on_toggle_show_col)
         
         self.palette.refresh_modules()
         self.refresh_frames()
+        self.on_col_type_change() # Init color map
         
         # Canvas Interaction Events
         # Canvas Interaction Events
@@ -370,6 +387,10 @@ class FrameEditorPanel(wx.Panel):
             self.palette.select_module(fm.ref_id)
 
     def on_canvas_right_down(self, event: wx.MouseEvent):
+        # Suppress context menu if in collision mode
+        if self.canvas.edit_mode == "collision":
+            return
+
         # Hit test to see if we clicked a module
         pos = self.canvas.screen_to_world(event.GetPosition())
         clicked_fmod = self.canvas.hit_test(pos)
@@ -497,6 +518,17 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.selected_fmodules = []
         self.canvas.Refresh()
 
+    def _delete_selected_collision_rects(self):
+        if not self.canvas.frame or not self.canvas.selected_collision_rects:
+            return
+            
+        selected = set(self.canvas.selected_collision_rects)
+        new_list = [cr for cr in self.canvas.frame.collision_rects if cr.id not in selected]
+        
+        self.canvas.frame.collision_rects = new_list
+        self.canvas.selected_collision_rects = []
+        self.canvas.Refresh()
+
     def on_key_down(self, event: wx.KeyEvent):
         # Checking if canvas or panel has focus might be needed, 
         # but CHAR_HOOK catches globally in this window.
@@ -529,7 +561,10 @@ class FrameEditorPanel(wx.Panel):
              else:
                  self._change_z_order("down")
         elif keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK:
-             self._delete_selected_modules()
+             if self.canvas.edit_mode == "collision":
+                 self._delete_selected_collision_rects()
+             else:
+                 self._delete_selected_modules()
         else:
             event.Skip()
 
@@ -683,6 +718,8 @@ class FrameEditorPanel(wx.Panel):
         self.project = project
         self.canvas.project = project
         self.palette.project = project
+        self.col_manager.project = project # Fix: Update manager
+        self.col_manager.refresh_list()    # Fix: Refresh UI
         self.palette.refresh_modules()
         self.refresh_frames()
         self.canvas.set_frame(None)
@@ -698,6 +735,52 @@ class FrameEditorPanel(wx.Panel):
         else:
             self.canvas.set_frame(None)
     
+    def on_toggle_mode(self, event):
+        is_col = self.btn_mode.GetValue()
+        if is_col:
+            self.btn_mode.SetLabel("Mode: Collisions")
+            self.canvas.edit_mode = "collision"
+            
+            self.lbl_modules.Hide()
+            self.palette.Hide()
+            self.col_manager.Show()
+            
+            # Sync active type
+            if self.col_manager.active_type_id:
+                self.canvas.active_collision_type_id = self.col_manager.active_type_id
+        else:
+            self.btn_mode.SetLabel("Mode: Modules")
+            self.canvas.edit_mode = "module"
+            
+            self.lbl_modules.Show()
+            self.palette.Show()
+            self.col_manager.Hide()
+            
+        self.left_panel_layout()
+        self.canvas.Refresh()
+        
+    def left_panel_layout(self):
+        # Trigger layout on the parent of the hidden/shown items
+        self.frame_list.GetParent().Layout()
+
+    def on_col_type_change(self):
+        self.canvas.active_collision_type_id = self.col_manager.active_type_id
+        # Sync visibility AND color map
+        # Optimization: Pass a map of {id: color} for ONLY visible types.
+        # Canvas then just does: color = self.collision_type_colors.get(cr.type_id)
+        # If None, don't draw.
+        visible_map = {}
+        for ct in self.project.collision_types:
+             if self.col_manager.visibility.get(ct.id, True):
+                 visible_map[ct.id] = ct.color
+                 
+        self.canvas.collision_type_colors = visible_map
+        self.canvas.Refresh()
+
+    def on_toggle_show_col(self, event):
+        self.canvas.show_collision = self.chk_show_col.GetValue()
+        self.canvas.Refresh()
+
     def on_add_frame(self, _):
         # Manually create frame (models.py doesn't have create_frame helper on Project)
         new_frame_id = generate_id("frm")
