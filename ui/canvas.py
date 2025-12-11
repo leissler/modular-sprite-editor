@@ -7,7 +7,7 @@ from typing import Callable, List, Optional, Tuple
 
 import wx
 
-from models import Frame, FModule, Module, Project, CollisionRect, generate_id
+from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
 
 Color = Tuple[int, int, int]
@@ -51,6 +51,14 @@ class FrameCanvas(BaseCanvas):
         self._col_drag_rect_id: Optional[str] = None
         self._col_drag_start_rect: Tuple[int, int, int, int] = (0,0,0,0)
         self._col_drag_start_screen: Tuple[int, int] = (0,0)
+
+        # Point Interaction State
+        self.show_points = True
+        self.active_point_type_id: Optional[str] = None
+        self.selected_points: list[str] = []
+        self.point_type_colors: dict[str, tuple] = {}
+        self._pt_drag_mode: str = "none" # "none", "move"
+        self._pt_drag_id: Optional[str] = None
         
         # Enable Drop Target
         self.SetDropTarget(ModuleDropTarget(self))
@@ -117,8 +125,11 @@ class FrameCanvas(BaseCanvas):
                      
                 self._draw_collision(gc, cr)
                 
-        if self.show_control_points:
+        if self.show_points or self.edit_mode == "point":
             for cp in self.frame.control_points:
+                # Check visibility
+                if getattr(cp, 'type_id', None) and cp.type_id not in self.point_type_colors:
+                    continue
                 self._draw_control_point(gc, cp)
 
     def _draw_message(self, gc: wx.GraphicsContext, text: str) -> None:
@@ -229,6 +240,31 @@ class FrameCanvas(BaseCanvas):
             gc.DrawRectangle(cx - sz/2, cy - sz/2, sz, sz)
 
     def _draw_control_point(self, gc: wx.GraphicsContext, cp) -> None:
+        if not hasattr(cp, 'type_id'): return # Safety
+        
+        # FIX: Add frame offset!
+        sx, sy = self.world_to_screen((cp.x + self.frame_offset[0], cp.y + self.frame_offset[1]))
+        
+        # Color from type or default
+        col = self.point_type_colors.get(cp.type_id, (0, 255, 0))
+        r, g, b = int(col[0]), int(col[1]), int(col[2])
+        
+        # Draw Crosshair + Circle
+        # Fill
+        gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 100)))
+        # Outline
+        if cp.id in self.selected_points:
+            gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 2))
+        else:
+            gc.SetPen(wx.Pen(wx.Colour(r, g, b), 1))
+            
+        gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
+        
+        # Determine Label (Type Name or Index?)
+        # Just draw a small cross
+        gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 1))
+        gc.DrawLines([(sx-3, sy), (sx+3, sy)])
+        gc.DrawLines([(sx, sy-3), (sx, sy+3)])
         sx, sy = self.world_to_screen((cp.x + self.frame_offset[0], cp.y + self.frame_offset[1]))
         gc.SetBrush(wx.Brush(wx.Colour(40, 150, 60)))
         gc.SetPen(wx.Pen(wx.Colour(20, 90, 40)))
@@ -248,12 +284,17 @@ class FrameCanvas(BaseCanvas):
             
         pos_screen = event.GetPosition()
         pos_world = self.screen_to_world(pos_screen)
-        
+        # Collision Interaction
         if self.edit_mode == "collision":
-            self.on_collision_left_down(pos_screen, pos_world, event)
+            self.on_collision_left_down(event, pos_screen)
+            return
+            
+        # Point Interaction
+        if self.edit_mode == "point":
+            self.on_point_left_down(event, pos_screen)
             return
 
-        # Module Mode Logic
+        # Module Selection Logic (Default)
         clicked = self._hit_test(pos_world)
         
         if clicked:
@@ -293,8 +334,11 @@ class FrameCanvas(BaseCanvas):
             
         if self.edit_mode == "collision":
              self._col_drag_mode = "none"
-             # If create mode ended, we already added the rect in drag?
-             # No, standard is to finalize on Up or update during drag.
+             self.ReleaseMouse()
+             return
+
+        if self.edit_mode == "point":
+             self._pt_drag_mode = "none"
              self.ReleaseMouse()
              return
 
@@ -362,6 +406,11 @@ class FrameCanvas(BaseCanvas):
             self._handle_collision_drag(pos_screen, pos_world)
             self.Refresh(False)
             return
+
+        if self.edit_mode == "point":
+             self._handle_point_drag(pos_screen)
+             self.Refresh(False)
+             return
 
         # Module Drag Logic
         if not self._dragging_ids:
@@ -610,6 +659,91 @@ class FrameCanvas(BaseCanvas):
             if abs(mx - sx) <= sz and abs(my - sy) <= sz:
                 return i
         return -1
+
+    # Point Helpers
+    def _hit_test_point(self, world_pos):
+        x, y = world_pos
+        off_x, off_y = self.frame_offset
+        sz = 6 # Radius
+        
+        for cp in self.frame.control_points:
+            # Simple dist check
+            cpx, cpy = cp.x + off_x, cp.y + off_y
+            if abs(cpx - x) <= sz and abs(cpy - y) <= sz:
+                return cp
+        return None
+
+    def on_point_left_down(self, event, pos_screen):
+        pos_world = self.screen_to_world(pos_screen)
+        
+        # Hit test
+        cp = self._hit_test_point(pos_world)
+        
+        if cp:
+            # Select / Start Drag
+            if not event.ShiftDown():
+                self.selected_points = [cp.id]
+            else:
+                if cp.id in self.selected_points:
+                    self.selected_points.remove(cp.id)
+                else:
+                    self.selected_points.append(cp.id)
+                    
+            self._pt_drag_mode = "move"
+            self._pt_drag_id = cp.id 
+            self._drag_start_world = pos_world
+            
+            # Store start positions
+            self._drag_start_positions = {}
+            for pid in self.selected_points:
+                 p = next((x for x in self.frame.control_points if x.id == pid), None)
+                 if p:
+                     self._drag_start_positions[pid] = (p.x, p.y)
+                     
+            self.CaptureMouse()
+            self.Refresh()
+        else:
+            # Create NEW Point if active type set
+            if self.active_point_type_id:
+                # Snap?
+                wx, wy = pos_world
+                wx = int(wx - self.frame_offset[0])
+                wy = int(wy - self.frame_offset[1])
+                
+                if self.snap_to_grid:
+                     wx = round(wx / self.grid_size) * self.grid_size
+                     wy = round(wy / self.grid_size) * self.grid_size
+                     
+                new_cp = ControlPoint(
+                    id=generate_id("pt"),
+                    type_id=self.active_point_type_id,
+                    x=wx,
+                    y=wy
+                )
+                self.frame.control_points.append(new_cp)
+                self.selected_points = [new_cp.id]
+                self.Refresh()
+            else:
+                self.selected_points = []
+                self.Refresh()
+
+    def _handle_point_drag(self, pos_screen):
+        if self._pt_drag_mode == "move" and self._drag_start_world:
+             pos_world = self.screen_to_world(pos_screen)
+             
+             dx = pos_world[0] - self._drag_start_world[0]
+             dy = pos_world[1] - self._drag_start_world[1]
+             
+             if self.snap_to_grid:
+                 dx = round(dx / self.grid_size) * self.grid_size
+                 dy = round(dy / self.grid_size) * self.grid_size
+             
+             for pid in self.selected_points:
+                 cp = next((p for p in self.frame.control_points if p.id == pid), None)
+                 start = self._drag_start_positions.get(pid)
+                 if cp and start:
+                     cp.x = int(start[0] + dx)
+                     cp.y = int(start[1] + dy)
 
 
 class ModuleDropTarget(wx.TextDropTarget):

@@ -129,6 +129,27 @@ class CollisionType:
         )
 
 @dataclass
+class PointType:
+    id: str
+    name: str
+    color: Tuple[int, int, int] # RGB
+
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "color": list(self.color),
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "PointType":
+        return PointType(
+            id=data["id"],
+            name=data["name"],
+            color=tuple(data["color"]), # type: ignore
+        )
+
+@dataclass
 class CollisionRect:
     id: str
     type_id: str
@@ -152,12 +173,30 @@ class CollisionRect:
 
 @dataclass
 class ControlPoint:
-    name: str
+    id: str
+    type_id: str
     x: int
     y: int
 
     def to_dict(self) -> Dict:
-        return {"name": self.name, "x": self.x, "y": self.y}
+        return {
+            "id": self.id,
+            "type_id": self.type_id,
+            "x": self.x,
+            "y": self.y
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "ControlPoint":
+        # Migration for legacy simple name points?
+        # If 'name' in data and 'type_id' not in data...
+        # For now assume clean slate or migrated manually.
+        return ControlPoint(
+            id=data.get("id", generate_id("pt")),
+            type_id=data.get("type_id", "unknown"),
+            x=data["x"],
+            y=data["y"]
+        )
 
     @staticmethod
     def from_dict(data: Dict) -> "ControlPoint":
@@ -408,6 +447,7 @@ class Project:
     frames: List[Frame] = field(default_factory=list)
     animations: List[Animation] = field(default_factory=list)
     collision_types: List[CollisionType] = field(default_factory=list)
+    point_types: List[PointType] = field(default_factory=list)
 
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
         return next((img for img in self.images if img.id == image_id), None)
@@ -445,7 +485,9 @@ class Project:
             "modules": [m.to_dict() for m in self.modules],
             "frames": [f.to_dict() for f in self.frames],
             "animations": [a.to_dict() for a in self.animations],
+            "animations": [a.to_dict() for a in self.animations],
             "collision_types": [ct.to_dict() for ct in self.collision_types],
+            "point_types": [pt.to_dict() for pt in self.point_types],
         }
 
     def to_json(self, path: str) -> None:
@@ -459,6 +501,7 @@ class Project:
         frames = [Frame.from_dict(f) for f in data.get("frames", [])]
         animations = [Animation.from_dict(a) for a in data.get("animations", [])]
         collision_types = [CollisionType.from_dict(ct) for ct in data.get("collision_types", [])]
+        point_types = [PointType.from_dict(pt) for pt in data.get("point_types", [])]
         
         return Project(
             name=data.get("name", "New Project"),
@@ -467,6 +510,7 @@ class Project:
             frames=frames,
             animations=animations,
             collision_types=collision_types,
+            point_types=point_types,
         )
 
     @staticmethod
