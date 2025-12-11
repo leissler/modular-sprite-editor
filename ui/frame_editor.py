@@ -723,6 +723,9 @@ class FrameEditorPanel(wx.Panel):
         self.palette.refresh_modules()
         self.refresh_frames()
         self.canvas.set_frame(None)
+        
+        # Ensure canvas has correct collision colors immediately
+        self.on_col_type_change()
 
     def on_select_frame(self, event):
         idx = event.GetIndex() if event else self.frame_list.GetFirstSelected()
