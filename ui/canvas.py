@@ -42,7 +42,6 @@ class FrameCanvas(BaseCanvas):
         self.selected_collision_rects: list[str] = []
         self.collision_type_colors: dict[str, tuple] = {}
         
-        self.snap_to_grid = True # Default
         self.grid_size = 16 # Default
         
         # Collision Drag State
@@ -100,9 +99,9 @@ class FrameCanvas(BaseCanvas):
             self._draw_fmodule_content(gc, fm)
         gc.PopState()
             
-        if self.edit_mode == "collision":
+        if self.edit_mode in ("collision", "point"):
              # Dim modules
-             gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 150))) # Darken
+             gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 100))) # Darken (softer now)
              gc.SetPen(wx.TRANSPARENT_PEN)
              vis_rect = self.GetClientSize()
              gc.DrawRectangle(0, 0, vis_rect.width, vis_rect.height)
@@ -250,26 +249,20 @@ class FrameCanvas(BaseCanvas):
         r, g, b = int(col[0]), int(col[1]), int(col[2])
         
         # Draw Crosshair + Circle
-        # Fill
-        gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 100)))
-        # Outline
+        # Fill: Solid type color
+        gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 255)))
+        
+        # Outline: White if selected, None otherwise
         if cp.id in self.selected_points:
             gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 2))
         else:
-            gc.SetPen(wx.Pen(wx.Colour(r, g, b), 1))
+            gc.SetPen(wx.TRANSPARENT_PEN)
             
         gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
         
-        # Determine Label (Type Name or Index?)
-        # Just draw a small cross
-        gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 1))
-        gc.DrawLines([(sx-3, sy), (sx+3, sy)])
-        gc.DrawLines([(sx, sy-3), (sx, sy+3)])
-        sx, sy = self.world_to_screen((cp.x + self.frame_offset[0], cp.y + self.frame_offset[1]))
-        gc.SetBrush(wx.Brush(wx.Colour(40, 150, 60)))
-        gc.SetPen(wx.Pen(wx.Colour(20, 90, 40)))
-        size = 6
-        gc.DrawEllipse(sx - size / 2, sy - size / 2, size, size)
+        gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
+        
+        # Crosshair removed as per user request
 
     # Interaction
     def on_left_down(self, event: wx.MouseEvent) -> None:
@@ -420,15 +413,7 @@ class FrameCanvas(BaseCanvas):
         dx = current_world[0] - self._drag_start_world[0]
         dy = current_world[1] - self._drag_start_world[1]
         
-        # Snap to grid
-        if self.snap_to_grid:
-            # We snap the NEW position, so we should calculate absolute pos then snap
-            # But here we drag multiple items.
-            # Snap logic: floor(dx / grid) * grid?
-            # Or snap the first item's position?
-            # Let's snap relative delta
-            dx = round(dx / self.grid_size) * self.grid_size
-            dy = round(dy / self.grid_size) * self.grid_size
+        # Snap to grid: REMOVED
             
         for mid in self._dragging_ids:
             fm = next((f for f in self.frame.fmodules if f.id == mid), None)
@@ -529,7 +514,8 @@ class FrameCanvas(BaseCanvas):
         self.Refresh(False)
 
     # --- Collision Logic ---
-    def on_collision_left_down(self, pos_screen, pos_world, event):
+    def on_collision_left_down(self, event, pos_screen):
+        pos_world = self.screen_to_world(pos_screen)
         # 1. Handle Resize?
         if len(self.selected_collision_rects) == 1:
             cid = self.selected_collision_rects[0]
@@ -664,55 +650,70 @@ class FrameCanvas(BaseCanvas):
     def _hit_test_point(self, world_pos):
         x, y = world_pos
         off_x, off_y = self.frame_offset
-        sz = 6 # Radius
+        sz = 4.0 # Smaller radius for precision
+        
+        best_cp = None
+        best_dist = float('inf')
         
         for cp in self.frame.control_points:
             # Simple dist check
             cpx, cpy = cp.x + off_x, cp.y + off_y
-            if abs(cpx - x) <= sz and abs(cpy - y) <= sz:
-                return cp
-        return None
+            dx = cpx - x
+            dy = cpy - y
+            dist_sq = dx*dx + dy*dy
+            
+            if dist_sq <= sz*sz:
+                if dist_sq < best_dist:
+                    best_dist = dist_sq
+                    best_cp = cp
+                    
+        return best_cp
 
     def on_point_left_down(self, event, pos_screen):
         pos_world = self.screen_to_world(pos_screen)
         
-        # Hit test
-        cp = self._hit_test_point(pos_world)
+        # Interaction Logic Split (User Request REVERSED):
+        # Shift+Click: Force Creation (Place new point)
+        # Click: Interaction (Select/Move existing)
         
-        if cp:
-            # Select / Start Drag
-            if not event.ShiftDown():
-                self.selected_points = [cp.id]
-            else:
-                if cp.id in self.selected_points:
-                    self.selected_points.remove(cp.id)
+        if not event.ShiftDown():
+            # SELECTION / INTERACTION MODE
+            cp = self._hit_test_point(pos_world)
+            if cp:
+                # If Cmd/Ctrl, toggle. Else replace.
+                if event.CmdDown() or event.ControlDown():
+                     if cp.id in self.selected_points:
+                         self.selected_points.remove(cp.id)
+                     else:
+                         self.selected_points.append(cp.id)
                 else:
-                    self.selected_points.append(cp.id)
-                    
-            self._pt_drag_mode = "move"
-            self._pt_drag_id = cp.id 
-            self._drag_start_world = pos_world
-            
-            # Store start positions
-            self._drag_start_positions = {}
-            for pid in self.selected_points:
-                 p = next((x for x in self.frame.control_points if x.id == pid), None)
-                 if p:
-                     self._drag_start_positions[pid] = (p.x, p.y)
-                     
-            self.CaptureMouse()
-            self.Refresh()
-        else:
-            # Create NEW Point if active type set
-            if self.active_point_type_id:
-                # Snap?
-                wx, wy = pos_world
-                wx = int(wx - self.frame_offset[0])
-                wy = int(wy - self.frame_offset[1])
+                     if cp.id not in self.selected_points:
+                         self.selected_points = [cp.id]
+                         
+                self._pt_drag_mode = "move"
+                self._pt_drag_id = cp.id 
+                self._drag_start_world = pos_world
                 
-                if self.snap_to_grid:
-                     wx = round(wx / self.grid_size) * self.grid_size
-                     wy = round(wy / self.grid_size) * self.grid_size
+                # Store start positions
+                self._drag_start_positions = {}
+                for pid in self.selected_points:
+                     p = next((x for x in self.frame.control_points if x.id == pid), None)
+                     if p:
+                         self._drag_start_positions[pid] = (p.x, p.y)
+                         
+                self.CaptureMouse()
+                self.Refresh()
+            else:
+                self.selected_points = []
+                self.Refresh()
+        else:
+            # CREATION MODE (Shift held)
+            if self.active_point_type_id:
+                wx, wy = pos_world
+                # Usage of math.floor ensures consistent Top-Left behavior 
+                # even for negative coordinates, solving the 'bottom-left' bias issue.
+                wx = int(math.floor(wx - self.frame_offset[0]))
+                wy = int(math.floor(wy - self.frame_offset[1]))
                      
                 new_cp = ControlPoint(
                     id=generate_id("pt"),
@@ -722,6 +723,14 @@ class FrameCanvas(BaseCanvas):
                 )
                 self.frame.control_points.append(new_cp)
                 self.selected_points = [new_cp.id]
+                
+                # Enable immediate dragging for the new point
+                self._pt_drag_mode = "move"
+                self._pt_drag_id = new_cp.id
+                self._drag_start_world = pos_world
+                self._drag_start_positions = {new_cp.id: (wx, wy)}
+                
+                self.CaptureMouse()
                 self.Refresh()
             else:
                 self.selected_points = []
@@ -734,9 +743,7 @@ class FrameCanvas(BaseCanvas):
              dx = pos_world[0] - self._drag_start_world[0]
              dy = pos_world[1] - self._drag_start_world[1]
              
-             if self.snap_to_grid:
-                 dx = round(dx / self.grid_size) * self.grid_size
-                 dy = round(dy / self.grid_size) * self.grid_size
+             # Snap REMOVED
              
              for pid in self.selected_points:
                  cp = next((p for p in self.frame.control_points if p.id == pid), None)

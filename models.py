@@ -198,9 +198,6 @@ class ControlPoint:
             y=data["y"]
         )
 
-    @staticmethod
-    def from_dict(data: Dict) -> "ControlPoint":
-        return ControlPoint(name=data["name"], x=int(data["x"]), y=int(data["y"]))
 
 
 @dataclass

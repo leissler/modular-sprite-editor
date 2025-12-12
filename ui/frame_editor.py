@@ -337,15 +337,15 @@ class FrameEditorPanel(wx.Panel):
         left_sizer.Add(frame_btns, 0, wx.EXPAND | wx.ALL, 5)
         
         # Visualization Toggles
-        vis_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        vvis_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.chk_show_col = wx.CheckBox(left_panel, label="Colliders")
         self.chk_show_pts = wx.CheckBox(left_panel, label="Points")
-        self.chk_show_pts.SetValue(True) # Default on
+        self.chk_show_pts.SetValue(True) 
         
-        vis_sizer.Add(self.chk_show_col, 0, wx.RIGHT, 5)
-        vis_sizer.Add(self.chk_show_pts, 0)
+        vvis_sizer.Add(self.chk_show_col, 0, wx.RIGHT, 5)
+        vvis_sizer.Add(self.chk_show_pts, 0)
         
-        left_sizer.Add(vis_sizer, 0, wx.ALL, 5)
+        left_sizer.Add(vvis_sizer, 0, wx.ALL, 5)
 
         # Module Palette
         self.lbl_modules = wx.StaticText(left_panel, label="Modules (Drag to Canvas)")
@@ -406,8 +406,8 @@ class FrameEditorPanel(wx.Panel):
             self.palette.select_module(fm.ref_id)
 
     def on_canvas_right_down(self, event: wx.MouseEvent):
-        # Suppress context menu if in collision mode
-        if self.canvas.edit_mode == "collision":
+        # Suppress context menu if in collision or point mode
+        if self.canvas.edit_mode in ("collision", "point"):
             return
 
         # Hit test to see if we clicked a module
@@ -544,8 +544,18 @@ class FrameEditorPanel(wx.Panel):
         selected = set(self.canvas.selected_collision_rects)
         new_list = [cr for cr in self.canvas.frame.collision_rects if cr.id not in selected]
         
-        self.canvas.frame.collision_rects = new_list
         self.canvas.selected_collision_rects = []
+        self.canvas.Refresh()
+
+    def _delete_selected_points(self):
+        if not self.canvas.frame or not self.canvas.selected_points:
+            return
+            
+        selected = set(self.canvas.selected_points)
+        new_list = [cp for cp in self.canvas.frame.control_points if cp.id not in selected]
+        
+        self.canvas.frame.control_points = new_list
+        self.canvas.selected_points = []
         self.canvas.Refresh()
 
     def on_key_down(self, event: wx.KeyEvent):
@@ -582,6 +592,8 @@ class FrameEditorPanel(wx.Panel):
         elif keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK:
              if self.canvas.edit_mode == "collision":
                  self._delete_selected_collision_rects()
+             elif self.canvas.edit_mode == "point":
+                 self._delete_selected_points()
              else:
                  self._delete_selected_modules()
         else:
@@ -797,7 +809,7 @@ class FrameEditorPanel(wx.Panel):
     def on_toggle_vis_pts(self, event):
         self.canvas.show_points = event.IsChecked()
         self.canvas.Refresh()
-        
+
     def left_panel_layout(self):
         # Trigger layout on the parent of the hidden/shown items
         self.frame_list.GetParent().Layout()
