@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional, List, Tuple
+import copy
 import wx
 
 from models import Project, Frame, generate_id
@@ -300,6 +301,10 @@ class FrameEditorPanel(wx.Panel):
         self.project = project
         self.selected_frame_id: Optional[str] = None
         
+        # Clipboard
+        self._clipboard_col: List = [] 
+        self._clipboard_pts: List = []
+        
         # Layout
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
@@ -544,6 +549,7 @@ class FrameEditorPanel(wx.Panel):
         selected = set(self.canvas.selected_collision_rects)
         new_list = [cr for cr in self.canvas.frame.collision_rects if cr.id not in selected]
         
+        self.canvas.frame.collision_rects = new_list
         self.canvas.selected_collision_rects = []
         self.canvas.Refresh()
 
@@ -698,6 +704,103 @@ class FrameEditorPanel(wx.Panel):
         self.palette.refresh_modules()
         # In new design, frame list is always visible, but good update point
         self.refresh_frames(self.selected_frame_id)
+
+    # --- Copy / Paste / Propagate Logic ---
+    def on_frame_list_context_menu(self, event):
+        idx = self.frame_list.GetFirstSelected()
+        if idx == -1: return
+        
+        fid = self.project.frames[idx].id
+        frame = self.project.get_frame(fid)
+        
+        menu = wx.Menu()
+        
+        # Collision
+        item_copy_c = menu.Append(wx.ID_ANY, "Copy Collision Rects")
+        item_paste_c = menu.Append(wx.ID_ANY, "Paste Collision Rects (Append)")
+        item_prop_c = menu.Append(wx.ID_ANY, "Propagate Collision Rects to ALL Frames")
+        if not self._clipboard_col: item_paste_c.Enable(False)
+        
+        menu.AppendSeparator()
+        
+        # Points
+        item_copy_p = menu.Append(wx.ID_ANY, "Copy Control Points")
+        item_paste_p = menu.Append(wx.ID_ANY, "Paste Control Points (Append)")
+        item_prop_p = menu.Append(wx.ID_ANY, "Propagate Control Points to ALL Frames")
+        if not self._clipboard_pts: item_paste_p.Enable(False)
+
+        # Bind
+        self.Bind(wx.EVT_MENU, lambda e: self._copy_collision(frame), item_copy_c)
+        self.Bind(wx.EVT_MENU, lambda e: self._paste_collision(), item_paste_c)
+        self.Bind(wx.EVT_MENU, lambda e: self._propagate_collision(frame), item_prop_c)
+        
+        self.Bind(wx.EVT_MENU, lambda e: self._copy_points(frame), item_copy_p)
+        self.Bind(wx.EVT_MENU, lambda e: self._paste_points(), item_paste_p)
+        self.Bind(wx.EVT_MENU, lambda e: self._propagate_points(frame), item_prop_p)
+        
+        self.PopupMenu(menu)
+        menu.Destroy()
+        
+    def _clone_rects(self, rects):
+        new_list = []
+        for cr in rects:
+            new_cr = copy.deepcopy(cr)
+            new_cr.id = generate_id("crect")
+            new_list.append(new_cr)
+        return new_list
+
+    def _clone_points(self, points):
+        new_list = []
+        for cp in points:
+            new_cp = copy.deepcopy(cp)
+            new_cp.id = generate_id("pt")
+            new_list.append(new_cp)
+        return new_list
+
+    def _copy_collision(self, frame):
+        self._clipboard_col = copy.deepcopy(frame.collision_rects)
+        
+    def _paste_collision(self):
+        # Paste to currently selected frame
+        idx = self.frame_list.GetFirstSelected()
+        if idx == -1 or not self._clipboard_col: return
+        fid = self.project.frames[idx].id
+        frame = self.project.get_frame(fid)
+        
+        clones = self._clone_rects(self._clipboard_col)
+        frame.collision_rects.extend(clones)
+        self.canvas.Refresh()
+        
+    def _propagate_collision(self, src_frame):
+        # Propagate to ALL frames (Append)
+        # Maybe exclude source?
+        src_rects = src_frame.collision_rects
+        for f in self.project.frames:
+            if f.id == src_frame.id: continue
+            clones = self._clone_rects(src_rects)
+            f.collision_rects.extend(clones)
+        self.canvas.Refresh()
+
+    def _copy_points(self, frame):
+        self._clipboard_pts = copy.deepcopy(frame.control_points)
+
+    def _paste_points(self):
+        idx = self.frame_list.GetFirstSelected()
+        if idx == -1 or not self._clipboard_pts: return
+        fid = self.project.frames[idx].id
+        frame = self.project.get_frame(fid)
+        
+        clones = self._clone_points(self._clipboard_pts)
+        frame.control_points.extend(clones)
+        self.canvas.Refresh()
+
+    def _propagate_points(self, src_frame):
+        src_pts = src_frame.control_points
+        for f in self.project.frames:
+            if f.id == src_frame.id: continue
+            clones = self._clone_points(src_pts)
+            f.control_points.extend(clones)
+        self.canvas.Refresh()
 
     # QoL Implementations
     def on_frame_dclick(self, event):
