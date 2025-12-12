@@ -83,5 +83,30 @@ class TestAuroraImport(unittest.TestCase):
             if os.path.exists(filename):
                 os.remove(filename)
 
+    def test_isolation(self):
+        # Parse twice, ensure distinct objects
+        filename = "test_iso.sprite"
+        with open(filename, "w") as f:
+            f.write(SAMPLE_SPRITE)
+
+        try:
+            p1 = Project.from_json(filename)
+            p2 = Project.from_json(filename)
+            
+            self.assertIsNot(p1, p2)
+            self.assertIsNot(p1.modules, p2.modules)
+            self.assertEqual(len(p1.modules), 2)
+            self.assertEqual(len(p2.modules), 2)
+            
+            # Modify p1
+            p1.modules.append(Module("new", "new", "img", (0,0,0,0), (0,0)))
+            
+            self.assertEqual(len(p1.modules), 3)
+            self.assertEqual(len(p2.modules), 2)
+            
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
 if __name__ == "__main__":
     unittest.main()

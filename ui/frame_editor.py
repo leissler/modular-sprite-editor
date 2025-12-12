@@ -26,8 +26,16 @@ class ModulePalette(wx.ListCtrl):
         self.item_images = {}
 
     def refresh_modules(self):
+        # Aggressive cleanup: Detach old list first
+        self.SetImageList(None, wx.IMAGE_LIST_NORMAL)
         self.DeleteAllItems()
-        self.image_list.RemoveAll()
+        
+        # Explicitly destroy old python object ref (though GC handles it, explicit is clearer)
+        self.image_list = None
+        
+        # Recreate ImageList
+        self.image_list = wx.ImageList(64, 64)
+        self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.item_images.clear()
         
         # Cache loaded images to avoid re-reading from disk for every module
@@ -851,14 +859,41 @@ class FrameEditorPanel(wx.Panel):
     def set_project(self, project: Project):
         self.project = project
         self.canvas.project = project
-        self.palette.project = project
-        self.col_manager.project = project # Fix: Update manager
-        self.col_manager.refresh_list()    # Fix: Refresh UI
+        
+        # Completely recreate ModulePalette to force-clear wx.ListCtrl/ImageList internal caches
+        # This is required because on some platforms (macOS), the ImageList layer is extremely sticky.
+        old_palette = self.palette
+        parent = old_palette.GetParent()
+        sizer = parent.GetSizer()
+        
+        # Find position
+        sizer_items = sizer.GetChildren()
+        insert_idx = 0
+        for i, item in enumerate(sizer_items):
+             if item.GetWindow() == old_palette:
+                 insert_idx = i
+                 break
+        
+        sizer.Detach(old_palette)
+        old_palette.Destroy()
+        
+        # Create new
+        self.palette = ModulePalette(parent, project)
+        sizer.Insert(insert_idx, self.palette, 1, wx.EXPAND | wx.ALL, 5)
+        parent.Layout()
+        
+        # Update Managers
+        self.col_manager.project = project 
+        self.col_manager.refresh_list()
         self.point_manager.project = project 
         self.point_manager.refresh_list()
+        
         self.palette.refresh_modules()
+        
+        self.selected_frame_id = None # Clear previous selection
         self.refresh_frames()
         self.canvas.set_frame(None)
+        self.canvas.clear_cache() # Fix: FrameCanvas has its own bitmap cache that must be cleared!
         
         # Ensure canvas has correct collision/point colors immediately
         self.on_col_type_change()

@@ -1034,7 +1034,7 @@ class ModuleEditorPanel(wx.Panel):
     def set_project(self, project: Project) -> None:
         self.project = project
         self.selected_image_id = None
-        self.selected_module_id = None
+        self.selected_module_id = None # Clear selection persistence
         self._bitmap_cache = {}
         self._view_states = {}
         self.canvas.set_bitmap(None, (0, 0))

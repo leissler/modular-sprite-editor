@@ -296,12 +296,26 @@ class AuroraSpriteParser:
         project = Project()
         
         # 1. Parse Images
-        image_pattern = re.compile(r'IMAGE\s+(0x[\da-fA-F]+)\s+"([^"]+)"')
+        # Update regex to capture optional TRANSP 0xHex
+        image_pattern = re.compile(r'IMAGE\s+(0x[\da-fA-F]+)\s+"([^"]+)"(?:\s+TRANSP\s+(0x[\da-fA-F]+))?')
         images_map = {} # Map index to absolute path
         
         image_index = 0
         for match in image_pattern.finditer(content):
-            img_hex_id, filename = match.groups()
+            img_hex_id, filename, transp_hex = match.groups()
+            
+            # Parse trans color if present
+            # Format usually 0x00RRGGBB or 0xRRGGBB.
+            # We assume the user wants RGB.
+            # If 0x00FF00FF -> R=FF, G=00, B=FF? (Magenta)
+            trans_color = None
+            if transp_hex:
+                 val = int(transp_hex, 16)
+                 # Apply mask 0xFFFFFF just in case
+                 r = (val >> 16) & 0xFF
+                 g = (val >> 8) & 0xFF
+                 b = val & 0xFF
+                 trans_color = (r, g, b)
             
             # Construct absolute path
             abs_path = os.path.join(base_path, filename)
@@ -332,7 +346,8 @@ class AuroraSpriteParser:
                 id=abs_path, # Use path as ID so Modules can reference it easily
                 file_path=abs_path,
                 width=0, # Unknown until load
-                height=0 
+                height=0,
+                transparent_color=trans_color 
             )
             project.images.append(img_asset)
             image_index += 1

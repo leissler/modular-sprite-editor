@@ -75,6 +75,10 @@ class FrameCanvas(BaseCanvas):
         self.frame_offset = offset
         self.Refresh(False)
         
+    def clear_cache(self) -> None:
+        self._bitmap_cache.clear()
+        self.Refresh(False)
+        
     def on_paint(self, event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()

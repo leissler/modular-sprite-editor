@@ -108,6 +108,13 @@ class MainFrame(wx.Frame):
         file_menu.Bind(wx.EVT_MENU, self.on_open, self.m_open)
         file_menu.Bind(wx.EVT_MENU, self.on_save, self.m_save)
         
+        # Import Submenu
+        import_menu = wx.Menu()
+        self.m_import_aurora = import_menu.Append(wx.ID_ANY, "AuroraGT Sprite (*.sprite)...")
+        file_menu.AppendSubMenu(import_menu, "Import")
+        
+        self.Bind(wx.EVT_MENU, self.on_import_aurora, self.m_import_aurora)
+        
         menubar.Append(file_menu, "&File")
 
         self.SetMenuBar(menubar)
@@ -197,7 +204,7 @@ class MainFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Open project",
-            wildcard="JSON files (*.json)|*.json|AuroraGT Sprite (*.sprite)|*.sprite",
+            wildcard="JSON files (*.json)|*.json",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         ) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
@@ -206,6 +213,23 @@ class MainFrame(wx.Frame):
             self.project = Project.from_json(path)
             self.current_path = path
             self._reload_project_into_panels()
+
+    def on_import_aurora(self, _: wx.CommandEvent) -> None:
+        with wx.FileDialog(
+            self,
+            "Import AuroraGT Sprite",
+            wildcard="AuroraGT Sprite (*.sprite)|*.sprite",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+            # Project.from_json handles parsing based on extension
+            self.project = Project.from_json(path)
+            # Do NOT set current_path, so Save prompts for a new location (conversion)
+            self.current_path = None 
+            self._reload_project_into_panels()
+            wx.MessageBox("Imported successfully. Please save as a new project.", "Import Complete", wx.OK | wx.ICON_INFORMATION)
 
     def on_save(self, _: wx.CommandEvent) -> None:
         if not self.current_path:
