@@ -141,7 +141,10 @@ class FrameCanvas(BaseCanvas):
         cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
         gc.DrawText(text, cx - tw / 2, cy - th / 2)
 
-    def _draw_fmodule_content(self, gc: wx.GraphicsContext, fm: FModule) -> None:
+    def _draw_fmodule_content(self, gc: wx.GraphicsContext, fm: FModule, depth: int = 0) -> None:
+        if depth > 16:  # Recursion guard
+            return
+
         bounds = self._fmodule_bounds(fm)
         x0, y0, x1, y1 = bounds
         sx0, sy0 = self.world_to_screen((x0, y0))
@@ -169,6 +172,74 @@ class FrameCanvas(BaseCanvas):
                          scaled_bmp = img.ConvertToBitmap()
                          
                          gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
+        
+        elif fm.ref_type == "frame":
+            # Nested Frame Rendering
+            # This is complex because we need to apply the parent's transformation AND screen projection.
+            # Ideally, we'd use GC transforms, but our "world_to_screen" is custom.
+            # So we pass "recursive offset" ? 
+            # OR we just use a temporary override of frame_offset?
+            # Actually, reusing _draw_fmodule_content recursively is tricky because it assumes "self.frame" context?
+            # No, it effectively renders "fm" which HAS position.
+            
+            # To render child frame's modules, we need to iterate them.
+            # But they are relative to child frame origin.
+            # "fm" places that origin at (fm.x, fm.y) in CURRENT frame.
+            # So child module at (cx, cy) becomes (fm.x + cx, fm.y + cy) (ignoring flip for a moment).
+            
+            ref_frame = self.project.get_frame(fm.ref_id)
+            if ref_frame:
+                # Iterate children
+                for child_fm in ref_frame.fmodules:
+                    # CLONE child_fm to apply local transform
+                    # This avoids modifying the actual model
+                    # Position = ParentPos + ApplyFlip(ChildPos)
+                    
+                    cx, cy = child_fm.position
+                    
+                    # Apply parent flip
+                    if fm.flip_x:
+                        cx = -cx - self._get_width(child_fm) # Reflect around 0? No, around center?
+                        # Wait, pivot handling for frames is implicit (0,0).
+                        # If a frame is flipped X, the X-axis is inverted.
+                        # (10, 10) becomes (-10, 10) ?
+                        # And we must also ACCOUNT FOR MODULE WIDTH if pivoting at topleft?
+                        # NO, our coordinate system seems to be center-based or top-left?
+                        # Modules have Pivots. FModules have Position (offset from Frame Origin).
+                        # If I flip a Frame, I flip all its children positions.
+                        cx = -cx
+                        # AND I might need to offset if specific pivot logic applies?
+                        # Standard "Flip around Y axis" = x -> -x.
+                        
+                    if fm.flip_y:
+                        cy = -cy
+
+                    # Combine flips
+                    final_flip_x = child_fm.flip_x ^ fm.flip_x
+                    final_flip_y = child_fm.flip_y ^ fm.flip_y
+                    
+                    # Create temporary proxy
+                    # We need to construct a "Visual FModule" that is effectively
+                    # "fm" merged with "child_fm".
+                    nx = fm.position[0] + cx
+                    ny = fm.position[1] + cy
+                    
+                    # Note: Rotation not supported yet per model?
+                    
+                    # We can't easily instantiate FModule without ID etc.
+                    # But _draw_fmodule_content takes an FModule.
+                    # Let's mock it or create a temporary one.
+                    
+                    temp_fm = FModule(
+                        id="temp",
+                        ref_type=child_fm.ref_type,
+                        ref_id=child_fm.ref_id,
+                        position=(nx, ny),
+                        flip_x=final_flip_x,
+                        flip_y=final_flip_y
+                    )
+                    
+                    self._draw_fmodule_content(gc, temp_fm, depth + 1)
 
     def _draw_fmodule_overlay(self, gc: wx.GraphicsContext, fm: FModule) -> None:
         bounds = self._fmodule_bounds(fm)
@@ -454,7 +525,67 @@ class FrameCanvas(BaseCanvas):
                 )
                 return (top_left[0], top_left[1], top_left[0] + w, top_left[1] + h)
         
-        # Fallback or Frame ref
+        elif fm.ref_type == "frame":
+            # For frames, we ideally calculate the bounding box of all its children.
+            # Avoid infinite recursion if possible.
+            # Simplified: treat frame as having (0,0) as its pivot/origin.
+            # Bounds = Union of child bounds relative to (0,0).
+            # If expensive, cache it? For now, recompute.
+            
+            ref_frame = self.project.get_frame(fm.ref_id)
+            if ref_frame:
+                # We need bounds of ref_frame relative to ITS origin.
+                # A frame's content is simply its fmodules positioned relative to (0,0).
+                # So we iterate children, get their bounds (assuming 0,0 offset), and unite.
+                
+                min_x, min_y, max_x, max_y = 0, 0, 0, 0
+                first = True
+                
+                for child_fm in ref_frame.fmodules:
+                     # Get child bounds assuming NO parent offset (just local position)
+                     # We can't safely call _fmodule_bounds directly because it adds self.frame_offset
+                     # We need a helper that returns LOCAL bounds.
+                     
+                     # HACK: Temporarily set offset to 0? No, thread unsafe (if threaded).
+                     # Duplicate logic for local calculation.
+                     
+                     # 1. Local Position
+                     cx, cy = child_fm.position
+                     cw, ch = 32, 32 # Default
+                     piv_x, piv_y = 0, 0
+                     
+                     if child_fm.ref_type == "module":
+                         m = self.project.get_module(child_fm.ref_id)
+                         if m:
+                             cw, ch = m.rect[2], m.rect[3]
+                             piv_x, piv_y = m.pivot
+                     elif child_fm.ref_type == "frame":
+                          # Recursion? Limit depth.
+                          # For now, approximate frames as 32x32 to avoid deep recalc lag
+                          pass 
+
+                     # Child Bounds = (cx - piv_x, cy - piv_y, cx - piv_x + cw, cy - piv_y + ch)
+                     l = cx - piv_x
+                     t = cy - piv_y
+                     r = l + cw
+                     b = t + ch
+                     
+                     if first:
+                         min_x, min_y, max_x, max_y = l, t, r, b
+                         first = False
+                     else:
+                         min_x = min(min_x, l)
+                         min_y = min(min_y, t)
+                         max_x = max(max_x, r)
+                         max_y = max(max_y, b)
+                
+                if not first:
+                     # Translate by current FM position + offset
+                     off_x = fm.position[0] + self.frame_offset[0]
+                     off_y = fm.position[1] + self.frame_offset[1]
+                     return (min_x + off_x, min_y + off_y, max_x + off_x, max_y + off_y)
+
+        # Fallback
         sz = 32
         return (
             fm.position[0] - sz / 2,
@@ -462,6 +593,11 @@ class FrameCanvas(BaseCanvas):
             fm.position[0] + sz / 2,
             fm.position[1] + sz / 2,
         )
+
+    def _get_width(self, fm: FModule) -> int:
+        bounds = self._fmodule_bounds(fm)
+        # _fmodule_bounds uses offset, but width is invariant
+        return int(bounds[2] - bounds[0])
 
     def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
         if mod.id in self._bitmap_cache:
@@ -495,7 +631,7 @@ class FrameCanvas(BaseCanvas):
             return None
         return None
 
-    def handle_dropped_module(self, module_id: str, pos: wx.Point):
+    def handle_dropped_module(self, ref_id: str, pos: wx.Point, ref_type: str = "module"):
         if not self.frame:
             if hasattr(self, 'on_create_frame_needed') and self.on_create_frame_needed:
                 self.frame = self.on_create_frame_needed()
@@ -503,16 +639,25 @@ class FrameCanvas(BaseCanvas):
             if not self.frame:
                 return
         
+        # Cycle Detection for Frames
+        if ref_type == "frame":
+             if ref_id == self.frame.id:
+                 wx.MessageBox("Cannot add a frame to itself!", "Loop Detected", wx.OK | wx.ICON_ERROR)
+                 return
+             
+             if self.project.frame_has_cycle(self.frame.id, ref_id):
+                 wx.MessageBox("Adding this frame would create a cycle!", "Loop Detected", wx.OK | wx.ICON_ERROR)
+                 return
+
         world_pt = self.screen_to_world(pos)
         
         # New FModule
         fm = FModule(
-            id=f"fm_{int(math.floor(math.fabs(hash(module_id + str(len(self.frame.fmodules))))))}", 
-            # Simple ID gen, ideally use models.generate_id if available or inject
-            ref_type="module",
-            ref_id=module_id,
+            id=generate_id("fmod"), 
+            ref_type=ref_type,
+            ref_id=ref_id,
             position=(int(world_pt[0]), int(world_pt[1])),
-            flip_x=False, flip_y=False, rotation_degrees=0.0
+            flip_x=False, flip_y=False
         )
         self.frame.fmodules.append(fm)
         self.Refresh(False)
@@ -763,11 +908,18 @@ class ModuleDropTarget(wx.TextDropTarget):
         self.canvas = canvas
 
     def OnDropText(self, x, y, data):
-        # We expect data to be "MODULE:<id>"
+        # We expect data to be "MODULE:<id>" or "FRAME_REF:<idx>:<id>"
         if data.startswith("MODULE:"):
             mid = data.split(":", 1)[1]
-            self.canvas.handle_dropped_module(mid, wx.Point(x, y))
+            self.canvas.handle_dropped_module(mid, wx.Point(x, y), ref_type="module")
             return True
+        elif data.startswith("FRAME_REF:"):
+            # FRAME_REF:<idx>:<id>
+            parts = data.split(":")
+            if len(parts) >= 3:
+                fid = parts[2]
+                self.canvas.handle_dropped_module(fid, wx.Point(x, y), ref_type="frame")
+                return True
         return False
 
 class AnimationCanvas(FrameCanvas):

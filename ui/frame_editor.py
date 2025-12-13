@@ -287,12 +287,14 @@ class FrameListDropTarget(wx.TextDropTarget):
         # Cleanup
         self.OnLeave()
         
-        if not data.startswith("FRAME:"):
+        if not data.startswith("FRAME_REF:"):
             return False
             
         try:
-            src_idx = int(data.split(":")[1])
-        except ValueError:
+            # Parse FRAME_REF:<idx>:<id>
+            parts = data.split(":")
+            src_idx = int(parts[1])
+        except (ValueError, IndexError):
             return False
             
         # Find target index using helper
@@ -319,17 +321,18 @@ class FrameEditorPanel(wx.Panel):
         # Left Panel: Frames List + Module Palette
         left_panel = wx.Panel(self)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
-        
+
         # Frames List (ListCtrl for better DnD and Inline Rename)
         left_sizer.Add(wx.StaticText(left_panel, label="Frames"), 0, wx.ALL, 5)
         self.frame_list = wx.ListCtrl(left_panel, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
         self.frame_list.InsertColumn(0, "Frame", width=180) # Auto-size later?
-        self.frame_list.Bind(wx.EVT_CONTEXT_MENU, self.on_frame_list_context_menu)
-        
-        # QoL: Rename & Reorder
-        self.frame_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_frame_dclick) # Double click
-        self.frame_list.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_frame_begin_drag)
-        self.frame_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_frame_end_edit)
+        self.frame_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_frame_list_context_menu)
+        self.frame_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_frame_dclick)
+        # Enable Drag FROM list (to reorder OR drop on canvas)
+        self.frame_list.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag_frame)
+        self.frame_list.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.on_begin_label_edit)
+        self.frame_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_end_label_edit)
+        self.frame_list.Bind(wx.EVT_LEFT_UP, self.on_frame_list_mouseup) # Deferred selection
         self.frame_list.SetDropTarget(FrameListDropTarget(self))
         
         left_sizer.Add(self.frame_list, 1, wx.EXPAND | wx.ALL, 5)
@@ -816,7 +819,10 @@ class FrameEditorPanel(wx.Panel):
         if idx != -1:
             self.frame_list.EditLabel(idx)
 
-    def on_frame_end_edit(self, event):
+    def on_begin_label_edit(self, event):
+        event.Allow()
+
+    def on_end_label_edit(self, event):
         if event.IsEditCancelled():
             return
             
@@ -829,13 +835,37 @@ class FrameEditorPanel(wx.Panel):
                 frame.name = new_name
                 # self.refresh_frames(frame.id) # No need to refresh entire list, label is updated by Ctrl
                 
-    def on_frame_begin_drag(self, event):
+    # Renamed to match binding
+    def on_begin_drag_frame(self, event):
+        # Drag started: Cancel pending selection switch (if any)
+        # This allows dragging a highlighted frame WITHOUT switching the view to it.
+        self._pending_frame_switch = None
+        
         idx = event.GetIndex()
         if idx != -1:
-            text_data = wx.TextDataObject(f"FRAME:{idx}")
+            # Send both Index (for reordering) and ID (for canvas drop)
+            # Format: FRAME_REF:<idx>:<id>
+            frame_id = self.project.frames[idx].id
+            text_data = wx.TextDataObject(f"FRAME_REF:{idx}:{frame_id}")
             source = wx.DropSource(self.frame_list)
             source.SetData(text_data)
             source.DoDragDrop(wx.Drag_DefaultMove)
+            
+            # Post-Drag: Restore selection to the currently active canvas frame
+            # (Because clicking to drag selected the dragged frame in the list)
+            if self.selected_frame_id:
+                # Find index of self.selected_frame_id
+                active_idx = -1
+                for i, f in enumerate(self.project.frames):
+                    if f.id == self.selected_frame_id:
+                        active_idx = i
+                        break
+                
+                if active_idx != -1:
+                    # Restore selection to visual context
+                    self.frame_list.SetItemState(active_idx, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
+                    # We might want to ensure visible too
+                    self.frame_list.EnsureVisible(active_idx)
             
     def move_frame(self, src_idx: int, target_idx: int):
         if src_idx == target_idx:
@@ -905,10 +935,26 @@ class FrameEditorPanel(wx.Panel):
             # Assume list order == project order
             if 0 <= idx < len(self.project.frames):
                 frame = self.project.frames[idx]
-                self.selected_frame_id = frame.id
-                self.canvas.set_frame(frame)
+                
+                # Deferred Selection Logic:
+                # If mouse is down, user might be dragging. Delay switch until MouseUp.
+                # If keyboard nav (mouse up), switch immediately.
+                if wx.GetMouseState().LeftIsDown():
+                     self._pending_frame_switch = frame
+                else:
+                     self._switch_canvas_view(frame)
         else:
             self.canvas.set_frame(None)
+            
+    def on_frame_list_mouseup(self, event):
+        if getattr(self, '_pending_frame_switch', None):
+            self._switch_canvas_view(self._pending_frame_switch)
+            self._pending_frame_switch = None
+        event.Skip()
+            
+    def _switch_canvas_view(self, frame):
+        self.selected_frame_id = frame.id
+        self.canvas.set_frame(frame)
     
     def on_mode_change(self, event):
         sel = self.choice_mode.GetSelection()

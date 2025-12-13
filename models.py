@@ -448,6 +448,21 @@ class AuroraSpriteParser:
                         )
                         current_obj.aframes.append(af)
 
+        # 4. Linking Pass: Resolve FModule references
+        # Check if ref_id matches a Module or a Frame. Default was "module".
+        module_ids = {m.id for m in project.modules}
+        frame_ids = {f.id for f in project.frames}
+        
+        for frame in project.frames:
+            for fm in frame.fmodules:
+                if fm.ref_id in frame_ids and fm.ref_id not in module_ids:
+                    # It's a Frame (and not ambiguously a Module ID, though IDs should be unique)
+                    fm.ref_type = "frame"
+                elif fm.ref_id not in module_ids and fm.ref_id not in frame_ids:
+                    # Unknown ref. Leave as module? or mark broken?
+                    # Aurora GT usually links to modules.
+                    pass
+
         return project
 
 
@@ -473,7 +488,8 @@ class Project:
     def get_animation(self, animation_id: str) -> Optional[Animation]:
         return next((a for a in self.animations if a.id == animation_id), None)
 
-    def frame_has_cycle(self, frame_id: str) -> bool:
+    def frame_has_cycle(self, frame_id: str, new_child_id: Optional[str] = None) -> bool:
+        """Checks if a cycle exists (or would exist if new_child_id is added to frame_id)."""
         visited = set()
         def visit(fid: str, stack: List[str]) -> bool:
             if fid in stack:
@@ -481,10 +497,19 @@ class Project:
             frame = self.get_frame(fid)
             if not frame:
                 return False
+            
             stack.append(fid)
+            
+            # Existing children
             for fm in frame.fmodules:
                 if fm.ref_type == "frame" and visit(fm.ref_id, stack):
                     return True
+            
+            # Proposed new child (only for the root frame_id we are checking)
+            if new_child_id and fid == frame_id:
+                if visit(new_child_id, stack):
+                    return True
+                    
             stack.pop()
             visited.add(fid)
             return False
