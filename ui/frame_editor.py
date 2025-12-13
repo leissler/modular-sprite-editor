@@ -678,8 +678,84 @@ class FrameEditorPanel(wx.Panel):
             fm.id = generate_id("fmod")
             
         self.project.frames.append(new_frame)
-        self.refresh_frames(select_id=new_frame.id)
-        self.on_select_frame(None) # Event arg ignored manually called
+        self.refresh_frames(new_frame.id)
+        
+    def _mirror_frame(self, fid: str, axis: str):
+        frame = self.project.get_frame(fid)
+        if not frame: return
+        
+        # Mirror Modules
+        for fm in frame.fmodules:
+            if axis == "x":
+                # Position flip relative to origin (0,0)
+                # But we must account for width/height if pivot is TopLeft. 
+                # Assuming modules are centered or pivot-handled in canvas.
+                # Canvas _fmodule_bounds: top_left = pos - pivot.
+                # If we flip X, we want visual reflection.
+                # Reflect pos: x -> -x.
+                # Reflect module: flip_x -> !flip_x.
+                # Does -x position + flipped module align?
+                # Orig: [x - piv, x - piv + w]
+                # New: [-x - (w-piv?), ... ]
+                # Pivot of flipped module is usually (w - original_pivot_x).
+                # Canvas doesn't seem to dynamically adjust pivot on flip (it uses image Mirror).
+                # Wait, canvas.py lines 163-166 mirrors the wx.Image.
+                # wx.Image.Mirror doesn't change pivot metadata.
+                # We need to adjust position to compensate for Pivot change.
+                # "Effective Pivot" changes from P to W-P.
+                # Delta = (W-P) - P = W - 2P.
+                # NewPos = -OldPos - Delta ?
+                # Simpler: Just rely on visual flip.
+                # Let's try simple negation first, user can adjust pivots if needed.
+                # Actually, `on_flip_x` in this file (line 700) uses:
+                # new_x = -pos.x + (2*px - w). 
+                # I should use that logic if I can resolve 'w' and 'px'.
+                # But 'w' comes from Module definition. frame.fmodules has ref_id.
+                
+                # Fetch module for metrics
+                w, h = 32, 32
+                px, py = 16, 16
+                if fm.ref_type == "module":
+                     m = self.project.get_module(fm.ref_id)
+                     if m:
+                         w, h = m.rect[2], m.rect[3]
+                         px, py = m.pivot
+                
+                # Apply transformation
+                new_x = -fm.position[0] + (2 * px - w)
+                fm.position = (new_x, fm.position[1])
+                fm.flip_x = not fm.flip_x
+                
+            elif axis == "y":
+                w, h = 32, 32
+                px, py = 16, 16
+                if fm.ref_type == "module":
+                     m = self.project.get_module(fm.ref_id)
+                     if m:
+                         w, h = m.rect[2], m.rect[3]
+                         px, py = m.pivot
+
+                new_y = -fm.position[1] + (2 * py - h)
+                fm.position = (fm.position[0], new_y)
+                fm.flip_y = not fm.flip_y
+
+        # Mirror Collision Rects
+        for cr in frame.collision_rects:
+            rx, ry, rw, rh = cr.rect
+            if axis == "x":
+                # x -> -x - w
+                cr.rect = (-rx - rw, ry, rw, rh)
+            elif axis == "y":
+                # y -> -y - h
+                cr.rect = (rx, -ry - rh, rw, rh)
+                
+        # Mirror Control Points
+        for cp in frame.control_points:
+            if axis == "x":
+                cp.x = -cp.x
+            elif axis == "y":
+                cp.y = -cp.y
+                
         self.canvas.Refresh()
 
     def _flip_frame(self, fid: str, axis: str):
@@ -726,6 +802,13 @@ class FrameEditorPanel(wx.Panel):
         
         menu = wx.Menu()
         
+        # Frame Actions
+        item_dup = menu.Append(wx.ID_ANY, "Duplicate Frame")
+        menu.AppendSeparator()
+        item_mirror_x = menu.Append(wx.ID_ANY, "Mirror Horizontal (X)")
+        item_mirror_y = menu.Append(wx.ID_ANY, "Mirror Vertical (Y)")
+        menu.AppendSeparator()
+        
         # Collision
         item_copy_c = menu.Append(wx.ID_ANY, "Copy Collision Rects")
         item_paste_c = menu.Append(wx.ID_ANY, "Paste Collision Rects (Append)")
@@ -741,6 +824,10 @@ class FrameEditorPanel(wx.Panel):
         if not self._clipboard_pts: item_paste_p.Enable(False)
 
         # Bind
+        self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), item_dup)
+        self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "x"), item_mirror_x)
+        self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "y"), item_mirror_y)
+
         self.Bind(wx.EVT_MENU, lambda e: self._copy_collision(frame), item_copy_c)
         self.Bind(wx.EVT_MENU, lambda e: self._paste_collision(), item_paste_c)
         self.Bind(wx.EVT_MENU, lambda e: self._propagate_collision(frame), item_prop_c)
