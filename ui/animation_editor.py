@@ -107,28 +107,29 @@ class AnimationEditorPanel(wx.Panel):
         frame_props_sizer = wx.BoxSizer(wx.HORIZONTAL)
         frame_props_sizer.Add(wx.StaticText(bottom_box, label="Duration (frames):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.spin_duration = wx.SpinCtrl(bottom_box, min=1, max=10000, initial=100, size=(70, -1))
-        frame_props_sizer.Add(self.spin_duration, 0, wx.RIGHT, 10)
+        frame_props_sizer.Add(self.spin_duration, 0, wx.RIGHT, 20) # Spacing after Duration
         
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Offset:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        # Offsets
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Offset"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="X:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         self.spin_off_x = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+        frame_props_sizer.Add(self.spin_off_x, 0, wx.RIGHT, 10)
+        
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Y:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         self.spin_off_y = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
-        frame_props_sizer.Add(self.spin_off_x, 0, wx.RIGHT, 2)
-        frame_props_sizer.Add(self.spin_off_y, 0, wx.RIGHT, 10)
+        frame_props_sizer.Add(self.spin_off_y, 0, wx.RIGHT, 20) # Spacing after Offsets
         
         frame_props_sizer.Add(wx.StaticText(bottom_box, label="Trajectory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.chk_trajectory = wx.CheckBox(bottom_box)
         self.chk_trajectory.SetValue(True)
         frame_props_sizer.Add(self.chk_trajectory, 0)
 
-        # Buttons for frame management (Add/Remove from Timeline)
-        tm_btns = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_remove_frame = wx.Button(bottom_box, label="Remove Frame")
-        tm_btns.Add(self.btn_remove_frame, 0)
-        
+        # Layout
         bottom_sizer.Add(self.timeline, 0, wx.EXPAND | wx.ALL, 4)
         bottom_sizer.Add(pb_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 4)
         bottom_sizer.Add(frame_props_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 4)
-        bottom_sizer.Add(tm_btns, 0, wx.ALIGN_LEFT | wx.ALL, 4)
+        # Removed btn_remove_frame button
 
         right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
         right_sizer.Add(bottom_sizer, 0, wx.EXPAND | wx.ALL, 4)
@@ -159,7 +160,7 @@ class AnimationEditorPanel(wx.Panel):
         self.btn_play.Bind(wx.EVT_BUTTON, self.on_play)
         self.btn_stop.Bind(wx.EVT_BUTTON, self.on_stop)
         
-        self.btn_remove_frame.Bind(wx.EVT_BUTTON, self.on_remove_aframe)
+        # self.btn_remove_frame binding removed
         self.spin_duration.Bind(wx.EVT_SPINCTRL, self.on_change_aframe_props)
         self.spin_off_x.Bind(wx.EVT_SPINCTRL, self.on_change_aframe_props)
         self.spin_off_x.Bind(wx.EVT_TEXT_ENTER, self.on_change_aframe_props)
