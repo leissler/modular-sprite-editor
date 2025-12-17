@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import Optional
 
 import wx
+import wx.lib.newevent
 
 from models import AFrame, Animation, Project, generate_id
 from ui.canvas import AnimationCanvas
-
+from ui.components.timeline_control import TimelineControl
+from ui.components.frame_palette import FramePalette
 
 class AnimationEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
@@ -18,402 +20,603 @@ class AnimationEditorPanel(wx.Panel):
         self.current_index: int = 0
         self.play_direction = 1
         self.remaining_loops: Optional[int] = None
+        self.is_playing = False
         self.timer = wx.Timer(self)
 
-        main = wx.BoxSizer(wx.HORIZONTAL)
-        sidebar = wx.BoxSizer(wx.VERTICAL)
-        right = wx.BoxSizer(wx.VERTICAL)
-
-        # Animation list
-        anim_box = wx.StaticBox(self, label="Animations")
+        # Main Splitter: Left (Manager) | Right (Workspace)
+        self.splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3D)
+        
+        # --- LEFT PANEL: Manager ---
+        self.left_panel = wx.Panel(self.splitter)
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # 1. Animation List & Props (Top Left)
+        anim_box = wx.StaticBox(self.left_panel, label="Animations")
         anim_sizer = wx.StaticBoxSizer(anim_box, wx.VERTICAL)
-        self.anim_list = wx.ListBox(anim_box)
+        
+        # List of Animations (Editable Labels for renaming)
+        self.anim_list = wx.ListCtrl(anim_box, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
+        self.anim_list.InsertColumn(0, "Name", width=200)
+        
         anim_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add_anim = wx.Button(anim_box, label="Add")
-        self.btn_rename_anim = wx.Button(anim_box, label="Rename")
-        self.btn_delete_anim = wx.Button(anim_box, label="Delete")
+        self.btn_delete_anim = wx.Button(anim_box, label="Del")
         anim_btns.Add(self.btn_add_anim, 1, wx.RIGHT, 4)
-        anim_btns.Add(self.btn_rename_anim, 1, wx.RIGHT, 4)
         anim_btns.Add(self.btn_delete_anim, 1)
+        
+        # Global Animation Props
+        props_grid = wx.FlexGridSizer(2, 2, 4, 4)
+        props_grid.Add(wx.StaticText(anim_box, label="FPS"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.fps_spin = wx.SpinCtrl(anim_box, min=1, max=60, initial=10)
+        props_grid.Add(self.fps_spin, 1, wx.EXPAND)
+        
+        props_grid.Add(wx.StaticText(anim_box, label="Loop"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.playback_choice = wx.Choice(anim_box, choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"])
+        self.playback_choice.SetSelection(2)
+        props_grid.Add(self.playback_choice, 1, wx.EXPAND)
+        
         anim_sizer.Add(self.anim_list, 1, wx.EXPAND | wx.ALL, 4)
         anim_sizer.Add(anim_btns, 0, wx.EXPAND | wx.ALL, 4)
-
-        # Playback settings
-        playback_box = wx.StaticBox(self, label="Playback")
-        playback_sizer = wx.StaticBoxSizer(playback_box, wx.VERTICAL)
-        pb_grid = wx.FlexGridSizer(2, 2, 4, 4)
-        pb_grid.Add(wx.StaticText(playback_box, label="Type"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.playback_choice = wx.Choice(playback_box, choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"])
-        self.playback_choice.SetSelection(2)  # loop by default
-        pb_grid.Add(self.playback_choice, 1, wx.EXPAND)
-        pb_grid.Add(wx.StaticText(playback_box, label="Loop Count"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.loop_spin = wx.SpinCtrl(playback_box, min=-1, max=1000, initial=-1)
-        pb_grid.Add(self.loop_spin, 1, wx.EXPAND)
-        playback_sizer.Add(pb_grid, 0, wx.EXPAND | wx.ALL, 4)
-        playback_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_first = wx.Button(playback_box, label="|<")
-        self.btn_prev = wx.Button(playback_box, label="<")
-        self.btn_play = wx.Button(playback_box, label="Play")
-        self.btn_stop = wx.Button(playback_box, label="Stop")
-        self.btn_next = wx.Button(playback_box, label=">")
-        self.btn_last = wx.Button(playback_box, label=">|")
-        playback_buttons.Add(self.btn_first, 0, wx.RIGHT, 2)
-        playback_buttons.Add(self.btn_prev, 0, wx.RIGHT, 2)
-        playback_buttons.Add(self.btn_play, 0, wx.RIGHT, 2)
-        playback_buttons.Add(self.btn_stop, 0, wx.RIGHT, 2)
-        playback_buttons.Add(self.btn_next, 0, wx.RIGHT, 2)
-        playback_buttons.Add(self.btn_last, 0)
-        playback_sizer.Add(playback_buttons, 0, wx.ALL, 4)
-
-        # AFrames list
-        af_box = wx.StaticBox(self, label="Frames in Animation")
-        af_sizer = wx.StaticBoxSizer(af_box, wx.VERTICAL)
-        self.aframe_list = wx.ListCtrl(af_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.aframe_list.InsertColumn(0, "Frame", width=130)
-        self.aframe_list.InsertColumn(1, "Duration", width=70)
-        self.aframe_list.InsertColumn(2, "Offset", width=80)
-        add_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.choice_frame = wx.Choice(af_box)
-        self.btn_add_frame = wx.Button(af_box, label="Add Frame")
-        add_row.Add(self.choice_frame, 1, wx.RIGHT, 4)
-        add_row.Add(self.btn_add_frame, 0)
-        edit_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_remove_frame = wx.Button(af_box, label="Remove")
-        self.btn_move_up = wx.Button(af_box, label="Up")
-        self.btn_move_down = wx.Button(af_box, label="Down")
-        edit_row.Add(self.btn_remove_frame, 1, wx.RIGHT, 4)
-        edit_row.Add(self.btn_move_up, 1, wx.RIGHT, 4)
-        edit_row.Add(self.btn_move_down, 1)
-        prop_grid = wx.FlexGridSizer(rows=0, cols=2, vgap=4, hgap=4)
-        prop_grid.Add(wx.StaticText(af_box, label="Duration (ms)"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.spin_duration = wx.SpinCtrl(af_box, min=1, max=10000, initial=100)
-        prop_grid.Add(self.spin_duration, 1, wx.EXPAND)
-        prop_grid.Add(wx.StaticText(af_box, label="Trajectory"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.chk_trajectory = wx.CheckBox(af_box)
+        anim_sizer.Add(props_grid, 0, wx.EXPAND | wx.ALL, 4)
+        
+        # 2. Frame Palette (Bottom Left)
+        pal_box = wx.StaticBox(self.left_panel, label="Frame Palette")
+        pal_sizer = wx.StaticBoxSizer(pal_box, wx.VERTICAL)
+        self.frame_palette = FramePalette(pal_box, self.project)
+        pal_sizer.Add(self.frame_palette, 1, wx.EXPAND | wx.ALL, 4)
+        
+        left_sizer.Add(anim_sizer, 1, wx.EXPAND | wx.ALL, 4)
+        left_sizer.Add(pal_sizer, 1, wx.EXPAND | wx.ALL, 4)
+        self.left_panel.SetSizer(left_sizer)
+        
+        # --- RIGHT PANEL: Workspace ---
+        self.right_panel = wx.Panel(self.splitter)
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # 1. Canvas (Top Right)
+        self.canvas = AnimationCanvas(self.right_panel, self.project)
+        
+        # 2. Timeline & Controls (Bottom Right)
+        bottom_box = wx.StaticBox(self.right_panel, label="Timeline & Playback")
+        # Catch background clicks on the static box
+        bottom_box.Bind(wx.EVT_LEFT_DOWN, self.on_panel_click)
+        bottom_sizer = wx.StaticBoxSizer(bottom_box, wx.VERTICAL)
+        
+        # Timeline Widget
+        self.timeline = TimelineControl(bottom_box, self.project)
+        self.timeline.SetMinSize((-1, 60))
+        
+        # Playback Controls
+        pb_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_first = wx.Button(bottom_box, label="|<", size=(30, -1))
+        self.btn_prev = wx.Button(bottom_box, label="<", size=(30, -1))
+        self.btn_play = wx.Button(bottom_box, label="Play")
+        self.btn_stop = wx.Button(bottom_box, label="Stop")
+        self.btn_next = wx.Button(bottom_box, label=">", size=(30, -1))
+        self.btn_last = wx.Button(bottom_box, label=">|", size=(30, -1))
+        
+        pb_sizer.Add(self.btn_first, 0, wx.RIGHT, 2)
+        pb_sizer.Add(self.btn_prev, 0, wx.RIGHT, 2)
+        pb_sizer.Add(self.btn_play, 0, wx.RIGHT, 2)
+        pb_sizer.Add(self.btn_stop, 0, wx.RIGHT, 2)
+        pb_sizer.Add(self.btn_next, 0, wx.RIGHT, 2)
+        pb_sizer.Add(self.btn_last, 0)
+        
+        # Current Frame Props (Inline with playback or below?)
+        # Let's put slightly below for detailed edit
+        frame_props_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Duration (frames):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.spin_duration = wx.SpinCtrl(bottom_box, min=1, max=10000, initial=100, size=(70, -1))
+        frame_props_sizer.Add(self.spin_duration, 0, wx.RIGHT, 10)
+        
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Offset:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.spin_off_x = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+        self.spin_off_y = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+        frame_props_sizer.Add(self.spin_off_x, 0, wx.RIGHT, 2)
+        frame_props_sizer.Add(self.spin_off_y, 0, wx.RIGHT, 10)
+        
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Trajectory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.chk_trajectory = wx.CheckBox(bottom_box)
         self.chk_trajectory.SetValue(True)
-        prop_grid.Add(self.chk_trajectory, 0)
-        prop_grid.Add(wx.StaticText(af_box, label="Offset X"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.spin_off_x = wx.SpinCtrl(af_box, min=-2048, max=2048, initial=0)
-        prop_grid.Add(self.spin_off_x, 1, wx.EXPAND)
-        prop_grid.Add(wx.StaticText(af_box, label="Offset Y"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.spin_off_y = wx.SpinCtrl(af_box, min=-2048, max=2048, initial=0)
-        prop_grid.Add(self.spin_off_y, 1, wx.EXPAND)
-        prop_grid.AddGrowableCol(1, 1)
-        af_sizer.Add(self.aframe_list, 1, wx.EXPAND | wx.ALL, 4)
-        af_sizer.Add(add_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
-        af_sizer.Add(edit_row, 0, wx.EXPAND | wx.ALL, 4)
-        af_sizer.Add(prop_grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        frame_props_sizer.Add(self.chk_trajectory, 0)
 
-        sidebar.Add(anim_sizer, 0, wx.EXPAND | wx.ALL, 4)
-        sidebar.Add(playback_sizer, 0, wx.EXPAND | wx.ALL, 4)
-        sidebar.Add(af_sizer, 1, wx.EXPAND | wx.ALL, 4)
+        # Buttons for frame management (Add/Remove from Timeline)
+        tm_btns = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_remove_frame = wx.Button(bottom_box, label="Remove Frame")
+        tm_btns.Add(self.btn_remove_frame, 0)
+        
+        bottom_sizer.Add(self.timeline, 0, wx.EXPAND | wx.ALL, 4)
+        bottom_sizer.Add(pb_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 4)
+        bottom_sizer.Add(frame_props_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 4)
+        bottom_sizer.Add(tm_btns, 0, wx.ALIGN_LEFT | wx.ALL, 4)
 
-        self.canvas = AnimationCanvas(self, self.project)
-        right.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
+        right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
+        right_sizer.Add(bottom_sizer, 0, wx.EXPAND | wx.ALL, 4)
+        self.right_panel.SetSizer(right_sizer)
+        
+        # Splitter Setup
+        self.splitter.SplitVertically(self.left_panel, self.right_panel, 300)
+        self.splitter.SetMinimumPaneSize(200)
+        
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(self.splitter, 1, wx.EXPAND)
+        self.SetSizer(main_sizer)
 
-        main.Add(sidebar, 0, wx.EXPAND)
-        main.Add(right, 1, wx.EXPAND)
-        self.SetSizer(main)
-
-        # Events
+        # Event Binding
         self.btn_add_anim.Bind(wx.EVT_BUTTON, self.on_add_animation)
-        self.btn_rename_anim.Bind(wx.EVT_BUTTON, self.on_rename_animation)
         self.btn_delete_anim.Bind(wx.EVT_BUTTON, self.on_delete_animation)
-        self.anim_list.Bind(wx.EVT_LISTBOX, self.on_select_animation)
+        self.anim_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_animation)
+        self.anim_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_rename_animation_end)
+        self.anim_list.Bind(wx.EVT_KEY_DOWN, self.on_anim_list_key_down)
+
         self.playback_choice.Bind(wx.EVT_CHOICE, self.on_change_playback)
-        self.loop_spin.Bind(wx.EVT_SPINCTRL, self.on_change_playback)
+        self.fps_spin.Bind(wx.EVT_SPINCTRL, self.on_change_playback)
+        
         self.btn_first.Bind(wx.EVT_BUTTON, lambda _: self.jump_to(0))
         self.btn_last.Bind(wx.EVT_BUTTON, lambda _: self.jump_to_last())
         self.btn_prev.Bind(wx.EVT_BUTTON, lambda _: self.step(-1))
         self.btn_next.Bind(wx.EVT_BUTTON, lambda _: self.step(1))
         self.btn_play.Bind(wx.EVT_BUTTON, self.on_play)
         self.btn_stop.Bind(wx.EVT_BUTTON, self.on_stop)
-        self.btn_add_frame.Bind(wx.EVT_BUTTON, self.on_add_aframe)
+        
         self.btn_remove_frame.Bind(wx.EVT_BUTTON, self.on_remove_aframe)
-        self.btn_move_up.Bind(wx.EVT_BUTTON, lambda _: self.reorder(-1))
-        self.btn_move_down.Bind(wx.EVT_BUTTON, lambda _: self.reorder(1))
-        self.aframe_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_aframe)
         self.spin_duration.Bind(wx.EVT_SPINCTRL, self.on_change_aframe_props)
         self.spin_off_x.Bind(wx.EVT_SPINCTRL, self.on_change_aframe_props)
+        self.spin_off_x.Bind(wx.EVT_TEXT_ENTER, self.on_change_aframe_props)
+        self.spin_off_x.Bind(wx.EVT_KILL_FOCUS, self.on_spin_kill_focus)
+        
         self.spin_off_y.Bind(wx.EVT_SPINCTRL, self.on_change_aframe_props)
+        self.spin_off_y.Bind(wx.EVT_TEXT_ENTER, self.on_change_aframe_props)
+        self.spin_off_y.Bind(wx.EVT_KILL_FOCUS, self.on_spin_kill_focus)
         self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
+        self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
+        
+        self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
+        
         self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
 
-        self.refresh_choices()
+        # Catch background clicks to steal focus (triggering Input commit)
+        self.Bind(wx.EVT_LEFT_DOWN, self.on_panel_click)
+        self.right_panel.Bind(wx.EVT_LEFT_DOWN, self.on_panel_click)
+        self.left_panel.Bind(wx.EVT_LEFT_DOWN, self.on_panel_click)
+        self.splitter.Bind(wx.EVT_LEFT_DOWN, self.on_panel_click)
+        
+        # Power-User Bindings for SpinCtrls
+        # Mac wx.SpinCtrl logic is complex; we try to bind to children if possible
+        def safe_bind(ctrl):
+            ctrl.Bind(wx.EVT_KEY_DOWN, self.on_spin_key_down)
+            ctrl.Bind(wx.EVT_TEXT_ENTER, self.on_spin_enter_press)
+            # Try binding to internal TextCtrl if available (common fix for Mac)
+            if hasattr(ctrl, "GetTextCtrl"):
+                tc = ctrl.GetTextCtrl()
+                if tc:
+                    tc.Bind(wx.EVT_KEY_DOWN, self.on_spin_key_down)
+        
+        safe_bind(self.spin_off_x)
+        safe_bind(self.spin_off_y)
+        safe_bind(self.spin_duration)
 
-    # Animation handling
-    def refresh_animations(self, select_id: Optional[str] = None) -> None:
-        self.anim_list.Clear()
-        for anim in self.project.animations:
-            self.anim_list.Append(f"{anim.name} ({anim.id})", clientData=anim.id)
-        if self.anim_list.GetCount() == 0:
-            self.canvas.set_animation(None)
-            return
-        if select_id:
-            for idx in range(self.anim_list.GetCount()):
-                if self.anim_list.GetClientData(idx) == select_id:
-                    self.anim_list.SetSelection(idx)
-                    self.select_animation(select_id)
-                    return
-        if self.anim_list.GetCount() > 0:
-            self.anim_list.SetSelection(0)
-            self.select_animation(self.anim_list.GetClientData(0))
+        self.ui_updating = False
+        
+        # Component Wiring
+        self.frame_palette.on_frame_double_click = self.on_add_frame_from_palette
+        self.timeline.on_seek = self.on_timeline_seek
+        self.timeline.on_remove = self.on_timeline_remove
+        self.timeline.on_reorder = self.on_timeline_reorder
+        self.timeline.on_insert_frame = self.on_timeline_insert
+        self.timeline.on_reorder_frame = self.on_timeline_drag_reorder
+        self.canvas.on_offset_change = self.on_canvas_offset_change
 
-    def on_add_animation(self, _: wx.CommandEvent) -> None:
-        name = f"Animation {len(self.project.animations)+1}"
-        anim = self.project.create_animation(name)
-        self.refresh_animations(select_id=anim.id)
-
-    def on_rename_animation(self, _: wx.CommandEvent) -> None:
-        if not self.selected_animation_id:
-            return
-        anim = self.project.get_animation(self.selected_animation_id)
-        if not anim:
-            return
-        with wx.TextEntryDialog(self, "New name", value=anim.name) as dlg:
-            if dlg.ShowModal() == wx.ID_OK:
-                anim.name = dlg.GetValue()
-                self.refresh_animations(select_id=anim.id)
-
-    def on_delete_animation(self, _: wx.CommandEvent) -> None:
-        if not self.selected_animation_id:
-            return
-        self.project.animations = [a for a in self.project.animations if a.id != self.selected_animation_id]
-        self.selected_animation_id = None
         self.refresh_animations()
-        self.canvas.set_animation(None)
+        self.frame_palette.refresh_frames()
 
-    def on_select_animation(self, event: wx.CommandEvent) -> None:
-        idx = event.GetSelection()
-        anim_id = self.anim_list.GetClientData(idx)
-        self.select_animation(anim_id)
-
-    def select_animation(self, anim_id: str) -> None:
-        self.selected_animation_id = anim_id
-        anim = self.project.get_animation(anim_id)
-        if not anim:
-            return
-        self.playback_choice.SetStringSelection(anim.playback_type)
-        self.loop_spin.SetValue(anim.loop_count if anim.loop_count is not None else -1)
-        self.canvas.set_animation(anim)
-        self.refresh_aframes()
-        self.current_index = 0
-        self.update_duration_fields()
-
-    # AFrame handling
-    def refresh_aframes(self, select_idx: Optional[int] = None) -> None:
-        self.aframe_list.DeleteAllItems()
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim:
-            return
-        for i, af in enumerate(anim.aframes):
-            frame = self.project.get_frame(af.frame_id)
-            label = frame.name if frame else af.frame_id
-            idx = self.aframe_list.InsertItem(self.aframe_list.GetItemCount(), label)
-            self.aframe_list.SetItem(idx, 1, str(af.duration_ms))
-            self.aframe_list.SetItem(idx, 2, f"{af.offset[0]},{af.offset[1]}")
-        if select_idx is not None and 0 <= select_idx < self.aframe_list.GetItemCount():
-            self.aframe_list.Select(select_idx)
-            self.select_aframe(select_idx)
-
-    def on_add_aframe(self, _: wx.CommandEvent) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or self.choice_frame.GetSelection() == wx.NOT_FOUND:
-            return
-        frame_id = self.choice_frame.GetClientData(self.choice_frame.GetSelection())
-        af = AFrame(frame_id=frame_id, duration_ms=100, offset=(0, 0))
-        anim.aframes.append(af)
-        self.refresh_aframes(select_idx=len(anim.aframes) - 1)
-        self.canvas.Refresh(False)
-
-    def on_remove_aframe(self, _: wx.CommandEvent) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim:
-            return
-        idx = self.aframe_list.GetNextItem(-1, state=wx.LIST_STATE_SELECTED)
-        if idx == -1:
-            return
-        del anim.aframes[idx]
-        self.refresh_aframes()
-        self.canvas.Refresh(False)
-
-    def reorder(self, direction: int) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim:
-            return
-        idx = self.aframe_list.GetNextItem(-1, state=wx.LIST_STATE_SELECTED)
-        if idx == -1:
-            return
-        new_idx = max(0, min(len(anim.aframes) - 1, idx + direction))
-        if new_idx == idx:
-            return
-        af = anim.aframes.pop(idx)
-        anim.aframes.insert(new_idx, af)
-        self.refresh_aframes(select_idx=new_idx)
-        self.canvas.Refresh(False)
-
-    def on_select_aframe(self, event: wx.ListEvent) -> None:
-        idx = event.GetIndex()
-        self.select_aframe(idx)
-
-    def select_aframe(self, idx: int) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        self.current_index = max(0, min(idx, len(anim.aframes) - 1))
-        af = anim.aframes[self.current_index]
-        self.spin_duration.SetValue(af.duration_ms)
-        self.spin_off_x.SetValue(int(af.offset[0]))
-        self.spin_off_y.SetValue(int(af.offset[1]))
-        self.canvas.set_current_index(self.current_index)
-        self.canvas.Refresh(False)
-
-    def on_change_aframe_props(self, _: wx.CommandEvent) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        idx = self.aframe_list.GetNextItem(-1, state=wx.LIST_STATE_SELECTED)
-        if idx == -1:
-            idx = self.current_index
-        idx = max(0, min(idx, len(anim.aframes) - 1))
-        af = anim.aframes[idx]
-        af.duration_ms = self.spin_duration.GetValue()
-        af.offset = (self.spin_off_x.GetValue(), self.spin_off_y.GetValue())
-        self.refresh_aframes(select_idx=idx)
-        self.canvas.Refresh(False)
-
-    def update_duration_fields(self) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if anim and anim.aframes:
-            af = anim.aframes[self.current_index]
-            self.spin_duration.SetValue(af.duration_ms)
-            self.spin_off_x.SetValue(int(af.offset[0]))
-            self.spin_off_y.SetValue(int(af.offset[1]))
-
-    # Playback controls
-    def on_change_playback(self, _: wx.CommandEvent) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim:
-            return
-        anim.playback_type = self.playback_choice.GetStringSelection()
-        anim.loop_count = self.loop_spin.GetValue()
-
-    def on_play(self, _: wx.CommandEvent) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        self.play_direction = 1
-        self.remaining_loops = anim.loop_count if anim.loop_count is not None and anim.loop_count >= 0 else None
-        self.current_index = min(self.current_index, len(anim.aframes) - 1)
-        self.canvas.set_current_index(self.current_index)
-        self.refresh_aframes(select_idx=self.current_index)
-        self.update_duration_fields()
-        self.schedule_timer()
-
-    def on_stop(self, _: wx.CommandEvent) -> None:
-        self.timer.Stop()
-
-    def step(self, delta: int) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        self.current_index = (self.current_index + delta) % len(anim.aframes)
-        self.canvas.set_current_index(self.current_index)
-        self.refresh_aframes(select_idx=self.current_index)
-        self.update_duration_fields()
-
-    def jump_to(self, idx: int) -> None:
-        self.step_to_index(idx)
-
-    def jump_to_last(self) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        self.step_to_index(len(anim.aframes) - 1)
-
-    def step_to_index(self, idx: int) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        self.current_index = max(0, min(idx, len(anim.aframes) - 1))
-        self.canvas.set_current_index(self.current_index)
-        self.refresh_aframes(select_idx=self.current_index)
-        self.update_duration_fields()
-
-    def on_timer(self, _: wx.TimerEvent) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        self.advance_playback(anim)
-
-    def schedule_timer(self) -> None:
-        anim = self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
-        if not anim or not anim.aframes:
-            return
-        duration = anim.aframes[self.current_index].duration_ms
-        self.timer.Start(duration)
-
-    def advance_playback(self, anim: Animation) -> None:
-        mode = anim.playback_type
-        last_idx = len(anim.aframes) - 1
-        if mode in ("forward", "backward"):
-            self.current_index += 1 if mode == "forward" else -1
-            if self.current_index < 0 or self.current_index > last_idx:
-                self.timer.Stop()
-                self.current_index = max(0, min(self.current_index, last_idx))
-        elif mode in ("loop", "loop_n"):
-            next_idx = self.current_index + 1
-            if next_idx > last_idx:
-                if mode == "loop_n":
-                    if self.remaining_loops is None:
-                        self.remaining_loops = anim.loop_count
-                    if self.remaining_loops is not None:
-                        self.remaining_loops -= 1
-                        if self.remaining_loops < 0:
-                            self.timer.Stop()
-                            next_idx = last_idx
-                        else:
-                            next_idx = 0
-                else:
-                    next_idx = 0
-            self.current_index = next_idx
-        elif mode in ("ping_pong", "ping_pong_n"):
-            next_idx = self.current_index + self.play_direction
-            bounced = False
-            if next_idx > last_idx or next_idx < 0:
-                self.play_direction *= -1
-                bounced = True
-                next_idx = self.current_index + self.play_direction
-            if bounced and mode == "ping_pong_n":
-                if self.remaining_loops is None:
-                    self.remaining_loops = anim.loop_count
-                if self.remaining_loops is not None:
-                    self.remaining_loops -= 1
-                    if self.remaining_loops < 0:
-                        self.timer.Stop()
-                        next_idx = max(0, min(next_idx, last_idx))
-            self.current_index = max(0, min(next_idx, last_idx))
-        self.canvas.set_current_index(self.current_index)
-        self.refresh_aframes(select_idx=self.current_index)
-        self.update_duration_fields()
-        if self.timer.IsRunning():
-            self.schedule_timer()
-
-    def on_toggle_trajectory(self, event: wx.CommandEvent) -> None:
-        self.canvas.show_trajectory = event.IsChecked()
-        self.canvas.Refresh(False)
-
-    # Data refresh
     def refresh_choices(self) -> None:
-        self.choice_frame.Clear()
-        for f in self.project.frames:
-            self.choice_frame.Append(f"{f.name} ({f.id})", clientData=f.id)
+        """Called by app.py when switching to this tab."""
+        self.frame_palette.refresh_frames()
 
     def set_project(self, project: Project) -> None:
         self.project = project
         self.canvas.project = project
+        self.frame_palette.project = project
+        self.timeline.project = project
+        
         self.selected_animation_id = None
         self.current_index = 0
         self.canvas.set_animation(None)
-        self.refresh_choices()
+        
         self.refresh_animations()
+        self.frame_palette.refresh_frames()
+
+    def refresh_animations(self, select_id: Optional[str] = None) -> None:
+        self.anim_list.DeleteAllItems()
+        target_idx = -1
+        for i, anim in enumerate(self.project.animations):
+            self.anim_list.InsertItem(i, anim.name)
+            if select_id and anim.id == select_id:
+                target_idx = i
+        
+        if target_idx != -1:
+             self.anim_list.Select(target_idx)
+             self.anim_list.EnsureVisible(target_idx)
+
+    def get_selected_anim(self) -> Optional[Animation]:
+        idx = self.anim_list.GetFirstSelected()
+        if idx == -1: return None
+        if idx < len(self.project.animations):
+            return self.project.animations[idx]
+        return None
+
+    def on_select_animation(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim:
+            self.selected_animation_id = None
+            self.canvas.set_animation(None)
+            self.timeline.set_animation(None)
+            return
+            
+        self.selected_animation_id = anim.id
+        self.canvas.set_animation(anim)
+        self.timeline.set_animation(anim)
+        
+        # Populate UI
+        self.fps_spin.SetValue(anim.fps if anim.fps > 0 else 10)
+        
+        # Map playback type string to choice index
+        # choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"]
+        types = ["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"]
+        if anim.playback_type in types:
+            self.playback_choice.SetSelection(types.index(anim.playback_type))
+        else:
+             self.playback_choice.SetSelection(2) # Default loop
+
+        self.current_index = 0
+        self.canvas.set_current_index(0)
+        self.timeline.set_current_index(0)
+        self.update_aframe_ui()
+
+    def on_add_animation(self, event) -> None:
+        new_anim = Animation(
+            id=generate_id("anim"),
+            name="New Animation",
+            playback_type="loop",
+            fps=10
+        )
+        self.project.animations.append(new_anim)
+        self.refresh_animations()
+        # Select it (last item)
+        count = self.anim_list.GetItemCount()
+        self.anim_list.Select(count - 1)
+
+    def on_delete_animation(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        dlg = wx.MessageDialog(self, f"Delete animation '{anim.name}'?", "Confirm", wx.YES_NO | wx.ICON_WARNING)
+        if dlg.ShowModal() == wx.ID_YES:
+            self.project.animations.remove(anim)
+            self.selected_animation_id = None
+            self.canvas.set_animation(None)
+            self.timeline.set_animation(None)
+            self.refresh_animations()
+        dlg.Destroy()
+
+    def on_rename_animation_end(self, event) -> None:
+        # Handles edit label completion
+        if event.IsEditCancelled():
+            return
+            
+        new_name = event.GetLabel()
+        idx = event.GetIndex()
+        if 0 <= idx < len(self.project.animations):
+            self.project.animations[idx].name = new_name
+
+    def on_anim_list_key_down(self, event) -> None:
+        kc = event.GetKeyCode()
+        if kc == wx.WXK_DELETE or kc == wx.WXK_BACK:
+            self.on_delete_animation(None)
+        else:
+            event.Skip()
+
+    # --- Frame & Playback Logic ---
+
+    def on_add_frame_from_palette(self, frame_id: str) -> None:
+        anim = self.get_selected_anim()
+        if not anim:
+            wx.MessageBox("Please select an animation first!", "No Animation Selected")
+            return
+            
+        new_aframe = AFrame(
+            frame_id=frame_id,
+            duration_ms=1, # Default 1 frame duration
+            offset=(0, 0)
+        )
+        anim.aframes.append(new_aframe)
+        self.timeline.Refresh(False)
+        self.canvas.Refresh(False)
+        # Maybe jump to end?
+        self.jump_to_last()
+
+    def on_remove_aframe(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        if 0 <= self.current_index < len(anim.aframes):
+            anim.aframes.pop(self.current_index)
+            self.current_index = max(0, min(self.current_index, len(anim.aframes) - 1))
+            self.update_aframe_ui()
+            self.timeline.Refresh(False)
+            self.canvas.Refresh(False)
+
+    def on_change_playback(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        ptype_idx = self.playback_choice.GetSelection()
+        types = ["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"]
+        if 0 <= ptype_idx < len(types):
+            anim.playback_type = types[ptype_idx]
+            
+        anim.fps = self.fps_spin.GetValue()
+
+    def update_aframe_ui(self) -> None:
+        # Pushes current frame props to UI
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes or self.current_index >= len(anim.aframes):
+            # Disable or clear?
+            return
+        
+        self.ui_updating = True
+        try:
+            af = anim.aframes[self.current_index]
+            # Convert MS to Frames for UI
+            fps = anim.fps if anim.fps > 0 else 10
+            frames = max(1, round(af.duration_ms * fps / 1000.0))
+            self.spin_duration.SetValue(frames)
+            
+            self.spin_off_x.SetValue(af.offset[0])
+            self.spin_off_y.SetValue(af.offset[1])
+        finally:
+            self.ui_updating = False
+        
+        self.canvas.set_current_index(self.current_index)
+        self.timeline.set_current_index(self.current_index)
+
+    def on_panel_click(self, event) -> None:
+        # Steal focus when clicking empty background
+        # Calling SetFocus on the panel might fail if it's not focusable. 
+        # But usually works. If this fails, we could try focusing a button like Play?
+        self.SetFocus()
+        event.Skip()
+
+    def on_spin_enter_press(self, event) -> None:
+        # Explicit Enter Press handler (CommandEvent)
+        # Navigate away to trigger focus loss -> commit
+        obj = event.GetEventObject()
+        if hasattr(obj, 'Navigate'):
+            obj.Navigate()
+        else:
+            self.SetFocus() # Fallback
+
+    def on_spin_key_down(self, event) -> None:
+        # Check for Enter key
+        if event.GetKeyCode() == wx.WXK_RETURN or event.GetKeyCode() == wx.WXK_NUMPAD_ENTER:
+            # Shift focus to next control
+            obj = event.GetEventObject()
+            if hasattr(obj, 'Navigate'):
+                obj.Navigate()
+            else:
+                self.SetFocus()
+        else:
+            event.Skip()
+
+    def on_spin_kill_focus(self, event) -> None:
+        event.Skip()
+        # Call change handler after focus loss allows native control to commit text to value
+        wx.CallAfter(self.on_change_aframe_props, None)
+
+    def on_change_aframe_props(self, event=None) -> None:
+        if self.ui_updating: return
+        
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        af = anim.aframes[self.current_index]
+        
+        # Duration
+        # Update if event is None (Focus loss / Enter) or explicitly Duration spin
+        if event is None or event.GetEventObject() == self.spin_duration:
+            frames = self.spin_duration.GetValue()
+            fps = anim.fps if anim.fps > 0 else 10
+            af.duration_ms = int(frames * 1000.0 / fps)
+            
+        # Offsets
+        # Always update offsets if called (safe to overwrite with current UI value)
+        af.offset = (self.spin_off_x.GetValue(), self.spin_off_y.GetValue())
+        
+        self.canvas.Refresh(False) # Update offset rendering if changed
+
+    def on_timeline_seek(self, idx: int) -> None:
+        self.current_index = idx
+        self.update_aframe_ui()
+        self.canvas.Refresh(False)
+
+    def on_timeline_remove(self, idx: int) -> None:
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        if 0 <= idx < len(anim.aframes):
+            anim.aframes.pop(idx)
+            # Adjust index if needed
+            if self.current_index >= len(anim.aframes):
+                self.current_index = max(0, len(anim.aframes)-1)
+            elif self.current_index == idx:
+                 # We removed the current one, stay at same index or decr?
+                 pass 
+            
+            self.update_aframe_ui()
+            self.timeline.Refresh(False)
+            self.canvas.Refresh(False)
+
+    def on_timeline_reorder(self, idx: int, direction: int) -> None:
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        new_idx = idx + direction
+        if 0 <= new_idx < len(anim.aframes):
+            # Swap
+            anim.aframes[idx], anim.aframes[new_idx] = anim.aframes[new_idx], anim.aframes[idx]
+            
+            # Follow selection if we moved the selected one
+            if self.current_index == idx:
+                self.current_index = new_idx
+            elif self.current_index == new_idx:
+                self.current_index = idx
+                
+            self.update_aframe_ui()
+            self.timeline.Refresh(False)
+            self.canvas.Refresh(False)
+
+    def on_timeline_insert(self, frame_id: str, idx: int) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        # Default duration 1 frame
+        fps = anim.fps if anim.fps > 0 else 10
+        def_ms = int(1000.0 / fps)
+        new_af = AFrame(frame_id=frame_id, duration_ms=def_ms)
+        # Validate idx
+        if idx < 0: idx = 0
+        if idx > len(anim.aframes): idx = len(anim.aframes)
+        
+        anim.aframes.insert(idx, new_af)
+        
+        # Update selection to new frame?
+        self.current_index = idx
+        
+        self.update_aframe_ui()
+        self.timeline.Refresh(False)
+        self.canvas.Refresh(False)
+
+    def on_timeline_drag_reorder(self, from_idx: int, to_idx: int) -> None:
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        # List Move Logic:
+        # If moving item at 0 to 2:
+        # [A, B, C, D] -> pop 0 (A) -> [B, C, D]. insert at 2.
+        # But wait, insert index logic in drop target might be "between B and C".
+        # If dragging forward, insertion index might need adjustment if it's based on "before removal".
+        # But DragOver usually returns "insert before currently at idx".
+        
+        if from_idx < 0 or from_idx >= len(anim.aframes): return
+        
+        item = anim.aframes.pop(from_idx)
+        
+        # If moving forward, to_idx corresponds to index in OLD list.
+        # After pop, indices shift.
+        # Example: [0, 1, 2, 3]. Move 0 to 2 (between 1 and 2).
+        # Pop 0. [1, 2, 3]. Insert at 2-1 = 1? No.
+        # Standard implementation:
+        if to_idx > from_idx:
+            to_idx -= 1
+            
+        if to_idx < 0: to_idx = 0
+        if to_idx > len(anim.aframes): to_idx = len(anim.aframes)
+        
+        anim.aframes.insert(to_idx, item)
+        
+        self.current_index = to_idx
+        self.update_aframe_ui()
+        self.timeline.Refresh(False)
+        self.canvas.Refresh(False)
+
+    def on_toggle_trajectory(self, event) -> None:
+        self.canvas.show_trajectory = event.IsChecked()
+        self.canvas.Refresh(False)
+
+    def on_canvas_offset_change(self, x: int, y: int) -> None:
+        # Called when dragging in canvas
+        # Update spin ctrls without triggering event loop issues
+        self.ui_updating = True
+        try:
+            self.spin_off_x.SetValue(int(x))
+            self.spin_off_y.SetValue(int(y))
+        finally:
+             self.ui_updating = False
+
+    # --- Timer Playback (Same Logic as Before) ---
+    def on_play(self, event) -> None:
+         anim = self.get_selected_anim()
+         if not anim or not anim.aframes: return
+         
+         if not self.is_playing:
+             self.is_playing = True
+             self.remaining_loops = anim.loop_count
+             self.play_direction = 1
+             # Reset if at end?
+             if self.current_index == len(anim.aframes) - 1 and anim.playback_type == "forward":
+                 self.current_index = 0
+             self.schedule_timer()
+
+    def on_stop(self, event) -> None:
+        self.is_playing = False
+        self.timer.Stop()
+
+    def schedule_timer(self) -> None:
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        duration_frames = anim.aframes[self.current_index].duration_ms
+        fps = anim.fps if anim.fps > 0 else 10
+        ms_delay = int(duration_frames * (1000 / fps))
+        ms_delay = max(10, ms_delay)
+        
+        self.timer.Start(ms_delay, wx.TIMER_ONE_SHOT)
+
+    def on_timer(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        self.advance_playback(anim)
+
+    def advance_playback(self, anim: Animation) -> None:
+        if not self.is_playing: return
+        
+        mode = anim.playback_type
+        last_idx = len(anim.aframes) - 1
+        
+        # Advance logic
+        # (Reusing previous logic simplified)
+        
+        if mode in ("forward", "backward"):
+             delta = 1 if mode == "forward" else -1
+             self.current_index += delta
+             if self.current_index > last_idx or self.current_index < 0:
+                 self.is_playing = False
+                 self.current_index = max(0, min(self.current_index, last_idx))
+                 
+        elif mode in ("loop", "loop_n"):
+            self.current_index += 1
+            if self.current_index > last_idx:
+                self.current_index = 0
+                # TODO: Handle loop_n count
+        
+        # ... Other modes ...
+        
+        self.update_aframe_ui()
+        if self.is_playing:
+            self.schedule_timer()
+
+    def jump_to(self, idx: int) -> None:
+        self.current_index = idx
+        self.update_aframe_ui()
+
+    def jump_to_last(self) -> None:
+        anim = self.get_selected_anim()
+        if anim:
+            self.jump_to(len(anim.aframes) - 1)
+
+    def step(self, delta: int) -> None:
+        anim = self.get_selected_anim()
+        if anim:
+            new_idx = max(0, min(len(anim.aframes)-1, self.current_index + delta))
+            self.jump_to(new_idx)

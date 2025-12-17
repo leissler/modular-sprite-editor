@@ -264,8 +264,9 @@ class AFrame:
 class Animation:
     id: str
     name: str
-    playback_type: str = "Loop"
+    playback_type: str = "loop"
     loop_count: Optional[int] = 0
+    fps: int = 10
     aframes: List[AFrame] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -274,6 +275,7 @@ class Animation:
             "name": self.name,
             "playback_type": self.playback_type,
             "loop_count": self.loop_count,
+            "fps": self.fps,
             "aframes": [af.to_dict() for af in self.aframes],
         }
 
@@ -282,9 +284,10 @@ class Animation:
         return Animation(
             id=data["id"],
             name=data["name"],
-            playback_type=data.get("playback_type", "Loop"),
+            playback_type=data.get("playback_type", "loop").lower(),
             loop_count=data.get("loop_count"),
             aframes=[AFrame.from_dict(af) for af in data.get("aframes", [])],
+            fps=data.get("fps", 10),
         )
 
 

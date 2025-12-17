@@ -20,9 +20,10 @@ def _color_from_id(identifier: str) -> Color:
 class FrameCanvas(BaseCanvas):
     """Canvas that can render a Frame and support selection/move of FModules."""
 
-    def __init__(self, parent: wx.Window, project: Project):
+    def __init__(self, parent: wx.Window, project: Project, read_only: bool = False):
         super().__init__(parent)
         self.project = project
+        self.read_only = read_only
         self.frame: Optional[Frame] = None
         self.selected_fmodules: list[str] = []
         self.show_collision = False # Default hidden in module mode
@@ -349,6 +350,9 @@ class FrameCanvas(BaseCanvas):
         
         if not self.frame:
             return
+
+        if self.read_only:
+             return
             
         pos_screen = event.GetPosition()
         pos_world = self.screen_to_world(pos_screen)
@@ -466,6 +470,9 @@ class FrameCanvas(BaseCanvas):
             
         if not event.Dragging() or not event.LeftIsDown():
             return
+
+        if self.read_only:
+             return
             
         pos_screen = event.GetPosition()
         pos_world = self.screen_to_world(pos_screen)
@@ -923,27 +930,48 @@ class ModuleDropTarget(wx.TextDropTarget):
         return False
 
 class AnimationCanvas(FrameCanvas):
-    """Canvas that renders the currently selected animation frame and trajectory."""
-
     def __init__(self, parent: wx.Window, project: Project):
-        super().__init__(parent, project)
-        self.animation = None
-        self.current_index = 0
-        self.show_trajectory = True
+        super().__init__(parent, project, read_only=True)
+        self.animation: Optional[Animation] = None
+        self.current_aframe: Optional[AFrame] = None
+        self.show_trajectory: bool = True
+        
+        # Interaction State
+        self._drag_start_offset: Optional[Tuple[int, int]] = None
+        self.drag_start: Optional[Tuple[float, float]] = None
+        self.on_offset_change: Optional[Callable[[int, int], None]] = None # Callback (x, y)
 
-    def set_animation(self, animation) -> None:
-        self.animation = animation
-        self.current_index = 0
-        self._update_current_frame()
+    def set_animation(self, anim: Optional[Animation], aframe: Optional[AFrame] = None):
+        self.animation = anim
+        self.current_aframe = aframe
+        self._update_frame()
+        self.Refresh()
 
     def set_current_index(self, idx: int) -> None:
-        self.current_index = max(0, idx)
-        self._update_current_frame()
+        if self.animation and self.animation.aframes and 0 <= idx < len(self.animation.aframes):
+            self.current_aframe = self.animation.aframes[idx]
+        else:
+            self.current_aframe = None
+        self._update_frame()
+        self.Refresh()
+
+    def _update_frame(self):
+        if self.current_aframe:
+            self.frame = self.project.get_frame(self.current_aframe.frame_id)
+        else:
+            self.frame = None
 
     def draw_content(self, gc: wx.GraphicsContext) -> None:
         if self.show_trajectory and self.animation:
             self._draw_trajectory(gc)
-        super().draw_content(gc)
+             
+        if self.current_aframe and self.frame:
+            # Apply offset
+            gc.PushState()
+            ox, oy = self.current_aframe.offset
+            gc.Translate(ox, oy)
+            super().draw_content(gc)
+            gc.PopState()
 
     def _draw_trajectory(self, gc: wx.GraphicsContext) -> None:
         if not self.animation or not self.animation.aframes:
@@ -955,22 +983,91 @@ class AnimationCanvas(FrameCanvas):
         if len(pts) < 2:
             return
         gc.SetPen(wx.Pen(wx.Colour(100, 120, 220), width=2))
-        gc.DrawLines(pts)
+        
+        path = gc.CreatePath()
+        path.MoveToPoint(*pts[0])
+        for pt in pts[1:]:
+            path.AddLineToPoint(*pt)
+        gc.StrokePath(path)
+        
+        # Highlight points
         for idx, (sx, sy) in enumerate(pts):
-            color = wx.Colour(40, 160, 80) if idx == self.current_index else wx.Colour(80, 80, 80)
+            is_current = (self.current_aframe == self.animation.aframes[idx])
+            color = wx.Colour(40, 160, 80) if is_current else wx.Colour(80, 80, 80)
             gc.SetBrush(wx.Brush(color))
             gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
 
-    def _update_current_frame(self) -> None:
-        if not self.animation or not self.animation.aframes:
-            self.set_frame_offset((0.0, 0.0))
-            self.set_frame(None)
+    def on_left_down(self, event: wx.MouseEvent) -> None:
+        self.SetFocus() # Steal focus from inputs to trigger validation
+        # Allow panning if Alt is down (standard Mac behavior) or Control or Middle button
+        if event.AltDown() or event.ControlDown() or event.MiddleIsDown():
+            self._panning = True
+            self._start = event.GetPosition() # MUST match BaseCanvas.handle_pan_motion expected attr
+            self.CaptureMouse()
             return
-        idx = self.current_index % len(self.animation.aframes)
-        aframe = self.animation.aframes[idx]
-        frame = self.project.get_frame(aframe.frame_id)
-        if frame:
-            self.set_frame_offset((aframe.offset[0], aframe.offset[1]))
-            self.set_frame(frame)
+
+        pos = self.screen_to_world(event.GetPosition())
+        if self.current_aframe:
+            self.drag_start = pos
+            self._drag_start_offset = self.current_aframe.offset
+            try:
+                self.CaptureMouse()
+            except: pass
         else:
-            self.set_frame(None)
+            event.Skip()
+
+    def on_mouse_drag(self, event: wx.MouseEvent) -> None:
+        if self._panning:
+             self.handle_pan_motion(event)
+             return
+
+        # Reset cursor if not dragging collision handles (managed by Base/FrameCanvas logic usually)
+        # But we are overriding here.
+        
+        if not event.Dragging() or not event.LeftIsDown():
+             return
+        
+        if self.current_aframe and self.drag_start and self._drag_start_offset:
+            curr = self.screen_to_world(event.GetPosition())
+            
+            # Use ROUND to properly snap to nearest integer world coordinate
+            # instead of int() truncation which feels slippery/deadzony
+            dx = round(curr[0] - self.drag_start[0])
+            dy = round(curr[1] - self.drag_start[1])
+            
+            new_x = self._drag_start_offset[0] + dx
+            new_y = self._drag_start_offset[1] + dy
+            
+            self.current_aframe.offset = (new_x, new_y)
+            
+            if self.on_offset_change:
+                self.on_offset_change(new_x, new_y)
+                
+            self.Refresh()
+            return
+            
+        event.Skip()
+
+    def on_left_up(self, event: wx.MouseEvent) -> None:
+        if self._panning:
+             self.on_pan_end(event) # Resets _panning and ReleaseMouse
+             return
+
+        if self.HasCapture():
+            self.ReleaseMouse()
+        self.drag_start = None
+        self._drag_start_offset = None
+        event.Skip()
+
+    def draw_content(self, gc: wx.GraphicsContext) -> None:
+        if self.show_trajectory and self.animation:
+            self._draw_trajectory(gc)
+             
+        if self.current_aframe and self.frame:
+            # Apply offset in Screen Space (since FrameCanvas draws to Screen Space)
+            gc.PushState()
+            ox, oy = self.current_aframe.offset
+            # Translate by (ox * zoom, oy * zoom)
+            gc.Translate(ox * self.zoom, oy * self.zoom)
+            super().draw_content(gc)
+            gc.PopState()
