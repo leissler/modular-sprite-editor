@@ -42,9 +42,10 @@ class TimelineControl(wx.Panel):
     Supports Drag-and-Drop (Source & Target).
     """
     def __init__(self, parent, project: Project):
-        super().__init__(parent, style=wx.BORDER_SUNKEN)
+        super().__init__(parent, style=wx.BORDER_SUNKEN | wx.WANTS_CHARS)
         self.project = project
         self.animation: Optional[Animation] = None
+
         self.current_index: int = 0
         self.on_seek: Optional[Callable[[int], None]] = None
         self.generator = ThumbnailGenerator()
@@ -68,6 +69,7 @@ class TimelineControl(wx.Panel):
         self.Bind(wx.EVT_MOTION, self.on_motion)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_SIZE, lambda e: self.Refresh(False))
 
     def on_key_down(self, event) -> None:
@@ -81,6 +83,7 @@ class TimelineControl(wx.Panel):
             new_idx = max(0, self.current_index - 1)
             if new_idx != self.current_index:
                 self.current_index = new_idx
+                self._ensure_visible(new_idx)
                 self.Refresh(False)
                 if self.on_seek: self.on_seek(new_idx)
         
@@ -88,6 +91,7 @@ class TimelineControl(wx.Panel):
             new_idx = min(len(self.animation.aframes) - 1, self.current_index + 1)
             if new_idx != self.current_index:
                 self.current_index = new_idx
+                self._ensure_visible(new_idx)
                 self.Refresh(False)
                 if self.on_seek: self.on_seek(new_idx)
                 
@@ -101,11 +105,13 @@ class TimelineControl(wx.Panel):
     def set_animation(self, anim: Optional[Animation]) -> None:
         self.animation = anim
         self.current_index = 0
+        self.scroll_x = 0
         self.Refresh(False)
 
     def set_current_index(self, idx: int) -> None:
         if self.animation and self.animation.aframes:
              self.current_index = max(0, min(idx, len(self.animation.aframes) - 1))
+             self._ensure_visible(self.current_index)
         else:
              self.current_index = 0
         self.Refresh(False)
@@ -115,6 +121,49 @@ class TimelineControl(wx.Panel):
             self.drop_marker_index = idx
             self.Refresh(False)
 
+    def _get_metrics(self):
+        w, h = self.GetClientSize()
+        slot_h = h - 10
+        slot_w = slot_h
+        start_x = 10
+        gap = 2
+        return w, h, slot_w, slot_h, start_x, gap
+
+    def _clamp_scroll(self):
+        if not self.animation: return
+        w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
+        count = len(self.animation.aframes)
+        total_w = start_x + count * (slot_w + gap) + start_x
+        max_scroll = max(0, total_w - w)
+        self.scroll_x = max(0, min(self.scroll_x, max_scroll))
+
+    def _ensure_visible(self, idx: int):
+        w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
+        item_x = start_x + idx * (slot_w + gap)
+        item_w = slot_w + gap
+        
+        # Determine strict visibility bounds
+        # Left edge of item < scroll_x -> scroll left
+        # Right edge of item > scroll_x + w -> scroll right
+        
+        if item_x < self.scroll_x:
+            self.scroll_x = item_x - start_x # Add a bit of padding? No, start_x is padding
+        elif item_x + item_w > self.scroll_x + w:
+            self.scroll_x = item_x + item_w - w + start_x
+        
+        self._clamp_scroll()
+
+    def on_mousewheel(self, event: wx.MouseEvent) -> None:
+        # Horizontal scroll usually comes from Shift+Wheel or horizontal wheel
+        # But we maps vertical wheel to horizontal scroll if no vertical scroll
+        delta = event.GetWheelRotation()
+        # Typical delta is 120. Map to ~1 item width?
+        # Let's say 120 -> 50px
+        move = delta * 0.5
+        self.scroll_x -= move
+        self._clamp_scroll()
+        self.Refresh(False)
+
     def on_paint(self, event) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
@@ -122,22 +171,18 @@ class TimelineControl(wx.Panel):
         if not self.animation:
             return
 
-        w, h = self.GetClientSize()
-        
-        # Calculate sizing
-        count = len(self.animation.aframes)
-        
-        slot_h = h - 10
-        slot_w = slot_h # Square aspect
-        y = 5
-        start_x = 10
-        gap = 2
+        w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
+        self._clamp_scroll()
         
         gc = wx.GraphicsContext.Create(dc)
         
+        # Apply translation? No, I'll calculate X manually to control culling easily
+        
         for i, af in enumerate(self.animation.aframes):
-            x = start_x + i * (slot_w + gap)
+            x = start_x + i * (slot_w + gap) - self.scroll_x
             
+            # Culling
+            if x + slot_w < 0: continue
             if x > w: break
             
             frame_id = af.frame_id
@@ -152,12 +197,12 @@ class TimelineControl(wx.Panel):
                 gc.SetBrush(wx.Brush(wx.Colour(60, 60, 60)))
                 gc.SetPen(wx.Pen(wx.Colour(100, 100, 100), 1))
                 
-            gc.DrawRoundedRectangle(x, y, slot_w, slot_h, 4)
+            gc.DrawRoundedRectangle(x, 5, slot_w, slot_h, 4)
             
             # Draw Thumbnail
             if frame:
                 thumb = self.generator.render_thumbnail(self.project, frame, slot_w - 4, slot_h - 4)
-                gc.DrawBitmap(thumb, x + 2, y + 2, slot_w - 4, slot_h - 4)
+                gc.DrawBitmap(thumb, x + 2, 5 + 2, slot_w - 4, slot_h - 4)
             
             # Draw Frame Number Overlay
             text = f"{i}"
@@ -165,25 +210,27 @@ class TimelineControl(wx.Panel):
             font.SetWeight(wx.FONTWEIGHT_BOLD)
             gc.SetFont(font, wx.Colour(255, 255, 255))
             gc.SetFont(font, wx.Colour(0, 0, 0))
-            gc.DrawText(text, x + 4, y + 2)
+            gc.DrawText(text, x + 4, 5 + 2)
             gc.SetFont(font, wx.Colour(255, 255, 255))
-            gc.DrawText(text, x + 3, y + 2)
+            gc.DrawText(text, x + 3, 5 + 2)
             
         # Draw Drop Marker
         if self.drop_marker_index != -1:
-            mx = start_x + self.drop_marker_index * (slot_w + gap) - (gap / 2)
-            gc.SetPen(wx.Pen(wx.Colour(255, 255, 0), 3))
-            gc.StrokeLine(mx, y - 2, mx, y + slot_h + 2)
+            mx = start_x + self.drop_marker_index * (slot_w + gap) - (gap / 2) - self.scroll_x
+            if 0 < mx < w:
+                gc.SetPen(wx.Pen(wx.Colour(255, 255, 0), 3))
+                gc.StrokeLine(mx, 5 - 2, mx, 5 + slot_h + 2)
 
     def _hit_test(self, x) -> int:
-        h = self.GetClientSize()[1]
-        slot_h = h - 10
-        slot_w = slot_h
-        start_x = 10
-        gap = 2
+        w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
         
-        if x < start_x: return -1
-        idx = int((x - start_x) / (slot_w + gap))
+        # Adjust x for scroll
+        # x_screen = x_world - scroll
+        # x_world = x_screen + scroll
+        x_world = x + self.scroll_x
+        
+        if x_world < start_x: return -1
+        idx = int((x_world - start_x) / (slot_w + gap))
         if 0 <= idx < len(self.animation.aframes):
             return idx
         return -1
@@ -191,21 +238,14 @@ class TimelineControl(wx.Panel):
     def _hit_test_insertion(self, x) -> int:
         # Determine closest insertion index (between frames)
         if not self.animation: return 0
-        count = len(self.animation.aframes)
+        w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
         
-        h = self.GetClientSize()[1]
-        slot_w = h - 10
-        start_x = 10
-        gap = 2
+        x_world = x + self.scroll_x
         
         # Relative x
-        rel_x = x - start_x
-        # approximate index
-        # index * (w+gap) ~= rel_x
-        # index ~= rel_x / (w+gap)
-        
+        rel_x = x_world - start_x
         idx = round(rel_x / (slot_w + gap))
-        return max(0, min(idx, count))
+        return max(0, min(idx, len(self.animation.aframes)))
 
     def on_left_down(self, event) -> None:
         self.SetFocus()
@@ -228,7 +268,7 @@ class TimelineControl(wx.Panel):
             drag_vec = event.GetPosition() - self._drag_start_pos
             if abs(drag_vec.x) > 5 or abs(drag_vec.y) > 5:
                 # Start Drag Reorder
-                idx = self._hit_test(self._drag_start_pos.x)
+                idx = self._hit_test(self._drag_start_pos.x) # _hit_test uses scroll_x, so it needs screen pos
                 if idx != -1:
                     data = wx.TextDataObject(f"INDEX:{idx}")
                     source = wx.DropSource(self)
@@ -238,6 +278,7 @@ class TimelineControl(wx.Panel):
         event.Skip()
 
     def on_right_down(self, event) -> None:
+        self.SetFocus()
         if not self.animation or not self.animation.aframes: return
         idx = self._hit_test(event.GetX())
         if idx != -1:
