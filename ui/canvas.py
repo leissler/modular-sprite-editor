@@ -35,6 +35,8 @@ class FrameCanvas(BaseCanvas):
         self._drag_start_positions: dict[str, Tuple[int, int]] = {}
         
         self.frame_offset: Tuple[float, float] = (0.0, 0.0)
+        self.render_flip_x = False
+        self.render_flip_y = False
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
         
         # Interaction Modes
@@ -79,6 +81,21 @@ class FrameCanvas(BaseCanvas):
     def clear_cache(self) -> None:
         self._bitmap_cache.clear()
         self.Refresh(False)
+
+    # --- Frame-level Transforms (Local -> World) ---
+    def local_to_world(self, pt: Tuple[float, float]) -> Tuple[float, float]:
+        # Sequence: Flip around Origin -> Offset
+        # Note: If positioning is incorrect, check if adding or subtracting is right.
+        # AuroraGT standard usually places the frame at (ox, oy).
+        wx = pt[0] * (-1.0 if self.render_flip_x else 1.0) + self.frame_offset[0]
+        wy = pt[1] * (-1.0 if self.render_flip_y else 1.0) + self.frame_offset[1]
+        return (wx, wy)
+
+    def world_to_local(self, pt: Tuple[float, float]) -> Tuple[float, float]:
+        # Reverse: Offset -> Flip
+        lx = (pt[0] - self.frame_offset[0]) * (-1.0 if self.render_flip_x else 1.0)
+        ly = (pt[1] - self.frame_offset[1]) * (-1.0 if self.render_flip_y else 1.0)
+        return (lx, ly)
         
     def on_paint(self, event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
@@ -148,9 +165,17 @@ class FrameCanvas(BaseCanvas):
 
         bounds = self._fmodule_bounds(fm)
         x0, y0, x1, y1 = bounds
-        sx0, sy0 = self.world_to_screen((x0, y0))
-        sx1, sy1 = self.world_to_screen((x1, y1))
-        w, h = sx1 - sx0, sy1 - sy0
+        
+        # 1. Local -> World
+        w0 = self.local_to_world((x0, y0))
+        w1 = self.local_to_world((x1, y1))
+        
+        # 2. World -> Screen
+        p0 = self.world_to_screen(w0)
+        p1 = self.world_to_screen(w1)
+        
+        sx0, sy0 = min(p0[0], p1[0]), min(p0[1], p1[1])
+        w, h = abs(p1[0] - p0[0]), abs(p1[1] - p0[1])
         
         # Draw image content if module ref
         if fm.ref_type == "module":
@@ -163,10 +188,13 @@ class FrameCanvas(BaseCanvas):
                      if target_w > 0 and target_h > 0:
                          img = bmp.ConvertToImage()
                          
-                         # Apply flipping
-                         if fm.flip_x:
+                         # Apply flipping (Combine local flip with frame-level flip)
+                         final_flip_x = fm.flip_x ^ self.render_flip_x
+                         final_flip_y = fm.flip_y ^ self.render_flip_y
+                         
+                         if final_flip_x:
                              img = img.Mirror(horizontally=True)
-                         if fm.flip_y:
+                         if final_flip_y:
                              img = img.Mirror(horizontally=False) # Vertical flip
                              
                          img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
@@ -175,61 +203,22 @@ class FrameCanvas(BaseCanvas):
                          gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
         
         elif fm.ref_type == "frame":
-            # Nested Frame Rendering
-            # This is complex because we need to apply the parent's transformation AND screen projection.
-            # Ideally, we'd use GC transforms, but our "world_to_screen" is custom.
-            # So we pass "recursive offset" ? 
-            # OR we just use a temporary override of frame_offset?
-            # Actually, reusing _draw_fmodule_content recursively is tricky because it assumes "self.frame" context?
-            # No, it effectively renders "fm" which HAS position.
-            
-            # To render child frame's modules, we need to iterate them.
-            # But they are relative to child frame origin.
-            # "fm" places that origin at (fm.x, fm.y) in CURRENT frame.
-            # So child module at (cx, cy) becomes (fm.x + cx, fm.y + cy) (ignoring flip for a moment).
-            
-            ref_frame = self.project.get_frame(fm.ref_id)
-            if ref_frame:
-                # Iterate children
-                for child_fm in ref_frame.fmodules:
-                    # CLONE child_fm to apply local transform
-                    # This avoids modifying the actual model
-                    # Position = ParentPos + ApplyFlip(ChildPos)
-                    
+             # Nested support logic stays essentially the same
+             # But it should be cleaned up later if needed
+             ref_frame = self.project.get_frame(fm.ref_id)
+             if ref_frame:
+                 for child_fm in ref_frame.fmodules:
                     cx, cy = child_fm.position
-                    
-                    # Apply parent flip
                     if fm.flip_x:
-                        cx = -cx - self._get_width(child_fm) # Reflect around 0? No, around center?
-                        # Wait, pivot handling for frames is implicit (0,0).
-                        # If a frame is flipped X, the X-axis is inverted.
-                        # (10, 10) becomes (-10, 10) ?
-                        # And we must also ACCOUNT FOR MODULE WIDTH if pivoting at topleft?
-                        # NO, our coordinate system seems to be center-based or top-left?
-                        # Modules have Pivots. FModules have Position (offset from Frame Origin).
-                        # If I flip a Frame, I flip all its children positions.
                         cx = -cx
-                        # AND I might need to offset if specific pivot logic applies?
-                        # Standard "Flip around Y axis" = x -> -x.
-                        
                     if fm.flip_y:
                         cy = -cy
 
-                    # Combine flips
                     final_flip_x = child_fm.flip_x ^ fm.flip_x
                     final_flip_y = child_fm.flip_y ^ fm.flip_y
                     
-                    # Create temporary proxy
-                    # We need to construct a "Visual FModule" that is effectively
-                    # "fm" merged with "child_fm".
                     nx = fm.position[0] + cx
                     ny = fm.position[1] + cy
-                    
-                    # Note: Rotation not supported yet per model?
-                    
-                    # We can't easily instantiate FModule without ID etc.
-                    # But _draw_fmodule_content takes an FModule.
-                    # Let's mock it or create a temporary one.
                     
                     temp_fm = FModule(
                         id="temp",
@@ -239,15 +228,17 @@ class FrameCanvas(BaseCanvas):
                         flip_x=final_flip_x,
                         flip_y=final_flip_y
                     )
-                    
                     self._draw_fmodule_content(gc, temp_fm, depth + 1)
 
     def _draw_fmodule_overlay(self, gc: wx.GraphicsContext, fm: FModule) -> None:
         bounds = self._fmodule_bounds(fm)
         x0, y0, x1, y1 = bounds
-        sx0, sy0 = self.world_to_screen((x0, y0))
-        sx1, sy1 = self.world_to_screen((x1, y1))
-        w, h = sx1 - sx0, sy1 - sy0
+        
+        # Local -> World -> Screen
+        p0 = self.world_to_screen(self.local_to_world((x0, y0)))
+        p1 = self.world_to_screen(self.local_to_world((x1, y1)))
+        sx0, sy0 = min(p0[0], p1[0]), min(p0[1], p1[1])
+        w, h = abs(p1[0] - p0[0]), abs(p1[1] - p0[1])
 
         # Selection Outline
         if fm.id in self.selected_fmodules:
@@ -269,11 +260,17 @@ class FrameCanvas(BaseCanvas):
     def _draw_collision(self, gc: wx.GraphicsContext, cr) -> None:
         # cr is CollisionRect(id, type_id, rect=(x,y,w,h))
         rx, ry, rw, rh = cr.rect
-        x0, y0 = rx + self.frame_offset[0], ry + self.frame_offset[1]
         
-        sx0, sy0 = self.world_to_screen((x0, y0))
-        sx1, sy1 = self.world_to_screen((x0 + rw, y0 + rh))
-        w, h = sx1 - sx0, sy1 - sy0
+        # Local -> World
+        w0 = self.local_to_world((rx, ry))
+        w1 = self.local_to_world((rx + rw, ry + rh))
+        
+        # World -> Screen
+        p0 = self.world_to_screen(w0)
+        p1 = self.world_to_screen(w1)
+        
+        sx0, sy0 = min(p0[0], p1[0]), min(p0[1], p1[1])
+        w, h = abs(p1[0] - p0[0]), abs(p1[1] - p0[1])
         
         # Get Color from map
         col = self.collision_type_colors.get(cr.type_id, (200, 60, 60))
@@ -317,8 +314,8 @@ class FrameCanvas(BaseCanvas):
     def _draw_control_point(self, gc: wx.GraphicsContext, cp) -> None:
         if not hasattr(cp, 'type_id'): return # Safety
         
-        # FIX: Add frame offset!
-        sx, sy = self.world_to_screen((cp.x + self.frame_offset[0], cp.y + self.frame_offset[1]))
+        # Local -> World -> Screen
+        sx, sy = self.world_to_screen(self.local_to_world((cp.x, cp.y)))
         
         # Color from type or default
         col = self.point_type_colors.get(cp.type_id, (0, 255, 0))
@@ -358,6 +355,9 @@ class FrameCanvas(BaseCanvas):
         pos_world = self.screen_to_world(pos_screen)
         # Collision Interaction
         if self.edit_mode == "collision":
+            # on_collision_left_down expects screen coordinates for hit-testing handles
+            # but world coordinates for other things?
+            # actually it's a bit mixed. let's stay with screen first.
             self.on_collision_left_down(event, pos_screen)
             return
             
@@ -367,7 +367,9 @@ class FrameCanvas(BaseCanvas):
             return
 
         # Module Selection Logic (Default)
-        clicked = self._hit_test(pos_world)
+        # We must hit-test in LOCAL space
+        local_pos = self.world_to_local(pos_world)
+        clicked = self._hit_test(local_pos)
         
         if clicked:
             if event.ShiftDown():
@@ -447,6 +449,7 @@ class FrameCanvas(BaseCanvas):
             for cid in self.selected_collision_rects:
                 cr = next((r for r in self.frame.collision_rects if r.id == cid), None)
                 if cr:
+                    # _hit_test_handle uses screen coordinates
                     handle = self._hit_test_handle(cr, event.GetPosition())
                     if handle != -1:
                         # 0=TL, 1=TR, 2=BL, 3=BR
@@ -492,8 +495,12 @@ class FrameCanvas(BaseCanvas):
             return
             
         current_world = self.screen_to_world(event.GetPosition())
-        dx = current_world[0] - self._drag_start_world[0]
-        dy = current_world[1] - self._drag_start_world[1]
+        # We need local delta
+        curr_local = self.world_to_local(current_world)
+        start_local = self.world_to_local(self._drag_start_world)
+        
+        dx = curr_local[0] - start_local[0]
+        dy = curr_local[1] - start_local[1]
         
         # Snap to grid: REMOVED
             
@@ -506,17 +513,21 @@ class FrameCanvas(BaseCanvas):
         self.Refresh(False)
 
     # Helpers
-    def hit_test(self, world_pt: Tuple[float, float]) -> Optional[FModule]:
-        return self._hit_test(world_pt)
+    def hit_test(self, transformed_world_pt: Tuple[float, float]) -> Optional[FModule]:
+        # This one is called from outside, usually with a point that is already in local space?
+        # No, hit_test typically takes a point that came from the screen.
+        # But FrameEditorPanel calls it with screen_to_world(pos).
+        # So we must convert to local.
+        return self._hit_test(self.world_to_local(transformed_world_pt))
 
-    def _hit_test(self, world_pt: Tuple[float, float]) -> Optional[FModule]:
+    def _hit_test(self, local_pt: Tuple[float, float]) -> Optional[FModule]:
         if not self.frame:
             return None
             
         # Iterate reversed (last in list = top, check timestamps first)
         for fm in reversed(self.frame.fmodules):
             x0, y0, x1, y1 = self._fmodule_bounds(fm)
-            if x0 <= world_pt[0] <= x1 and y0 <= world_pt[1] <= y1:
+            if x0 <= local_pt[0] <= x1 and y0 <= local_pt[1] <= y1:
                 return fm
         return None
 
@@ -527,9 +538,11 @@ class FrameCanvas(BaseCanvas):
                 w, h = mod.rect[2], mod.rect[3]
                 # Pivot aligned
                 top_left = (
-                    fm.position[0] + self.frame_offset[0] - mod.pivot[0],
-                    fm.position[1] + self.frame_offset[1] - mod.pivot[1],
+                    fm.position[0] - mod.pivot[0],
+                    fm.position[1] - mod.pivot[1],
                 )
+                # Note: we DON'T add self.frame_offset here because world_to_screen/local_to_world handles it.
+                # Bounds represent LOCAL coordinates.
                 return (top_left[0], top_left[1], top_left[0] + w, top_left[1] + h)
         
         elif fm.ref_type == "frame":
@@ -587,10 +600,8 @@ class FrameCanvas(BaseCanvas):
                          max_y = max(max_y, b)
                 
                 if not first:
-                     # Translate by current FM position + offset
-                     off_x = fm.position[0] + self.frame_offset[0]
-                     off_y = fm.position[1] + self.frame_offset[1]
-                     return (min_x + off_x, min_y + off_y, max_x + off_x, max_y + off_y)
+                     # LOCAL Bounds
+                     return (min_x + fm.position[0], min_y + fm.position[1], max_x + fm.position[0], max_y + fm.position[1])
 
         # Fallback
         sz = 32
@@ -958,20 +969,23 @@ class AnimationCanvas(FrameCanvas):
     def _update_frame(self):
         if self.current_aframe:
             self.frame = self.project.get_frame(self.current_aframe.frame_id)
+            self.frame_offset = self.current_aframe.offset
+            self.render_flip_x = self.current_aframe.flip_x
+            self.render_flip_y = self.current_aframe.flip_y
         else:
             self.frame = None
+            self.frame_offset = (0, 0)
+            self.render_flip_x = False
+            self.render_flip_y = False
 
     def draw_content(self, gc: wx.GraphicsContext) -> None:
         if self.show_trajectory and self.animation:
             self._draw_trajectory(gc)
              
         if self.current_aframe and self.frame:
-            # Apply offset
-            gc.PushState()
-            ox, oy = self.current_aframe.offset
-            gc.Translate(ox, oy)
+            # Note: FrameCanvas.draw_content now uses world_to_screen/screen_to_world
+            # which we overridden in FrameCanvas to handle flip and offset.
             super().draw_content(gc)
-            gc.PopState()
 
     def _draw_trajectory(self, gc: wx.GraphicsContext) -> None:
         if not self.animation or not self.animation.aframes:
@@ -979,7 +993,8 @@ class AnimationCanvas(FrameCanvas):
         pts = []
         for af in self.animation.aframes:
             world = (af.offset[0], af.offset[1])
-            pts.append(self.world_to_screen(world))
+            # We want the trajectory in RAW world space, NOT affected by current frame's flipping/offsetting.
+            pts.append(BaseCanvas.world_to_screen(self, world))
         if len(pts) < 2:
             return
         gc.SetPen(wx.Pen(wx.Colour(100, 120, 220), width=2))
@@ -1038,7 +1053,9 @@ class AnimationCanvas(FrameCanvas):
             new_x = self._drag_start_offset[0] + dx
             new_y = self._drag_start_offset[1] + dy
             
+            # CRITICAL: Sync both the AFrame model AND the FrameCanvas transform state
             self.current_aframe.offset = (new_x, new_y)
+            self.frame_offset = (new_x, new_y)
             
             if self.on_offset_change:
                 self.on_offset_change(new_x, new_y)
@@ -1058,16 +1075,3 @@ class AnimationCanvas(FrameCanvas):
         self.drag_start = None
         self._drag_start_offset = None
         event.Skip()
-
-    def draw_content(self, gc: wx.GraphicsContext) -> None:
-        if self.show_trajectory and self.animation:
-            self._draw_trajectory(gc)
-             
-        if self.current_aframe and self.frame:
-            # Apply offset in Screen Space (since FrameCanvas draws to Screen Space)
-            gc.PushState()
-            ox, oy = self.current_aframe.offset
-            # Translate by (ox * zoom, oy * zoom)
-            gc.Translate(ox * self.zoom, oy * self.zoom)
-            super().draw_content(gc)
-            gc.PopState()

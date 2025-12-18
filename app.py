@@ -13,6 +13,7 @@ from models import Project
 from ui.animation_editor import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.module_editor import ModuleEditorPanel
+from ui.mapping_editor import MappingEditorPanel
 
 APP_NAME = "RetroSpine"
 
@@ -83,9 +84,11 @@ class MainFrame(wx.Frame):
         self.module_editor = ModuleEditorPanel(self.book, self.project)
         self.frame_editor = FrameEditorPanel(self.book, self.project)
         self.animation_editor = AnimationEditorPanel(self.book, self.project)
+        self.mapping_editor = MappingEditorPanel(self.book, self.project)
         self.book.AddPage(self.module_editor, "Modules", select=True)
         self.book.AddPage(self.frame_editor, "Frames", select=False)
         self.book.AddPage(self.animation_editor, "Animations", select=False)
+        self.book.AddPage(self.mapping_editor, "Mappings", select=False)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.book, 1, wx.EXPAND)
@@ -154,6 +157,9 @@ class MainFrame(wx.Frame):
         self.t_anims = self.toolbar.AddRadioTool(
             wx.ID_ANY, "Animations", self._make_icon("animations", size)
         )
+        self.t_mappings = self.toolbar.AddRadioTool(
+            wx.ID_ANY, "Mappings", self._make_icon("mappings", size)
+        )
         self.toolbar.ToggleTool(self.t_modules.GetId(), True)
 
     def _make_icon(self, kind: str, size: tuple[int, int]) -> wx.Bitmap:
@@ -191,6 +197,16 @@ class MainFrame(wx.Frame):
             dc.SetPen(wx.Pen(wx.Colour(220, 200, 120), width=2, style=wx.PENSTYLE_DOT))
             dc.DrawLine(12, 6, 20, 6)
             dc.DrawLine(12, 18, 20, 18)
+        elif kind == "mappings":
+            dc.SetPen(wx.Pen(wx.Colour(180, 100, 200), width=2))
+            # Arrow Right
+            dc.DrawLine(4, 9, 16, 9)
+            dc.DrawLine(13, 6, 16, 9)
+            dc.DrawLine(13, 12, 16, 9)
+            # Arrow Left
+            dc.DrawLine(20, 15, 8, 15)
+            dc.DrawLine(11, 12, 8, 15)
+            dc.DrawLine(11, 18, 8, 15)
         dc.SelectObject(wx.NullBitmap)
         return bmp
 
@@ -299,12 +315,17 @@ class MainFrame(wx.Frame):
             self.book.ChangeSelection(2)
             self.animation_editor.refresh_choices()
             self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
+        elif tool_id == self.t_mappings.GetId():
+            self.book.ChangeSelection(3)
+            self.mapping_editor.refresh_list()
+            self.mapping_editor.visualizer.update_virtual_size()
 
     # Helpers
     def _reload_project_into_panels(self) -> None:
         self.module_editor.set_project(self.project)
         self.frame_editor.set_project(self.project)
         self.animation_editor.set_project(self.project)
+        self.mapping_editor.set_project(self.project)
 
 
 class SpriteEditorApp(wx.App):

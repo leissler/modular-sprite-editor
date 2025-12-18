@@ -120,6 +120,13 @@ class AnimationEditorPanel(wx.Panel):
         self.spin_off_y = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
         frame_props_sizer.Add(self.spin_off_y, 0, wx.RIGHT, 20) # Spacing after Offsets
         
+        # New Flip Controls
+        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Flip"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.chk_flip_x = wx.CheckBox(bottom_box, label="X")
+        self.chk_flip_y = wx.CheckBox(bottom_box, label="Y")
+        frame_props_sizer.Add(self.chk_flip_x, 0, wx.RIGHT, 4)
+        frame_props_sizer.Add(self.chk_flip_y, 0, wx.RIGHT, 20)
+        
         frame_props_sizer.Add(wx.StaticText(bottom_box, label="Trajectory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.chk_trajectory = wx.CheckBox(bottom_box)
         self.chk_trajectory.SetValue(True)
@@ -169,6 +176,10 @@ class AnimationEditorPanel(wx.Panel):
         self.spin_off_y.Bind(wx.EVT_SPINCTRL, self.on_change_aframe_props)
         self.spin_off_y.Bind(wx.EVT_TEXT_ENTER, self.on_change_aframe_props)
         self.spin_off_y.Bind(wx.EVT_KILL_FOCUS, self.on_spin_kill_focus)
+        
+        self.chk_flip_x.Bind(wx.EVT_CHECKBOX, self.on_change_aframe_props)
+        self.chk_flip_y.Bind(wx.EVT_CHECKBOX, self.on_change_aframe_props)
+        
         self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
         self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
         
@@ -376,6 +387,9 @@ class AnimationEditorPanel(wx.Panel):
             
             self.spin_off_x.SetValue(af.offset[0])
             self.spin_off_y.SetValue(af.offset[1])
+            
+            self.chk_flip_x.SetValue(af.flip_x)
+            self.chk_flip_y.SetValue(af.flip_y)
         finally:
             self.ui_updating = False
         
@@ -432,9 +446,22 @@ class AnimationEditorPanel(wx.Panel):
             
         # Offsets
         # Always update offsets if called (safe to overwrite with current UI value)
-        af.offset = (self.spin_off_x.GetValue(), self.spin_off_y.GetValue())
+        new_off = (self.spin_off_x.GetValue(), self.spin_off_y.GetValue())
+        af.offset = new_off
+        
+        # Sync to canvas transform state too
+        self.canvas.frame_offset = new_off
+        
+        # Flips
+        af.flip_x = self.chk_flip_x.GetValue()
+        af.flip_y = self.chk_flip_y.GetValue()
+        
+        # Sync flips to canvas
+        self.canvas.render_flip_x = af.flip_x
+        self.canvas.render_flip_y = af.flip_y
         
         self.canvas.Refresh(False) # Update offset rendering if changed
+        self.timeline.Refresh(False) # Update thumbnail
 
     def on_timeline_seek(self, idx: int) -> None:
         self.current_index = idx

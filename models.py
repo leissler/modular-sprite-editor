@@ -108,6 +108,28 @@ class FModule:
 
 
 @dataclass
+class ModuleMapping:
+    id: str
+    name: str
+    map: Dict[str, Optional[str]] = field(default_factory=dict) # src_id -> target_id (None for hidden)
+
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "map": self.map
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "ModuleMapping":
+        return ModuleMapping(
+            id=data["id"],
+            name=data["name"],
+            map=data.get("map", {})
+        )
+
+
+@dataclass
 class CollisionType:
     id: str
     name: str
@@ -297,159 +319,195 @@ class AuroraSpriteParser:
     @staticmethod
     def parse(content: str, base_path: str) -> "Project":
         project = Project()
-        
-        # 1. Parse Images
-        # Update regex to capture optional TRANSP 0xHex
-        image_pattern = re.compile(r'IMAGE\s+(0x[\da-fA-F]+)\s+"([^"]+)"(?:\s+TRANSP\s+(0x[\da-fA-F]+))?')
-        images_map = {} # Map index to absolute path
-        
+        images_map = {}
         image_index = 0
-        for match in image_pattern.finditer(content):
-            img_hex_id, filename, transp_hex = match.groups()
-            
-            # Parse trans color if present
-            # Format usually 0x00RRGGBB or 0xRRGGBB.
-            # We assume the user wants RGB.
-            # If 0x00FF00FF -> R=FF, G=00, B=FF? (Magenta)
-            trans_color = None
-            if transp_hex:
-                 val = int(transp_hex, 16)
-                 # Apply mask 0xFFFFFF just in case
-                 r = (val >> 16) & 0xFF
-                 g = (val >> 8) & 0xFF
-                 b = val & 0xFF
-                 trans_color = (r, g, b)
-            
-            # Construct absolute path
-            abs_path = os.path.join(base_path, filename)
-            
-            # Create ImageAsset
-            # Using filename as ID or hex ID? 
-            # Modules refer to it by index in my previous logic, but actually 
-            # MD line has `MD_IMAGE 0` (index?) or `MD_IMAGE id`?
-            # Start of file: IMAGE 0x0001 "..."
-            # Module line: MD 0x1000 MD_IMAGE 0 ...
-            # The '0' is likely the image index in the list of IMAGE definitions.
-            
-            # Let's create an asset
-            # We use abs_path as ID to deduplicate? Or just use the hex ID?
-            # Let's use the absolute path as ID for simplicity in loading, 
-            # Or better, generate a clean ID and store path.
-            
-            # In existing code, I used images list to look up by index.
-            images_map[image_index] = abs_path
-            
-            # Add to project.images so app can load it
-            # We don't know width/height yet without loading, but ImageAsset requires it.
-            # We can put 0, 0 for now or try to check file? 
-            # app.py might load it.
-            # Actually, standard flow: App loads Project -> App loads Bitmaps from Assets.
-            
-            img_asset = ImageAsset(
-                id=abs_path, # Use path as ID so Modules can reference it easily
-                file_path=abs_path,
-                width=0, # Unknown until load
-                height=0,
-                transparent_color=trans_color 
-            )
-            project.images.append(img_asset)
-            image_index += 1
-
-        # 2. Parse Modules
-        md_pattern = re.compile(r'MD\s+(0x[\da-fA-F]+)\s+MD_IMAGE\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+"([^"]+)"')
         
-        for match in md_pattern.finditer(content):
-            md_id, img_idx, x, y, w, h, name = match.groups()
-            
-            img_idx_int = int(img_idx)
-            # Lookup path
-            img_path = images_map.get(img_idx_int, "missing.png")
-            
-            module = Module(
-                id=md_id, # Keep Hex ID
-                name=name,
-                image_id=img_path, # This matches the ImageAsset.id we set above
-                rect=(int(x), int(y), int(w), int(h)),
-                pivot=(0, 0)
-            )
-            project.modules.append(module)
-
-        # 3. Parse Frames and Animations using line scanning
         current_block = None
         current_obj = None
         
         lines = content.splitlines()
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            i += 1
-            if not line or line.startswith("//"):
+        for raw_line in lines:
+            # Strip comments and trim
+            line = raw_line.split("//")[0].split("/*")[0].strip()
+            if not line:
                 continue
+            
+            # 1. Images
+            img_match = re.search(r'IMAGE\s+(0x[\da-fA-F]+)\s+"([^"]+)"(?:\s+TRANSP\s+(0x[\da-fA-F]+))?', line)
+            if img_match:
+                img_hex_id, filename, transp_hex = img_match.groups()
+                trans_color = None
+                if transp_hex:
+                    val = int(transp_hex, 16)
+                    r = (val >> 16) & 0xFF
+                    g = (val >> 8) & 0xFF
+                    b = val & 0xFF
+                    trans_color = (r, g, b)
                 
+                abs_path = os.path.join(base_path, filename)
+                images_map[image_index] = abs_path
+                
+                img_asset = ImageAsset(
+                    id=abs_path,
+                    file_path=abs_path,
+                    width=0,
+                    height=0,
+                    transparent_color=trans_color 
+                )
+                project.images.append(img_asset)
+                image_index += 1
+                continue
+
+            # 2. Block Starts
+            if line.startswith("MODULES"):
+                current_block = "MODULES"
+                continue
+            
             if line.startswith("FRAME"):
-                match = re.search(r'FRAME\s+"([^"]+)"', line)
-                if match:
-                    name = match.group(1)
-                    current_block = "FRAME"
-                    current_obj = Frame(id=generate_id("frm"), name=name)
-                    
-            elif line.startswith("ANIM"):
-                match = re.search(r'ANIM\s+"([^"]+)"', line)
-                if match:
-                    name = match.group(1)
-                    current_block = "ANIM"
-                    current_obj = Animation(id=generate_id("anim"), name=name)
-                    
-            elif line.startswith("}"):
+                m = re.search(r'FRAME\s+"([^"]*)"', line)
+                name = m.group(1) if m else "Unnamed Frame"
+                current_block = "FRAME"
+                current_obj = Frame(id=generate_id("frm"), name=name)
+                continue
+            
+            if line.startswith("ANIM"):
+                m = re.search(r'ANIM\s+"([^"]*)"', line)
+                name = m.group(1) if m else "Unnamed Anim"
+                current_block = "ANIM"
+                current_obj = Animation(id=generate_id("anim"), name=name)
+                continue
+
+            if line.startswith("MAPPING"):
+                m = re.search(r'MAPPING\s+"([^"]*)"', line)
+                name = m.group(1) if m else "Unnamed Mapping"
+                current_block = "MAPPING"
+                current_obj = ModuleMapping(id=generate_id("map"), name=name)
+                continue
+
+            # 3. Block Endings
+            if line == "}" or line == "SPRITE_END":
                 if current_block == "FRAME":
                     if isinstance(current_obj, Frame):
                         project.frames.append(current_obj)
                 elif current_block == "ANIM":
                     if isinstance(current_obj, Animation):
                         project.animations.append(current_obj)
+                elif current_block == "MAPPING":
+                    if isinstance(current_obj, ModuleMapping):
+                        project.mappings.append(current_obj)
                 current_block = None
                 current_obj = None
-            else:
-                if current_block == "FRAME" and isinstance(current_obj, Frame):
-                    if re.match(r'^0x[\da-fA-F]+$', line):
-                        current_obj.id = line
-                    elif line.startswith("FM"):
-                        parts = line.split()
+                continue
+
+            # 4. Content Parsing based on block
+            if current_block == "MODULES":
+                if line.startswith("MD"):
+                    # MD [id] MD_IMAGE [img_idx] [x] [y] [w] [h] ["name"]
+                    parts = line.split()
+                    if len(parts) >= 8 and parts[2] == "MD_IMAGE":
+                        md_id = parts[1]
+                        try:
+                            img_idx = int(parts[3])
+                            x, y, w, h = int(parts[4]), int(parts[5]), int(parts[6]), int(parts[7])
+                            
+                            # Optional name
+                            name = ""
+                            name_match = re.search(r'"([^"]*)"', line)
+                            if name_match:
+                                name = name_match.group(1)
+                            else:
+                                name = f"Module {md_id}"
+                            
+                            img_path = images_map.get(img_idx, "missing.png")
+                            module = Module(
+                                id=md_id,
+                                name=name,
+                                image_id=img_path,
+                                rect=(x, y, w, h),
+                                pivot=(0, 0)
+                            )
+                            project.modules.append(module)
+                        except (ValueError, IndexError):
+                            pass
+                continue
+
+            if current_block == "FRAME" and isinstance(current_obj, Frame):
+                if re.match(r'^0x[\da-fA-F]+$', line):
+                    current_obj.id = line
+                elif line.startswith("FM"):
+                    parts = line.split()
+                    if len(parts) >= 4:
                         ref_id = parts[1]
-                        ox = int(parts[2])
-                        oy = int(parts[3])
-                        
-                        flip_x = "+FLIP_X" in line
-                        flip_y = "+FLIP_Y" in line
-                        
-                        fmod = FModule(
-                            id=generate_id("fmod"),
-                            ref_type="module",
-                            ref_id=ref_id,
-                            position=(ox, oy),
-                            flip_x=flip_x,
-                            flip_y=flip_y
-                        )
-                        current_obj.fmodules.append(fmod)
-                        
-                elif current_block == "ANIM" and isinstance(current_obj, Animation):
-                    if re.match(r'^0x[\da-fA-F]+$', line):
-                        current_obj.id = line
-                    elif line.startswith("AF"):
-                        parts = line.split()
+                        try:
+                            ox = int(parts[2])
+                            oy = int(parts[3])
+                            flip_x = "+FLIP_X" in line
+                            flip_y = "+FLIP_Y" in line
+                            
+                            fmod = FModule(
+                                id=generate_id("fmod"),
+                                ref_type="module",
+                                ref_id=ref_id,
+                                position=(ox, oy),
+                                flip_x=flip_x,
+                                flip_y=flip_y
+                            )
+                            current_obj.fmodules.append(fmod)
+                        except ValueError: pass
+                elif line.startswith("RC"):
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        try:
+                            x1, y1, x2, y2 = map(int, parts[1:5])
+                            if not project.collision_types:
+                                project.collision_types.append(CollisionType(id="default", name="Default", color=(255, 0, 0)))
+                            
+                            crect = CollisionRect(
+                                id=generate_id("rc"),
+                                type_id=project.collision_types[0].id,
+                                rect=(x1, y1, x2 - x1, y2 - y1)
+                            )
+                            current_obj.collision_rects.append(crect)
+                        except ValueError: pass
+                continue
+
+            if current_block == "ANIM" and isinstance(current_obj, Animation):
+                if re.match(r'^0x[\da-fA-F]+$', line):
+                    current_obj.id = line
+                elif line.startswith("AF"):
+                    parts = line.split()
+                    if len(parts) >= 5:
                         ref_id = parts[1]
-                        duration = int(parts[2])
-                        ox = int(parts[3])
-                        oy = int(parts[4])
-                        flip_x = "+FLIP_X" in line
-                        
-                        af = AFrame(
-                            frame_id=ref_id,
-                            duration_ms=duration, # Assuming these are ticks/ms
-                            offset=(ox, oy),
-                            flip_x=flip_x
-                        )
-                        current_obj.aframes.append(af)
+                        try:
+                            duration = int(parts[2])
+                            ox = int(parts[3])
+                            oy = int(parts[4])
+                            flip_x = "+FLIP_X" in line
+                            flip_y = "+FLIP_Y" in line
+                            
+                            af = AFrame(
+                                frame_id=ref_id,
+                                duration_ms=duration,
+                                offset=(ox, oy),
+                                flip_x=flip_x,
+                                flip_y=flip_y
+                            )
+                            current_obj.aframes.append(af)
+                        except ValueError: pass
+                continue
+
+            if current_block == "MAPPING" and isinstance(current_obj, ModuleMapping):
+                if re.match(r'^0x[\da-fA-F]+$', line):
+                    current_obj.id = line
+                elif line.startswith("MD_MAP"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        src_id = parts[1]
+                        dest_id = parts[2]
+                        if dest_id.upper() == "NONE":
+                            dest_id = None
+                        current_obj.map[src_id] = dest_id
+                continue
 
         # 4. Linking Pass: Resolve FModule references
         # Check if ref_id matches a Module or a Frame. Default was "module".
@@ -476,6 +534,7 @@ class Project:
     modules: List[Module] = field(default_factory=list)
     frames: List[Frame] = field(default_factory=list)
     animations: List[Animation] = field(default_factory=list)
+    mappings: List[ModuleMapping] = field(default_factory=list)
     collision_types: List[CollisionType] = field(default_factory=list)
     point_types: List[PointType] = field(default_factory=list)
 
@@ -525,7 +584,7 @@ class Project:
             "modules": [m.to_dict() for m in self.modules],
             "frames": [f.to_dict() for f in self.frames],
             "animations": [a.to_dict() for a in self.animations],
-            "animations": [a.to_dict() for a in self.animations],
+            "mappings": [m.to_dict() for m in self.mappings],
             "collision_types": [ct.to_dict() for ct in self.collision_types],
             "point_types": [pt.to_dict() for pt in self.point_types],
         }
@@ -540,6 +599,7 @@ class Project:
         modules = [Module.from_dict(m) for m in data.get("modules", [])]
         frames = [Frame.from_dict(f) for f in data.get("frames", [])]
         animations = [Animation.from_dict(a) for a in data.get("animations", [])]
+        mappings = [ModuleMapping.from_dict(m) for m in data.get("mappings", [])]
         collision_types = [CollisionType.from_dict(ct) for ct in data.get("collision_types", [])]
         point_types = [PointType.from_dict(pt) for pt in data.get("point_types", [])]
         
@@ -549,6 +609,7 @@ class Project:
             modules=modules,
             frames=frames,
             animations=animations,
+            mappings=mappings,
             collision_types=collision_types,
             point_types=point_types,
         )
