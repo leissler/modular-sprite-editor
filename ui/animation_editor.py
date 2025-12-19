@@ -114,9 +114,13 @@ class AnimationEditorPanel(wx.Panel):
         # Row 2: Animation-Wide Props
         anim_row = wx.BoxSizer(wx.HORIZONTAL)
         anim_row.Add(wx.StaticText(bottom_box, label="Type:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.playback_choice = wx.Choice(bottom_box, choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"])
+        self.playback_choice = wx.Choice(bottom_box, choices=["forward", "backward", "loop", "ping_pong"])
         self.playback_choice.SetSelection(2)
         anim_row.Add(self.playback_choice, 0, wx.RIGHT, 15)
+
+        anim_row.Add(wx.StaticText(bottom_box, label="Loops (0=∞):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.loop_spin = wx.SpinCtrl(bottom_box, min=0, max=9999, initial=0, size=(60, -1))
+        anim_row.Add(self.loop_spin, 0, wx.RIGHT, 15)
 
         anim_row.Add(wx.StaticText(bottom_box, label="FPS:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.fps_spin = wx.SpinCtrl(bottom_box, min=1, max=60, initial=10, size=(55, -1))
@@ -154,6 +158,7 @@ class AnimationEditorPanel(wx.Panel):
         self.anim_list.Bind(wx.EVT_KEY_DOWN, self.on_anim_list_key_down)
 
         self.playback_choice.Bind(wx.EVT_CHOICE, self.on_change_playback)
+        self.loop_spin.Bind(wx.EVT_SPINCTRL, self.on_change_playback)
         self.fps_spin.Bind(wx.EVT_SPINCTRL, self.on_change_playback)
         
         self.btn_first.Bind(wx.EVT_BUTTON, lambda _: self.jump_to(0))
@@ -268,10 +273,11 @@ class AnimationEditorPanel(wx.Panel):
         
         # Populate UI
         self.fps_spin.SetValue(anim.fps if anim.fps > 0 else 10)
+        self.loop_spin.SetValue(anim.loop_count if anim.loop_count is not None else 0)
         
         # Map playback type string to choice index
-        # choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"]
-        types = ["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"]
+        # choices=["forward", "backward", "loop", "ping_pong"]
+        types = ["forward", "backward", "loop", "ping_pong"]
         if anim.playback_type in types:
             self.playback_choice.SetSelection(types.index(anim.playback_type))
         else:
@@ -357,11 +363,12 @@ class AnimationEditorPanel(wx.Panel):
         if not anim: return
         
         ptype_idx = self.playback_choice.GetSelection()
-        types = ["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"]
+        types = ["forward", "backward", "loop", "ping_pong"]
         if 0 <= ptype_idx < len(types):
             anim.playback_type = types[ptype_idx]
             
         anim.fps = self.fps_spin.GetValue()
+        anim.loop_count = self.loop_spin.GetValue()
 
     def update_aframe_ui(self) -> None:
         # Pushes current frame props to UI
@@ -566,10 +573,15 @@ class AnimationEditorPanel(wx.Panel):
             self.is_playing = True
             self.btn_play.SetLabel("Pause")
             self.remaining_loops = anim.loop_count
-            self.play_direction = 1
-            # Reset if at end?
-            if self.current_index == len(anim.aframes) - 1 and anim.playback_type == "forward":
+            
+            # Context-aware start position
+            last_idx = len(anim.aframes) - 1
+            if anim.playback_type == "forward" and self.current_index >= last_idx:
                 self.current_index = 0
+            elif anim.playback_type == "backward" and self.current_index <= 0:
+                self.current_index = last_idx
+                
+            self.play_direction = -1 if anim.playback_type == "backward" else 1
             self.schedule_timer()
         else:
             # Handle Pause (Maintain current position)
@@ -581,7 +593,13 @@ class AnimationEditorPanel(wx.Panel):
         self.is_playing = False
         self.btn_play.SetLabel("Play")
         self.timer.Stop()
-        self.jump_to(0)
+        
+        anim = self.get_selected_anim()
+        if anim and anim.playback_type == "backward":
+            self.jump_to(len(anim.aframes) - 1)
+        else:
+            self.jump_to(0)
+            
         self.canvas.Refresh(False)
 
     def schedule_timer(self) -> None:
@@ -605,24 +623,54 @@ class AnimationEditorPanel(wx.Panel):
         
         mode = anim.playback_type
         last_idx = len(anim.aframes) - 1
+        if last_idx < 0: return
         
-        # Advance logic
-        # (Reusing previous logic simplified)
-        
-        if mode in ("forward", "backward"):
-             delta = 1 if mode == "forward" else -1
-             self.current_index += delta
-             if self.current_index > last_idx or self.current_index < 0:
-                 self.is_playing = False
-                 self.current_index = max(0, min(self.current_index, last_idx))
-                 
-        elif mode in ("loop", "loop_n"):
+        if mode == "forward":
             self.current_index += 1
             if self.current_index > last_idx:
+                self.on_stop(None)
+                return
+                
+        elif mode == "backward":
+            self.current_index -= 1
+            if self.current_index < 0:
+                self.on_stop(None)
+                return
+                
+        elif mode == "loop":
+            self.current_index += 1
+            if self.current_index > last_idx:
+                # Finished one full pass
+                if anim.loop_count == 0: # Infinite
+                    self.current_index = 0
+                else:
+                    if self.remaining_loops > 1:
+                        self.remaining_loops -= 1
+                        self.current_index = 0
+                    else:
+                        self.on_stop(None)
+                        return
+                        
+        elif mode == "ping_pong":
+            if last_idx == 0:
+                # 1-frame ping-pong is just that frame
                 self.current_index = 0
-                # TODO: Handle loop_n count
-        
-        # ... Other modes ...
+            else:
+                self.current_index += self.play_direction
+                if self.current_index >= last_idx:
+                    self.current_index = last_idx
+                    self.play_direction = -1
+                elif self.current_index <= 0:
+                    self.current_index = 0
+                    self.play_direction = 1
+                    
+                    # We returned to start, this is a full cycle loop
+                    if anim.loop_count > 0:
+                        if self.remaining_loops > 1:
+                            self.remaining_loops -= 1
+                        else:
+                            self.on_stop(None)
+                            return
         
         self.update_aframe_ui()
         if self.is_playing:
@@ -630,6 +678,9 @@ class AnimationEditorPanel(wx.Panel):
 
     def jump_to(self, idx: int) -> None:
         self.current_index = idx
+        # Ensure Play button label resets if we jumped while stopped (handled by on_stop usually, but good for safety)
+        if not self.is_playing:
+            self.btn_play.SetLabel("Play")
         self.update_aframe_ui()
 
     def jump_to_last(self) -> None:
