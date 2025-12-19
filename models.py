@@ -256,7 +256,7 @@ class Frame:
 @dataclass
 class AFrame:
     frame_id: str
-    duration_ms: int
+    duration_frames: int
     offset: Tuple[int, int] = (0, 0)
     # Adding flip support for Animations as per Aurora format
     flip_x: bool = False
@@ -265,7 +265,7 @@ class AFrame:
     def to_dict(self) -> Dict:
         return {
             "frame_id": self.frame_id,
-            "duration_ms": self.duration_ms,
+            "duration_frames": self.duration_frames,
             "offset": list(self.offset),
             "flip_x": self.flip_x,
             "flip_y": self.flip_y,
@@ -273,9 +273,21 @@ class AFrame:
 
     @staticmethod
     def from_dict(data: Dict) -> "AFrame":
+        # Migration logic
+        duration = data.get("duration_frames")
+        if duration is None:
+            # Fallback to duration_ms
+            ms = int(data.get("duration_ms", 1))
+            # Heuristic: if ms is large (>=10), it was likely absolute ms from the recent buggy version.
+            # We assume a default of 10 FPS for normalization if it's large.
+            if ms >= 10:
+                duration = max(1, round(ms / 100.0)) # 100ms = 1 frame at 10fps
+            else:
+                duration = ms
+        
         return AFrame(
             frame_id=data["frame_id"],
-            duration_ms=int(data["duration_ms"]),
+            duration_frames=int(duration),
             offset=tuple(int(v) for v in data.get("offset", (0, 0))),  # type: ignore[arg-type]
             flip_x=bool(data.get("flip_x", False)),
             flip_y=bool(data.get("flip_y", False)),
@@ -487,7 +499,7 @@ class AuroraSpriteParser:
                             
                             af = AFrame(
                                 frame_id=ref_id,
-                                duration_ms=duration,
+                                duration_frames=duration,
                                 offset=(ox, oy),
                                 flip_x=flip_x,
                                 flip_y=flip_y

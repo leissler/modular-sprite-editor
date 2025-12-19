@@ -133,9 +133,9 @@ class MainFrame(wx.Frame):
         file_menu = wx.Menu()
         
         # Standard items, simplified accelerators to avoid parsing issues
-        self.m_open = file_menu.Append(wx.ID_OPEN, "&Open...\\tCtrl+O", "Open an existing project")
-        self.m_save = file_menu.Append(wx.ID_SAVE, "&Save\\tCtrl+S", "Save the current project")
-        self.m_save_as = file_menu.Append(wx.ID_ANY, "Save &As...\\tCtrl+Shift+S", "Save with a new name")
+        self.m_open = file_menu.Append(wx.ID_OPEN, "\u0026Open...\tCtrl+O", "Open an existing project")
+        self.m_save = file_menu.Append(wx.ID_SAVE, "\u0026Save\tCtrl+S", "Save the current project")
+        self.m_save_as = file_menu.Append(wx.ID_ANY, "Save \u0026As...\tCtrl+Shift+S", "Save with a new name")
         #file_menu.AppendSeparator()
         
         file_menu.Bind(wx.EVT_MENU, self.on_save_as, self.m_save_as)

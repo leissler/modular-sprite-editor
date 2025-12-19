@@ -45,20 +45,8 @@ class AnimationEditorPanel(wx.Panel):
         anim_btns.Add(self.btn_add_anim, 1, wx.RIGHT, 4)
         anim_btns.Add(self.btn_delete_anim, 1)
         
-        # Global Animation Props
-        props_grid = wx.FlexGridSizer(2, 2, 4, 4)
-        props_grid.Add(wx.StaticText(anim_box, label="FPS"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.fps_spin = wx.SpinCtrl(anim_box, min=1, max=60, initial=10)
-        props_grid.Add(self.fps_spin, 1, wx.EXPAND)
-        
-        props_grid.Add(wx.StaticText(anim_box, label="Loop"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.playback_choice = wx.Choice(anim_box, choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"])
-        self.playback_choice.SetSelection(2)
-        props_grid.Add(self.playback_choice, 1, wx.EXPAND)
-        
         anim_sizer.Add(self.anim_list, 1, wx.EXPAND | wx.ALL, 4)
         anim_sizer.Add(anim_btns, 0, wx.EXPAND | wx.ALL, 4)
-        anim_sizer.Add(props_grid, 0, wx.EXPAND | wx.ALL, 4)
         
         # 2. Frame Palette (Bottom Left)
         pal_box = wx.StaticBox(self.left_panel, label="Frame Palette")
@@ -103,40 +91,47 @@ class AnimationEditorPanel(wx.Panel):
         pb_sizer.Add(self.btn_next, 0, wx.RIGHT, 2)
         pb_sizer.Add(self.btn_last, 0)
         
-        # Current Frame Props (Inline with playback or below?)
-        # Let's put slightly below for detailed edit
-        frame_props_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Duration (frames):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.spin_duration = wx.SpinCtrl(bottom_box, min=1, max=10000, initial=100, size=(70, -1))
-        frame_props_sizer.Add(self.spin_duration, 0, wx.RIGHT, 20) # Spacing after Duration
+        # Row 1: Per-AFrame Props
+        aframe_row = wx.BoxSizer(wx.HORIZONTAL)
+        aframe_row.Add(wx.StaticText(bottom_box, label="Duration:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.spin_duration = wx.SpinCtrl(bottom_box, min=1, max=10000, initial=1, size=(60, -1))
+        aframe_row.Add(self.spin_duration, 0, wx.RIGHT, 15)
         
-        # Offsets
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Offset"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="X:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        aframe_row.Add(wx.StaticText(bottom_box, label="Offset X:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         self.spin_off_x = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
-        frame_props_sizer.Add(self.spin_off_x, 0, wx.RIGHT, 10)
+        aframe_row.Add(self.spin_off_x, 0, wx.RIGHT, 8)
         
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Y:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        aframe_row.Add(wx.StaticText(bottom_box, label="Y:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         self.spin_off_y = wx.SpinCtrl(bottom_box, min=-2048, max=2048, initial=0, size=(60, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
-        frame_props_sizer.Add(self.spin_off_y, 0, wx.RIGHT, 20) # Spacing after Offsets
+        aframe_row.Add(self.spin_off_y, 0, wx.RIGHT, 15)
         
-        # New Flip Controls
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Flip"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        aframe_row.Add(wx.StaticText(bottom_box, label="Flip"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.chk_flip_x = wx.CheckBox(bottom_box, label="X")
         self.chk_flip_y = wx.CheckBox(bottom_box, label="Y")
-        frame_props_sizer.Add(self.chk_flip_x, 0, wx.RIGHT, 4)
-        frame_props_sizer.Add(self.chk_flip_y, 0, wx.RIGHT, 20)
-        
-        frame_props_sizer.Add(wx.StaticText(bottom_box, label="Trajectory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        aframe_row.Add(self.chk_flip_x, 0, wx.RIGHT, 4)
+        aframe_row.Add(self.chk_flip_y, 0, wx.RIGHT, 15)
+
+        # Row 2: Animation-Wide Props
+        anim_row = wx.BoxSizer(wx.HORIZONTAL)
+        anim_row.Add(wx.StaticText(bottom_box, label="Type:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.playback_choice = wx.Choice(bottom_box, choices=["forward", "backward", "loop", "loop_n", "ping_pong", "ping_pong_n"])
+        self.playback_choice.SetSelection(2)
+        anim_row.Add(self.playback_choice, 0, wx.RIGHT, 15)
+
+        anim_row.Add(wx.StaticText(bottom_box, label="FPS:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.fps_spin = wx.SpinCtrl(bottom_box, min=1, max=60, initial=10, size=(55, -1))
+        anim_row.Add(self.fps_spin, 0, wx.RIGHT, 15)
+
+        anim_row.Add(wx.StaticText(bottom_box, label="Trajectory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.chk_trajectory = wx.CheckBox(bottom_box)
         self.chk_trajectory.SetValue(True)
-        frame_props_sizer.Add(self.chk_trajectory, 0)
+        anim_row.Add(self.chk_trajectory, 0)
 
         # Layout
         bottom_sizer.Add(self.timeline, 0, wx.EXPAND | wx.ALL, 4)
-        bottom_sizer.Add(pb_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 4)
-        bottom_sizer.Add(frame_props_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 4)
+        bottom_sizer.Add(pb_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 4)
+        bottom_sizer.Add(aframe_row, 0, wx.ALIGN_CENTER | wx.TOP, 8)
+        bottom_sizer.Add(anim_row, 0, wx.ALIGN_CENTER | wx.TOP, 8)
         # Removed btn_remove_frame button
 
         right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
@@ -295,10 +290,7 @@ class AnimationEditorPanel(wx.Panel):
             fps=10
         )
         self.project.animations.append(new_anim)
-        self.refresh_animations()
-        # Select it (last item)
-        count = self.anim_list.GetItemCount()
-        self.anim_list.Select(count - 1)
+        self.refresh_animations(new_anim.id)
 
     def on_delete_animation(self, event) -> None:
         anim = self.get_selected_anim()
@@ -340,7 +332,7 @@ class AnimationEditorPanel(wx.Panel):
             
         new_aframe = AFrame(
             frame_id=frame_id,
-            duration_ms=1, # Default 1 frame duration
+            duration_frames=1, # Default 1 frame duration
             offset=(0, 0)
         )
         anim.aframes.append(new_aframe)
@@ -381,10 +373,7 @@ class AnimationEditorPanel(wx.Panel):
         self.ui_updating = True
         try:
             af = anim.aframes[self.current_index]
-            # Convert MS to Frames for UI
-            fps = anim.fps if anim.fps > 0 else 10
-            frames = max(1, round(af.duration_ms * fps / 1000.0))
-            self.spin_duration.SetValue(frames)
+            self.spin_duration.SetValue(af.duration_frames)
             
             self.spin_off_x.SetValue(af.offset[0])
             self.spin_off_y.SetValue(af.offset[1])
@@ -441,9 +430,7 @@ class AnimationEditorPanel(wx.Panel):
         # Duration
         # Update if event is None (Focus loss / Enter) or explicitly Duration spin
         if event is None or event.GetEventObject() == self.spin_duration:
-            frames = self.spin_duration.GetValue()
-            fps = anim.fps if anim.fps > 0 else 10
-            af.duration_ms = int(frames * 1000.0 / fps)
+            af.duration_frames = self.spin_duration.GetValue()
             
         # Offsets
         # Always update offsets if called (safe to overwrite with current UI value)
@@ -509,10 +496,7 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.get_selected_anim()
         if not anim: return
         
-        # Default duration 1 frame
-        fps = anim.fps if anim.fps > 0 else 10
-        def_ms = int(1000.0 / fps)
-        new_af = AFrame(frame_id=frame_id, duration_ms=def_ms)
+        new_af = AFrame(frame_id=frame_id, duration_frames=1)
         # Validate idx
         if idx < 0: idx = 0
         if idx > len(anim.aframes): idx = len(anim.aframes)
@@ -575,29 +559,38 @@ class AnimationEditorPanel(wx.Panel):
 
     # --- Timer Playback (Same Logic as Before) ---
     def on_play(self, event) -> None:
-         anim = self.get_selected_anim()
-         if not anim or not anim.aframes: return
-         
-         if not self.is_playing:
-             self.is_playing = True
-             self.remaining_loops = anim.loop_count
-             self.play_direction = 1
-             # Reset if at end?
-             if self.current_index == len(anim.aframes) - 1 and anim.playback_type == "forward":
-                 self.current_index = 0
-             self.schedule_timer()
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes: return
+        
+        if not self.is_playing:
+            self.is_playing = True
+            self.btn_play.SetLabel("Pause")
+            self.remaining_loops = anim.loop_count
+            self.play_direction = 1
+            # Reset if at end?
+            if self.current_index == len(anim.aframes) - 1 and anim.playback_type == "forward":
+                self.current_index = 0
+            self.schedule_timer()
+        else:
+            # Handle Pause (Maintain current position)
+            self.is_playing = False
+            self.btn_play.SetLabel("Play")
+            self.timer.Stop()
 
     def on_stop(self, event) -> None:
         self.is_playing = False
+        self.btn_play.SetLabel("Play")
         self.timer.Stop()
+        self.jump_to(0)
+        self.canvas.Refresh(False)
 
     def schedule_timer(self) -> None:
         anim = self.get_selected_anim()
         if not anim or not anim.aframes: return
         
-        duration_frames = anim.aframes[self.current_index].duration_ms
+        af = anim.aframes[self.current_index]
         fps = anim.fps if anim.fps > 0 else 10
-        ms_delay = int(duration_frames * (1000 / fps))
+        ms_delay = int(af.duration_frames * (1000.0 / fps))
         ms_delay = max(10, ms_delay)
         
         self.timer.Start(ms_delay, wx.TIMER_ONE_SHOT)
