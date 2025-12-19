@@ -492,6 +492,8 @@ class ModuleEditorPanel(wx.Panel):
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
         sidebar = wx.BoxSizer(wx.VERTICAL)
         canvas_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        self.SetSizer(main_sizer)
 
         # Images
         img_box = wx.StaticBox(self, label="Images")
@@ -504,6 +506,7 @@ class ModuleEditorPanel(wx.Panel):
         img_btns.Add(self.btn_remove_img, 0)
         img_sizer.Add(self.image_list, 1, wx.EXPAND | wx.ALL, 4)
         img_sizer.Add(img_btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        
         # Transparency controls
         trans_row = wx.BoxSizer(wx.HORIZONTAL)
         trans_lbl = wx.StaticText(img_box, label="Transparent color:")
@@ -568,9 +571,10 @@ class ModuleEditorPanel(wx.Panel):
         sidebar.Add(mod_sizer, 2, wx.EXPAND | wx.ALL, 4)
         sidebar.Add(slice_sizer, 0, wx.EXPAND | wx.ALL, 4)
 
-        # Canvas
+        # Canvas Pane
         self.canvas = ModuleCanvas(self)
         canvas_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
+        
         # Compact view grid controls
         controls = wx.BoxSizer(wx.HORIZONTAL)
         controls.Add(wx.StaticText(self, label="Grid X"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
@@ -594,10 +598,9 @@ class ModuleEditorPanel(wx.Panel):
         status_sizer.Add(self.selection_label, 0, wx.RIGHT, 15)
         status_sizer.Add(self.pivot_label, 0)
         canvas_sizer.Add(status_sizer, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-
+        
         main_sizer.Add(sidebar, 0, wx.EXPAND)
         main_sizer.Add(canvas_sizer, 1, wx.EXPAND)
-        self.SetSizer(main_sizer)
 
         # Events
         self.btn_import.Bind(wx.EVT_BUTTON, self.on_import_image)

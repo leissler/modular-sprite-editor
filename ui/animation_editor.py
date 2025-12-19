@@ -22,9 +22,10 @@ class AnimationEditorPanel(wx.Panel):
         self.remaining_loops: Optional[int] = None
         self.is_playing = False
         self.timer = wx.Timer(self)
-
-        # Main Splitter: Left (Manager) | Right (Workspace)
-        self.splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3D)
+        self.current_animation: Optional[Animation] = None
+        
+        # Splitter occupies the full panel
+        self.splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
         # --- LEFT PANEL: Manager ---
         self.left_panel = wx.Panel(self.splitter)
@@ -146,9 +147,9 @@ class AnimationEditorPanel(wx.Panel):
         self.splitter.SplitVertically(self.left_panel, self.right_panel, 300)
         self.splitter.SetMinimumPaneSize(200)
         
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
-        main_sizer.Add(self.splitter, 1, wx.EXPAND)
-        self.SetSizer(main_sizer)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.splitter, 1, wx.EXPAND)
+        self.SetSizer(sizer)
 
         # Event Binding
         self.btn_add_anim.Bind(wx.EVT_BUTTON, self.on_add_animation)

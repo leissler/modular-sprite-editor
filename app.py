@@ -80,7 +80,10 @@ class MainFrame(wx.Frame):
         self._add_toolbar_tools()
         self.toolbar.Realize()
 
-        self.book = wx.Simplebook(self)
+        self.status_bar = self.CreateStatusBar()
+        self.status_bar.SetStatusText("Ready")
+
+        self.book = wx.Notebook(self)
         self.module_editor = ModuleEditorPanel(self.book, self.project)
         self.frame_editor = FrameEditorPanel(self.book, self.project)
         self.animation_editor = AnimationEditorPanel(self.book, self.project)
@@ -95,6 +98,34 @@ class MainFrame(wx.Frame):
         self.SetSizer(sizer)
 
         self.toolbar.Bind(wx.EVT_TOOL, self.on_switch_tool)
+        self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_changed)
+        
+        # Initial Title/Status
+        self.SetTitle(f"{APP_NAME} - [Modules]")
+        self.status_bar.SetStatusText("Active Mode: Modules")
+
+    def on_page_changed(self, event: wx.BookCtrlEvent) -> None:
+        page_idx = event.GetSelection()
+        if page_idx == 0:
+            mode_name = "Modules"
+        elif page_idx == 1:
+            self.frame_editor.refresh_choices()
+            self.frame_editor.refresh_frames(self.frame_editor.selected_frame_id)
+            mode_name = "Frames"
+        elif page_idx == 2:
+            self.animation_editor.refresh_choices()
+            self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
+            mode_name = "Animations"
+        elif page_idx == 3:
+            self.mapping_editor.refresh_list()
+            self.mapping_editor.visualizer.update_virtual_size()
+            mode_name = "Mappings"
+        else:
+            mode_name = "Unknown"
+
+        self.SetTitle(f"{APP_NAME} - [{mode_name}]")
+        self.status_bar.SetStatusText(f"Active Mode: {mode_name}")
+        event.Skip()
 
     # UI construction
     def _build_menu(self) -> None:
@@ -102,9 +133,9 @@ class MainFrame(wx.Frame):
         file_menu = wx.Menu()
         
         # Standard items, simplified accelerators to avoid parsing issues
-        self.m_open = file_menu.Append(wx.ID_OPEN, "&Open...\tCtrl+O", "Open an existing project")
-        self.m_save = file_menu.Append(wx.ID_SAVE, "&Save\tCtrl+S", "Save the current project")
-        self.m_save_as = file_menu.Append(wx.ID_ANY, "Save &As...\tCtrl+Shift+S", "Save with a new name")
+        self.m_open = file_menu.Append(wx.ID_OPEN, "&Open...\\tCtrl+O", "Open an existing project")
+        self.m_save = file_menu.Append(wx.ID_SAVE, "&Save\\tCtrl+S", "Save the current project")
+        self.m_save_as = file_menu.Append(wx.ID_ANY, "Save &As...\\tCtrl+Shift+S", "Save with a new name")
         #file_menu.AppendSeparator()
         
         file_menu.Bind(wx.EVT_MENU, self.on_save_as, self.m_save_as)
@@ -142,73 +173,9 @@ class MainFrame(wx.Frame):
 
     def _add_toolbar_tools(self) -> None:
         size = (24, 24)
-        
-        # File Tools
-        #self.toolbar.AddTool(wx.ID_OPEN, "Open", wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_TOOLBAR, size))
-        #self.toolbar.AddTool(wx.ID_SAVE, "Save", wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_TOOLBAR, size))
-        #self.toolbar.AddSeparator()
-        
-        self.t_modules = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Modules", self._make_icon("modules", size)
-        )
-        self.t_frames = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Frames", self._make_icon("frames", size)
-        )
-        self.t_anims = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Animations", self._make_icon("animations", size)
-        )
-        self.t_mappings = self.toolbar.AddRadioTool(
-            wx.ID_ANY, "Mappings", self._make_icon("mappings", size)
-        )
-        self.toolbar.ToggleTool(self.t_modules.GetId(), True)
+        pass # No extra tools for now, can add Open/Save here later
 
-    def _make_icon(self, kind: str, size: tuple[int, int]) -> wx.Bitmap:
-        w, h = size
-        bmp = wx.Bitmap(w, h, 32)
-        dc = wx.MemoryDC(bmp)
-        dc.SetBackground(wx.Brush(wx.Colour(0, 0, 0, 0)))
-        dc.Clear()
 
-        if kind == "modules":
-            dc.SetPen(wx.Pen(wx.Colour(70, 130, 180), width=2))
-            dc.DrawRectangle(4, 4, w - 8, h - 8)
-            dc.SetPen(wx.Pen(wx.Colour(70, 130, 180), width=1))
-            for x in range(6, w - 6, 6):
-                dc.DrawLine(x, 6, x, h - 6)
-            for y in range(6, h - 6, 6):
-                dc.DrawLine(6, y, w - 6, y)
-            dc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=1))
-            dc.DrawLine(6, 6, w - 6, h - 6)
-        elif kind == "frames":
-            dc.SetPen(wx.Pen(wx.Colour(40, 180, 90), width=2))
-            dc.SetBrush(wx.Brush(wx.Colour(40, 180, 90, 40)))
-            dc.DrawRectangle(6, 6, w - 12, h - 12)
-            dc.SetPen(wx.Pen(wx.Colour(30, 140, 70), width=2))
-            dc.SetBrush(wx.Brush(wx.Colour(30, 140, 70, 50)))
-            dc.DrawRectangle(10, 10, w - 14, h - 14)
-        elif kind == "animations":
-            dc.SetBrush(wx.Brush(wx.Colour(200, 150, 60)))
-            dc.SetPen(wx.Pen(wx.Colour(200, 150, 60)))
-            points = [(8, 6), (18, 12), (8, 18)]
-            dc.DrawPolygon(points)
-            dc.SetPen(wx.Pen(wx.Colour(120, 120, 120), width=2))
-            dc.DrawLine(4, 6, 4, 18)
-            dc.DrawLine(4, 18, 6, 18)
-            dc.SetPen(wx.Pen(wx.Colour(220, 200, 120), width=2, style=wx.PENSTYLE_DOT))
-            dc.DrawLine(12, 6, 20, 6)
-            dc.DrawLine(12, 18, 20, 18)
-        elif kind == "mappings":
-            dc.SetPen(wx.Pen(wx.Colour(180, 100, 200), width=2))
-            # Arrow Right
-            dc.DrawLine(4, 9, 16, 9)
-            dc.DrawLine(13, 6, 16, 9)
-            dc.DrawLine(13, 12, 16, 9)
-            # Arrow Left
-            dc.DrawLine(20, 15, 8, 15)
-            dc.DrawLine(11, 12, 8, 15)
-            dc.DrawLine(11, 18, 8, 15)
-        dc.SelectObject(wx.NullBitmap)
-        return bmp
 
     # Menu handlers
     def on_new(self, _: wx.CommandEvent) -> None:
@@ -277,7 +244,7 @@ class MainFrame(wx.Frame):
 
     def on_about(self, _: wx.CommandEvent) -> None:
         wx.MessageBox(
-            "Modular Sprite Editor\nA simple modular sprite editing tool built with wxPython.",
+            "Modular Sprite Editor\\nA simple modular sprite editing tool built with wxPython.",
             f"About {APP_NAME}",
             wx.OK | wx.ICON_INFORMATION,
             self,
@@ -303,22 +270,6 @@ class MainFrame(wx.Frame):
         elif tool_id == wx.ID_SAVE:
             self.on_save(event)
             return
-
-        # Handle View Tools
-        if tool_id == self.t_modules.GetId():
-            self.book.ChangeSelection(0)
-        elif tool_id == self.t_frames.GetId():
-            self.book.ChangeSelection(1)
-            self.frame_editor.refresh_choices()
-            self.frame_editor.refresh_frames(self.frame_editor.selected_frame_id)
-        elif tool_id == self.t_anims.GetId():
-            self.book.ChangeSelection(2)
-            self.animation_editor.refresh_choices()
-            self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
-        elif tool_id == self.t_mappings.GetId():
-            self.book.ChangeSelection(3)
-            self.mapping_editor.refresh_list()
-            self.mapping_editor.visualizer.update_virtual_size()
 
     # Helpers
     def _reload_project_into_panels(self) -> None:

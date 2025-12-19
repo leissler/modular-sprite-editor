@@ -158,3 +158,4 @@ class ThumbnailGenerator:
                              
         dc.SelectObject(wx.NullBitmap)
         return bmp
+

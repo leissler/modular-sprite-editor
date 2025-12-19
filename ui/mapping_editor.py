@@ -183,7 +183,7 @@ class MappingEditorPanel(wx.Panel):
         self.project = project
         self.current_mapping: Optional[ModuleMapping] = None
         
-        # Splitter
+        # Splitter occupies the full panel
         self.splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
         # Left: List
@@ -222,10 +222,13 @@ class MappingEditorPanel(wx.Panel):
         
         self.splitter.SplitVertically(self.left_panel, self.right_panel, 250)
         self.splitter.SetMinimumPaneSize(150)
+        self.splitter.SetSashGravity(0.2)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.splitter, 1, wx.EXPAND)
         self.SetSizer(sizer)
+        
+        self.refresh_list()
         
         # Bindings
         self.btn_add.Bind(wx.EVT_BUTTON, self.on_add)

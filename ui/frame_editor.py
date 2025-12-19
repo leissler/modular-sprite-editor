@@ -1045,6 +1045,7 @@ class FrameEditorPanel(wx.Panel):
     
     def on_mode_change(self, event):
         sel = self.choice_mode.GetSelection()
+        
         if sel == 0: # Modules
             self.canvas.edit_mode = "module"
             self.lbl_modules.Show()
