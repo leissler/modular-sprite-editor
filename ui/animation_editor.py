@@ -143,7 +143,7 @@ class AnimationEditorPanel(wx.Panel):
         self.right_panel.SetSizer(right_sizer)
         
         # Splitter Setup
-        self.splitter.SplitVertically(self.left_panel, self.right_panel, 300)
+        self.splitter.SplitVertically(self.left_panel, self.right_panel, 380)
         self.splitter.SetMinimumPaneSize(200)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
