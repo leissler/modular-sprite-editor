@@ -78,13 +78,27 @@ class BaseCanvas(wx.Panel):
         step = 8
         c1 = wx.Colour(60, 60, 60)
         c2 = wx.Colour(80, 80, 80)
-        # Optimization: Don't draw individual rects if possible, or use clipping.
-        # Current implementation:
-        for y in range(0, size.height, step):
-            for x in range(0, size.width, step):
-                dc.SetBrush(wx.Brush(c1 if (x // step + y // step) % 2 == 0 else c2))
-                dc.SetPen(wx.TRANSPARENT_PEN)
-                dc.DrawRectangle(x, y, step, step)
+        
+        b1, b2 = wx.Brush(c1), wx.Brush(c2)
+        dc.SetPen(wx.TRANSPARENT_PEN)
+        
+        # Get screen position of world origin (0, 0)
+        ox, oy = self.world_to_screen((0, 0))
+        
+        # Determine the range of tiles that are visible on screen.
+        # Screen coordinate x mapping to world-relative tile index ix: sx = ox + ix * step
+        # Solving for ix at screen 0: ix = (0 - ox) // step
+        first_ix = int((0 - ox) // step)
+        first_iy = int((0 - oy) // step)
+        last_ix = int((size.width - ox) // step)
+        last_iy = int((size.height - oy) // step)
+        
+        for iy in range(first_iy, last_iy + 1):
+            sy = int(oy + iy * step)
+            for ix in range(first_ix, last_ix + 1):
+                sx = int(ox + ix * step)
+                dc.SetBrush(b1 if (ix + iy) % 2 == 0 else b2)
+                dc.DrawRectangle(sx, sy, step, step)
 
     def _draw_grid(self, gc: wx.GraphicsContext) -> None:
         if not self.show_grid:
