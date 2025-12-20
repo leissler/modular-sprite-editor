@@ -30,21 +30,39 @@ class ModulePalette(wx.ListCtrl):
         self.SetImageList(None, wx.IMAGE_LIST_NORMAL)
         self.DeleteAllItems()
         
-        # Explicitly destroy old python object ref (though GC handles it, explicit is clearer)
-        self.image_list = None
-        
-        # Recreate ImageList
-        self.image_list = wx.ImageList(64, 64)
+        # Recreate ImageList: 96x96 squares
+        item_side = 96
+        self.image_list = wx.ImageList(item_side, item_side)
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.item_images.clear()
         
+        if not self.project.modules:
+            self.module_ids = []
+            return
+
+        # 1. Calculate Global Uniform Scale
+        # Find max dimension across ALL modules to preserve relative sizes
+        max_mod_w, max_mod_h = 0, 0
+        for m in self.project.modules:
+            max_mod_w = max(max_mod_w, m.rect[2])
+            max_mod_h = max(max_mod_h, m.rect[3])
+        
+        # Available area inside 96x96 box (leaving margin for highlight/padding)
+        available_w, available_h = 86, 86
+        if max_mod_w > 0 and max_mod_h > 0:
+            scale_w = available_w / max_mod_w
+            scale_h = available_h / max_mod_h
+            uniform_scale = min(scale_w, scale_h)
+        else:
+            uniform_scale = 1.0
+
         # Cache loaded images to avoid re-reading from disk for every module
         # Key: image_id, Value: wx.Image
         source_images = {}
         
         for mod in self.project.modules:
             # Create thumbnail
-            bmp = wx.Bitmap(64, 64)
+            bmp = wx.Bitmap(item_side, item_side)
             dc = wx.MemoryDC(bmp)
             dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
             dc.Clear()
@@ -72,63 +90,43 @@ class ModulePalette(wx.ListCtrl):
                     if rx + rw <= img_w and ry + rh <= img_h:
                         sub_img = img.GetSubImage(wx.Rect(rx, ry, rw, rh))
                         
-                        # Calculate scale to MAXIMIZE size within 56x56 box (with padding)
-                        available_w, available_h = 56, 56
-                        
-                        # Calculate scale factor to fit
-                        scale_w = available_w / rw
-                        scale_h = available_h / rh
-                        final_scale = min(scale_w, scale_h)
-                        
-                        # Enforce at least 1.0 (don't downscale if it fits, actually we typically want validation,
-                        # but here we want to Maximize, so upscaling IS desired for small sprites)
-                        
-                        new_w = int(rw * final_scale)
-                        new_h = int(rh * final_scale)
+                        # Apply global uniform scale
+                        new_w = max(1, int(rw * uniform_scale))
+                        new_h = max(1, int(rh * uniform_scale))
                         
                         # Only rescale if dimensions change
                         if new_w != rw or new_h != rh:
                              sub_img.Rescale(new_w, new_h, wx.IMAGE_QUALITY_NEAREST)
                         
-                        # Draw centered horizontally, but aligned to BOTTOM vertically
-                        # to reduce gap between image and text.
-                        # Box is 64x64. Reserve 2px padding at bottom for border.
-                        # (Previously 0 padding caused overlap with highlight)
-                        off_x = (64 - new_w) // 2
-                        off_y = 64 - new_h - 2
+                        # Draw perfectly centered
+                        off_x = (item_side - new_w) // 2
+                        off_y = (item_side - new_h) // 2
                         dc.DrawBitmap(sub_img.ConvertToBitmap(), off_x, off_y, True)
                     else:
                         dc.SetPen(wx.Pen(wx.Colour(200, 50, 50)))
-                        dc.DrawLine(0, 0, 64, 64)
-                        dc.DrawLine(64, 0, 0, 64)
+                        dc.DrawLine(0, 0, item_side, item_side)
+                        dc.DrawLine(item_side, 0, 0, item_side)
                 except Exception as e:
                     # print(f"Failed to load thumb for {mod.name}: {e}")
                     dc.SetPen(wx.Pen(wx.Colour(200, 50, 50)))
-                    dc.DrawLine(0, 0, 64, 64)
-                    dc.DrawLine(64, 0, 0, 64)
+                    dc.DrawLine(0, 0, item_side, item_side)
+                    dc.DrawLine(item_side, 0, 0, item_side)
             else:
                  # Draw "module" placeholder
                 dc.SetPen(wx.Pen(wx.Colour(100, 100, 100)))
                 dc.SetBrush(wx.Brush(wx.Colour(70, 70, 70)))
-                dc.DrawRectangle(4, 4, 56, 56)
+                dc.DrawRectangle(4, 4, item_side-8, item_side-8)
             
             dc.SelectObject(wx.NullBitmap)
             
             # Create Selected Version
-            sel_bmp = bmp.GetSubBitmap(wx.Rect(0, 0, 64, 64))
+            sel_bmp = bmp.GetSubBitmap(wx.Rect(0, 0, item_side, item_side))
             dc_sel = wx.MemoryDC(sel_bmp)
             
             # Draw highlight border ONLY (no fill)
-            # Content is max 56x56 centered (approx 4px margin).
-            # Draw border at edges to avoid overlap.
-            # Using 1,1 62x62 with 2px pen implies striking approx pixels 0-2 and 61-63.
-            # Pen alignment is usually CENTER. width 2 -> +/- 1 pixel.
-            # Drawing at 1 -> range 0 to 2.
-            # Drawing at 62 -> range 61 to 63.
-            # Grid 0..63.
             dc_sel.SetBrush(wx.TRANSPARENT_BRUSH)
             dc_sel.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
-            dc_sel.DrawRoundedRectangle(1, 1, 62, 62, 4)
+            dc_sel.DrawRoundedRectangle(1, 1, item_side-2, item_side-2, 4)
             dc_sel.SelectObject(wx.NullBitmap)
             
             idx_norm = self.image_list.Add(bmp)
