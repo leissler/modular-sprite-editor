@@ -16,7 +16,7 @@ class ModulePalette(wx.ListCtrl):
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent, style=wx.LC_ICON | wx.LC_SINGLE_SEL | wx.LC_AUTOARRANGE)
         self.project = project
-        self.image_list = wx.ImageList(64, 64)
+        self.image_list = wx.ImageList(96, 96)
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag)
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_item_selected)
@@ -24,13 +24,26 @@ class ModulePalette(wx.ListCtrl):
         
         # Map item_idx -> (normal_image_idx, selected_image_idx)
         self.item_images = {}
+        self.module_ids = []
+
+        # Persistent Caches
+        self._source_images = {} # asset_id -> wx.Image
+        self._thumb_cache = {}   # (mod_id, rect, scale, trans_color) -> (bmp, sel_bmp)
+        self._last_scale = 0.0
+        self._last_fingerprint = None
 
     def refresh_modules(self):
-        # Aggressive cleanup: Detach old list first
+        # 1. Check if actually needed (skip if data hasn't changed)
+        # Fingerprint covers: count, identities, and visual properties (rect, name)
+        current_fingerprint = (len(self.project.modules), tuple((m.id, m.name, m.rect) for m in self.project.modules))
+        if current_fingerprint == self._last_fingerprint:
+            return
+        self._last_fingerprint = current_fingerprint
+
+        # Aggressive cleanup of ListCtrl state, but NOT our persistent caches
         self.SetImageList(None, wx.IMAGE_LIST_NORMAL)
         self.DeleteAllItems()
         
-        # Recreate ImageList: 96x96 squares
         item_side = 96
         self.image_list = wx.ImageList(item_side, item_side)
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
@@ -56,79 +69,81 @@ class ModulePalette(wx.ListCtrl):
         else:
             uniform_scale = 1.0
 
-        # Cache loaded images to avoid re-reading from disk for every module
-        # Key: image_id, Value: wx.Image
-        source_images = {}
-        
+        # Invalidate thumbnail cache if global scale changed
+        if abs(self._last_scale - uniform_scale) > 0.001:
+            self._thumb_cache.clear()
+            self._last_scale = uniform_scale
+
         for mod in self.project.modules:
-            # Create thumbnail
-            bmp = wx.Bitmap(item_side, item_side)
-            dc = wx.MemoryDC(bmp)
-            dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
-            dc.Clear()
-            
             asset = self.project.get_image(mod.image_id)
-            if asset:
-                try:
-                    # Check cache first
-                    if asset.id in source_images:
-                        img = source_images[asset.id]
-                    else:
-                        img = wx.Image(asset.file_path)
-                        # Apply mask if transparent color is set
-                        if asset.transparent_color:
-                             # transparent_color is (r, g, b)
-                             img.SetMaskColour(*asset.transparent_color)
-                        source_images[asset.id] = img
-                    
-                    # Crop module rect from source image
-                    # mod.rect is (x, y, w, h)
-                    rx, ry, rw, rh = mod.rect
-                    
-                    # Validate rect is within image bounds
-                    img_w, img_h = img.GetWidth(), img.GetHeight()
-                    if rx + rw <= img_w and ry + rh <= img_h:
-                        sub_img = img.GetSubImage(wx.Rect(rx, ry, rw, rh))
+            trans_color = asset.transparent_color if asset else None
+            
+            # Key for thumbnail cache: mod ID + geometry + scale context
+            cache_key = (mod.id, mod.rect, uniform_scale, trans_color)
+            
+            if cache_key in self._thumb_cache:
+                bmp, sel_bmp = self._thumb_cache[cache_key]
+            else:
+                # Need to generate
+                bmp = wx.Bitmap(item_side, item_side)
+                dc = wx.MemoryDC(bmp)
+                dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
+                dc.Clear()
+                
+                if asset:
+                    try:
+                        # Use persistent source image cache
+                        if asset.id not in self._source_images:
+                            img = wx.Image(asset.file_path)
+                            if trans_color:
+                                 img.SetMaskColour(*trans_color)
+                            self._source_images[asset.id] = img
+                        else:
+                            img = self._source_images[asset.id]
                         
-                        # Apply global uniform scale
-                        new_w = max(1, int(rw * uniform_scale))
-                        new_h = max(1, int(rh * uniform_scale))
-                        
-                        # Only rescale if dimensions change
-                        if new_w != rw or new_h != rh:
-                             sub_img.Rescale(new_w, new_h, wx.IMAGE_QUALITY_NEAREST)
-                        
-                        # Draw perfectly centered
-                        off_x = (item_side - new_w) // 2
-                        off_y = (item_side - new_h) // 2
-                        dc.DrawBitmap(sub_img.ConvertToBitmap(), off_x, off_y, True)
-                    else:
+                        rx, ry, rw, rh = mod.rect
+                        img_w, img_h = img.GetWidth(), img.GetHeight()
+                        if rx + rw <= img_w and ry + rh <= img_h:
+                            sub_img = img.GetSubImage(wx.Rect(rx, ry, rw, rh))
+                            
+                            # Apply global uniform scale
+                            new_w = max(1, int(rw * uniform_scale))
+                            new_h = max(1, int(rh * uniform_scale))
+                            
+                            # Only rescale if dimensions change
+                            if new_w != rw or new_h != rh:
+                                 sub_img.Rescale(new_w, new_h, wx.IMAGE_QUALITY_NEAREST)
+                            
+                            # Draw perfectly centered
+                            off_x = (item_side - new_w) // 2
+                            off_y = (item_side - new_h) // 2
+                            dc.DrawBitmap(sub_img.ConvertToBitmap(), off_x, off_y, True)
+                        else:
+                            dc.SetPen(wx.Pen(wx.Colour(200, 50, 50)))
+                            dc.DrawLine(0, 0, item_side, item_side)
+                            dc.DrawLine(item_side, 0, 0, item_side)
+                    except Exception:
                         dc.SetPen(wx.Pen(wx.Colour(200, 50, 50)))
                         dc.DrawLine(0, 0, item_side, item_side)
                         dc.DrawLine(item_side, 0, 0, item_side)
-                except Exception as e:
-                    # print(f"Failed to load thumb for {mod.name}: {e}")
-                    dc.SetPen(wx.Pen(wx.Colour(200, 50, 50)))
-                    dc.DrawLine(0, 0, item_side, item_side)
-                    dc.DrawLine(item_side, 0, 0, item_side)
-            else:
-                 # Draw "module" placeholder
-                dc.SetPen(wx.Pen(wx.Colour(100, 100, 100)))
-                dc.SetBrush(wx.Brush(wx.Colour(70, 70, 70)))
-                dc.DrawRectangle(4, 4, item_side-8, item_side-8)
-            
-            dc.SelectObject(wx.NullBitmap)
-            
-            # Create Selected Version
-            sel_bmp = bmp.GetSubBitmap(wx.Rect(0, 0, item_side, item_side))
-            dc_sel = wx.MemoryDC(sel_bmp)
-            
-            # Draw highlight border ONLY (no fill)
-            dc_sel.SetBrush(wx.TRANSPARENT_BRUSH)
-            dc_sel.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
-            dc_sel.DrawRoundedRectangle(1, 1, item_side-2, item_side-2, 4)
-            dc_sel.SelectObject(wx.NullBitmap)
-            
+                else:
+                    dc.SetPen(wx.Pen(wx.Colour(100, 100, 100)))
+                    dc.SetBrush(wx.Brush(wx.Colour(70, 70, 70)))
+                    dc.DrawRectangle(4, 4, item_side-8, item_side-8)
+                
+                dc.SelectObject(wx.NullBitmap)
+                
+                # Create Selected Version
+                sel_bmp = bmp.GetSubBitmap(wx.Rect(0, 0, item_side, item_side))
+                dc_sel = wx.MemoryDC(sel_bmp)
+                dc_sel.SetBrush(wx.TRANSPARENT_BRUSH)
+                dc_sel.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
+                dc_sel.DrawRoundedRectangle(1, 1, item_side-2, item_side-2, 4)
+                dc_sel.SelectObject(wx.NullBitmap)
+                
+                # Store in cache
+                self._thumb_cache[cache_key] = (bmp, sel_bmp)
+
             idx_norm = self.image_list.Add(bmp)
             idx_sel = self.image_list.Add(sel_bmp)
             
@@ -138,6 +153,7 @@ class ModulePalette(wx.ListCtrl):
             self.item_images[item_idx] = (idx_norm, idx_sel)
                 
         self.module_ids = [m.id for m in self.project.modules]
+
 
     def on_item_selected(self, event):
         idx = event.GetIndex()
@@ -623,6 +639,20 @@ class FrameEditorPanel(wx.Panel):
         return None
 
     def refresh_frames(self, select_id: Optional[str] = None):
+        # Fingerprint to skip full rebuild if just switching tabs
+        current_fingerprint = (len(self.project.frames), tuple((f.id, f.name) for f in self.project.frames))
+        if current_fingerprint == getattr(self, "_last_frames_fingerprint", None):
+            # Only update selection if needed
+            if select_id:
+                for i in range(self.frame_list.GetItemCount()):
+                    if self.project.frames[i].id == select_id:
+                         if not self.frame_list.IsSelected(i):
+                            self.frame_list.Select(i)
+                            self.frame_list.EnsureVisible(i)
+                         break
+            return
+        self._last_frames_fingerprint = current_fingerprint
+
         self.frame_list.DeleteAllItems()
         target_idx = -1
         for idx, f in enumerate(self.project.frames):
