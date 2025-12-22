@@ -56,6 +56,7 @@ class TimelineControl(wx.Panel):
         # New D&D Callbacks
         self.on_insert_frame: Optional[Callable[[str, int], None]] = None # (frame_id, insert_idx)
         self.on_reorder_frame: Optional[Callable[[int, int], None]] = None # (from_idx, to_idx)
+        self.on_edit_frame: Optional[Callable[[str], None]] = None # (frame_id)
 
         self.drop_marker_index: int = -1
         self._drag_start_pos: Optional[wx.Point] = None
@@ -290,6 +291,8 @@ class TimelineControl(wx.Panel):
             item_move_left = menu.Append(wx.ID_ANY, "Move Left")
             item_move_right = menu.Append(wx.ID_ANY, "Move Right")
             menu.AppendSeparator()
+            item_edit = menu.Append(wx.ID_ANY, "Edit Frame")
+            menu.AppendSeparator()
             item_delete = menu.Append(wx.ID_ANY, "Delete Frame")
             
             if idx == 0: item_move_left.Enable(False)
@@ -297,6 +300,7 @@ class TimelineControl(wx.Panel):
             
             self.Bind(wx.EVT_MENU, lambda e: self._do_reorder(idx, -1), item_move_left)
             self.Bind(wx.EVT_MENU, lambda e: self._do_reorder(idx, 1), item_move_right)
+            self.Bind(wx.EVT_MENU, lambda e: self._do_edit(idx), item_edit)
             self.Bind(wx.EVT_MENU, lambda e: self._do_remove(idx), item_delete)
             
             self.PopupMenu(menu)
@@ -307,3 +311,8 @@ class TimelineControl(wx.Panel):
 
     def _do_remove(self, idx):
         if self.on_remove: self.on_remove(idx)
+
+    def _do_edit(self, idx):
+        if self.on_edit_frame and self.animation:
+            fid = self.animation.aframes[idx].frame_id
+            self.on_edit_frame(fid)

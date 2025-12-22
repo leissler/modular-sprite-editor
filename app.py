@@ -101,8 +101,10 @@ class MainFrame(wx.Frame):
         self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_changed)
         
         # Initial Title/Status
-        self.SetTitle(f"{APP_NAME} - [Modules]")
         self.status_bar.SetStatusText("Active Mode: Modules")
+        
+        # Wire Cross-Panel Events
+        self.animation_editor.timeline.on_edit_frame = self.switch_to_frame_editor
 
     def on_page_changed(self, event: wx.BookCtrlEvent) -> None:
         page_idx = event.GetSelection()
@@ -277,6 +279,16 @@ class MainFrame(wx.Frame):
         self.frame_editor.set_project(self.project)
         self.animation_editor.set_project(self.project)
         self.mapping_editor.set_project(self.project)
+
+    def switch_to_frame_editor(self, frame_id: str) -> None:
+        """Navigates to the Frame Editor and selects the given frame."""
+        self.book.SetSelection(1) # Index 1 is Frame Editor
+        self.frame_editor.selected_frame_id = frame_id
+        self.frame_editor.refresh_frames(select_id=frame_id)
+        # Force canvas update
+        frame = self.project.get_frame(frame_id)
+        if frame:
+            self.frame_editor.canvas.set_frame(frame)
 
 
 class SpriteEditorApp(wx.App):
