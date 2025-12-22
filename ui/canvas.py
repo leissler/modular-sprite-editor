@@ -1068,12 +1068,27 @@ class AnimationCanvas(FrameCanvas):
             dx = round(curr[0] - self.drag_start[0])
             dy = round(curr[1] - self.drag_start[1])
             
+            # Apply Global Flip Drag Correction
+            # If we are viewing mirrored X, dragging right (positive dx) means we want the object 
+            # to move visually right.
+            # But visually right is negative X in model space if flipped.
+            # So we invert dx.
+            if self.global_flip_x: dx = -dx
+            if self.global_flip_y: dy = -dy
+            
             new_x = self._drag_start_offset[0] + dx
             new_y = self._drag_start_offset[1] + dy
             
             # CRITICAL: Sync both the AFrame model AND the FrameCanvas transform state
             self.current_aframe.offset = (new_x, new_y)
-            self.frame_offset = (new_x, new_y)
+            
+            # For render state, we must re-apply the global flip to the new model offset
+            render_ox = new_x
+            render_oy = new_y
+            if self.global_flip_x: render_ox = -render_ox
+            if self.global_flip_y: render_oy = -render_oy
+            
+            self.frame_offset = (render_ox, render_oy)
             
             if self.on_offset_change:
                 self.on_offset_change(new_x, new_y)
