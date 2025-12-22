@@ -129,7 +129,19 @@ class AnimationEditorPanel(wx.Panel):
         anim_row.Add(wx.StaticText(bottom_box, label="Trajectory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.chk_trajectory = wx.CheckBox(bottom_box)
         self.chk_trajectory.SetValue(True)
-        anim_row.Add(self.chk_trajectory, 0)
+        anim_row.Add(self.chk_trajectory, 0, wx.RIGHT, 15)
+
+        self.chk_mirror_x = wx.CheckBox(bottom_box, label="Mirror X")
+        anim_row.Add(self.chk_mirror_x, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        
+        self.chk_mirror_y = wx.CheckBox(bottom_box, label="Mirror Y")
+        anim_row.Add(self.chk_mirror_y, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 15)
+
+        self.chk_vis_col = wx.CheckBox(bottom_box, label="Col")
+        anim_row.Add(self.chk_vis_col, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+
+        self.chk_vis_pts = wx.CheckBox(bottom_box, label="Pts")
+        anim_row.Add(self.chk_vis_pts, 0, wx.ALIGN_CENTER_VERTICAL)
 
         # Layout
         bottom_sizer.Add(self.timeline, 0, wx.EXPAND | wx.ALL, 4)
@@ -183,6 +195,10 @@ class AnimationEditorPanel(wx.Panel):
         
         self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
         self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
+        self.chk_mirror_x.Bind(wx.EVT_CHECKBOX, self.on_toggle_global_flip)
+        self.chk_mirror_y.Bind(wx.EVT_CHECKBOX, self.on_toggle_global_flip)
+        self.chk_vis_col.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_col)
+        self.chk_vis_pts.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_pts)
         
         self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
         
@@ -231,7 +247,18 @@ class AnimationEditorPanel(wx.Panel):
         self.project = project
         self.canvas.project = project
         self.frame_palette.project = project
+        self.frame_palette.project = project
         self.timeline.project = project
+        
+        # Init canvas visibility maps (Show All by default)
+        self.canvas.collision_type_colors = {ct.id: ct.color for ct in project.collision_types}
+        self.canvas.point_type_colors = {pt.id: pt.color for pt in project.point_types}
+        
+        # Sync Visibility Defaults (Hide points by default in animation mode)
+        self.canvas.show_points = False
+        self.canvas.show_collision = False
+        self.chk_vis_col.SetValue(False)
+        self.chk_vis_pts.SetValue(False)
         
         self.selected_animation_id = None
         self.current_index = 0
@@ -552,6 +579,20 @@ class AnimationEditorPanel(wx.Panel):
 
     def on_toggle_trajectory(self, event) -> None:
         self.canvas.show_trajectory = event.IsChecked()
+        self.canvas.Refresh(False)
+
+    def on_toggle_global_flip(self, event) -> None:
+        self.canvas.global_flip_x = self.chk_mirror_x.GetValue()
+        self.canvas.global_flip_y = self.chk_mirror_y.GetValue()
+        # Force re-evaluation of frame properties (offset/flip)
+        self.canvas.set_current_index(self.current_index)
+
+    def on_toggle_vis_col(self, event) -> None:
+        self.canvas.show_collision = event.IsChecked()
+        self.canvas.Refresh(False)
+
+    def on_toggle_vis_pts(self, event) -> None:
+        self.canvas.show_points = event.IsChecked()
         self.canvas.Refresh(False)
 
     def on_canvas_offset_change(self, x: int, y: int) -> None:

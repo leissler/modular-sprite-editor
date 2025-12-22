@@ -950,7 +950,13 @@ class AnimationCanvas(FrameCanvas):
         # Interaction State
         self._drag_start_offset: Optional[Tuple[int, int]] = None
         self.drag_start: Optional[Tuple[float, float]] = None
+        # Interaction State
+        self._drag_start_offset: Optional[Tuple[int, int]] = None
+        self.drag_start: Optional[Tuple[float, float]] = None
         self.on_offset_change: Optional[Callable[[int, int], None]] = None # Callback (x, y)
+        
+        self.global_flip_x = False
+        self.global_flip_y = False
 
     def set_animation(self, anim: Optional[Animation], aframe: Optional[AFrame] = None):
         self.animation = anim
@@ -969,9 +975,16 @@ class AnimationCanvas(FrameCanvas):
     def _update_frame(self):
         if self.current_aframe:
             self.frame = self.project.get_frame(self.current_aframe.frame_id)
-            self.frame_offset = self.current_aframe.offset
-            self.render_flip_x = self.current_aframe.flip_x
-            self.render_flip_y = self.current_aframe.flip_y
+            
+            # Apply Global Flip to Offset
+            ox, oy = self.current_aframe.offset
+            if self.global_flip_x: ox = -ox
+            if self.global_flip_y: oy = -oy
+            self.frame_offset = (ox, oy)
+            
+            # Apply Global Flip to Render (XOR)
+            self.render_flip_x = self.current_aframe.flip_x != self.global_flip_x
+            self.render_flip_y = self.current_aframe.flip_y != self.global_flip_y
         else:
             self.frame = None
             self.frame_offset = (0, 0)
@@ -992,7 +1005,12 @@ class AnimationCanvas(FrameCanvas):
             return
         pts = []
         for af in self.animation.aframes:
-            world = (af.offset[0], af.offset[1])
+            # Apply Global Flip to trajectory points
+            ox, oy = af.offset
+            if self.global_flip_x: ox = -ox
+            if self.global_flip_y: oy = -oy
+            world = (ox, oy)
+            
             # We want the trajectory in RAW world space, NOT affected by current frame's flipping/offsetting.
             pts.append(BaseCanvas.world_to_screen(self, world))
         if len(pts) < 2:
