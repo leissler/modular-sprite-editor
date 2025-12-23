@@ -7,6 +7,9 @@ from typing import Optional
 import wx
 import wx.lib.newevent
 
+import wx
+import wx.lib.newevent
+
 from models import AFrame, Animation, Project, generate_id
 from ui.canvas import AnimationCanvas
 from ui.components.timeline_control import TimelineControl
@@ -168,6 +171,7 @@ class AnimationEditorPanel(wx.Panel):
         self.anim_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_animation)
         self.anim_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_rename_animation_end)
         self.anim_list.Bind(wx.EVT_KEY_DOWN, self.on_anim_list_key_down)
+        self.anim_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_anim_list_right_click)
 
         self.playback_choice.Bind(wx.EVT_CHOICE, self.on_change_playback)
         self.loop_spin.Bind(wx.EVT_SPINCTRL, self.on_change_playback)
@@ -421,11 +425,278 @@ class AnimationEditorPanel(wx.Panel):
         self.timeline.set_current_index(self.current_index)
 
     def on_panel_click(self, event) -> None:
-        # Steal focus when clicking empty background
-        # Calling SetFocus on the panel might fail if it's not focusable. 
-        # But usually works. If this fails, we could try focusing a button like Play?
+        # Steal focus when clicking empty area
         self.SetFocus()
         event.Skip()
+
+    # --- GIF Export ---
+    def on_anim_list_right_click(self, event) -> None:
+        # Select the item being right-clicked if not already
+        idx = event.GetIndex()
+        if idx != -1:
+            self.anim_list.Select(idx)
+            
+        menu = wx.Menu()
+        item_export = menu.Append(wx.ID_ANY, "Export GIF...")
+        self.Bind(wx.EVT_MENU, self.on_export_gif, item_export)
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_export_gif(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim or not anim.aframes:
+            wx.MessageBox("No animation or frames to export.", "Export GIF", wx.OK | wx.ICON_WARNING)
+            return
+
+        try:
+            from PIL import Image as PilImage
+        except ImportError:
+            wx.MessageBox("Pillow library is required for GIF export.\\nPlease install it: pip install Pillow", "Export GIF", wx.OK | wx.ICON_ERROR)
+            return
+
+        default_name = f"{anim.name}.gif"
+        with wx.FileDialog(self, "Export GIF", defaultFile=default_name, wildcard="GIF files (*.gif)|*.gif", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            path = dlg.GetPath()
+
+        # Capture Global Flip State
+        global_flip_x = self.canvas.global_flip_x
+        global_flip_y = self.canvas.global_flip_y
+
+        # 1. Calc Bounds of the entire animation
+        # We need the union of all frames' bounding boxes
+        min_x, min_y = float('inf'), float('inf')
+        max_x, max_y = float('-inf'), float('-inf')
+        
+        has_content = False
+        
+        for af in anim.aframes:
+            for fm in self.project.get_frame(af.frame_id).fmodules if self.project.get_frame(af.frame_id) else []:
+                if fm.ref_type != "module": continue
+                mod = self.project.get_module(fm.ref_id)
+                if not mod: continue
+                
+                # Local Bounds
+                w, h = mod.rect[2], mod.rect[3]
+                l = fm.position[0] - mod.pivot[0]
+                t = fm.position[1] - mod.pivot[1]
+                r = l + w
+                b = t + h
+                
+                # Transform to World (Frame Level)
+                fx = -1 if af.flip_x else 1
+                fy = -1 if af.flip_y else 1
+                ox, oy = af.offset
+                
+                # Apply Global Flip Logic to Bounds
+                # World = (Local * FrameFlip + Offset) * GlobalFlip? 
+                # NO. View logic is: Output = (Local * FrameFlip + Offset) * GlobalFlip (for position only?)
+                # Actually:
+                # Frame Canvas: local_to_world(pos) -> pos * render_flip + frame_offset
+                # (Where render_flip = frame_flip ^ global_flip)
+                # AND frame_offset = raw_offset * global_flip_sign.
+                
+                # Replicating that:
+                gfx = -1 if global_flip_x else 1
+                gfy = -1 if global_flip_y else 1
+                
+                final_ox = ox * gfx
+                final_oy = oy * gfy
+                
+                # The bounds logic in FrameCanvas uses world_to_screen which scales.
+                # Here we just want the RAW world coordinates of the corners.
+                
+                # Corner Transform:
+                # 1. Local Flip/Pivot is handled by l,t,r,b relative to origin.
+                # 2. Frame Flip: Scale(fx, fy)
+                # 3. Frame Offset (Modified by Global): Translate(final_ox, final_oy)
+                # 4. Global Flip (affects local coordinates too?):
+                #    In Canvas, render_flip_x = frame_flip ^ global_flip.
+                #    So use `final_fx` instead of `fx`.
+                
+                final_fx = -1 if (af.flip_x ^ global_flip_x) else 1
+                final_fy = -1 if (af.flip_y ^ global_flip_y) else 1
+                
+                corners = [(l, t), (r, t), (l, b), (r, b)]
+                for cx, cy in corners:
+                    wx_val = cx * final_fx + final_ox
+                    wy_val = cy * final_fy + final_oy
+                    
+                    min_x = min(min_x, wx_val)
+                    min_y = min(min_y, wy_val)
+                    max_x = max(max_x, wx_val)
+                    max_y = max(max_y, wy_val)
+                    has_content = True
+                    
+        if not has_content:
+            min_x, min_y = 0, 0
+            max_x, max_y = 32, 32
+
+        # Add margin
+        margin = 2
+        min_x -= margin
+        min_y -= margin
+        max_x += margin
+        max_y += margin
+        
+        width = int(max_x - min_x)
+        height = int(max_y - min_y)
+        
+        if width <= 0 or height <= 0:
+             wx.MessageBox("Invalid animation bounds.", "Export Error", wx.OK | wx.ICON_ERROR)
+             return
+
+        # 2. Render Frames
+        pil_images = []
+        fps = anim.fps if anim.fps > 0 else 10
+        duration_per_frame_base = 1000.0 / fps # ms
+        durations = [] # ms list
+        
+        # We need a thumbnail generator that supports full offset rendering?
+        from ui.utils import ThumbnailGenerator
+        gen = ThumbnailGenerator() # Re-use for cache
+        
+        # Use a temporary bitmap/DC
+        bmp = wx.Bitmap(width, height)
+
+        for af in anim.aframes:
+            dc = wx.MemoryDC(bmp)
+            
+            # Use GC for drawing
+            gc = wx.GraphicsContext.Create(dc)
+            
+            # Clear with transparent
+            gc.SetCompositionMode(wx.COMPOSITION_SOURCE)
+            gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 0))) # Transparent
+            gc.DrawRectangle(0, 0, width, height)
+            gc.SetCompositionMode(wx.COMPOSITION_OVER)
+            
+            frame = self.project.get_frame(af.frame_id)
+            if frame:
+                 for fm in frame.fmodules:
+                     mod = self.project.get_module(fm.ref_id)
+                     if not mod: continue
+
+                     # 1. Bounds Calculation (Local)
+                     w, h = mod.rect[2], mod.rect[3]
+                     l = fm.position[0] - mod.pivot[0]
+                     t = fm.position[1] - mod.pivot[1]
+                     r = l + w
+                     b = t + h
+                     
+                     # 2. Global + Frame Logic
+                     gfx = -1 if global_flip_x else 1
+                     gfy = -1 if global_flip_y else 1
+                     final_ox = af.offset[0] * gfx
+                     final_oy = af.offset[1] * gfy
+                     
+                     final_fx = -1 if (af.flip_x ^ global_flip_x) else 1
+                     final_fy = -1 if (af.flip_y ^ global_flip_y) else 1
+                     
+                     # Corner Calc Matching Bounds
+                     # We need to find top-left of the transformed rect to draw bitmap there
+                     # BUT Bitmap drawing with negative scale is tricky or unsupported via DrawBitmap directly?
+                     # Actually we are doing Mirror() on image, so we draw unscaled bitmap at transformed top-left?
+                     # No. If we mirror the image, we draw it at the new Top-Left.
+                     
+                     # Let's compute projected corners again
+                     corners = [(l, t), (r, t), (l, b), (r, b)]
+                     w_points = []
+                     for cx, cy in corners:
+                         wx_val = cx * final_fx + final_ox
+                         wy_val = cy * final_fy + final_oy
+                         w_points.append((wx_val, wy_val))
+                         
+                     # Find top-left of this projected polygon (it's a rect aligned with axes because scaling 1/-1)
+                     # (Rotation not supported yet in GIF logic refactor, consistent with previous step)
+                     mod_min_x = min(p[0] for p in w_points)
+                     mod_min_y = min(p[1] for p in w_points)
+                     
+                     # 3. Adjust for GIF Canvas Origin
+                     dest_x = mod_min_x - min_x
+                     dest_y = mod_min_y - min_y
+                     
+                     # 4. Prepare Bitmap
+                     img = self.project.get_image(mod.image_id)
+                     if img:
+                         if img.id not in gen.asset_cache:
+                             loaded = wx.Image(img.file_path)
+                             if img.transparent_color:
+                                 loaded.SetMaskColour(*img.transparent_color)
+                             gen.asset_cache[img.id] = loaded
+                             
+                         full_img = gen.asset_cache[img.id]
+                         rx, ry, rw, rh = mod.rect
+                         if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
+                             sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
+                             
+                             # 5. Handle Flips
+                             # Module Flip XOR Frame Flip XOR Global Flip
+                             # Wait, we used final_fx for positioning. 
+                             # final_fx includes Frame^Global.
+                             # Module flip is local to module.
+                             # If we flip the bitmap, does it match the position calc?
+                             
+                             # Logic check:
+                             # Position was calculated assuming we flipped the coordinate space.
+                             # So the "Left" of the module became "Right" etc.
+                             # If we flip the bitmap, the pixel content mirrors.
+                             # The position `mod_min_x` is the visual top-left of the module in the exported image.
+                             
+                             render_flip_x = fm.flip_x ^ (af.flip_x ^ global_flip_x)
+                             render_flip_y = fm.flip_y ^ (af.flip_y ^ global_flip_y)
+                             
+                             if render_flip_x:
+                                 sub = sub.Mirror(horizontally=True)
+                             if render_flip_y:
+                                 sub = sub.Mirror(horizontally=False)
+                             
+                             dest_bmp = wx.Bitmap(sub)
+                             gc.DrawBitmap(dest_bmp, dest_x, dest_y, rw, rh)
+            
+            dc.SelectObject(wx.NullBitmap)
+            del dc
+            
+            # Convert to PIL
+            img_data = bmp.ConvertToImage() # wx.Image
+            
+            # Handle Transparency
+            # wx.Image doesn't fully preserve alpha channel when converting from Bitmap if not careful?
+            # Actually ConvertToImage() usually creates RGB + Alpha if present.
+            
+            has_alpha = img_data.HasAlpha()
+            w_img, h_img = img_data.GetWidth(), img_data.GetHeight()
+            
+            buffer = img_data.GetData()
+            pil_img = PilImage.frombuffer("RGB", (w_img, h_img), buffer)
+            
+            if has_alpha:
+                 alpha_buffer = img_data.GetAlpha()
+                 pil_alpha = PilImage.frombuffer("L", (w_img, h_img), alpha_buffer)
+                 pil_img.putalpha(pil_alpha)
+            
+            pil_images.append(pil_img)
+            
+            # Handling Duration: Frame duration is in "frames/ticks"
+            # af.duration_frames * duration_per_frame_base
+            ms = int(af.duration_frames * duration_per_frame_base)
+            durations.append(ms)
+
+        # 3. Save
+        if pil_images:
+            # Loop: 0 = infinite (standard GIF)
+            loop_count = 0 if anim.loop_count == 0 else anim.loop_count
+            
+            pil_images[0].save(
+                path,
+                save_all=True,
+                append_images=pil_images[1:],
+                duration=durations,
+                loop=loop_count, 
+                disposal=2 # Restore to background (clears previous frame)
+            )
+            wx.MessageBox(f"Successfully exported {len(pil_images)} frames to:\\n{path}", "Export Success", wx.OK)
 
     def on_spin_enter_press(self, event) -> None:
         # Explicit Enter Press handler (CommandEvent)
