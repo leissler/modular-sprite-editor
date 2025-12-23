@@ -9,6 +9,7 @@ import wx.lib.newevent
 
 import wx
 import wx.lib.newevent
+from typing import Optional, Tuple
 
 from models import AFrame, Animation, Project, generate_id
 from ui.canvas import AnimationCanvas
@@ -172,6 +173,8 @@ class AnimationEditorPanel(wx.Panel):
         self.anim_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_rename_animation_end)
         self.anim_list.Bind(wx.EVT_KEY_DOWN, self.on_anim_list_key_down)
         self.anim_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_anim_list_right_click)
+        self.anim_list.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag_anim)
+        self.anim_list.SetDropTarget(AnimationListDropTarget(self))
 
         self.playback_choice.Bind(wx.EVT_CHOICE, self.on_change_playback)
         self.loop_spin.Bind(wx.EVT_SPINCTRL, self.on_change_playback)
@@ -429,18 +432,62 @@ class AnimationEditorPanel(wx.Panel):
         self.SetFocus()
         event.Skip()
 
-    # --- GIF Export ---
+    # --- GIF Export & Context Menu ---
     def on_anim_list_right_click(self, event) -> None:
-        # Select the item being right-clicked if not already
         idx = event.GetIndex()
         if idx != -1:
             self.anim_list.Select(idx)
+        else:
+            return # Clicked on empty space?
             
         menu = wx.Menu()
+        item_disp_id = menu.Append(wx.ID_ANY, "Duplicate")
+        item_del_id = menu.Append(wx.ID_ANY, "Delete")
+        menu.AppendSeparator()
         item_export = menu.Append(wx.ID_ANY, "Export GIF...")
+        
+        self.Bind(wx.EVT_MENU, self.on_duplicate_animation, item_disp_id)
+        self.Bind(wx.EVT_MENU, self.on_delete_animation, item_del_id)
         self.Bind(wx.EVT_MENU, self.on_export_gif, item_export)
+        
         self.PopupMenu(menu)
         menu.Destroy()
+
+    def on_duplicate_animation(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        # Deep Copy
+        import copy
+        new_anim = copy.deepcopy(anim)
+        new_anim.id = generate_id("anim")
+        new_anim.name = f"{anim.name}_copy"
+        
+        # AFrames need new IDs to be safe? 
+        # Actually AFrame is a struct inside Animation. Its ID is generated but not strictly referenced globally except for lookup?
+        # Let's regen IDs just in case.
+        # But wait, AFrame doesn't have an ID in `models.py` usually? checking...
+        # models.py: Animation has list[AFrame]. AFrame has frame_id, offset, etc.
+        # It's a struct. No unique ID. So deepcopy is fine.
+        
+        self.project.animations.append(new_anim)
+        self.refresh_animations(select_id=new_anim.id)
+
+    def on_begin_drag_anim(self, event):
+        idx = event.GetIndex()
+        if idx != wx.NOT_FOUND:
+             data = wx.TextDataObject(f"ANIM_MOVE:{idx}")
+             source = wx.DropSource(self.anim_list)
+             source.SetData(data)
+             source.DoDragDrop(wx.Drag_DefaultMove)
+
+    def move_animation(self, from_idx: int, to_idx: int):
+        if from_idx == to_idx: return
+        
+        item = self.project.animations.pop(from_idx)
+        self.project.animations.insert(to_idx, item)
+        
+        self.refresh_animations(select_id=item.id)
 
     def on_export_gif(self, event) -> None:
         anim = self.get_selected_anim()
@@ -1041,3 +1088,100 @@ class AnimationEditorPanel(wx.Panel):
         if anim:
             new_idx = max(0, min(len(anim.aframes)-1, self.current_index + delta))
             self.jump_to(new_idx)
+
+
+class AnimationListDropTarget(wx.TextDropTarget):
+    def __init__(self, editor: "AnimationEditorPanel"):
+        super().__init__()
+        self.editor = editor
+        self.last_item = -1
+        self.overlay = wx.Overlay()
+
+    def _get_insertion_point(self, x, y) -> Tuple[int, int]:
+        """Calculates (insert_index, y_coord) for the insertion line."""
+        list_ctrl = self.editor.anim_list
+        idx, flags = list_ctrl.HitTest(wx.Point(x, y))
+        
+        if idx != wx.NOT_FOUND:
+            rect = list_ctrl.GetItemRect(idx)
+            mid = rect.y + rect.height // 2
+            
+            if y < mid:
+                # Insert Before
+                return idx, rect.y
+            else:
+                # Insert After
+                return idx + 1, rect.y + rect.height
+        else:
+            # Below limits?
+            count = list_ctrl.GetItemCount()
+            if count > 0:
+                rect = list_ctrl.GetItemRect(count - 1)
+                if y > rect.y + rect.height:
+                    return count, rect.y + rect.height
+            elif count == 0:
+                return 0, 0
+                
+            return wx.NOT_FOUND, -1
+        
+    def OnDragOver(self, x, y, defResult):
+        # We process drag over to draw the insertion line
+        insert_idx, line_y = self._get_insertion_point(x, y)
+        
+        list_ctrl = self.editor.anim_list
+        
+        # Draw Overlay
+        dc = wx.ClientDC(list_ctrl)
+        odc = wx.DCOverlay(self.overlay, dc)
+        odc.Clear()
+        
+        if insert_idx != wx.NOT_FOUND and line_y != -1:
+            dc.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
+            w = list_ctrl.GetClientSize().width
+            dc.DrawLine(0, line_y, w, line_y)
+            
+        del odc
+        
+        return defResult
+
+    def OnLeave(self):
+        list_ctrl = self.editor.anim_list
+        dc = wx.ClientDC(list_ctrl)
+        odc = wx.DCOverlay(self.overlay, dc)
+        odc.Clear()
+        del odc
+
+    def OnDrop(self, x, y):
+        return True
+
+    def OnDropText(self, x, y, data):
+        if data.startswith("ANIM_MOVE:"):
+            # "ANIM_MOVE:<idx>"
+            try:
+                from_idx = int(data.split(":")[1])
+                insert_idx, _ = self._get_insertion_point(x, y)
+                
+                if insert_idx != wx.NOT_FOUND:
+                    # Adjust index if moving downwards
+                    target = insert_idx
+                    if from_idx < target:
+                        target -= 1
+                        
+                    self.editor.move_animation(from_idx, target)
+                    return True
+                    
+            except ValueError:
+                pass
+    
+        self.OnLeave() # Clear overlay
+        return False
+        
+    def OnData(self, x, y, defResult):
+        # Delegate to default behavior which calls OnDropText
+        if not self.GetData():
+            return wx.DragNone
+        
+        self.OnLeave() # Ensure overlay is cleared even if drop fails/succeeds
+        
+        # Super OnData calls OnDropText
+        return super().OnData(x, y, defResult)
