@@ -444,10 +444,15 @@ class AnimationEditorPanel(wx.Panel):
         item_disp_id = menu.Append(wx.ID_ANY, "Duplicate")
         item_del_id = menu.Append(wx.ID_ANY, "Delete")
         menu.AppendSeparator()
+        item_flip_h = menu.Append(wx.ID_ANY, "Flip Horizontally")
+        item_flip_v = menu.Append(wx.ID_ANY, "Flip Vertically")
+        menu.AppendSeparator()
         item_export = menu.Append(wx.ID_ANY, "Export GIF...")
         
         self.Bind(wx.EVT_MENU, self.on_duplicate_animation, item_disp_id)
         self.Bind(wx.EVT_MENU, self.on_delete_animation, item_del_id)
+        self.Bind(wx.EVT_MENU, self.on_flip_anim_h, item_flip_h)
+        self.Bind(wx.EVT_MENU, self.on_flip_anim_v, item_flip_v)
         self.Bind(wx.EVT_MENU, self.on_export_gif, item_export)
         
         self.PopupMenu(menu)
@@ -472,6 +477,28 @@ class AnimationEditorPanel(wx.Panel):
         
         self.project.animations.append(new_anim)
         self.refresh_animations(select_id=new_anim.id)
+
+    def on_flip_anim_h(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        for af in anim.aframes:
+            af.flip_x = not af.flip_x
+            af.offset = (-af.offset[0], af.offset[1])
+            
+        self.update_aframe_ui()
+        self.canvas.Refresh()
+
+    def on_flip_anim_v(self, event) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        for af in anim.aframes:
+            af.flip_y = not af.flip_y
+            af.offset = (af.offset[0], -af.offset[1])
+            
+        self.update_aframe_ui()
+        self.canvas.Refresh()
 
     def on_begin_drag_anim(self, event):
         idx = event.GetIndex()
