@@ -1123,11 +1123,26 @@ class AnimationCanvas(FrameCanvas):
         gc.StrokePath(path)
         
         # Highlight points
+        # Draw points (inactive first, then active)
+        active_pt = None
+        
+        # Inactive points
+        gc.SetBrush(wx.Brush(wx.Colour(80, 80, 80)))
         for idx, (sx, sy) in enumerate(pts):
-            is_current = (self.current_aframe == self.animation.aframes[idx])
-            color = wx.Colour(40, 160, 80) if is_current else wx.Colour(80, 80, 80)
-            gc.SetBrush(wx.Brush(color))
+            if self.current_aframe == self.animation.aframes[idx]:
+                active_pt = (sx, sy)
+                continue
             gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
+            
+        # Active point (on top)
+        if active_pt:
+            gc.SetBrush(wx.Brush(wx.Colour(40, 160, 80)))
+            gc.DrawEllipse(active_pt[0] - 4, active_pt[1] - 4, 8, 8)
+            
+            # Additional visual indicator for selected frame (white ring)
+            gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 2))
+            gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 0))) # Transparent
+            gc.DrawEllipse(active_pt[0] - 6, active_pt[1] - 6, 12, 12)
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
         self.SetFocus() # Steal focus from inputs to trigger validation
