@@ -406,6 +406,7 @@ class FrameEditorPanel(wx.Panel):
         
         # Bindings
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_frame, self.frame_list)
+        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_frame_list_context_menu, self.frame_list)
         self.Bind(wx.EVT_BUTTON, self.on_add_frame, self.btn_add)
         self.Bind(wx.EVT_BUTTON, self.on_delete_frame, self.btn_del)
         self.Bind(wx.EVT_CHOICE, self.on_mode_change, self.choice_mode)
@@ -460,6 +461,11 @@ class FrameEditorPanel(wx.Panel):
             # Use ID for binding, binding to item object is flaky depending on wx version/context
             self.Bind(wx.EVT_MENU, self.on_flip_x, id=flip_x_item.GetId())
             self.Bind(wx.EVT_MENU, self.on_flip_y, id=flip_y_item.GetId())
+
+            rot_cw_item = menu.Append(wx.ID_ANY, "Rotate CW (90°)")
+            rot_ccw_item = menu.Append(wx.ID_ANY, "Rotate CCW (90°)")
+            self.Bind(wx.EVT_MENU, self.on_rotate_cw, id=rot_cw_item.GetId())
+            self.Bind(wx.EVT_MENU, self.on_rotate_ccw, id=rot_ccw_item.GetId())
             
             menu.AppendSeparator()
             menu.AppendSeparator()
@@ -498,6 +504,25 @@ class FrameEditorPanel(wx.Panel):
                      fm.flip_x = not fm.flip_x
                  elif param == "y":
                      fm.flip_y = not fm.flip_y
+                 changed = True
+         
+         if changed:
+             self.canvas.Refresh()
+
+    def on_rotate_cw(self, event):
+        self._rotate_selected(90)
+
+    def on_rotate_ccw(self, event):
+        self._rotate_selected(-90)
+
+    def _rotate_selected(self, delta_degrees: float):
+         frame = self.canvas.frame
+         if not frame: return
+         
+         changed = False
+         for fm in frame.fmodules:
+             if fm.id in self.canvas.selected_fmodules:
+                 fm.rotation_degrees = (fm.rotation_degrees + delta_degrees) % 360.0
                  changed = True
          
          if changed:
@@ -837,6 +862,10 @@ class FrameEditorPanel(wx.Panel):
         item_mirror_y = menu.Append(wx.ID_ANY, "Mirror Vertical (Y)")
         menu.AppendSeparator()
         
+        item_rot_cw = menu.Append(wx.ID_ANY, "Rotate Frame CW (90°)")
+        item_rot_ccw = menu.Append(wx.ID_ANY, "Rotate Frame CCW (90°)")
+        menu.AppendSeparator()
+        
         # Collision
         item_copy_c = menu.Append(wx.ID_ANY, "Copy Collision Rects")
         item_paste_c = menu.Append(wx.ID_ANY, "Paste Collision Rects (Append)")
@@ -855,6 +884,8 @@ class FrameEditorPanel(wx.Panel):
         self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), item_dup)
         self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "x"), item_mirror_x)
         self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "y"), item_mirror_y)
+        self.Bind(wx.EVT_MENU, lambda e: self._rotate_frame(90), item_rot_cw)
+        self.Bind(wx.EVT_MENU, lambda e: self._rotate_frame(-90), item_rot_ccw)
 
         self.Bind(wx.EVT_MENU, lambda e: self._copy_collision(frame), item_copy_c)
         self.Bind(wx.EVT_MENU, lambda e: self._paste_collision(), item_paste_c)
@@ -1160,3 +1191,53 @@ class FrameEditorPanel(wx.Panel):
              self.selected_frame_id = None
              self.refresh_frames()
              self.canvas.set_frame(None)
+    def _rotate_frame(self, degrees: float):
+        frame = self.project.get_frame(self.selected_frame_id)
+        if not frame: return
+        
+        # We rotate 90 degrees intervals
+        rot_steps = int(degrees / 90) % 4
+        if rot_steps == 0: return
+
+        # Rotate Modules
+        for fm in frame.fmodules:
+            # Update rotation
+            fm.rotation_degrees = (fm.rotation_degrees + degrees) % 360.0
+            
+            # Update Position (Rotate around 0,0)
+            x, y = fm.position
+            
+            if degrees == 90 or degrees == -270: # CW
+                # (x, y) -> (-y, x)
+                fm.position = (-y, x)
+            elif degrees == -90 or degrees == 270: # CCW
+                # (x, y) -> (y, -x)
+                fm.position = (y, -x)
+            elif degrees == 180 or degrees == -180:
+                # (x, y) -> (-x, -y)
+                fm.position = (-x, -y)
+                
+        # Rotate Collision Rects
+        # Rect (x, y, w, h). 
+        # CW 90: new_x = -y - h, new_y = x, new_w = h, new_h = w
+        # CCW 90: new_x = y, new_y = -x - w, new_w = h, new_h = w
+        for cr in frame.collision_rects:
+            rx, ry, rw, rh = cr.rect
+            if degrees == 90 or degrees == -270: # CW
+                cr.rect = (-ry - rh, rx, rh, rw)
+            elif degrees == -90 or degrees == 270: # CCW
+                cr.rect = (ry, -rx - rw, rh, rw)
+            elif degrees == 180 or degrees == -180:
+                cr.rect = (-rx - rw, -ry - rh, rw, rh)
+
+        # Rotate Control Points
+        for cp in frame.control_points:
+             x, y = cp.x, cp.y
+             if degrees == 90 or degrees == -270: # CW
+                 cp.x, cp.y = -y, x
+             elif degrees == -90 or degrees == 270: # CCW
+                 cp.x, cp.y = y, -x
+             elif degrees == 180 or degrees == -180:
+                 cp.x, cp.y = -x, -y
+
+        self.canvas.Refresh()

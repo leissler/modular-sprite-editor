@@ -261,6 +261,7 @@ class AFrame:
     # Adding flip support for Animations as per Aurora format
     flip_x: bool = False
     flip_y: bool = False
+    rotation_degrees: float = 0.0
 
     def to_dict(self) -> Dict:
         return {
@@ -269,6 +270,7 @@ class AFrame:
             "offset": list(self.offset),
             "flip_x": self.flip_x,
             "flip_y": self.flip_y,
+            "rotation_degrees": self.rotation_degrees,
         }
 
     @staticmethod
@@ -291,6 +293,7 @@ class AFrame:
             offset=tuple(int(v) for v in data.get("offset", (0, 0))),  # type: ignore[arg-type]
             flip_x=bool(data.get("flip_x", False)),
             flip_y=bool(data.get("flip_y", False)),
+            rotation_degrees=float(data.get("rotation_degrees", 0.0)),
         )
 
 

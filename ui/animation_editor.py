@@ -453,6 +453,13 @@ class AnimationEditorPanel(wx.Panel):
         self.Bind(wx.EVT_MENU, self.on_delete_animation, item_del_id)
         self.Bind(wx.EVT_MENU, self.on_flip_anim_h, item_flip_h)
         self.Bind(wx.EVT_MENU, self.on_flip_anim_v, item_flip_v)
+        
+        menu.AppendSeparator()
+        item_rot_cw = menu.Append(wx.ID_ANY, "Rotate CW (90°)")
+        item_rot_ccw = menu.Append(wx.ID_ANY, "Rotate CCW (90°)")
+        self.Bind(wx.EVT_MENU, lambda e: self._rotate_animation(90), item_rot_cw)
+        self.Bind(wx.EVT_MENU, lambda e: self._rotate_animation(-90), item_rot_ccw)
+        
         self.Bind(wx.EVT_MENU, self.on_export_gif, item_export)
         
         self.PopupMenu(menu)
@@ -492,12 +499,40 @@ class AnimationEditorPanel(wx.Panel):
     def on_flip_anim_v(self, event) -> None:
         anim = self.get_selected_anim()
         if not anim: return
-        
         for af in anim.aframes:
             af.flip_y = not af.flip_y
             af.offset = (af.offset[0], -af.offset[1])
             
         self.update_aframe_ui()
+        self.canvas.Refresh()
+
+    def _rotate_animation(self, degrees: float) -> None:
+        anim = self.get_selected_anim()
+        if not anim: return
+        
+        rot_steps = int(degrees / 90) % 4
+        if rot_steps == 0: return
+
+        for af in anim.aframes:
+            # 1. Update Rotation
+            # Assuming AFrame has rotation_degrees field now
+            old_rot = getattr(af, "rotation_degrees", 0.0)
+            af.rotation_degrees = (old_rot + degrees) % 360.0
+            
+            # 2. Update Offset (Rotate vector)
+            ox, oy = af.offset
+            
+            if degrees == 90 or degrees == -270: # CW
+                # (x, y) -> (-y, x)
+                af.offset = (-oy, ox)
+            elif degrees == -90 or degrees == 270: # CCW
+                # (x, y) -> (y, -x)
+                af.offset = (oy, -ox)
+            elif degrees == 180 or degrees == -180:
+                af.offset = (-ox, -oy)
+                
+        self.update_aframe_ui()
+        self.canvas._update_frame() # Update render state
         self.canvas.Refresh()
 
     def on_begin_drag_anim(self, event):

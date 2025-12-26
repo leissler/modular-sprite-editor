@@ -37,6 +37,7 @@ class FrameCanvas(BaseCanvas):
         self.frame_offset: Tuple[float, float] = (0.0, 0.0)
         self.render_flip_x = False
         self.render_flip_y = False
+        self.render_rotation = 0.0
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
         
         # Interaction Modes
@@ -84,17 +85,53 @@ class FrameCanvas(BaseCanvas):
 
     # --- Frame-level Transforms (Local -> World) ---
     def local_to_world(self, pt: Tuple[float, float]) -> Tuple[float, float]:
-        # Sequence: Flip around Origin -> Offset
-        # Note: If positioning is incorrect, check if adding or subtracting is right.
-        # AuroraGT standard usually places the frame at (ox, oy).
-        wx = pt[0] * (-1.0 if self.render_flip_x else 1.0) + self.frame_offset[0]
-        wy = pt[1] * (-1.0 if self.render_flip_y else 1.0) + self.frame_offset[1]
+        # Sequence: Flip around Origin -> Rotate -> Offset
+        # 1. Flip
+        fx = pt[0] * (-1.0 if self.render_flip_x else 1.0)
+        fy = pt[1] * (-1.0 if self.render_flip_y else 1.0)
+        
+        # 2. Rotate (cw=positive? check coordinate system)
+        # wx coordinates: y down.
+        # Standard rot: x' = x cos - y sin, y' = x sin + y cos
+        # For 90 deg steps:
+        rot = int(self.render_rotation) % 360
+        if rot == 90:
+            rx, ry = -fy, fx
+        elif rot == 180:
+            rx, ry = -fx, -fy
+        elif rot == 270:
+            rx, ry = fy, -fx
+        else:
+            rx, ry = fx, fy
+            
+        # 3. Offset
+        wx = rx + self.frame_offset[0]
+        wy = ry + self.frame_offset[1]
         return (wx, wy)
 
     def world_to_local(self, pt: Tuple[float, float]) -> Tuple[float, float]:
-        # Reverse: Offset -> Flip
-        lx = (pt[0] - self.frame_offset[0]) * (-1.0 if self.render_flip_x else 1.0)
-        ly = (pt[1] - self.frame_offset[1]) * (-1.0 if self.render_flip_y else 1.0)
+        # Reverse: Offset -> Un-Rotate -> Un-Flip
+        
+        # 1. Un-Offset
+        ox = pt[0] - self.frame_offset[0]
+        oy = pt[1] - self.frame_offset[1]
+        
+        # 2. Un-Rotate (Reverse of local_to_world rotation)
+        rot = int(self.render_rotation) % 360
+        if rot == 90:
+            # Reverse of (-fy, fx) is (ry, -rx)
+            rx, ry = oy, -ox
+        elif rot == 180:
+            rx, ry = -ox, -oy
+        elif rot == 270:
+            # Reverse of (fy, -fx) is (-ry, rx)
+            rx, ry = -oy, ox
+        else:
+            rx, ry = ox, oy
+            
+        # 3. Un-Flip
+        lx = rx * (-1.0 if self.render_flip_x else 1.0)
+        ly = ry * (-1.0 if self.render_flip_y else 1.0)
         return (lx, ly)
         
     def on_paint(self, event: wx.PaintEvent) -> None:
@@ -196,7 +233,17 @@ class FrameCanvas(BaseCanvas):
                              img = img.Mirror(horizontally=True)
                          if final_flip_y:
                              img = img.Mirror(horizontally=False) # Vertical flip
-                             
+
+                         # Apply Rotation (Pixel perfect 90 deg steps)
+                         rot = int(fm.rotation_degrees + self.render_rotation) % 360
+                         if rot == 90:
+                             img = img.Rotate90(clockwise=True)
+                             # target_w/h already matches rotated bounds from _fmodule_bounds
+                         elif rot == 180:
+                             img = img.Rotate180()
+                         elif rot == 270:
+                             img = img.Rotate90(clockwise=False)
+
                          img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
                          scaled_bmp = img.ConvertToBitmap()
                          
@@ -536,14 +583,65 @@ class FrameCanvas(BaseCanvas):
             mod: Optional[Module] = self.project.get_module(fm.ref_id)
             if mod:
                 w, h = mod.rect[2], mod.rect[3]
-                # Pivot aligned
+                piv_x, piv_y = mod.pivot
+                
+                # Apply Rotation to Bounds Logic
+                # If rotated 90 or 270, w/h swap.
+                # Pivot handling is complex since drawing rotates around pivot?
+                # Actually, our draw logic rotates the bitmap.
+                # The visual pivot point on screen is (pos_x, pos_y).
+                # The bitmap is drawn such that the pivot is at (pos_x, pos_y).
+                # So we just need to know the dimensions of the ROTATED bitmap
+                # and finding the top-left relative to the pivot.
+                
+                rot = int(fm.rotation_degrees) % 360
+                
+                # Calculate dimensions of the rotated sprite
+                if rot == 90 or rot == 270:
+                    rw, rh = h, w
+                else:
+                    rw, rh = w, h
+                    
+                # The pivot in the unrotated sprite is (px, py).
+                # In the rotated sprite, the "pivot pixel" is still the anchor.
+                # We need to find the Top-Left of the bounding box relative to the anchor.
+                
+                # 0 deg: TL = (-px, -py)
+                # 90 deg (CW): TL = (- (h - 1 - py), - px) ?
+                # Let's derive:
+                # Source pixel (u,v). Center (px, py).
+                # 90 Rot: u' = h - 1 - v, v' = u.
+                # Anchor (px, py) maps to (h-1-py, px) in the new image space.
+                # So the new pivot inside the new image is (h-1-py, px).
+                # The new bounds are 0..rw, 0..rh.
+                # Top-Left relative to anchor is (-new_piv_x, -new_piv_y).
+                
+                if rot == 90:
+                    # New W=h, H=w.
+                    # Pivot maps to (h - py, px) roughly.
+                    new_px = h - piv_y
+                    new_py = piv_x
+                elif rot == 180:
+                    # New W=w, H=h.
+                    # Pivot maps to (w - px, h - py)
+                    new_px = w - piv_x
+                    new_py = h - piv_y
+                elif rot == 270:
+                    # New W=h, H=w.
+                    # Pivot maps to (py, w - px)
+                    new_px = piv_y
+                    new_py = w - piv_x
+                else:
+                    new_px, new_py = piv_x, piv_y
+                
                 top_left = (
-                    fm.position[0] - mod.pivot[0],
-                    fm.position[1] - mod.pivot[1],
+                    fm.position[0] - new_px,
+                    fm.position[1] - new_py,
                 )
+                
                 # Note: we DON'T add self.frame_offset here because world_to_screen/local_to_world handles it.
                 # Bounds represent LOCAL coordinates.
-                return (top_left[0], top_left[1], top_left[0] + w, top_left[1] + h)
+                return (top_left[0], top_left[1], top_left[0] + rw, top_left[1] + rh)
         
         elif fm.ref_type == "frame":
             # For frames, we ideally calculate the bounding box of all its children.
@@ -985,6 +1083,7 @@ class AnimationCanvas(FrameCanvas):
             # Apply Global Flip to Render (XOR)
             self.render_flip_x = self.current_aframe.flip_x != self.global_flip_x
             self.render_flip_y = self.current_aframe.flip_y != self.global_flip_y
+            self.render_rotation = getattr(self.current_aframe, "rotation_degrees", 0.0)
         else:
             self.frame = None
             self.frame_offset = (0, 0)
