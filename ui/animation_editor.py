@@ -447,6 +447,9 @@ class AnimationEditorPanel(wx.Panel):
         item_flip_h = menu.Append(wx.ID_ANY, "Flip Horizontally")
         item_flip_v = menu.Append(wx.ID_ANY, "Flip Vertically")
         menu.AppendSeparator()
+        item_rot_cw = menu.Append(wx.ID_ANY, "Rotate CW (90°)")
+        item_rot_ccw = menu.Append(wx.ID_ANY, "Rotate CCW (90°)")
+        menu.AppendSeparator()
         item_export = menu.Append(wx.ID_ANY, "Export GIF...")
         
         self.Bind(wx.EVT_MENU, self.on_duplicate_animation, item_disp_id)
@@ -454,9 +457,7 @@ class AnimationEditorPanel(wx.Panel):
         self.Bind(wx.EVT_MENU, self.on_flip_anim_h, item_flip_h)
         self.Bind(wx.EVT_MENU, self.on_flip_anim_v, item_flip_v)
         
-        menu.AppendSeparator()
-        item_rot_cw = menu.Append(wx.ID_ANY, "Rotate CW (90°)")
-        item_rot_ccw = menu.Append(wx.ID_ANY, "Rotate CCW (90°)")
+
         self.Bind(wx.EVT_MENU, lambda e: self._rotate_animation(90), item_rot_cw)
         self.Bind(wx.EVT_MENU, lambda e: self._rotate_animation(-90), item_rot_ccw)
         
