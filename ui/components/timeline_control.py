@@ -45,6 +45,7 @@ class TimelineControl(wx.Panel):
         super().__init__(parent, style=wx.BORDER_SUNKEN | wx.WANTS_CHARS)
         self.project = project
         self.animation: Optional[Animation] = None
+        
 
         self.current_index: int = 0
         self.on_seek: Optional[Callable[[int], None]] = None
@@ -72,6 +73,11 @@ class TimelineControl(wx.Panel):
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_SIZE, lambda e: self.Refresh(False))
+
+    def set_project(self, project: Project):
+        self.project = project
+        self.generator.clear_cache()
+        self.Refresh(False)
 
     def on_key_down(self, event) -> None:
         if not self.animation:

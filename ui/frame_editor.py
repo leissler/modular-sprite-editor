@@ -1035,6 +1035,7 @@ class FrameEditorPanel(wx.Panel):
     def set_project(self, project: Project):
         self.project = project
         self.canvas.project = project
+        self.canvas.clear_cache()
         
         # Completely recreate ModulePalette to force-clear wx.ListCtrl/ImageList internal caches
         # This is required because on some platforms (macOS), the ImageList layer is extremely sticky.

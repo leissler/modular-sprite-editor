@@ -253,9 +253,9 @@ class AnimationEditorPanel(wx.Panel):
     def set_project(self, project: Project) -> None:
         self.project = project
         self.canvas.project = project
+        self.canvas.clear_cache()
         self.frame_palette.project = project
-        self.frame_palette.project = project
-        self.timeline.project = project
+        self.timeline.set_project(project)
         
         # Init canvas visibility maps (Show All by default)
         self.canvas.collision_type_colors = {ct.id: ct.color for ct in project.collision_types}
