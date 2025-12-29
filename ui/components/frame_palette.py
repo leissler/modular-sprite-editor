@@ -138,6 +138,13 @@ class FramePalette(wx.ScrolledWindow):
              # Fast bounds approx? No, need module parsing.
              # This loop inside Paint is DANGEROUS for performance.
              # Optimization: WE MUST CACHE THE UNIFORM SCALE. 
+             if not frame.fmodules: continue
+             # Check for cache invalidation (mapping change)
+             # This is a bit hacky inside Paint, but avoids complex signal passing
+             current_map_id = id(self.project.active_mapping) if self.project.active_mapping else None
+             if getattr(self, '_last_map_id', None) != current_map_id:
+                 self._cached_scale = 0.0
+                 self._last_map_id = current_map_id
              pass
 
         # Let's assume uniform scale 1.0 for this step to just get drawing working, 
@@ -157,7 +164,7 @@ class FramePalette(wx.ScrolledWindow):
                 continue
                 
             # Draw Thumbnail
-            bmp = self.generator.render_thumbnail(self.project, frame, r.width, r.height, custom_scale=scale)
+            bmp = self.generator.render_thumbnail(self.project, frame, r.width, r.height, custom_scale=scale, mapping=self.project.active_mapping)
             dc.DrawBitmap(bmp, r.x, r.y)
             
             # Draw Name Overlay (Bottom)
@@ -177,22 +184,27 @@ class FramePalette(wx.ScrolledWindow):
                 dc.DrawRectangle(r.x - 2, r.y - 2, r.width + 4, r.height + 4)
 
     def _calculate_uniform_scale(self) -> float:
-        # Simplified caching check could go here
-        # Return 0.0 to auto-fit individual if lazy
-        # Re-using logic from previous change via `ThumbnailGenerator` cap removal
-        # To strictly follow "same scale", we need that global max.
-        # Let's trust `refresh_frames` update pattern.
-        if hasattr(self, '_cached_scale'): return self._cached_scale
+        # Check cache
+        if hasattr(self, '_cached_scale') and self._cached_scale > 0: return self._cached_scale
         
         global_max_w = 0.0
         global_max_h = 0.0
+        mapping = self.project.active_mapping
+        
         for frame in self.project.frames:
              if not frame.fmodules: continue
              min_x, min_y, max_x, max_y = float('inf'), float('inf'), float('-inf'), float('-inf')
              has = False
              for fm in frame.fmodules:
                 if fm.ref_type == "module":
-                    mod = self.project.get_module(fm.ref_id)
+                    ref_id = fm.ref_id
+                    # Apply Mapping
+                    if mapping and ref_id in mapping.map:
+                        ref_id = mapping.map[ref_id]
+                    
+                    if not ref_id: continue
+
+                    mod = self.project.get_module(ref_id)
                     if mod:
                          mw, mh = mod.rect[2], mod.rect[3]
                          piv_x, piv_y = mod.pivot
@@ -213,6 +225,8 @@ class FramePalette(wx.ScrolledWindow):
              scale_y = self.item_size[1] / global_max_h
              uniform_scale = min(scale_x, scale_y)
              uniform_scale = min(uniform_scale, 32.0)
+        
+        if uniform_scale == 0: uniform_scale = 1.0
         
         self._cached_scale = uniform_scale
         return uniform_scale

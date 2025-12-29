@@ -215,8 +215,15 @@ class FrameCanvas(BaseCanvas):
         w, h = abs(p1[0] - p0[0]), abs(p1[1] - p0[1])
         
         # Draw image content if module ref
+        # Draw image content if module ref
         if fm.ref_type == "module":
-             mod = self.project.get_module(fm.ref_id)
+             ref_id = fm.ref_id
+             if self.project.active_mapping and ref_id in self.project.active_mapping.map:
+                 ref_id = self.project.active_mapping.map[ref_id]
+             
+             if not ref_id: return
+
+             mod = self.project.get_module(ref_id)
              if mod:
                  bmp = self._get_module_bitmap(mod)
                  if bmp:
@@ -580,7 +587,14 @@ class FrameCanvas(BaseCanvas):
 
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
         if fm.ref_type == "module":
-            mod: Optional[Module] = self.project.get_module(fm.ref_id)
+            ref_id = fm.ref_id
+            if self.project.active_mapping and ref_id in self.project.active_mapping.map:
+                 ref_id = self.project.active_mapping.map[ref_id]
+            
+            mod: Optional[Module] = None
+            if ref_id:
+                mod = self.project.get_module(ref_id)
+            
             if mod:
                 w, h = mod.rect[2], mod.rect[3]
                 piv_x, piv_y = mod.pivot

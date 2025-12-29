@@ -8,7 +8,7 @@ class ThumbnailGenerator:
     def clear_cache(self):
         self.asset_cache = {}
 
-    def render_thumbnail(self, project: Project, item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0) -> wx.Bitmap:
+    def render_thumbnail(self, project: Project, item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None) -> wx.Bitmap:
         bmp = wx.Bitmap(width, height)
         dc = wx.MemoryDC(bmp)
         
@@ -87,7 +87,17 @@ class ThumbnailGenerator:
         
         for fm in frame.fmodules:
             if fm.ref_type == "module":
-                mod = project.get_module(fm.ref_id)
+                ref_id = fm.ref_id
+                ref_id = fm.ref_id
+                # Note: We intentionally ignore mapping for bounds calculation
+                # to ensure scale/centering is "locked" to the original frame structure.
+                # This prevents UI jumping when switching mappings.
+                # if mapping and ref_id in mapping.map:
+                #     ref_id = mapping.map[ref_id]
+
+                if not ref_id: continue
+
+                mod = project.get_module(ref_id)
                 if mod:
                     mw, mh = mod.rect[2], mod.rect[3]
                     piv_x, piv_y = mod.pivot
@@ -169,7 +179,13 @@ class ThumbnailGenerator:
         
         for fm in frame.fmodules:
             if fm.ref_type == "module":
-                mod = project.get_module(fm.ref_id)
+                ref_id = fm.ref_id
+                if mapping and ref_id in mapping.map:
+                    ref_id = mapping.map[ref_id]
+
+                if not ref_id: continue
+
+                mod = project.get_module(ref_id)
                 if mod:
                     asset = project.get_image(mod.image_id)
                     if asset:

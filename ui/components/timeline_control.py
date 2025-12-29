@@ -209,7 +209,7 @@ class TimelineControl(wx.Panel):
             # Draw Thumbnail
             if frame:
                 rot = getattr(af, "rotation_degrees", 0.0)
-                thumb = self.generator.render_thumbnail(self.project, frame, slot_w - 4, slot_h - 4, flip_x=af.flip_x, flip_y=af.flip_y, rotation=rot)
+                thumb = self.generator.render_thumbnail(self.project, frame, slot_w - 4, slot_h - 4, flip_x=af.flip_x, flip_y=af.flip_y, rotation=rot, mapping=self.project.active_mapping)
                 gc.DrawBitmap(thumb, x + 2, 5 + 2, slot_w - 4, slot_h - 4)
             
             # Draw Frame Number Overlay

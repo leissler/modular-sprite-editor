@@ -420,7 +420,7 @@ class AuroraSpriteParser:
                     # MD [id] MD_IMAGE [img_idx] [x] [y] [w] [h] ["name"]
                     parts = line.split()
                     if len(parts) >= 8 and parts[2] == "MD_IMAGE":
-                        md_id = parts[1]
+                        md_id = parts[1].strip()
                         try:
                             img_idx = int(parts[3])
                             x, y, w, h = int(parts[4]), int(parts[5]), int(parts[6]), int(parts[7])
@@ -452,7 +452,7 @@ class AuroraSpriteParser:
                 elif line.startswith("FM"):
                     parts = line.split()
                     if len(parts) >= 4:
-                        ref_id = parts[1]
+                        ref_id = parts[1].strip()
                         try:
                             ox = int(parts[2])
                             oy = int(parts[3])
@@ -492,7 +492,7 @@ class AuroraSpriteParser:
                 elif line.startswith("AF"):
                     parts = line.split()
                     if len(parts) >= 5:
-                        ref_id = parts[1]
+                        ref_id = parts[1].strip()
                         try:
                             duration = int(parts[2])
                             ox = int(parts[3])
@@ -514,11 +514,11 @@ class AuroraSpriteParser:
             if current_block == "MAPPING" and isinstance(current_obj, ModuleMapping):
                 if re.match(r'^0x[\da-fA-F]+$', line):
                     current_obj.id = line
-                elif line.startswith("MD_MAP"):
+                elif line.startswith("MD_MAP") or line.startswith("MAP"):
                     parts = line.split()
-                    if len(parts) >= 3:
-                        src_id = parts[1]
-                        dest_id = parts[2]
+                    if len(parts) >= 3 and parts[0] in ("MD_MAP", "MAP"):
+                        src_id = parts[1].strip()
+                        dest_id = parts[2].strip()
                         if dest_id.upper() == "NONE":
                             dest_id = None
                         current_obj.map[src_id] = dest_id
@@ -552,6 +552,9 @@ class Project:
     mappings: List[ModuleMapping] = field(default_factory=list)
     collision_types: List[CollisionType] = field(default_factory=list)
     point_types: List[PointType] = field(default_factory=list)
+    
+    # Runtime state (not serialized)
+    active_mapping: Optional[ModuleMapping] = field(default=None, init=False)
 
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
         return next((img for img in self.images if img.id == image_id), None)
