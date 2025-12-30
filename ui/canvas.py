@@ -585,6 +585,19 @@ class FrameCanvas(BaseCanvas):
                 return fm
         return None
 
+    def hit_test_all(self, transformed_world_pt: Tuple[float, float]) -> List[FModule]:
+        """Returns all modules under the cursor, sorted top-to-bottom."""
+        local_pt = self.world_to_local(transformed_world_pt)
+        hits = []
+        if not self.frame:
+            return hits
+            
+        for fm in reversed(self.frame.fmodules):
+            x0, y0, x1, y1 = self._fmodule_bounds(fm)
+            if x0 <= local_pt[0] <= x1 and y0 <= local_pt[1] <= y1:
+                hits.append(fm)
+        return hits
+
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
         if fm.ref_type == "module":
             ref_id = fm.ref_id

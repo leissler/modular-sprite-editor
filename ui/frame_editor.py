@@ -443,7 +443,19 @@ class FrameEditorPanel(wx.Panel):
 
         # Hit test to see if we clicked a module
         pos = self.canvas.screen_to_world(event.GetPosition())
-        clicked_fmod = self.canvas.hit_test(pos)
+        hits = self.canvas.hit_test_all(pos)
+        
+        clicked_fmod = None
+        
+        # Priority 1: If any currently selected module is under cursor, use it (preserve selection)
+        for hit in hits:
+            if hit.id in self.canvas.selected_fmodules:
+                clicked_fmod = hit
+                break
+        
+        # Priority 2: If no selected module is hit, take the top-most hit (idx 0)
+        if not clicked_fmod and hits:
+            clicked_fmod = hits[0]
         
         menu = wx.Menu()
         
