@@ -511,7 +511,7 @@ class MappingEditorPanel(wx.Panel):
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         
         self.list_ctrl = wx.ListCtrl(self.left_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
-        self.list_ctrl.InsertColumn(0, "Name", width=200)
+        self.list_ctrl.InsertColumn(0, "Name", width=100)
         
         btns_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add = wx.Button(self.left_panel, label="Add")
@@ -585,9 +585,9 @@ class MappingEditorPanel(wx.Panel):
         right_sizer.Add(self.right_splitter, 1, wx.EXPAND | wx.ALL, 4)
         self.right_panel.SetSizer(right_sizer)
         
-        self.splitter.SplitVertically(self.left_panel, self.right_panel, 180) # Narrower left panel
-        self.splitter.SetMinimumPaneSize(150)
-        self.splitter.SetSashGravity(0.2)
+        self.splitter.SplitVertically(self.left_panel, self.right_panel, 120) # Narrower left panel
+        self.splitter.SetMinimumPaneSize(100)
+        self.splitter.SetSashGravity(0.1)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.splitter, 1, wx.EXPAND)
