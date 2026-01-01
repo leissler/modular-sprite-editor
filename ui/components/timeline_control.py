@@ -76,6 +76,8 @@ class TimelineControl(wx.Panel):
 
     def set_project(self, project: Project):
         self.project = project
+        self.animation = None
+        self.current_index = 0
         self.generator.clear_cache()
         self.Refresh(False)
 

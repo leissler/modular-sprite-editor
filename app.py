@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import sys
+import os
 from typing import Optional
 
 import wx
@@ -125,9 +126,23 @@ class MainFrame(wx.Frame):
         else:
             mode_name = "Unknown"
 
-        self.SetTitle(f"{APP_NAME} - [{mode_name}]")
-        self.status_bar.SetStatusText(f"Active Mode: {mode_name}")
+        self._update_title()
         event.Skip()
+
+    def _update_title(self) -> None:
+        fname = "New Project"
+        if self.current_path:
+            fname = os.path.basename(self.current_path)
+        
+        page_idx = self.book.GetSelection()
+        mode_name = "Unknown"
+        if page_idx == 0: mode_name = "Modules"
+        elif page_idx == 1: mode_name = "Frames"
+        elif page_idx == 2: mode_name = "Animations"
+        elif page_idx == 3: mode_name = "Mappings"
+            
+        self.SetTitle(f"{APP_NAME} - {fname} - [{mode_name}]")
+        self.status_bar.SetStatusText(f"Active Mode: {mode_name}")
 
     # UI construction
     def _build_menu(self) -> None:
@@ -214,6 +229,9 @@ class MainFrame(wx.Frame):
             # Do NOT set current_path, so Save prompts for a new location (conversion)
             self.current_path = None 
             self._reload_project_into_panels()
+            self.current_path = None 
+            self._reload_project_into_panels()
+            self._update_title()
             wx.MessageBox("Imported successfully. Please save as a new project.", "Import Complete", wx.OK | wx.ICON_INFORMATION)
 
     def on_save(self, _: wx.CommandEvent) -> None:
@@ -221,6 +239,8 @@ class MainFrame(wx.Frame):
             self.on_save_as(wx.CommandEvent())
             return
         self.project.to_json(self.current_path)
+        self.project.to_json(self.current_path)
+        self._update_title()
         wx.MessageBox(f"Saved to {self.current_path}", "Saved")
 
     def on_save_as(self, _: wx.CommandEvent) -> None:
@@ -239,6 +259,9 @@ class MainFrame(wx.Frame):
                     path += ".json"
                 self.project.to_json(path)
                 self.current_path = path
+                self.project.to_json(path)
+                self.current_path = path
+                self._update_title()
                 wx.MessageBox(f"Saved to {path}", "Saved")
         except Exception as exc:
             wx.LogError(f"Save As failed: {exc}")
@@ -278,7 +301,11 @@ class MainFrame(wx.Frame):
         self.module_editor.set_project(self.project)
         self.frame_editor.set_project(self.project)
         self.animation_editor.set_project(self.project)
+        self.module_editor.set_project(self.project)
+        self.frame_editor.set_project(self.project)
+        self.animation_editor.set_project(self.project)
         self.mapping_editor.set_project(self.project)
+        self._update_title()
 
     def switch_to_frame_editor(self, frame_id: str) -> None:
         """Navigates to the Frame Editor and selects the given frame."""

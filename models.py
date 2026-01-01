@@ -360,10 +360,14 @@ class AuroraSpriteParser:
                     trans_color = (r, g, b)
                 
                 abs_path = os.path.join(base_path, filename)
-                images_map[image_index] = abs_path
+                
+                # Use generated ID instead of path (User Request)
+                # But we map index -> ID for modules to reference
+                new_img_id = generate_id("img")
+                images_map[image_index] = new_img_id
                 
                 img_asset = ImageAsset(
-                    id=abs_path,
+                    id=new_img_id,
                     file_path=abs_path,
                     width=0,
                     height=0,
@@ -433,11 +437,19 @@ class AuroraSpriteParser:
                             else:
                                 name = f"Module {md_id}"
                             
-                            img_path = images_map.get(img_idx, "missing.png")
+                                name = f"Module {md_id}"
+                            
+                            # Lookup ID from map (which now holds IDs, not paths)
+                            target_img_id = images_map.get(img_idx, None)
+                            if not target_img_id and project.images:
+                                # Fallback? Or create missing?
+                                # For now safely default to first available or keep empty
+                                target_img_id = project.images[0].id
+                                
                             module = Module(
                                 id=md_id,
                                 name=name,
-                                image_id=img_path,
+                                image_id=target_img_id if target_img_id else "missing",
                                 rect=(x, y, w, h),
                                 pivot=(0, 0)
                             )
@@ -594,6 +606,45 @@ class Project:
             visited.add(fid)
             return False
         return visit(frame_id, [])
+
+    def create_image(self, file_path: str, width: int, height: int, transparent_color: Optional[Tuple[int, int, int]] = None) -> ImageAsset:
+        asset = ImageAsset(
+            id=generate_id("img"),
+            file_path=file_path,
+            width=width,
+            height=height,
+            transparent_color=transparent_color
+        )
+        self.images.append(asset)
+        return asset
+
+    def create_module(self, name: str, image_id: str, rect: Tuple[int, int, int, int], pivot: Tuple[int, int]) -> Module:
+        mod = Module(
+            id=generate_id("mod"),
+            name=name,
+            image_id=image_id,
+            rect=rect,
+            pivot=pivot
+        )
+        self.modules.append(mod)
+        return mod
+
+    def create_frame(self, name: str) -> Frame:
+        frame = Frame(
+            id=generate_id("frm"),
+            name=name
+        )
+        self.frames.append(frame)
+        return frame
+
+    def create_animation(self, name: str) -> Animation:
+        anim = Animation(
+            id=generate_id("anim"),
+            name=name
+        )
+        self.animations.append(anim)
+        return anim
+
 
     def to_dict(self) -> Dict:
         return {
