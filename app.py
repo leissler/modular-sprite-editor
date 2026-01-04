@@ -210,6 +210,7 @@ class MainFrame(wx.Frame):
             if dlg.ShowModal() != wx.ID_OK:
                 return
             path = dlg.GetPath()
+            os.chdir(os.path.dirname(path)) # Set CWD to project folder
             self.project = Project.from_json(path)
             self.current_path = path
             self._reload_project_into_panels()
@@ -224,6 +225,7 @@ class MainFrame(wx.Frame):
             if dlg.ShowModal() != wx.ID_OK:
                 return
             path = dlg.GetPath()
+            os.chdir(os.path.dirname(path)) # Set CWD to imported file folder
             # Project.from_json handles parsing based on extension
             self.project = Project.from_json(path)
             # Do NOT set current_path, so Save prompts for a new location (conversion)

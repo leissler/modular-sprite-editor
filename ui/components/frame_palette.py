@@ -29,6 +29,7 @@ class FramePalette(wx.ScrolledWindow):
         self._drag_start_pos: Optional[wx.Point] = None
         
         self.SetBackgroundColour(wx.Colour(40, 40, 40))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetScrollRate(20, 20)
         
         self.Bind(wx.EVT_PAINT, self.on_paint)
@@ -100,9 +101,8 @@ class FramePalette(wx.ScrolledWindow):
         return -1
 
     def on_paint(self, event) -> None:
-        dc = wx.AutoBufferedPaintDC(self)
+        dc = wx.PaintDC(self)
         self.DoPrepareDC(dc)
-        dc.Clear()
         dc.SetBackground(wx.Brush(wx.Colour(40, 40, 40)))
         dc.Clear()
         

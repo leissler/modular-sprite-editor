@@ -271,8 +271,39 @@ class AnimationEditorPanel(wx.Panel):
         self.current_index = 0
         self.canvas.set_animation(None)
         
-        self.refresh_animations()
+        # Auto-select first animation if available
+        if self.project.animations:
+            first_anim = self.project.animations[0]
+            self.refresh_animations(select_id=first_anim.id)
+            self.on_select_animation_by_id(first_anim.id)
+        else:
+            self.refresh_animations()
+            
         self.frame_palette.refresh_frames()
+
+    def on_select_animation_by_id(self, anim_id: str):
+        """Helper to simulate selection logic without event."""
+        anim = self.project.get_animation(anim_id)
+        if not anim: return
+        
+        self.selected_animation_id = anim.id
+        self.canvas.set_animation(anim)
+        self.timeline.set_animation(anim)
+        
+        # Populate UI
+        self.fps_spin.SetValue(anim.fps if anim.fps > 0 else 10)
+        self.loop_spin.SetValue(anim.loop_count if anim.loop_count is not None else 0)
+        
+        types = ["forward", "backward", "loop", "ping_pong"]
+        if anim.playback_type in types:
+            self.playback_choice.SetSelection(types.index(anim.playback_type))
+        else:
+             self.playback_choice.SetSelection(2)
+
+        self.current_index = 0
+        self.canvas.set_current_index(0)
+        self.timeline.set_current_index(0)
+        self.update_aframe_ui()
 
     def refresh_animations(self, select_id: Optional[str] = None) -> None:
         self.anim_list.DeleteAllItems()

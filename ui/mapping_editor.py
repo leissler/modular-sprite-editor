@@ -14,6 +14,7 @@ class MappingVisualizer(wx.ScrolledWindow):
         self.project = project
         self.mapping: Optional[ModuleMapping] = None
         self.SetBackgroundColour(wx.Colour(50, 50, 50))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT) # Critical Fix
         
         self.slot_size = 64
         self.gap = 4
@@ -67,27 +68,28 @@ class MappingVisualizer(wx.ScrolledWindow):
         event.Skip()
 
     def on_paint(self, event):
-        dc = wx.AutoBufferedPaintDC(self)
+        dc = wx.PaintDC(self)
         self.DoPrepareDC(dc)
+        dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
         dc.Clear()
         
         # Hide content if no mapping selected
         if not self.mapping:
-            gc = wx.GraphicsContext.Create(dc)
             font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
             font.SetWeight(wx.FONTWEIGHT_BOLD)
-            gc.SetFont(font, wx.Colour(150, 150, 150))
+            dc.SetFont(font)
+            dc.SetTextForeground(wx.Colour(150, 150, 150))
             
             w, h = self.GetClientSize()
             text = "Select or Create a Mapping to Edit"
-            tw, th = gc.GetTextExtent(text)
-            gc.DrawText(text, (w - tw) / 2, (h - th) / 2)
+            tw, th = dc.GetTextExtent(text)
+            dc.DrawText(text, int((w - tw) / 2), int((h - th) / 2))
             return
-
+ 
         # Layout
         sw, sh = self._get_slot_size()
         base_sz = sw # width is always base
-
+ 
         # Calculate Global Scale
         max_mod_w, max_mod_h = 0, 0
         for m in self.project.modules:
@@ -102,23 +104,24 @@ class MappingVisualizer(wx.ScrolledWindow):
         # Draw Source Strip (Top)
         strip_y = self.padding
         
-        gc = wx.GraphicsContext.Create(dc)
+        # gc = wx.GraphicsContext.Create(dc)
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
-        gc.SetFont(font, wx.Colour(200, 200, 200))
+        dc.SetFont(font)
+        dc.SetTextForeground(wx.Colour(200, 200, 200)) # Light Gray
         
-        gc.DrawText("Source Modules", self.padding, strip_y - 20)
+        dc.DrawText("Source Modules", self.padding, strip_y - 20)
         
         if not self.project.modules:
-            gc.DrawText("(No modules in project)", self.padding, strip_y + 10)
+            dc.DrawText("(No modules in project)", self.padding, strip_y + 10)
             return
-
+ 
         for i, mod in enumerate(self.project.modules):
             x = self.padding + i * (sw + self.gap)
-            self._draw_slot(gc, x, strip_y, base_sz, mod, is_source=True, custom_scale=scale)
-
+            self._draw_slot(dc, x, strip_y, base_sz, mod, is_source=True, custom_scale=scale)
+ 
         # Draw Mapped Strip (Bottom)
         strip_y = self.padding + sh + 40
-        gc.DrawText("Mapped Targets (Drag Source here)", self.padding, strip_y - 20)
+        dc.DrawText("Mapped Targets (Drag Source here)", self.padding, strip_y - 20)
         
         for i, mod in enumerate(self.project.modules):
             x = self.padding + i * (sw + self.gap)
@@ -131,44 +134,54 @@ class MappingVisualizer(wx.ScrolledWindow):
                     target_mod = self.project.get_module(target_id)
             
             is_highlight = (i == self.highlight_idx)
-            self._draw_slot(gc, x, strip_y, base_sz, target_mod, is_source=False, highlight=is_highlight, custom_scale=scale)
-
+            self._draw_slot(dc, x, strip_y, base_sz, target_mod, is_source=False, highlight=is_highlight, custom_scale=scale)
+ 
         # Draw Drag Ghost
         if self._drag_source_module_id and getattr(self, '_drag_cursor_pos', None):
              mod = self.project.get_module(self._drag_source_module_id)
              if mod:
                  pt = self.CalcUnscrolledPosition(self._drag_cursor_pos)
-                 thumb = self.generator.render_thumbnail(self.project, mod, 48, 48, custom_scale=scale)
-                 gc.DrawBitmap(thumb, pt.x - 24, pt.y - 24, 48, 48)
-
-    def _draw_slot(self, gc, x, y, size, module, is_source, highlight=False, custom_scale=0.0):
+                 rect = wx.Rect(pt.x - 24, pt.y - 24, 48, 48)
+                 self.generator.draw_thumbnail_direct(dc, self.project, mod, rect, custom_scale=scale)
+                 # thumb = self.generator.render_thumbnail(self.project, mod, 48, 48, custom_scale=scale)
+                 # dc.DrawBitmap(thumb, pt.x - 24, pt.y - 24)
+ 
+    def _draw_slot(self, dc, x, y, size, module, is_source, highlight=False, custom_scale=0.0):
         # Background
         if highlight:
-            gc.SetBrush(wx.Brush(wx.Colour(100, 100, 150)))
-            gc.SetPen(wx.Pen(wx.Colour(200, 200, 255), 2))
+            dc.SetBrush(wx.Brush(wx.Colour(100, 100, 150)))
+            dc.SetPen(wx.Pen(wx.Colour(200, 200, 255), 2))
         else:
-            gc.SetBrush(wx.Brush(wx.Colour(40, 40, 40)))
-            gc.SetPen(wx.Pen(wx.Colour(80, 80, 80), 1))
+            dc.SetBrush(wx.Brush(wx.Colour(40, 40, 40)))
+            dc.SetPen(wx.Pen(wx.Colour(80, 80, 80), 1))
             
-        gc.DrawRectangle(x, y, size, size)
+        dc.DrawRectangle(int(x), int(y), int(size), int(size))
         
         if module:
             # Draw Thumbnail
-            thumb = self.generator.render_thumbnail(self.project, module, size - 4, size - 4, custom_scale=custom_scale)
-            gc.DrawBitmap(thumb, x + 2, y + 2, size - 4, size - 4)
+            rect = wx.Rect(int(x + 2), int(y + 2), size - 4, size - 4)
+            self.generator.draw_thumbnail_direct(dc, self.project, module, rect, custom_scale=custom_scale)
+            # thumb = self.generator.render_thumbnail(self.project, module, size - 4, size - 4, custom_scale=custom_scale)
+            # dc.DrawBitmap(thumb, int(x + 2), int(y + 2))
             
             if self._show_names:
-                gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(200, 200, 200))
+                font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+                dc.SetFont(font)
+                dc.SetTextForeground(wx.Colour(200, 200, 200))
                 # Truncate
                 name = module.name
                 if len(name) > 10: name = name[:8] + ".."
-                tw, th = gc.GetTextExtent(name)
-                gc.DrawText(name, x + (size - tw)/2, y + size + 2)
+                tw, th = dc.GetTextExtent(name)
+                dc.DrawText(name, int(x + (size - tw)/2), int(y + size + 2))
         else:
             # Draw "None"
             if not is_source:
-                gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(100, 100, 100))
-                gc.DrawText("None", x + 10, y + size/2 - 5)
+                # gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(100, 100, 100))
+                # gc.DrawText("None", x + 10, y + size/2 - 5)
+                font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+                dc.SetFont(font)
+                dc.SetTextForeground(wx.Colour(100, 100, 100))
+                dc.DrawText("None", int(x + 10), int(y + size/2 - 5))
 
     def _hit_test(self, pt) -> int:
         sw, sh = self._get_slot_size()
@@ -704,3 +717,22 @@ class MappingEditorPanel(wx.Panel):
     def on_zoom(self, event):
         scale = self.slider_zoom.GetValue() / 100.0
         self.visualizer.set_zoom(scale)
+
+    def set_project(self, project: Project):
+        self.project = project
+        self.visualizer.project = project
+        self.preview.project = project
+        self.current_mapping = None
+        self.visualizer.set_mapping(None)
+        self.preview.set_mapping(None)
+        
+        self.refresh_list()
+        
+        # Auto-select first mapping
+        if self.project.mappings:
+            first = self.project.mappings[0]
+            # Find index
+            for i in range(self.list_ctrl.GetItemCount()):
+                if self.list_ctrl.GetItemText(i) == first.name:
+                    self.list_ctrl.Select(i)
+                    break

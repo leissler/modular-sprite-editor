@@ -1,5 +1,6 @@
 import wx
 from models import Project, Frame, Module
+from typing import Optional
 
 class ThumbnailGenerator:
     def __init__(self):
@@ -9,15 +10,30 @@ class ThumbnailGenerator:
         self.asset_cache = {}
 
     def render_thumbnail(self, project: Project, item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None) -> wx.Bitmap:
+        # DEBUG: PROBE
+        type_str = "Unknown"
+        if getattr(item, 'fmodules', None) is not None: type_str = "Frame"
+        elif getattr(item, 'image_id', None) is not None: type_str = "Module"
+        wx.MessageBox(f"Generating Thumbnail for {type_str}", "Debug")
+        
         bmp = wx.Bitmap(width, height)
         dc = wx.MemoryDC(bmp)
-        
-        # Background
         dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
         dc.Clear()
         
-        # Handle Module Rendering
-        if isinstance(item, Module):
+        self.draw_thumbnail_direct(dc, project, item, wx.Rect(0, 0, width, height), custom_scale, flip_x, flip_y, rotation, mapping)
+        
+        dc.SelectObject(wx.NullBitmap)
+        return bmp
+
+    def draw_thumbnail_direct(self, dc: wx.DC, project: Project, item, rect: wx.Rect, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None):
+        """Draws the item directly onto the provided DC within the target rect."""
+        width, height = rect.width, rect.height
+        x_off, y_off = rect.x, rect.y
+        
+        
+         # Handle Module Rendering (Duck Typed)
+        if getattr(item, 'image_id', None) is not None and getattr(item, 'rect', None) is not None and not hasattr(item, 'fmodules'):
             mod = item
             mw, mh = mod.rect[2], mod.rect[3]
             
@@ -29,11 +45,11 @@ class ThumbnailGenerator:
             else:
                 scale = min(width / content_w, height / content_h)
             
-            off_x = (width - content_w * scale) / 2
-            off_y = (height - content_h * scale) / 2
+            # Center in rect
+            off_x = x_off + (width - content_w * scale) / 2
+            off_y = y_off + (height - content_h * scale) / 2
             
-            gc = wx.GraphicsContext.Create(dc)
-            
+            # Direct Draw
             asset = project.get_image(mod.image_id)
             if asset:
                  try:
@@ -48,38 +64,30 @@ class ThumbnailGenerator:
                     if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
                         sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
                         
-                        # Module level flip?
                         if flip_x: sub = sub.Mirror(True)
                         if flip_y: sub = sub.Mirror(False)
-
-                        # Explicit Nearest Neighbor Scaling
+                        
                         w_scaled = int(rw * scale)
                         h_scaled = int(rh * scale)
+                        
                         if w_scaled > 0 and h_scaled > 0:
                             sub = sub.Scale(w_scaled, h_scaled, wx.IMAGE_QUALITY_NEAREST)
                             sub_bmp = sub.ConvertToBitmap()
-                            gc.DrawBitmap(sub_bmp, off_x, off_y, w_scaled, h_scaled)
-                 except: pass
-            
-            dc.SelectObject(wx.NullBitmap)
-            return bmp
+                            dc.DrawBitmap(sub_bmp, int(off_x), int(off_y), True) 
+                 except Exception:
+                     pass
+            return
 
-        # Handle Frame (Assuming item is Frame)
+        # Handle Frame
+        frame = None
         if hasattr(item, 'fmodules'):
              frame = item
-        else:
-             # Just return empty if not frame
-             dc.SelectObject(wx.NullBitmap)
-             return bmp
+        
+        if not frame:
+             return
 
         if not frame.fmodules:
-             # Empty
-             font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
-             dc.SetFont(font)
-             dc.SetTextForeground(wx.Colour(150, 150, 150))
-             dc.DrawText("Empty", 2, height // 2 - 10)
-             dc.SelectObject(wx.NullBitmap)
-             return bmp
+             return
 
         # Calculate Bounds
         min_x, min_y, max_x, max_y = float('inf'), float('inf'), float('-inf'), float('-inf')
@@ -88,12 +96,8 @@ class ThumbnailGenerator:
         for fm in frame.fmodules:
             if fm.ref_type == "module":
                 ref_id = fm.ref_id
-                ref_id = fm.ref_id
-                # Note: We intentionally ignore mapping for bounds calculation
-                # to ensure scale/centering is "locked" to the original frame structure.
-                # This prevents UI jumping when switching mappings.
-                # if mapping and ref_id in mapping.map:
-                #     ref_id = mapping.map[ref_id]
+                if mapping and ref_id in mapping.map:
+                    ref_id = mapping.map[ref_id]
 
                 if not ref_id: continue
 
@@ -104,11 +108,6 @@ class ThumbnailGenerator:
                     x0 = fm.position[0] - piv_x
                     y0 = fm.position[1] - piv_y
                     
-                    # Logic note: Use rotated bounds of module?
-                    # FModule rotation is handled in drawing, bounds check here ignores it?
-                    # Ideally we should include fmodule rotation in bounds calc. 
-                    # But for thumbnails, approximate bounds is okay.
-                    
                     min_x = min(min_x, x0)
                     min_y = min(min_y, y0)
                     max_x = max(max_x, x0 + mw)
@@ -116,16 +115,15 @@ class ThumbnailGenerator:
                     has_content = True
 
         if not has_content:
-             dc.SelectObject(wx.NullBitmap)
-             return bmp
+             return
 
         # Rotation Logic for Content Size
         content_w = max(1, max_x - min_x)
         content_h = max(1, max_y - min_y)
         
-        rot = int(rotation) % 360
+        rot_int = int(rotation) % 360
         eff_w, eff_h = content_w, content_h
-        if rot == 90 or rot == 270:
+        if rot_int == 90 or rot_int == 270:
             eff_w, eff_h = content_h, content_w
             
         # Calc Scale
@@ -135,48 +133,14 @@ class ThumbnailGenerator:
             scale = min(width / eff_w, height / eff_h)
             scale = min(scale, 32.0)
             
-        off_x = (width - eff_w * scale) / 2
-        off_y = (height - eff_h * scale) / 2
+        if eff_w == 0 or eff_h == 0:
+             return
+
+        # Calculate Offset to center in RECT
+        off_x = x_off + (width - eff_w * scale) / 2
+        off_y = y_off + (height - eff_h * scale) / 2
         
-        # Draw
-        gc = wx.GraphicsContext.Create(dc)
-        
-        # Transform:
-        # 1. Translate to Center of Slot
-        # 2. Scale
-        # 3. Rotate
-        # 4. Flip
-        # 5. Translate back relative to content
-        
-        # GC Matrix Order: last applied is first in code? No, usually Start -> T -> S -> R -> Draw
-        
-        # Center of content relative to min_x/min_y
-        cx = content_w / 2
-        cy = content_h / 2
-        
-        # Center of slot
-        sx = width / 2
-        sy = height / 2
-        
-        # Start at center of slot
-        gc.Translate(sx, sy)
-        gc.Scale(scale, scale)
-        
-        # Rotate
-        import math
-        gc.Rotate(math.radians(rot))
-        
-        # Flip (around center)
-        if flip_x: gc.Scale(-1, 1)
-        if flip_y: gc.Scale(1, -1)
-        
-        # Move back by half-size of content to align top-left
-        gc.Translate(-cx, -cy)
-        
-        # Translate by min_x/min_y to map content to 0,0
-        gc.Translate(-min_x, -min_y)
-        
-        
+        # We will do manual transform
         for fm in frame.fmodules:
             if fm.ref_type == "module":
                 ref_id = fm.ref_id
@@ -190,7 +154,6 @@ class ThumbnailGenerator:
                     asset = project.get_image(mod.image_id)
                     if asset:
                         try:
-                            # Asset Cache Check
                             if asset.id not in self.asset_cache:
                                 full_img = wx.Image(asset.file_path)
                                 if asset.transparent_color:
@@ -203,14 +166,40 @@ class ThumbnailGenerator:
                             if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
                                 sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
                                 
+                                # Module Flips
                                 if fm.flip_x: sub = sub.Mirror(True)
                                 if fm.flip_y: sub = sub.Mirror(False)
                                 
-                                sub_bmp = sub.ConvertToBitmap()
+                                # Position
                                 piv_x, piv_y = mod.pivot
-                                gc.DrawBitmap(sub_bmp, fm.position[0] - piv_x, fm.position[1] - piv_y, rw, rh)
-                        except: pass
-                             
-        dc.SelectObject(wx.NullBitmap)
-        return bmp
-
+                                raw_x = fm.position[0] - piv_x
+                                raw_y = fm.position[1] - piv_y
+                                
+                                rel_x = raw_x - min_x
+                                rel_y = raw_y - min_y
+                                
+                                # Global Flip X -> Flip around center of content rectangle
+                                if flip_x:
+                                    rel_x = content_w - rel_x - rw
+                                    sub = sub.Mirror(True)
+                                if flip_y:
+                                    rel_y = content_h - rel_y - rh
+                                    sub = sub.Mirror(False)
+                                    
+                                # Scale
+                                dest_x = off_x + rel_x * scale
+                                dest_y = off_y + rel_y * scale
+                                dest_w = rw * scale
+                                dest_h = rh * scale
+                                
+                                if dest_w > 0 and dest_h > 0:
+                                     sub = sub.Scale(int(dest_w), int(dest_h), wx.IMAGE_QUALITY_NEAREST)
+                                     sub_bmp = sub.ConvertToBitmap()
+                                     dc.DrawBitmap(sub_bmp, int(dest_x), int(dest_y), True)
+                        except Exception:
+                             pass
+        
+        # DEBUG: Fall through - Check if we reached end
+        # If nothing drawn, but arrived here
+        # dc.SetBrush(wx.Brush(wx.Colour(0, 255, 0))) # Green
+        # dc.DrawRectangle(rect.x + rect.width - 5, rect.y + rect.height - 5, 5, 5)

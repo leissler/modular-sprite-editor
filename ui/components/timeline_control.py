@@ -35,7 +35,7 @@ class TimelineDropTarget(wx.TextDropTarget):
     def OnLeave(self):
         self.timeline.set_drop_marker(-1)
 
-class TimelineControl(wx.Panel):
+class TimelineControl(wx.ScrolledWindow):
     """
     A horizontal timeline visualization of the animation frames.
     Allows clicking to seek to a specific frame.
@@ -43,6 +43,7 @@ class TimelineControl(wx.Panel):
     """
     def __init__(self, parent, project: Project):
         super().__init__(parent, style=wx.BORDER_SUNKEN | wx.WANTS_CHARS)
+        self.SetScrollRate(0, 0) # Disable native scrolling logic interference
         self.project = project
         self.animation: Optional[Animation] = None
         
@@ -63,6 +64,7 @@ class TimelineControl(wx.Panel):
         self._drag_start_pos: Optional[wx.Point] = None
 
         self.SetBackgroundColour(wx.Colour(40, 40, 40))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT) # Critical for Mac custom paint
         self.SetDropTarget(TimelineDropTarget(self))
         
         self.Bind(wx.EVT_PAINT, self.on_paint)
@@ -173,63 +175,99 @@ class TimelineControl(wx.Panel):
         self._clamp_scroll()
         self.Refresh(False)
 
-    def on_paint(self, event) -> None:
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.Clear()
-        
-        if not self.animation:
-            return
+    def on_paint(self, event):
+        try:
+             # Use standard PaintDC to be safe
+             dc = wx.PaintDC(self)
+             self.DoPrepareDC(dc)
+             
+             width = self.GetVirtualSize()[0]
+             height = self.GetClientSize().height
+             
+             w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
 
-        w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
-        self._clamp_scroll()
-        
-        gc = wx.GraphicsContext.Create(dc)
-        
-        # Apply translation? No, I'll calculate X manually to control culling easily
-        
+             # Fill Background
+             dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
+             dc.Clear()
+        except Exception as e:
+             wx.MessageBox(f"Paint Error: {e}", "Error")
+             return
+
+        if not self.animation:
+             # Draw "No Animation" text
+             font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+             dc.SetFont(font)
+             dc.SetTextForeground(wx.Colour(150, 150, 150))
+             dc.DrawText("No Animation Selected", 20, 20)
+             return
+
+        # Draw Slots
         for i, af in enumerate(self.animation.aframes):
+            # Adjust x for scroll_x
             x = start_x + i * (slot_w + gap) - self.scroll_x
+            y = (h - slot_h) // 2
             
-            # Culling
-            if x + slot_w < 0: continue
-            if x > w: break
+            rect = wx.Rect(x, y, slot_w, slot_h)
             
-            frame_id = af.frame_id
-            frame = self.project.get_frame(frame_id)
+            # Culling - Use Rect Intersection
+            # For wx.Panel with manual scroll_x, view_rect is simply the client area.
+            view_rect = wx.Rect(0, 0, w, h)
             
-            # Draw Slot Background
-            is_selected = (i == self.current_index)
-            if is_selected:
-                gc.SetBrush(wx.Brush(wx.Colour(100, 120, 220))) # Highlight
-                gc.SetPen(wx.Pen(wx.Colour(200, 200, 250), 2))
-            else:
-                gc.SetBrush(wx.Brush(wx.Colour(60, 60, 60)))
-                gc.SetPen(wx.Pen(wx.Colour(100, 100, 100), 1))
-                
-            gc.DrawRoundedRectangle(x, 5, slot_w, slot_h, 4)
+            if not view_rect.Intersects(rect):
+                continue
+
+            # Selection Highlight
+            if i == self.current_index:
+                dc.SetBrush(wx.Brush(wx.Colour(60, 100, 160)))
+                dc.SetPen(wx.Pen(wx.Colour(100, 150, 220), width=2))
+                dc.DrawRectangle(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4)
             
-            # Draw Thumbnail
+            # Draw Thumbnail Background
+            dc.SetBrush(wx.Brush(wx.Colour(50, 50, 50)))
+            dc.SetPen(wx.Pen(wx.Colour(100, 100, 100)))
+            dc.DrawRectangle(rect)
+
+            # Render Content - USE BITMAP METHOD LIKE FRAME PALETTE
+            frame = self.project.get_frame(af.frame_id)
+            
+            # DEBUG: Check if frame resolution is failing
+            if i == 0 and not getattr(self, "_debug_shown", False):
+                 wx.MessageBox(f"Timeline Debug: FrameID='{af.frame_id}' Found={frame is not None}", "Debug")
+                 self._debug_shown = True
+
             if frame:
                 rot = getattr(af, "rotation_degrees", 0.0)
-                thumb = self.generator.render_thumbnail(self.project, frame, slot_w - 4, slot_h - 4, flip_x=af.flip_x, flip_y=af.flip_y, rotation=rot, mapping=self.project.active_mapping)
-                gc.DrawBitmap(thumb, x + 2, 5 + 2, slot_w - 4, slot_h - 4)
+                bmp = self.generator.render_thumbnail(
+                    self.project, 
+                    frame, 
+                    rect.width, 
+                    rect.height, 
+                    flip_x=af.flip_x, 
+                    flip_y=af.flip_y, 
+                    rotation=rot, 
+                    mapping=self.project.active_mapping
+                )
+                dc.DrawBitmap(bmp, rect.x, rect.y)
             
-            # Draw Frame Number Overlay
-            text = f"{i}"
+            # Frame Number
             font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
             font.SetWeight(wx.FONTWEIGHT_BOLD)
-            gc.SetFont(font, wx.Colour(255, 255, 255))
-            gc.SetFont(font, wx.Colour(0, 0, 0))
-            gc.DrawText(text, x + 4, 5 + 2)
-            gc.SetFont(font, wx.Colour(255, 255, 255))
-            gc.DrawText(text, x + 3, 5 + 2)
+            dc.SetFont(font)
+            dc.SetTextForeground(wx.Colour(200, 200, 200))
+            dc.DrawText(str(i), rect.x + 2, rect.y + 2)
             
-        # Draw Drop Marker
-        if self.drop_marker_index != -1:
-            mx = start_x + self.drop_marker_index * (slot_w + gap) - (gap / 2) - self.scroll_x
-            if 0 < mx < w:
-                gc.SetPen(wx.Pen(wx.Colour(255, 255, 0), 3))
-                gc.StrokeLine(mx, 5 - 2, mx, 5 + slot_h + 2)
+            # Drop Marker
+            if i == self.drop_marker_index:
+                dc.SetPen(wx.Pen(wx.Colour(255, 255, 0), width=3))
+                dc.DrawLine(rect.x - gap // 2 - 2, rect.y - 10, rect.x - gap // 2 - 2, rect.y + rect.height + 10)
+
+        # Draw Drop Marker at end
+        if self.animation and self.drop_marker_index == len(self.animation.aframes):
+             last_x = start_x + len(self.animation.aframes) * (slot_w + gap) - self.scroll_x
+             y = (h - slot_h) // 2
+             dc.SetPen(wx.Pen(wx.Colour(255, 255, 0), width=3))
+             dc.DrawLine(int(last_x - gap // 2 - 2), 0, int(last_x - gap // 2 - 2), h)
+
 
     def _hit_test(self, x) -> int:
         w, h, slot_w, slot_h, start_x, gap = self._get_metrics()
