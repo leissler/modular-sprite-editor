@@ -509,14 +509,125 @@ class FrameEditorPanel(wx.Panel):
          frame = self.canvas.frame
          if not frame: return
          
+         # Identify targets
+         # Pass explicit list if selection exists, else None (to imply All)
+         targets = None
+         if self.canvas.selected_fmodules:
+             targets = [fm for fm in frame.fmodules if fm.id in self.canvas.selected_fmodules]
+             
+         self._perform_group_flip(frame, param, targets)
+
+    def _perform_group_flip(self, frame, axis, targets=None):
+         """
+         Robust Group Flip logic handling Rotation Awareness and Visual Center preservation.
+         If targets is None, applies to ALL modules in frame AND pivots around Origin (0,0).
+         If targets is list, pivots around Selection Center.
+         """
+         pivot_at_origin = False
+         if targets is None:
+             targets = frame.fmodules[:]
+             pivot_at_origin = True
+             
+         if not targets: return
+
+         # 1. Calculate Group Bounds/Center
+         min_x, min_y = 99999, 99999
+         max_x, max_y = -99999, -99999
+         
+         valid_bounds = False
+         
+         # Pre-calculate Centers
+         vm_centers = {} # Visual Middle Centers
+         
+         for fm in targets:
+             # Use canvas helper to get bounding box (recurses for nested frames)
+             b = self.canvas._fmodule_bounds(fm)
+             cx = (b[0] + b[2]) / 2.0
+             cy = (b[1] + b[3]) / 2.0
+             vm_centers[fm.id] = (cx, cy)
+             
+             min_x = min(min_x, b[0])
+             min_y = min(min_y, b[1])
+             max_x = max(max_x, b[2])
+             max_y = max(max_y, b[3])
+             valid_bounds = True
+             
+         if not valid_bounds: return
+         
+         if pivot_at_origin:
+             group_cx, group_cy = 0.0, 0.0
+         else:
+             group_cx = (min_x + max_x) / 2.0
+             group_cy = (min_y + max_y) / 2.0
+         
          changed = False
-         for fm in frame.fmodules:
-             if fm.id in self.canvas.selected_fmodules:
-                 if param == "x":
-                     fm.flip_x = not fm.flip_x
-                 elif param == "y":
-                     fm.flip_y = not fm.flip_y
-                 changed = True
+         
+         for fm in targets:
+             # --- Step A: Flip In Place (with Center Comp) ---
+             
+             # 1. Old Center
+             old_cx, old_cy = vm_centers[fm.id] 
+             
+             # 2. Apply Flip (Rotation Aware)
+             # Use round() to avoid floating point truncation errors
+             raw_rot = fm.rotation_degrees
+             raw_rot = fm.rotation_degrees
+             rot = int(round(raw_rot)) % 180
+             effective_axis = axis
+             
+             if rot == 90:
+                 effective_axis = "y" if axis == "x" else "x"
+                 
+             if effective_axis == "x":
+                 fm.flip_x = not fm.flip_x
+             elif effective_axis == "y":
+                 fm.flip_y = not fm.flip_y
+
+             try:
+                 with open("safe_debug.txt", "a") as f:
+                     f.write(f"  EffectiveAxis={effective_axis} FinalFlipX={fm.flip_x} FinalFlipY={fm.flip_y}\n")
+             except: pass
+
+             # 3. New Center (Pre-Move)
+             new_bounds = self.canvas._fmodule_bounds(fm)
+             curr_cx = (new_bounds[0] + new_bounds[2]) / 2.0
+             curr_cy = (new_bounds[1] + new_bounds[3]) / 2.0
+             
+             # 4. Center Compensation (Pin to Old Center)
+             dx_comp = old_cx - curr_cx
+             dy_comp = old_cy - curr_cy
+             
+             fm.position = (int(fm.position[0] + dx_comp), int(fm.position[1] + dy_comp))
+             
+             # --- Step B: Group Mirroring ---
+             # Mirror position across Group Center
+             
+             rel_x = old_cx - group_cx
+             rel_y = old_cy - group_cy
+             
+             target_rel_x = rel_x
+             target_rel_y = rel_y
+             
+             if axis == "x":
+                 target_rel_x = -rel_x
+             elif axis == "y":
+                 target_rel_y = -rel_y
+                 
+             target_cx = group_cx + target_rel_x
+             target_cy = group_cy + target_rel_y
+             
+             # Delta to move from Current Center (old_cx) to Target Center
+             move_dx = target_cx - old_cx
+             move_dy = target_cy - old_cy
+             
+             try:
+                 with open("safe_debug.txt", "a") as f:
+                     f.write(f"  GroupCX={group_cx} OldCenter=({old_cx},{old_cy}) MoveDX={move_dx}\n")
+             except: pass
+             
+             fm.position = (int(fm.position[0] + move_dx), int(fm.position[1] + move_dy))
+             
+             changed = True
          
          if changed:
              self.canvas.Refresh()
@@ -749,60 +860,7 @@ class FrameEditorPanel(wx.Panel):
         frame = self.project.get_frame(fid)
         if not frame: return
         
-        # Mirror Modules
-        for fm in frame.fmodules:
-            if axis == "x":
-                # Position flip relative to origin (0,0)
-                # But we must account for width/height if pivot is TopLeft. 
-                # Assuming modules are centered or pivot-handled in canvas.
-                # Canvas _fmodule_bounds: top_left = pos - pivot.
-                # If we flip X, we want visual reflection.
-                # Reflect pos: x -> -x.
-                # Reflect module: flip_x -> !flip_x.
-                # Does -x position + flipped module align?
-                # Orig: [x - piv, x - piv + w]
-                # New: [-x - (w-piv?), ... ]
-                # Pivot of flipped module is usually (w - original_pivot_x).
-                # Canvas doesn't seem to dynamically adjust pivot on flip (it uses image Mirror).
-                # Wait, canvas.py lines 163-166 mirrors the wx.Image.
-                # wx.Image.Mirror doesn't change pivot metadata.
-                # We need to adjust position to compensate for Pivot change.
-                # "Effective Pivot" changes from P to W-P.
-                # Delta = (W-P) - P = W - 2P.
-                # NewPos = -OldPos - Delta ?
-                # Simpler: Just rely on visual flip.
-                # Let's try simple negation first, user can adjust pivots if needed.
-                # Actually, `on_flip_x` in this file (line 700) uses:
-                # new_x = -pos.x + (2*px - w). 
-                # I should use that logic if I can resolve 'w' and 'px'.
-                # But 'w' comes from Module definition. frame.fmodules has ref_id.
-                
-                # Fetch module for metrics
-                w, h = 32, 32
-                px, py = 16, 16
-                if fm.ref_type == "module":
-                     m = self.project.get_module(fm.ref_id)
-                     if m:
-                         w, h = m.rect[2], m.rect[3]
-                         px, py = m.pivot
-                
-                # Apply transformation
-                new_x = -fm.position[0] + (2 * px - w)
-                fm.position = (new_x, fm.position[1])
-                fm.flip_x = not fm.flip_x
-                
-            elif axis == "y":
-                w, h = 32, 32
-                px, py = 16, 16
-                if fm.ref_type == "module":
-                     m = self.project.get_module(fm.ref_id)
-                     if m:
-                         w, h = m.rect[2], m.rect[3]
-                         px, py = m.pivot
-
-                new_y = -fm.position[1] + (2 * py - h)
-                fm.position = (fm.position[0], new_y)
-                fm.flip_y = not fm.flip_y
+        self._perform_group_flip(frame, axis, targets=None)
 
         # Mirror Collision Rects
         for cr in frame.collision_rects:
@@ -827,28 +885,7 @@ class FrameEditorPanel(wx.Panel):
         frame = self.project.get_frame(fid)
         if not frame: return
         
-        for fm in frame.fmodules:
-            # Need module info for bounds/pivot compensation
-            mod = self.project.get_module(fm.ref_id)
-            if not mod: continue
-            
-            w, h = mod.rect[2], mod.rect[3]
-            px, py = mod.pivot
-            
-            if axis == "x":
-                # Flip X pos relative to 0 (origin)
-                # Formula: new_x = -old_x + (2*px - w)
-                # This compensates for the pivot remaining fixed in image-space even when flipped.
-                new_x = -fm.position[0] + (2 * px - w)
-                fm.position = (new_x, fm.position[1])
-                # Flip the module itself
-                fm.flip_x = not fm.flip_x
-            elif axis == "y":
-                # Formula: new_y = -old_y + (2*py - h)
-                new_y = -fm.position[1] + (2 * py - h)
-                fm.position = (fm.position[0], new_y)
-                fm.flip_y = not fm.flip_y
-                
+        self._perform_group_flip(frame, axis, targets=None)
         self.canvas.Refresh()
             
     def refresh_choices(self):

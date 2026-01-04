@@ -491,7 +491,17 @@ class AnimationEditorPanel(wx.Panel):
         if not anim: return
         
         for af in anim.aframes:
-            af.flip_x = not af.flip_x
+            # Axis Swap Check
+            rot = 0
+            if hasattr(af, "rotation_degrees"):
+                rot = int(round(af.rotation_degrees)) % 180
+                
+            if rot == 90:
+                af.flip_y = not af.flip_y
+            else:
+                af.flip_x = not af.flip_x
+                
+            # Offset is Post-Rotation (Global), so always flip X
             af.offset = (-af.offset[0], af.offset[1])
             
         self.update_aframe_ui()
@@ -501,7 +511,17 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.get_selected_anim()
         if not anim: return
         for af in anim.aframes:
-            af.flip_y = not af.flip_y
+            # Axis Swap Check
+            rot = 0
+            if hasattr(af, "rotation_degrees"):
+                rot = int(round(af.rotation_degrees)) % 180
+
+            if rot == 90:
+                af.flip_x = not af.flip_x
+            else:
+                af.flip_y = not af.flip_y
+
+            # Offset is Post-Rotation (Global), so always flip Y
             af.offset = (af.offset[0], -af.offset[1])
             
         self.update_aframe_ui()

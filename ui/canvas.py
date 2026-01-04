@@ -257,30 +257,113 @@ class FrameCanvas(BaseCanvas):
                          gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
         
         elif fm.ref_type == "frame":
-             # Nested support logic stays essentially the same
-             # But it should be cleaned up later if needed
              ref_frame = self.project.get_frame(fm.ref_id)
              if ref_frame:
+                 # Parent Transform Props
+                 p_flip_x = fm.flip_x
+                 p_flip_y = fm.flip_y
+                 p_rot = fm.rotation_degrees
+                 p_pos_x, p_pos_y = fm.position
+                 
+                 # Prepare Rotation Math
+                 rad = math.radians(p_rot)
+                 cos_a = math.cos(rad)
+                 sin_a = math.sin(rad)
+                 
                  for child_fm in ref_frame.fmodules:
-                    cx, cy = child_fm.position
-                    if fm.flip_x:
-                        cx = -cx
-                    if fm.flip_y:
-                        cy = -cy
-
-                    final_flip_x = child_fm.flip_x ^ fm.flip_x
-                    final_flip_y = child_fm.flip_y ^ fm.flip_y
+                    # Logic matches _fmodule_bounds transformation to ensure consistency
                     
-                    nx = fm.position[0] + cx
-                    ny = fm.position[1] + cy
+                    # 1. Get Child Basics
+                    cx, cy = child_fm.position
+                    cw, ch = 32, 32
+                    piv_x, piv_y = 0, 0
+                    
+                    if child_fm.ref_type == "module":
+                        m = self.project.get_module(child_fm.ref_id)
+                        if m:
+                            cw, ch = m.rect[2], m.rect[3]
+                            piv_x, piv_y = m.pivot
+                            
+                    # 2. Derive Child Corners (Relative to Child Position)
+                    # Used to determine where the object SHOULD land
+                    corners = [
+                        (-piv_x, -piv_y),
+                        (cw - piv_x, -piv_y),
+                        (-piv_x, ch - piv_y),
+                        (cw - piv_x, ch - piv_y)
+                    ]
+                    
+                    # 3. Transform Corners (Parent Flip -> Rotate)
+                    ts_corners = []
+                    for lx, ly in corners:
+                        # Add Child Pos
+                        pcx = lx + cx
+                        pcy = ly + cy
+                        
+                        # Flip
+                        if p_flip_x: pcx = -pcx
+                        if p_flip_y: pcy = -pcy
+                        
+                        # Rotate
+                        rcx = pcx * cos_a - pcy * sin_a
+                        rcy = pcx * sin_a + pcy * cos_a
+                        
+                        ts_corners.append((rcx, rcy))
+                        
+                    # 4. Find Target AABB Top-Left (Relative to Parent Origin)
+                    target_min_x = min(p[0] for p in ts_corners)
+                    target_min_y = min(p[1] for p in ts_corners)
+                    
+                    # 5. Determine Child's Local Min X/Y (Relative to its own Anchor) in its New Orientation
+                    # We need to calculate what _fmodule_bounds(temp_fm) would return as the Local Top-Left (relative to its position).
+                    # 'local_min' = min(transformed_corners) relative to anchor.
+                    
+                    is_parent_flipped = (p_flip_x ^ p_flip_y)
+                    child_rot = child_fm.rotation_degrees
+                    final_rot = p_rot + (-child_rot if is_parent_flipped else child_rot)
+                    final_flip_x = child_fm.flip_x ^ p_flip_x
+                    final_flip_y = child_fm.flip_y ^ p_flip_y
+                    
+                    # Simulate Local Bounds calculation (simulating _fmodule_bounds logic for Module)
+                    # Base corners relative to anchor (0,0)
+                    local_corners = [
+                        (-piv_x, -piv_y),
+                        (cw - piv_x, -piv_y),
+                        (-piv_x, ch - piv_y),
+                        (cw - piv_x, ch - piv_y)
+                    ]
+                    
+                    # Note: We reverted Flip adjustment in _fmodule_bounds for modules, so we do NOT apply flip to corners here.
+                    # Just rotation.
+                    
+                    lrad = math.radians(final_rot)
+                    lcos = math.cos(lrad)
+                    lsin = math.sin(lrad)
+                    
+                    local_transformed = []
+                    for lcx, lcy in local_corners:
+                        lrx = lcx * lcos - lcy * lsin
+                        lry = lcx * lsin + lcy * lcos
+                        local_transformed.append((lrx, lry))
+                        
+                    local_min_x = min(p[0] for p in local_transformed)
+                    local_min_y = min(p[1] for p in local_transformed)
+                    
+                    # 6. Calculate Anchor Position
+                    # We want: (Anchor + local_min) = target_min
+                    # So: Anchor = target_min - local_min
+                    
+                    nx = p_pos_x + target_min_x - local_min_x
+                    ny = p_pos_y + target_min_y - local_min_y
                     
                     temp_fm = FModule(
                         id="temp",
                         ref_type=child_fm.ref_type,
                         ref_id=child_fm.ref_id,
-                        position=(nx, ny),
+                        position=(int(nx), int(ny)),
                         flip_x=final_flip_x,
-                        flip_y=final_flip_y
+                        flip_y=final_flip_y,
+                        rotation_degrees=final_rot
                     )
                     self._draw_fmodule_content(gc, temp_fm, depth + 1)
 
@@ -612,120 +695,80 @@ class FrameCanvas(BaseCanvas):
                 w, h = mod.rect[2], mod.rect[3]
                 piv_x, piv_y = mod.pivot
                 
-                # Apply Rotation to Bounds Logic
-                # If rotated 90 or 270, w/h swap.
-                # Pivot handling is complex since drawing rotates around pivot?
-                # Actually, our draw logic rotates the bitmap.
-                # The visual pivot point on screen is (pos_x, pos_y).
-                # The bitmap is drawn such that the pivot is at (pos_x, pos_y).
-                # So we just need to know the dimensions of the ROTATED bitmap
-                # and finding the top-left relative to the pivot.
+                # Base corners relative to pivot
+                corners = [
+                    (0 - piv_x, 0 - piv_y),
+                    (w - piv_x, 0 - piv_y),
+                    (0 - piv_x, h - piv_y),
+                    (w - piv_x, h - piv_y)
+                ]
                 
-                rot = int(fm.rotation_degrees) % 360
+                # Apply Rotation
+                rad = math.radians(fm.rotation_degrees)
+                cos_a = math.cos(rad)
+                sin_a = math.sin(rad)
                 
-                # Calculate dimensions of the rotated sprite
-                if rot == 90 or rot == 270:
-                    rw, rh = h, w
-                else:
-                    rw, rh = w, h
+                final_points = []
+                for cx, cy in corners:
+                    rx = cx * cos_a - cy * sin_a
+                    ry = cx * sin_a + cy * cos_a
+                    final_points.append((rx, ry))
                     
-                # The pivot in the unrotated sprite is (px, py).
-                # In the rotated sprite, the "pivot pixel" is still the anchor.
-                # We need to find the Top-Left of the bounding box relative to the anchor.
+                # Find Bounds from corners
+                xs = [p[0] for p in final_points]
+                ys = [p[1] for p in final_points]
                 
-                # 0 deg: TL = (-px, -py)
-                # 90 deg (CW): TL = (- (h - 1 - py), - px) ?
-                # Let's derive:
-                # Source pixel (u,v). Center (px, py).
-                # 90 Rot: u' = h - 1 - v, v' = u.
-                # Anchor (px, py) maps to (h-1-py, px) in the new image space.
-                # So the new pivot inside the new image is (h-1-py, px).
-                # The new bounds are 0..rw, 0..rh.
-                # Top-Left relative to anchor is (-new_piv_x, -new_piv_y).
-                
-                if rot == 90:
-                    # New W=h, H=w.
-                    # Pivot maps to (h - py, px) roughly.
-                    new_px = h - piv_y
-                    new_py = piv_x
-                elif rot == 180:
-                    # New W=w, H=h.
-                    # Pivot maps to (w - px, h - py)
-                    new_px = w - piv_x
-                    new_py = h - piv_y
-                elif rot == 270:
-                    # New W=h, H=w.
-                    # Pivot maps to (py, w - px)
-                    new_px = piv_y
-                    new_py = w - piv_x
-                else:
-                    new_px, new_py = piv_x, piv_y
-                
-                top_left = (
-                    fm.position[0] - new_px,
-                    fm.position[1] - new_py,
+                return (
+                    min(xs) + fm.position[0],
+                    min(ys) + fm.position[1],
+                    max(xs) + fm.position[0],
+                    max(ys) + fm.position[1]
                 )
-                
-                # Note: we DON'T add self.frame_offset here because world_to_screen/local_to_world handles it.
-                # Bounds represent LOCAL coordinates.
-                return (top_left[0], top_left[1], top_left[0] + rw, top_left[1] + rh)
         
         elif fm.ref_type == "frame":
-            # For frames, we ideally calculate the bounding box of all its children.
-            # Avoid infinite recursion if possible.
-            # Simplified: treat frame as having (0,0) as its pivot/origin.
-            # Bounds = Union of child bounds relative to (0,0).
-            # If expensive, cache it? For now, recompute.
-            
             ref_frame = self.project.get_frame(fm.ref_id)
             if ref_frame:
-                # We need bounds of ref_frame relative to ITS origin.
-                # A frame's content is simply its fmodules positioned relative to (0,0).
-                # So we iterate children, get their bounds (assuming 0,0 offset), and unite.
+                # Parent Transform Props
+                p_flip_x = fm.flip_x
+                p_flip_y = fm.flip_y
+                p_rot = fm.rotation_degrees
+                
+                rad = math.radians(p_rot)
+                cos_a = math.cos(rad)
+                sin_a = math.sin(rad)
                 
                 min_x, min_y, max_x, max_y = 0, 0, 0, 0
                 first = True
                 
                 for child_fm in ref_frame.fmodules:
-                     # Get child bounds assuming NO parent offset (just local position)
-                     # We can't safely call _fmodule_bounds directly because it adds self.frame_offset
-                     # We need a helper that returns LOCAL bounds.
+                     # 1. Get Child Bounds in valid Frame Space
+                     cx0, cy0, cx1, cy1 = self._fmodule_bounds(child_fm)
                      
-                     # HACK: Temporarily set offset to 0? No, thread unsafe (if threaded).
-                     # Duplicate logic for local calculation.
+                     # 2. Transform corners by Parent Transform
+                     # Child bounds are relative to Frame Origin (0,0)
+                     child_corners = [
+                         (cx0, cy0), (cx1, cy0), (cx0, cy1), (cx1, cy1)
+                     ]
                      
-                     # 1. Local Position
-                     cx, cy = child_fm.position
-                     cw, ch = 32, 32 # Default
-                     piv_x, piv_y = 0, 0
-                     
-                     if child_fm.ref_type == "module":
-                         m = self.project.get_module(child_fm.ref_id)
-                         if m:
-                             cw, ch = m.rect[2], m.rect[3]
-                             piv_x, piv_y = m.pivot
-                     elif child_fm.ref_type == "frame":
-                          # Recursion? Limit depth.
-                          # For now, approximate frames as 32x32 to avoid deep recalc lag
-                          pass 
-
-                     # Child Bounds = (cx - piv_x, cy - piv_y, cx - piv_x + cw, cy - piv_y + ch)
-                     l = cx - piv_x
-                     t = cy - piv_y
-                     r = l + cw
-                     b = t + ch
-                     
-                     if first:
-                         min_x, min_y, max_x, max_y = l, t, r, b
-                         first = False
-                     else:
-                         min_x = min(min_x, l)
-                         min_y = min(min_y, t)
-                         max_x = max(max_x, r)
-                         max_y = max(max_y, b)
+                     for px, py in child_corners:
+                          # Flip
+                          if p_flip_x: px = -px
+                          if p_flip_y: py = -py
+                          
+                          # Rotate
+                          rx = px * cos_a - py * sin_a
+                          ry = px * sin_a + py * cos_a
+                          
+                          if first:
+                              min_x, min_y, max_x, max_y = rx, ry, rx, ry
+                              first = False
+                          else:
+                              min_x = min(min_x, rx)
+                              min_y = min(min_y, ry)
+                              max_x = max(max_x, rx)
+                              max_y = max(max_y, ry)
                 
                 if not first:
-                     # LOCAL Bounds
                      return (min_x + fm.position[0], min_y + fm.position[1], max_x + fm.position[0], max_y + fm.position[1])
 
         # Fallback
