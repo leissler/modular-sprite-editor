@@ -6,7 +6,7 @@
 	<dict>
 		<key>Resources/base_library.zip</key>
 		<data>
-		DHYnXL5adwIwucn0SfLfWt4JknQ=
+		9CygFowCBhWCUa+EiXR6rLRlv+o=
 		</data>
 		<key>Resources/icon-windowed.icns</key>
 		<data>
@@ -74,7 +74,7 @@
 		</data>
 		<key>Resources/ui/__pycache__/mapping_editor.cpython-314.pyc</key>
 		<data>
-		7UpVxuXty7v0aprKgv0YEG6IBUw=
+		3MMw2he5XEYD8UGtP7infGlA8nw=
 		</data>
 		<key>Resources/ui/__pycache__/module_editor.cpython-314.pyc</key>
 		<data>
@@ -86,7 +86,7 @@
 		</data>
 		<key>Resources/ui/__pycache__/utils.cpython-314.pyc</key>
 		<data>
-		J/xIM5iCr461WV+TN8Kf2v4nRUY=
+		AMtZ/xMs6YFsELME2q6/FmNICA0=
 		</data>
 		<key>Resources/ui/animation_editor.py</key>
 		<data>
@@ -126,7 +126,7 @@
 		</data>
 		<key>Resources/ui/mapping_editor.py</key>
 		<data>
-		yKURLaKbyVj80AQUoettCCibYbA=
+		x7lsBXUUJx8eDaAwufibkjyDPtI=
 		</data>
 		<key>Resources/ui/module_editor.py</key>
 		<data>
@@ -138,7 +138,7 @@
 		</data>
 		<key>Resources/ui/utils.py</key>
 		<data>
-		lIQYDvFaRmU58ojkLY7jfQ73cHU=
+		qxoziRne7FafVcJKSVoxxcSi+Y0=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -1042,7 +1042,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			1fTKdLYu+zYM+WDz1k3tmPG9n/P+47dk3e7U8v0Vf4w=
+			eWfB/Uobh1PGAWqnSvLENTkY1i4+Uo8z4N28isBj+sw=
 			</data>
 		</dict>
 		<key>Resources/icon-windowed.icns</key>
@@ -1271,7 +1271,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			9J3ihHp+Sos5sn7FVwDddGQCvuo7j/4mAzZNgZNEOeE=
+			irtEsYtl0t0y5lJ9yu7OCIei/imMTY35o/Cel0iP6us=
 			</data>
 		</dict>
 		<key>Resources/ui/__pycache__/module_editor.cpython-314.pyc</key>
@@ -1292,7 +1292,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			wUd/ZAOS8PdB7cpUSmmYNqHIv4b/iBepQ4x5rLHF2Dk=
+			s5304kwKRsF9VA68/yl787gKQCRwmfxve+n+pn4bayQ=
 			</data>
 		</dict>
 		<key>Resources/ui/animation_editor.py</key>
@@ -1362,7 +1362,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			lQucGzSv9FL/rjziuLo8YHbEEToZVTzwhnyW0OrTZNQ=
+			iSdIMyD4jV+IoGn/5BNDkZPnR2zzDy+HMTYrbjc/GBs=
 			</data>
 		</dict>
 		<key>Resources/ui/module_editor.py</key>
@@ -1383,7 +1383,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			eMXItZH5YpKcf2tOnHxZbeETnEZY7lYvylc/J8iq2zo=
+			e45VDKMI8KqijOW5CRZL3n3Y0hnTpGUee6qTMWVFqKc=
 			</data>
 		</dict>
 		<key>Resources/wx</key>

@@ -185,7 +185,31 @@ class ThumbnailGenerator:
                                 if flip_y:
                                     rel_y = content_h - rel_y - rh
                                     sub = sub.Mirror(False)
-                                    
+                                
+                                # Apply Rotation to Coordinates and Image
+                                rot_int = int(rotation) % 360
+                                if rot_int == 90:
+                                    # (x, y) -> (content_h - y - rh, x)
+                                    # New Width is content_h
+                                    new_x = content_h - rel_y - rh
+                                    new_y = rel_x
+                                    rel_x, rel_y = new_x, new_y
+                                    sub = sub.Rotate90(True) # Clockwise
+                                    rw, rh = rh, rw
+                                elif rot_int == 180:
+                                    # (x, y) -> (content_w - x - rw, content_h - y - rh)
+                                    new_x = content_w - rel_x - rw
+                                    new_y = content_h - rel_y - rh
+                                    rel_x, rel_y = new_x, new_y
+                                    sub = sub.Rotate180()
+                                elif rot_int == 270:
+                                    # (x, y) -> (y, content_w - x - rw)
+                                    new_x = rel_y
+                                    new_y = content_w - rel_x - rw
+                                    rel_x, rel_y = new_x, new_y
+                                    sub = sub.Rotate90(False) # Counter-Clockwise
+                                    rw, rh = rh, rw
+
                                 # Scale
                                 dest_x = off_x + rel_x * scale
                                 dest_y = off_y + rel_y * scale

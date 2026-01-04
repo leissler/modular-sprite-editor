@@ -24,7 +24,7 @@ class MappingVisualizer(wx.ScrolledWindow):
         # State
         self.highlight_idx = -1 # Index of slot being hovered
         self._drag_source_module_id: Optional[str] = None
-        self._show_names = False
+        self._show_names = True # Match Default Checkbox State
         self._zoom_scale = 1.0
 
         self.SetScrollRate(10, 10)
@@ -57,10 +57,17 @@ class MappingVisualizer(wx.ScrolledWindow):
         self.update_virtual_size()
 
     def update_virtual_size(self):
+        w, h = self.GetClientSize()
+        
+        if not self.mapping:
+            self.SetVirtualSize(w, h)
+            self.Scroll(0, 0)
+            return
+
         count = len(self.project.modules)
-        w, h = self._get_slot_size()
-        width = self.padding * 2 + count * (w + self.gap)
-        height = self.padding * 2 + (h * 2) + self.gap * 4 + 40 
+        w_slot, h_slot = self._get_slot_size()
+        width = self.padding * 2 + count * (w_slot + self.gap)
+        height = self.padding * 2 + (h_slot * 2) + self.gap * 4 + 40 
         self.SetVirtualSize(width, height)
 
     def on_size(self, event):
@@ -309,6 +316,7 @@ class MappingFramePreview(wx.ScrolledWindow):
         self.show_names: bool = True  
         
         self.SetBackgroundColour(wx.Colour(40, 40, 40))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetScrollRate(20, 20)
         
         self.generator = ThumbnailGenerator()
@@ -344,6 +352,11 @@ class MappingFramePreview(wx.ScrolledWindow):
         w, h = self.GetClientSize()
         if w < 10: w = 100
         
+        if not self.mapping:
+            self.SetVirtualSize(w, h)
+            self.Scroll(0, 0)
+            return
+
         full_w = self.item_size[0] + self.padding
         self.cols = max(1, w // full_w)
         
@@ -450,9 +463,8 @@ class MappingFramePreview(wx.ScrolledWindow):
         event.Skip()
 
     def on_paint(self, event):
-        dc = wx.AutoBufferedPaintDC(self)
+        dc = wx.PaintDC(self)
         self.DoPrepareDC(dc)
-        dc.Clear()
         dc.SetBackground(wx.Brush(wx.Colour(40, 40, 40)))
         dc.Clear()
         
