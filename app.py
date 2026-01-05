@@ -15,6 +15,7 @@ from ui.animation_editor import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.module_editor import ModuleEditorPanel
 from ui.mapping_editor import MappingEditorPanel
+import wx.lib.agw.flatnotebook as fnb
 
 APP_NAME = "RetroSpine"
 
@@ -84,22 +85,51 @@ class MainFrame(wx.Frame):
         self.status_bar = self.CreateStatusBar()
         self.status_bar.SetStatusText("Ready")
 
-        self.book = wx.Notebook(self)
+        if sys.platform == "win32":
+            # Windows: Use FlatNotebook (VC8 style) but DEFAULT colors
+            # Style: VC8 (Angled), No X button, No Nav buttons, No Dropdown
+            # Removing SMART_TABS as it might override VC8 look or cause extra icons.
+            # Adding NO_TAB_FOCUS just in case. FNB_TABS_BORDER_SIMPLE for clean look.
+            style = fnb.FNB_VC8 | fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_NO_TAB_FOCUS | fnb.FNB_TABS_BORDER_SIMPLE
+            self.book = fnb.FlatNotebook(self, style=style)
+            
+            
+        else:
+            # Mac / Others: Standard Native Notebook
+            self.book = wx.Notebook(self)
+        
         self.module_editor = ModuleEditorPanel(self.book, self.project)
         self.frame_editor = FrameEditorPanel(self.book, self.project)
         self.animation_editor = AnimationEditorPanel(self.book, self.project)
         self.mapping_editor = MappingEditorPanel(self.book, self.project)
-        self.book.AddPage(self.module_editor, "Modules", select=True)
-        self.book.AddPage(self.frame_editor, "Frames", select=False)
-        self.book.AddPage(self.animation_editor, "Animations", select=False)
-        self.book.AddPage(self.mapping_editor, "Mappings", select=False)
+        
+        # Add Pages (API is compatible)
+        # We keep the spaces for Windows readability (FlatNotebook), 
+        # but on Mac native control spaces might look weird? 
+        # User said "Mac I want the default look", usually means native labels too.
+        if sys.platform == "win32": 
+            pad = "  "
+        else:
+            pad = ""
+            
+        self.book.AddPage(self.module_editor, f"{pad}Modules{pad}", select=True)
+        self.book.AddPage(self.frame_editor, f"{pad}Frames{pad}", select=False)
+        self.book.AddPage(self.animation_editor, f"{pad}Animations{pad}", select=False)
+        self.book.AddPage(self.mapping_editor, f"{pad}Mappings{pad}", select=False)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.book, 1, wx.EXPAND)
         self.SetSizer(sizer)
 
         self.toolbar.Bind(wx.EVT_TOOL, self.on_switch_tool)
-        self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_changed)
+        
+        if sys.platform == "win32":
+            self.book.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CHANGED, self.on_page_changed)
+            # Prevent closing tabs
+            self.book.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CLOSING, self.on_page_closing)
+        else:
+            self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_changed)
+            
         self.Bind(wx.EVT_SIZE, self.on_size)
         
         # Initial Title/Status
@@ -108,7 +138,11 @@ class MainFrame(wx.Frame):
         # Wire Cross-Panel Events
         self.animation_editor.timeline.on_edit_frame = self.switch_to_frame_editor
 
-    def on_page_changed(self, event: wx.BookCtrlEvent) -> None:
+    def on_page_closing(self, event):
+        """Prevent tabs from being closed."""
+        event.Veto()
+
+    def on_page_changed(self, event) -> None:
         page_idx = event.GetSelection()
         if page_idx == 0:
             mode_name = "Modules"

@@ -88,6 +88,8 @@ class PointManagerPanel(wx.Panel):
                 wx.CallAfter(txt.SelectAll)
             else:
                 lbl = wx.StaticText(row, label=pt.name)
+                if pt.id == self.active_type_id:
+                     lbl.SetForegroundColour(wx.Colour(255, 255, 255))
                 # Bind click on label and row background to select
                 lbl.Bind(wx.EVT_LEFT_DOWN, lambda e, pid=pt.id: self.on_select(pid))
                 lbl.Bind(wx.EVT_LEFT_DCLICK, lambda e, pid=pt.id: self.on_label_dclick(e, pid))

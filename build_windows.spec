@@ -9,7 +9,7 @@ a = Analysis(
     datas=[
         ('ui', 'ui'),
     ],
-    hiddenimports=[],
+    hiddenimports=['wx.lib.agw.flatnotebook'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

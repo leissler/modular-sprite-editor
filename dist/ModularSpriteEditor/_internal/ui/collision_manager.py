@@ -88,6 +88,8 @@ class CollisionManagerPanel(wx.Panel):
                 wx.CallAfter(txt.SelectAll)
             else:
                 lbl = wx.StaticText(row, label=ct.name)
+                if ct.id == self.active_type_id:
+                     lbl.SetForegroundColour(wx.Colour(255, 255, 255))
                 # Bind click on label and row background to select
                 lbl.Bind(wx.EVT_LEFT_DOWN, lambda e, cid=ct.id: self.on_select(cid))
                 lbl.Bind(wx.EVT_LEFT_DCLICK, lambda e, cid=ct.id: self.on_label_dclick(e, cid))
