@@ -10,10 +10,10 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-if exist .venv (
-    if not exist ".venv\Scripts\activate.bat" (
+if exist .venv_win (
+    if not exist ".venv_win\Scripts\activate.bat" (
         echo [WARNING] Found broken virtual environment. Removing...
-        rmdir /s /q .venv
+        rmdir /s /q .venv_win
         goto :create_venv
     )
     goto :venv_exists
@@ -21,7 +21,7 @@ if exist .venv (
 
 :create_venv
 echo Creating virtual environment (with --copies for shared drive compatibility)...
-python -m venv .venv --copies
+python -m venv .venv_win --copies
 if %errorlevel% neq 0 goto :venv_error
 goto :activate
 
@@ -29,7 +29,7 @@ goto :activate
 echo Virtual environment found and looks valid.
 
 :activate
-call .venv\Scripts\activate.bat
+call .venv_win\Scripts\activate.bat
 if %errorlevel% neq 0 goto :venv_broken
 
 echo Installing dependencies...
@@ -42,8 +42,8 @@ if %errorlevel% neq 0 (
 )
 
 echo Cleaning previous builds...
-if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
+if exist build\windows rmdir /s /q build\windows
+if exist dist\windows rmdir /s /q dist\windows
 
 echo.
 echo [INFO] Shared Drive detected. Building in local TEMP folder to avoid permission errors...
@@ -61,11 +61,11 @@ if %errorlevel% neq 0 (
 
 echo.
 echo Copying artifacts back to project folder...
-mkdir dist
-xcopy /E /I /Y "%BUILD_ROOT%\dist\ModularSpriteEditor" "dist\ModularSpriteEditor"
+mkdir dist\windows
+copy /Y "%BUILD_ROOT%\dist\ModularSpriteEditor.exe" "dist\windows\ModularSpriteEditor.exe"
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to copy build artifacts back to Z:.
-    echo The build is available at: %BUILD_ROOT%\dist\ModularSpriteEditor
+    echo The build is available at: %BUILD_ROOT%\dist\ModularSpriteEditor.exe
     pause
     exit /b
 )
@@ -75,7 +75,7 @@ echo ==========================================
 echo Build complete!
 echo Cleaning up temp files...
 rmdir /s /q "%BUILD_ROOT%"
-echo Executable: dist\ModularSpriteEditor\ModularSpriteEditor.exe
+echo Executable: dist\windows\ModularSpriteEditor.exe
 echo ==========================================
 pause
 exit /b
