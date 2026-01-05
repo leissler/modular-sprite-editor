@@ -20,6 +20,7 @@ class BaseCanvas(wx.Panel):
         self.pan: Tuple[float, float] = (0, 0)
         self.grid_spacing: Tuple[int, int] = (32, 32)
         self.show_grid: bool = True
+        self.max_zoom: float = 32.0
         
         # Internal Interaction State
         self._wheel_accumulator = 0
@@ -184,7 +185,7 @@ class BaseCanvas(wx.Panel):
 
         factor = 1.1 ** steps # Exponential zoom for multiple steps
         now = time.monotonic()
-        max_zoom = 32.0
+        max_zoom = self.max_zoom
         min_zoom = 1.0
 
         # Bounce protection logic

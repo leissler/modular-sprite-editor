@@ -14,7 +14,7 @@ class ThumbnailGenerator:
         type_str = "Unknown"
         if getattr(item, 'fmodules', None) is not None: type_str = "Frame"
         elif getattr(item, 'image_id', None) is not None: type_str = "Module"
-        wx.MessageBox(f"Generating Thumbnail for {type_str}", "Debug")
+        # Debug removed
         
         bmp = wx.Bitmap(width, height)
         dc = wx.MemoryDC(bmp)

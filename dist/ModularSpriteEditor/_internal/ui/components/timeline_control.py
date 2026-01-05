@@ -190,7 +190,8 @@ class TimelineControl(wx.ScrolledWindow):
              dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
              dc.Clear()
         except Exception as e:
-             wx.MessageBox(f"Paint Error: {e}", "Error")
+             # print(f"Paint Error: {e}")
+             pass
              return
 
         if not self.animation:
@@ -230,11 +231,6 @@ class TimelineControl(wx.ScrolledWindow):
             # Render Content - USE BITMAP METHOD LIKE FRAME PALETTE
             frame = self.project.get_frame(af.frame_id)
             
-            # DEBUG: Check if frame resolution is failing
-            if i == 0 and not getattr(self, "_debug_shown", False):
-                 wx.MessageBox(f"Timeline Debug: FrameID='{af.frame_id}' Found={frame is not None}", "Debug")
-                 self._debug_shown = True
-
             if frame:
                 rot = getattr(af, "rotation_degrees", 0.0)
                 bmp = self.generator.render_thumbnail(

@@ -346,8 +346,9 @@ class FrameEditorPanel(wx.Panel):
         self.frame_list.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag_frame)
         self.frame_list.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.on_begin_label_edit)
         self.frame_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_end_label_edit)
-        self.frame_list.Bind(wx.EVT_LEFT_UP, self.on_frame_list_mouseup) # Deferred selection
+        # MouseUp binding removed
         self.frame_list.SetDropTarget(FrameListDropTarget(self))
+        self.frame_list.Bind(wx.EVT_SIZE, self.on_frame_list_resize)
         
         left_sizer.Add(self.frame_list, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -1009,6 +1010,11 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.Refresh()
 
     # QoL Implementations
+    def on_frame_list_resize(self, event):
+        width = self.frame_list.GetClientSize().width
+        self.frame_list.SetColumnWidth(0, width)
+        event.Skip()
+
     def on_frame_dclick(self, event):
         idx = event.GetIndex()
         if idx != -1:
@@ -1131,22 +1137,11 @@ class FrameEditorPanel(wx.Panel):
             # Assume list order == project order
             if 0 <= idx < len(self.project.frames):
                 frame = self.project.frames[idx]
-                
-                # Deferred Selection Logic:
-                # If mouse is down, user might be dragging. Delay switch until MouseUp.
-                # If keyboard nav (mouse up), switch immediately.
-                if wx.GetMouseState().LeftIsDown():
-                     self._pending_frame_switch = frame
-                else:
-                     self._switch_canvas_view(frame)
+                self._switch_canvas_view(frame)
         else:
             self.canvas.set_frame(None)
             
-    def on_frame_list_mouseup(self, event):
-        if getattr(self, '_pending_frame_switch', None):
-            self._switch_canvas_view(self._pending_frame_switch)
-            self._pending_frame_switch = None
-        event.Skip()
+    # on_frame_list_mouseup removed
             
     def _switch_canvas_view(self, frame):
         self.selected_frame_id = frame.id

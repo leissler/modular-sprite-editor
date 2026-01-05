@@ -22,6 +22,7 @@ class FrameCanvas(BaseCanvas):
 
     def __init__(self, parent: wx.Window, project: Project, read_only: bool = False):
         super().__init__(parent)
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT) # Critical for Mac/Win behavior
         self.project = project
         self.read_only = read_only
         self.frame: Optional[Frame] = None

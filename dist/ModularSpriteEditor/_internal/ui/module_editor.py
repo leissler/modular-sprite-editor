@@ -20,6 +20,7 @@ class ModuleCanvas(BaseCanvas):
 
     def __init__(self, parent: wx.Window):
         super().__init__(parent)
+        self.max_zoom = 16.0 # Cap zoom to prevent extreme lag on large bitmaps
         self.bitmap: Optional[wx.Bitmap] = None
         self.image_size: Tuple[int, int] = (0, 0)
         self.selection: Optional[Tuple[int, int, int, int]] = None
@@ -53,7 +54,7 @@ class ModuleCanvas(BaseCanvas):
 
         self.on_selection_changed: Optional[Callable[[Optional[Tuple[int, int, int, int]]], None]] = None
         self.on_pivot_changed: Optional[Callable[[Optional[Tuple[int, int]]], None]] = None
-
+        
     def on_key_down(self, event: wx.KeyEvent) -> None:
         key = event.GetKeyCode()
         if key == wx.WXK_DELETE or key == wx.WXK_BACK:
@@ -66,6 +67,7 @@ class ModuleCanvas(BaseCanvas):
     def set_bitmap(self, bmp: Optional[wx.Bitmap], size: Tuple[int, int], reset_state: bool = True) -> None:
         self.bitmap = bmp
         self.image_size = size
+        
         if reset_state:
             self.selection = None
             self.pivot = None
@@ -127,9 +129,12 @@ class ModuleCanvas(BaseCanvas):
         hit = self._hit_module_overlay(world)
         if hit:
             hit_id, hit_selected = hit
-            if self.on_module_clicked:
-                self.on_module_clicked(hit_id)
-                return
+            # Only trigger selection if we clicked a DIFFERENT module.
+            # If we clicked the selected one, we want to fall through to Move logic.
+            if not hit_selected:
+                if self.on_module_clicked:
+                    self.on_module_clicked(hit_id)
+                    return
 
         # Check for move (clicking inside existing selection)
         if self.selection and self._hit_rect(world, self.selection):
@@ -308,21 +313,64 @@ class ModuleCanvas(BaseCanvas):
             self.Refresh(False)
 
     # Drawing
+    # Drawing
     def on_paint(self, _: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
         if self.transparent_view:
             self._draw_checkerboard(dc)
         gc = wx.GraphicsContext.Create(dc)
-        if hasattr(gc, "SetAntialiasMode"):
-            gc.SetAntialiasMode(wx.ANTIALIAS_NONE)
-        if hasattr(gc, "SetInterpolationQuality"):
-            gc.SetInterpolationQuality(wx.INTERPOLATION_NONE)
+        
+        # Revert to standard AA to match Frame Editor layout
+        
         if self.bitmap:
-            sx, sy = self.world_to_screen((0, 0))
-            w = self.bitmap.GetWidth() * self.zoom
-            h = self.bitmap.GetHeight() * self.zoom
-            gc.DrawBitmap(self.bitmap, sx, sy, w, h)
+            # Viewport Culling Optimization
+            # Instead of scaling the entire image, we only scale what's visible.
+            
+            # 1. Get Visible World Bounds
+            cw, ch = self.GetClientSize()
+            
+            # Screen (0,0) and (cw,ch) to World
+            # We add a 1-pixel margin to avoid tearing at edges
+            wx0, wy0 = self.screen_to_world(wx.Point(0, 0))
+            wx1, wy1 = self.screen_to_world(wx.Point(cw, ch))
+            
+            # 2. Intersect with Image Bounds
+            ix, iy = 0, 0
+            iw, ih = self.bitmap.GetWidth(), self.bitmap.GetHeight()
+            
+            # Visible rectangle in Image Space
+            vx0 = max(0, int(wx0))
+            vy0 = max(0, int(wy0))
+            vx1 = min(iw, int(wx1) + 1) # +1 ceil
+            vy1 = min(ih, int(wy1) + 1)
+            
+            vw, vh = vx1 - vx0, vy1 - vy0
+            
+            if vw > 0 and vh > 0:
+                # 3. Extract Sub-Image (The visible chunk)
+                rect = wx.Rect(vx0, vy0, vw, vh)
+                sub_img = self.bitmap.GetSubBitmap(rect).ConvertToImage()
+                
+                # 4. Scale Sub-Image to Screen Size
+                # We need to calculate exactly where on screen this chunk lands
+                # Viewport world pos (vx0, vy0) -> Screen pos
+                
+                screen_x, screen_y = self.world_to_screen((vx0, vy0))
+                
+                # Target dimensions on screen
+                target_w = int(round(vw * self.zoom))
+                target_h = int(round(vh * self.zoom))
+                
+                # Rescale only if dimensions are positive
+                if target_w > 0 and target_h > 0:
+                    sub_img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
+                    scaled_sub_bmp = sub_img.ConvertToBitmap()
+                    
+                    # Draw at the calculated screen position
+                    # Rounding screen coordinates to align with pixel grid logic
+                    gc.DrawBitmap(scaled_sub_bmp, round(screen_x), round(screen_y), target_w, target_h)
+
         self._draw_grid(gc)
         if self.selection:
             x, y, w, h = self.selection
@@ -332,20 +380,25 @@ class ModuleCanvas(BaseCanvas):
             if h < 0:
                 y += h
                 h = -h
-            sx0, sy0 = self.world_to_screen((x, y))
+            
+            # Calculate THEN round (Fixes offset on Win, matches image placement)
+            raw_sx, raw_sy = self.world_to_screen((x, y))
+            sx0, sy0 = round(raw_sx), round(raw_sy)
+            dw, dh = round(w * self.zoom), round(h * self.zoom)
+
             if self.selection_style == "active":
                 # Selected module: White dashed
                 gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=2, style=wx.PENSTYLE_SHORT_DASH))
                 gc.SetBrush(wx.Brush(wx.Colour(40, 120, 200, 40)))
-                gc.DrawRectangle(sx0, sy0, w * self.zoom, h * self.zoom)
+                gc.DrawRectangle(sx0, sy0, dw, dh)
             else:
                 # Dashed colorful outline for selected module
                 pen = wx.Pen(wx.Colour(40, 200, 240), width=2, style=wx.PENSTYLE_SHORT_DASH)
                 gc.SetPen(pen)
                 gc.SetBrush(wx.TRANSPARENT_BRUSH)
-                gc.DrawRectangle(sx0, sy0, w * self.zoom, h * self.zoom)
+                gc.DrawRectangle(sx0, sy0, dw, dh)
                 # Draw handles
-                self._draw_handles(gc, sx0, sy0, w * self.zoom, h * self.zoom)
+                self._draw_handles(gc, sx0, sy0, dw, dh)
 
         # Module overlays (unselected)
         if self.module_overlays:
@@ -359,7 +412,8 @@ class ModuleCanvas(BaseCanvas):
                 sx0, sy0 = self.world_to_screen((x, y))
                 gc.SetBrush(wx.TRANSPARENT_BRUSH)
                 gc.SetPen(pen_unselected)
-                gc.DrawRectangle(sx0, sy0, w * self.zoom, h * self.zoom)
+                # Apply rounding here too
+                gc.DrawRectangle(round(sx0), round(sy0), round(w * self.zoom), round(h * self.zoom))
         if self.pivot and self.selection:
             # Only draw pivot if selection has size OR we are actively dragging/hovering it
             # This prevents the "red crosshair" from showing up on a simple click (empty selection)
@@ -368,6 +422,9 @@ class ModuleCanvas(BaseCanvas):
                 sx, sy = self.world_to_screen(self.pivot)
                 color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
                 gc.SetPen(wx.Pen(color, width=2))
+                # Pivot center crosshair should also snap? Usually simpler to leave as is, or snap for consistency.
+                # Let's snap it.
+                sx, sy = round(sx), round(sy)
                 gc.StrokeLine(sx - 8, sy, sx + 8, sy)
                 gc.StrokeLine(sx, sy - 8, sx, sy + 8)
 
