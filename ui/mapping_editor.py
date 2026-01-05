@@ -75,7 +75,7 @@ class MappingVisualizer(wx.ScrolledWindow):
         event.Skip()
 
     def on_paint(self, event):
-        dc = wx.PaintDC(self)
+        dc = wx.AutoBufferedPaintDC(self)
         self.DoPrepareDC(dc)
         dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
         dc.Clear()
@@ -463,7 +463,7 @@ class MappingFramePreview(wx.ScrolledWindow):
         event.Skip()
 
     def on_paint(self, event):
-        dc = wx.PaintDC(self)
+        dc = wx.AutoBufferedPaintDC(self)
         self.DoPrepareDC(dc)
         dc.SetBackground(wx.Brush(wx.Colour(40, 40, 40)))
         dc.Clear()
@@ -631,6 +631,13 @@ class MappingEditorPanel(wx.Panel):
         
         self.chk_names.Bind(wx.EVT_CHECKBOX, self.on_toggle_names)
         self.slider_zoom.Bind(wx.EVT_SLIDER, self.on_zoom)
+        
+        self.list_ctrl.Bind(wx.EVT_SIZE, self.on_list_resize)
+
+    def on_list_resize(self, event):
+        width = self.list_ctrl.GetClientSize().width
+        self.list_ctrl.SetColumnWidth(0, width)
+        event.Skip()
 
     def set_project(self, project: Project):
         self.project = project

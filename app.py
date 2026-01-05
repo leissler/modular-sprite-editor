@@ -100,6 +100,7 @@ class MainFrame(wx.Frame):
 
         self.toolbar.Bind(wx.EVT_TOOL, self.on_switch_tool)
         self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page_changed)
+        self.Bind(wx.EVT_SIZE, self.on_size)
         
         # Initial Title/Status
         self.status_bar.SetStatusText("Active Mode: Modules")
@@ -143,6 +144,11 @@ class MainFrame(wx.Frame):
             
         self.SetTitle(f"{APP_NAME} - {fname} - [{mode_name}]")
         self.status_bar.SetStatusText(f"Active Mode: {mode_name}")
+        
+    def on_size(self, event: wx.SizeEvent) -> None:
+        self.Layout()
+        self.Refresh()
+        event.Skip()
 
     # UI construction
     def _build_menu(self) -> None:
