@@ -1165,12 +1165,21 @@ class FrameEditorPanel(wx.Panel):
             self.palette.Show()
             self.col_manager.Hide()
             self.point_manager.Hide()
+            
+            # Clear other selections
+            self.canvas.selected_collision_rects = []
+            self.canvas.selected_points = []
+            
         elif sel == 1: # Collision
             self.canvas.edit_mode = "collision"
             self.lbl_modules.Hide()
             self.palette.Hide()
             self.col_manager.Show()
             self.point_manager.Hide()
+            
+            # Clear other selections
+            self.canvas.selected_fmodules = []
+            self.canvas.selected_points = []
             
             if self.col_manager.active_type_id:
                 self.canvas.active_collision_type_id = self.col_manager.active_type_id
@@ -1180,6 +1189,10 @@ class FrameEditorPanel(wx.Panel):
             self.palette.Hide()
             self.col_manager.Hide()
             self.point_manager.Show()
+            
+            # Clear other selections
+            self.canvas.selected_fmodules = []
+            self.canvas.selected_collision_rects = []
             
             if self.point_manager.active_type_id:
                 self.canvas.active_point_type_id = self.point_manager.active_type_id
