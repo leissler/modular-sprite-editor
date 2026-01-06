@@ -166,13 +166,6 @@ class FrameCanvas(BaseCanvas):
              vis_rect = self.GetClientSize()
              gc.DrawRectangle(0, 0, vis_rect.width, vis_rect.height)
              
-        # Selection Overlays for Modules (only in module mode AND NOT showing collisions)
-        # User requested: "When collrects in the module mode are shown, the module selection rects should be hidden"
-        if self.edit_mode == "module" and not self.show_collision:
-            for fm in self.frame.fmodules:
-                if fm.id in self.selected_fmodules:
-                    self._draw_fmodule_overlay(gc, fm)
-            
         # Draw Collision Rects
         # Always visible if show_collision or in collision mode
         if self.show_collision or self.edit_mode == "collision":
@@ -184,6 +177,11 @@ class FrameCanvas(BaseCanvas):
                      
                 self._draw_collision(gc, cr)
                 
+        # Selection Overlays for Modules (Drawn ON TOP of collision rects)
+        if self.edit_mode == "module":
+            for fm in self.frame.fmodules:
+                if fm.id in self.selected_fmodules:
+                    self._draw_fmodule_overlay(gc, fm)
         if self.show_points or self.edit_mode == "point":
             for cp in self.frame.control_points:
                 # Check visibility
