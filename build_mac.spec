@@ -8,6 +8,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('ui', 'ui'),
+        ('assets', 'assets'),
     ],
     hiddenimports=['PIL._tkinter_finder'],
     hookspath=[],
@@ -52,6 +53,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='ModularSpriteEditor.app',
-    icon=None,
+    icon='assets/icon.icns',
     bundle_identifier='com.martinth.modularspriteeditor',
 )

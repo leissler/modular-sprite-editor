@@ -360,6 +360,17 @@ class MainFrame(wx.Frame):
             self.frame_editor.canvas.set_frame(frame)
 
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
 class SpriteEditorApp(wx.App):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -371,6 +382,17 @@ class SpriteEditorApp(wx.App):
 
     def OnInit(self) -> bool:  # type: ignore[N802]
         frame = MainFrame()
+        
+        # Set Icon (Windows needs explicit setting for Taskbar/Window)
+        if sys.platform == "win32":
+            try:
+                icon_path = resource_path(os.path.join("assets", "icon.ico"))
+                if os.path.exists(icon_path):
+                    icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
+                    frame.SetIcon(icon)
+            except Exception as e:
+                print(f"Failed to load icon: {e}")
+        
         frame.Show()
         self.SetTopWindow(frame)
         return True

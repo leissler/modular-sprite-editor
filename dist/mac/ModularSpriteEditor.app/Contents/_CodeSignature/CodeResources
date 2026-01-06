@@ -6,11 +6,11 @@
 	<dict>
 		<key>Resources/base_library.zip</key>
 		<data>
-		KD/iViYQ+oQofI6Li9ug9RGnjlA=
+		CHNF/ctOP76W7kSsJCetZwZROYE=
 		</data>
-		<key>Resources/icon-windowed.icns</key>
+		<key>Resources/icon.icns</key>
 		<data>
-		eEHOuYpZLB0vKGVIWGZOh5rH8+o=
+		c9ZM2gqOA5KCIJFZAOw74/+r+GE=
 		</data>
 		<key>Resources/setuptools/_vendor/importlib_metadata-8.0.0.dist-info/INSTALLER</key>
 		<data>
@@ -1042,14 +1042,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			wDwiUtXYcT4cKKF8X5Rzaq8Wb3h6oGMnIuHVnd1c0q0=
+			U8ZCg8AR7wsK4R8P0QWHQCx4yYLWaEMEkClbo549rs8=
 			</data>
 		</dict>
-		<key>Resources/icon-windowed.icns</key>
+		<key>Resources/icon.icns</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			uQo7VuWRab4Phv4EEGmfQsyqFqDIXZgO8OtgaAMvCzY=
+			sNjiRCmGZPEztHJjMv6PnQaGVcs03YCcF6qvP4qQXhA=
 			</data>
 		</dict>
 		<key>Resources/libXau.6.dylib</key>
