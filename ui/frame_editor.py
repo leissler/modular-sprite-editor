@@ -329,11 +329,11 @@ class FrameEditorPanel(wx.Panel):
         self._clipboard_col: List = [] 
         self._clipboard_pts: List = []
         
-        # Layout
-        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Layout: Splitter
+        self.splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
         # Left Panel: Frames List + Module Palette
-        left_panel = wx.Panel(self)
+        left_panel = wx.Panel(self.splitter)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Frames List (ListCtrl for better DnD and Inline Rename)
@@ -396,13 +396,22 @@ class FrameEditorPanel(wx.Panel):
         
         left_panel.SetSizer(left_sizer)
         
-        # Center: Canvas
-        self.canvas = FrameCanvas(self, project)
+        # Right Panel: Canvas
+        right_panel = wx.Panel(self.splitter)
+        canvas_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        self.canvas = FrameCanvas(right_panel, project)
         self.canvas.on_create_frame_needed = self.on_auto_create_frame
         
-        main_sizer.Add(left_panel, 0, wx.EXPAND)
-        main_sizer.Add(self.canvas, 1, wx.EXPAND)
+        canvas_sizer.Add(self.canvas, 1, wx.EXPAND)
+        right_panel.SetSizer(canvas_sizer)
         
+        # Split
+        self.splitter.SplitVertically(left_panel, right_panel, 340)
+        self.splitter.SetMinimumPaneSize(200)
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(self.splitter, 1, wx.EXPAND)
         self.SetSizer(main_sizer)
         
         # Bindings

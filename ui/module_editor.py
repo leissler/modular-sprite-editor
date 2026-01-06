@@ -546,14 +546,19 @@ class ModuleEditorPanel(wx.Panel):
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
         self._modules_view: list[Module] = []
 
-        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sidebar = wx.BoxSizer(wx.VERTICAL)
-        canvas_sizer = wx.BoxSizer(wx.VERTICAL)
+        # Layout: Splitter
+        self.splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
-        self.SetSizer(main_sizer)
+        # Left Panel (Sidebar)
+        self.left_panel = wx.Panel(self.splitter)
+        sidebar = wx.BoxSizer(wx.VERTICAL)
+        
+        # Right Panel (Canvas)
+        self.right_panel = wx.Panel(self.splitter)
+        canvas_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Images
-        img_box = wx.StaticBox(self, label="Images")
+        img_box = wx.StaticBox(self.left_panel, label="Images")
         img_sizer = wx.StaticBoxSizer(img_box, wx.VERTICAL)
         self.image_list = wx.ListBox(img_box)
         img_btns = wx.BoxSizer(wx.HORIZONTAL)
@@ -576,7 +581,7 @@ class ModuleEditorPanel(wx.Panel):
         img_sizer.Add(trans_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
 
         # Modules
-        self.mod_box = wx.StaticBox(self, label="Modules")
+        self.mod_box = wx.StaticBox(self.left_panel, label="Modules")
         mod_sizer = wx.StaticBoxSizer(self.mod_box, wx.VERTICAL)
         self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.module_list.InsertColumn(0, "Name", width=120)
@@ -611,7 +616,7 @@ class ModuleEditorPanel(wx.Panel):
         mod_sizer.Add(mod_edit_btns, 0, wx.EXPAND | wx.ALL, 4)
 
         # Grid slicing controls
-        slice_box = wx.StaticBox(self, label="Grid Slice")
+        slice_box = wx.StaticBox(self.left_panel, label="Grid Slice")
         slice_sizer = wx.StaticBoxSizer(slice_box, wx.VERTICAL)
         grid = wx.FlexGridSizer(rows=0, cols=2, vgap=4, hgap=4)
         grid.Add(wx.StaticText(slice_box, label="Tile Width"), 0, wx.ALIGN_CENTER_VERTICAL)
@@ -627,37 +632,46 @@ class ModuleEditorPanel(wx.Panel):
         sidebar.Add(img_sizer, 1, wx.EXPAND | wx.ALL, 4)
         sidebar.Add(mod_sizer, 2, wx.EXPAND | wx.ALL, 4)
         sidebar.Add(slice_sizer, 0, wx.EXPAND | wx.ALL, 4)
+        
+        self.left_panel.SetSizer(sidebar)
 
         # Canvas Pane
-        self.canvas = ModuleCanvas(self)
+        self.canvas = ModuleCanvas(self.right_panel)
         canvas_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
         
         # Compact view grid controls
         controls = wx.BoxSizer(wx.HORIZONTAL)
-        controls.Add(wx.StaticText(self, label="Grid X"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.grid_w = wx.SpinCtrl(self, min=4, max=512, initial=32)
+        controls.Add(wx.StaticText(self.right_panel, label="Grid X"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.grid_w = wx.SpinCtrl(self.right_panel, min=4, max=512, initial=32)
         controls.Add(self.grid_w, 0, wx.RIGHT, 8)
-        controls.Add(wx.StaticText(self, label="Grid Y"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.grid_h = wx.SpinCtrl(self, min=4, max=512, initial=32)
+        controls.Add(wx.StaticText(self.right_panel, label="Grid Y"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.grid_h = wx.SpinCtrl(self.right_panel, min=4, max=512, initial=32)
         controls.Add(self.grid_h, 0, wx.RIGHT, 12)
-        self.chk_grid = wx.CheckBox(self, label="Show Grid")
+        self.chk_grid = wx.CheckBox(self.right_panel, label="Show Grid")
         self.chk_grid.SetValue(True)
         controls.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.chk_trans_view = wx.CheckBox(self, label="Transparency")
+        self.chk_trans_view = wx.CheckBox(self.right_panel, label="Transparency")
         self.chk_trans_view.SetValue(True)
         controls.Add(self.chk_trans_view, 0, wx.ALIGN_CENTER_VERTICAL)
         canvas_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         
         # Status labels
         status_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.selection_label = wx.StaticText(self, label="Selection: -", size=(300, -1))
-        self.pivot_label = wx.StaticText(self, label="Pivot: -", size=(200, -1))
+        self.selection_label = wx.StaticText(self.right_panel, label="Selection: -", size=(300, -1))
+        self.pivot_label = wx.StaticText(self.right_panel, label="Pivot: -", size=(200, -1))
         status_sizer.Add(self.selection_label, 0, wx.RIGHT, 15)
         status_sizer.Add(self.pivot_label, 0)
         canvas_sizer.Add(status_sizer, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         
-        main_sizer.Add(sidebar, 0, wx.EXPAND)
-        main_sizer.Add(canvas_sizer, 1, wx.EXPAND)
+        self.right_panel.SetSizer(canvas_sizer)
+        
+        # Split
+        self.splitter.SplitVertically(self.left_panel, self.right_panel, 340)
+        self.splitter.SetMinimumPaneSize(200)
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(self.splitter, 1, wx.EXPAND)
+        self.SetSizer(main_sizer)
 
         # Events
         self.btn_import.Bind(wx.EVT_BUTTON, self.on_import_image)

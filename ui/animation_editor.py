@@ -42,6 +42,8 @@ class AnimationEditorPanel(wx.Panel):
         # List of Animations (Editable Labels for renaming)
         self.anim_list = wx.ListCtrl(anim_box, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
         self.anim_list.InsertColumn(0, "Name", width=200)
+        self.anim_list.Bind(wx.EVT_SIZE, self.on_anim_list_size)
+        self.anim_list.Bind(wx.EVT_SIZE, self.on_anim_list_size)
         
         anim_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add_anim = wx.Button(anim_box, label="Add")
@@ -245,6 +247,12 @@ class AnimationEditorPanel(wx.Panel):
 
         self.refresh_animations()
         self.frame_palette.refresh_frames()
+
+    def on_anim_list_size(self, event):
+        width = self.anim_list.GetClientSize().width
+        if width > 0:
+            self.anim_list.SetColumnWidth(0, width)
+        event.Skip()
 
     def refresh_choices(self) -> None:
         """Called by app.py when switching to this tab."""

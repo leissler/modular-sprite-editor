@@ -17,7 +17,7 @@ from ui.module_editor import ModuleEditorPanel
 from ui.mapping_editor import MappingEditorPanel
 import wx.lib.agw.flatnotebook as fnb
 
-APP_NAME = "RetroSpine"
+APP_NAME = "Modular Sprite Editor"
 
 def _mac_force_app_menu_title(title: str) -> None:
     """macOS-only: override the application menu title when running under Python."""
@@ -72,18 +72,21 @@ def _mac_force_app_menu_title(title: str) -> None:
 
 
 class MainFrame(wx.Frame):
-    def __init__(self) -> None:
-        super().__init__(None, title=APP_NAME, size=(1200, 800))
-        self.project: Project = Project()
-        self.current_path: Optional[str] = None
+    def __init__(self, parent=None, title="Modular Sprite Editor"):
+        super(MainFrame, self).__init__(parent, title=title, size=(1200, 800))
+        
+        self.project = Project()
+        self.current_path = None
 
         self._build_menu()
+        
+        # Icon setup
+        if os.path.exists(resource_path('assets/icon.png')):
+             icon = wx.Icon(resource_path('assets/icon.png'))
+             self.SetIcon(icon)
         self.toolbar = self.CreateToolBar(style=wx.TB_HORIZONTAL | wx.TB_TEXT)
         self._add_toolbar_tools()
         self.toolbar.Realize()
-
-        self.status_bar = self.CreateStatusBar()
-        self.status_bar.SetStatusText("Ready")
 
         if sys.platform == "win32":
             # Windows: Use FlatNotebook (VC8 style) but DEFAULT colors
@@ -132,8 +135,6 @@ class MainFrame(wx.Frame):
             
         self.Bind(wx.EVT_SIZE, self.on_size)
         
-        # Initial Title/Status
-        self.status_bar.SetStatusText("Active Mode: Modules")
         
         # Wire Cross-Panel Events
         self.animation_editor.timeline.on_edit_frame = self.switch_to_frame_editor
@@ -164,6 +165,9 @@ class MainFrame(wx.Frame):
         self._update_title()
         event.Skip()
 
+    def update_status(self, message):
+        pass
+        
     def _update_title(self) -> None:
         fname = "New Project"
         if self.current_path:
@@ -177,7 +181,6 @@ class MainFrame(wx.Frame):
         elif page_idx == 3: mode_name = "Mappings"
             
         self.SetTitle(f"{APP_NAME} - {fname} - [{mode_name}]")
-        self.status_bar.SetStatusText(f"Active Mode: {mode_name}")
         
     def on_size(self, event: wx.SizeEvent) -> None:
         self.Layout()
