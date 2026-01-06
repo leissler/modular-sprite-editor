@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+.venv/
+.venv_win/
+.venv_mac/
+ENV/
+
+# PyInstaller & Build Tools
+*.manifest
+*.spec
+build_windows.bat
+build_macos.sh
+update_icons.py
+
+# Generated Assets
+assets/icon_source.png
+assets/icon.ico
+assets/icon.icns
+assets/icon.iconset/
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+
+# Project Specific
+# (We exclude the build folders, but we keep the spec files and scripts)
+# Generated Icons (Keep the pipeline source and final assets, but maybe not the intermediate iconset folder?)
+# Actually, keeping assets/icon.ico and assets/icon.icns involves binary blobs but they are small and useful for the repo.
+# We DO check in the assets.

@@ -1,0 +1,19 @@
+# Auto-detect text files and normalize line endings to LF on check-in
+* text=auto
+
+# Force specific line endings for scripts
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets (images, icons, etc.)
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.sprite binary
+
+# PyInstaller specs are python-like text
+*.spec text
