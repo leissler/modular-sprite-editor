@@ -4,13 +4,65 @@
 <dict>
 	<key>files</key>
 	<dict>
+		<key>Resources/assets/icon.icns</key>
+		<data>
+		kSKR62P4GFrLWeVrmvFSkc1Rgz0=
+		</data>
+		<key>Resources/assets/icon.ico</key>
+		<data>
+		Mm0Vh3EYW8rQb4pOf48F6PRIX20=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_128x128.png</key>
+		<data>
+		BFm1zmXqGfSZldx61lOFC1xW7QY=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_128x128@2x.png</key>
+		<data>
+		24+iDxsgobh/enMw+BQ7y328W/8=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_16x16.png</key>
+		<data>
+		YopJ21qTMRPTvHEF+LCz2mTbv+4=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_16x16@2x.png</key>
+		<data>
+		z60GYl4KZRbVrwzX5op83+eXECU=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_256x256.png</key>
+		<data>
+		24+iDxsgobh/enMw+BQ7y328W/8=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_256x256@2x.png</key>
+		<data>
+		HWF9F4p8tZ12mOJWU1y6I9fMKsg=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_32x32.png</key>
+		<data>
+		z60GYl4KZRbVrwzX5op83+eXECU=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_32x32@2x.png</key>
+		<data>
+		OTs6zn1aW/1lhBINx0AUfl2+BW4=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_512x512.png</key>
+		<data>
+		HWF9F4p8tZ12mOJWU1y6I9fMKsg=
+		</data>
+		<key>Resources/assets/icon.iconset/icon_512x512@2x.png</key>
+		<data>
+		w67E6FX5L9pI+l3GoKK5fRzYfbQ=
+		</data>
+		<key>Resources/assets/icon_source.png</key>
+		<data>
+		pYMOZHDmXx2kuc8BTFoHrePriPI=
+		</data>
 		<key>Resources/base_library.zip</key>
 		<data>
-		CHNF/ctOP76W7kSsJCetZwZROYE=
+		CbKQ5UjZEQfVxDqV8Alu5j24Gic=
 		</data>
 		<key>Resources/icon.icns</key>
 		<data>
-		c9ZM2gqOA5KCIJFZAOw74/+r+GE=
+		kSKR62P4GFrLWeVrmvFSkc1Rgz0=
 		</data>
 		<key>Resources/setuptools/_vendor/importlib_metadata-8.0.0.dist-info/INSTALLER</key>
 		<data>
@@ -332,6 +384,11 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"f82ea2330ededbd5720a837277b10fd30e9cf153"</string>
+		</dict>
+		<key>Frameworks/assets</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/assets</string>
 		</dict>
 		<key>Frameworks/base_library.zip</key>
 		<dict>
@@ -1038,18 +1095,109 @@
 			<key>symlink</key>
 			<string>../Frameworks/Python.framework</string>
 		</dict>
+		<key>Resources/assets/icon.icns</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			dkrj49pcIZ7M+r+0lBV9qHI21qEXgk5iuT/mXg1jAdw=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.ico</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			vWRwCBnFCVKfTzYK6A/Mu3gCzJs8F1Gc0DHVD1Kd4zk=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_128x128.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			fZZYykovhXNDc6dUkCCrs97hIQU71nTAqahol+xtkeE=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_128x128@2x.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			hm3xg9mWlEhDsIajVBV+DM26qUVTdmAZkxnqQkuok58=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_16x16.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			wj17q1lra6WvcRRpycPBgXsMIJZOPKxbRF1EX9pZoe8=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_16x16@2x.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			FdfocbQgppxbTf0jG6S17ivByIt4K0JO3msbYdSRdMc=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_256x256.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			hm3xg9mWlEhDsIajVBV+DM26qUVTdmAZkxnqQkuok58=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_256x256@2x.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			MDXWBgnCtSzG5ufnwR+jKiprxYBfhAFWpYDEzzLnH5c=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_32x32.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			FdfocbQgppxbTf0jG6S17ivByIt4K0JO3msbYdSRdMc=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_32x32@2x.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			McT1WW58SfNb1RQBI91dSaE5qRAHKFOtYfgZr06puHc=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_512x512.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			MDXWBgnCtSzG5ufnwR+jKiprxYBfhAFWpYDEzzLnH5c=
+			</data>
+		</dict>
+		<key>Resources/assets/icon.iconset/icon_512x512@2x.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			GahdRpUNtII95vYerYAHHiLnzC8hnDSmj5KrJQnu1e8=
+			</data>
+		</dict>
+		<key>Resources/assets/icon_source.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			nhdZYrsHh1a/yBTv/dgNYEGi2VKxHyOivJLqWQrHfCA=
+			</data>
+		</dict>
 		<key>Resources/base_library.zip</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			U8ZCg8AR7wsK4R8P0QWHQCx4yYLWaEMEkClbo549rs8=
+			ilPFrUwtozIsZDIpDKp61tX5w1ihOCZ/i4qiJenEvz4=
 			</data>
 		</dict>
 		<key>Resources/icon.icns</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			sNjiRCmGZPEztHJjMv6PnQaGVcs03YCcF6qvP4qQXhA=
+			dkrj49pcIZ7M+r+0lBV9qHI21qEXgk5iuT/mXg1jAdw=
 			</data>
 		</dict>
 		<key>Resources/libXau.6.dylib</key>
