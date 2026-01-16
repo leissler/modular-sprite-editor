@@ -48,12 +48,10 @@ def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int
              
     elif mod_type in ("MD_ARC", "MD_FILL_ARC"):
         start, sweep = params if len(params) >= 2 else (0, 360)
-        # DC angles: positive is counter-clockwise.
-        # Aurora/UI angles: positive was clockwise implies inverted?
-        # Let's match ModuleEditor logic: -start, -(start+sweep).
-        dc_start = -start
-        dc_end = -(start + sweep)
-        mem.DrawEllipticArc(0, 0, w, h, dc_start, dc_end)
+        # User Request: 0=Right (East), Sweep>0=Counter-Clockwise.
+        # wx.DC.DrawEllipticArc matches this exactly (positive=CCW from x-axis).
+        # Previous logic verified as "subtractive/wrong".
+        mem.DrawEllipticArc(0, 0, w, h, start, start + sweep)
         
     elif mod_type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
         if len(params) >= 4:
