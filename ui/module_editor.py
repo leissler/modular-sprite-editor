@@ -28,7 +28,11 @@ class ModuleCanvas(BaseCanvas):
         
         self.transparent_view: bool = True
         self.selection_style: str = "active"
-        self.module_overlays: list[Tuple[Tuple[int, int, int, int], bool, str]] = []
+        self.transparent_view: bool = True
+        self.selection_style: str = "active"
+        # Tuple: (rect, is_sel, id, [type, color, params])
+        self.module_overlays: list = [] 
+        self.active_shape_config: Optional[Tuple[str, Tuple[int, int, int], list]] = None
         
         self._selecting = False
         self._pivot_drag = False
@@ -76,10 +80,12 @@ class ModuleCanvas(BaseCanvas):
     def set_selection_style(self, style: str) -> None:
         self.selection_style = style
 
-    def set_module_overlays(
-        self, overlays: list[Tuple[Tuple[int, int, int, int], bool, str]]
-    ) -> None:
+    def set_module_overlays(self, overlays: list) -> None:
         self.module_overlays = overlays
+        self.Refresh(False)
+
+    def set_active_shape(self, shape_type: str, color: Tuple[int, int, int], params: list) -> None:
+        self.active_shape_config = (shape_type, color, params)
         self.Refresh(False)
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
@@ -400,33 +406,202 @@ class ModuleCanvas(BaseCanvas):
                 # Draw handles
                 self._draw_handles(gc, sx0, sy0, dw, dh)
 
-        # Module overlays (unselected)
+        # Module overlays (unselected & shapes)
         if self.module_overlays:
-            # Unselected: 80% Grey (approx 200), Dashed
             pen_unselected = wx.Pen(wx.Colour(200, 200, 200), width=1, style=wx.PENSTYLE_SHORT_DASH)
-            for rect, is_sel, _mid in self.module_overlays:
+            
+            for item in self.module_overlays:
+                # Unpack potential extended data
+                rect = item[0]
+                is_sel = item[1]
+                mid = item[2]
+                
                 if is_sel:
-                    # Selected module is already highlighted separately; skip overlay here
                     continue
+
                 x, y, w, h = rect
                 sx0, sy0 = self.world_to_screen((x, y))
-                gc.SetBrush(wx.TRANSPARENT_BRUSH)
-                gc.SetPen(pen_unselected)
-                # Apply rounding here too
-                gc.DrawRectangle(round(sx0), round(sy0), round(w * self.zoom), round(h * self.zoom))
-        if self.pivot and self.selection:
-            # Only draw pivot if selection has size OR we are actively dragging/hovering it
-            # This prevents the "red crosshair" from showing up on a simple click (empty selection)
-            has_size = abs(self.selection[2]) > 0 or abs(self.selection[3]) > 0
-            if has_size or self._pivot_drag or self._hover_pivot:
-                sx, sy = self.world_to_screen(self.pivot)
-                color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
-                gc.SetPen(wx.Pen(color, width=2))
-                # Pivot center crosshair should also snap? Usually simpler to leave as is, or snap for consistency.
-                # Let's snap it.
-                sx, sy = round(sx), round(sy)
-                gc.StrokeLine(sx - 8, sy, sx + 8, sy)
-                gc.StrokeLine(sx, sy - 8, sx, sy + 8)
+                
+                # Render Shape if data is present
+                if len(item) > 3 and item[3] != "MD_IMAGE":
+                     mod_type, mod_color, mod_params = item[3], item[4], item[5]
+                     self._render_vector_shape(gc, mod_type, mod_color, mod_params, x, y, w, h)
+                else:
+                    # Default dashed box for Image modules
+                    gc.SetBrush(wx.TRANSPARENT_BRUSH)
+                    gc.SetPen(pen_unselected)
+                    gc.DrawRectangle(round(sx0), round(sy0), round(w * self.zoom), round(h * self.zoom))
+
+        # Active Selection
+        if self.selection:
+             # Render Active Shape Content underlying the selection box
+             if self.active_shape_config and self.active_shape_config[0] != "MD_IMAGE":
+                 s_type, s_color, s_params = self.active_shape_config
+                 x, y, w, h = self.selection
+                 self._render_vector_shape(gc, s_type, s_color, s_params, x, y, w, h)
+             
+             x, y, w, h = self.selection
+             
+             if self.pivot:
+                # Only draw pivot if selection has size OR we are actively dragging/hovering it
+                # This prevents the "red crosshair" from showing up on a simple click (empty selection)
+                has_size = abs(self.selection[2]) > 0 or abs(self.selection[3]) > 0
+                if has_size or self._pivot_drag or self._hover_pivot:
+                    sx, sy = self.world_to_screen(self.pivot)
+                    color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
+                    gc.SetPen(wx.Pen(color, width=2))
+                    # Pivot center crosshair should also snap? Usually simpler to leave as is, or snap for consistency.
+                    # Let's snap it.
+                    sx, sy = round(sx), round(sy)
+                    gc.StrokeLine(sx - 8, sy, sx + 8, sy)
+                    gc.StrokeLine(sx, sy - 8, sx, sy + 8)
+
+    def _render_vector_shape(self, gc: wx.GraphicsContext, type: str, color: Tuple[int, int, int], params: list, x: int, y: int, w: int, h: int) -> None:
+        """Helper to render vector shapes given world bounds using pixel-perfect scaling."""
+        import math
+        
+        # 1. Setup small bitmap for native resolution
+        # Ceil dimensions to ensure we cover the area
+        bw, bh = int(math.ceil(w)), int(math.ceil(h))
+        if bw <= 0 or bh <= 0:
+            return
+            
+        # Use FromRGBA to ensure alpha channel exists and is cleared to 0 (transparent)
+        try:
+             bmp = wx.Bitmap.FromRGBA(bw, bh, red=0, green=0, blue=0, alpha=0)
+        except AttributeError:
+             # Fallback for older wx
+             bmp = wx.Bitmap(bw, bh, 32)
+             # We must clear it manualy if FromRGBA didn't exist
+             # But FromRGBA is available in Phoenix (which we likely use given type annotations)
+        
+        # 2. Draw sharp shape into bitmap
+        mem = wx.MemoryDC(bmp)
+        
+        # Clear again just to be safe if fallback was used, 
+        # but with FromRGBA it's already 0.
+        # However, drawing with GDI on Windows sometimes ignores alpha in MemoryDC?
+        # Usually GraphicsContext is needed for proper alpha drawing, but simple 1-bit alpha (mask) works with DC.
+        # But we want partial alpha maybe? No, "pixelated".
+        # Let's trust MemoryDC + FromRGBA works for basic transparency.
+        
+        wx_color = wx.Colour(*color)
+        filled = "FILL" in type
+        
+        if filled:
+            mem.SetBrush(wx.Brush(wx_color))
+            mem.SetPen(wx.Pen(wx_color, 1, wx.PENSTYLE_TRANSPARENT))
+        elif type == "MD_MARKER":
+            mem.SetPen(wx.Pen(wx_color, width=1))
+            mem.SetBrush(wx.Brush(wx_color, wx.BRUSHSTYLE_TRANSPARENT))
+        elif type == "MD_LINE":
+            mem.SetPen(wx.Pen(wx_color, width=1))
+        else:
+            mem.SetBrush(wx.Brush(wx_color, wx.BRUSHSTYLE_TRANSPARENT))
+            mem.SetPen(wx.Pen(wx_color, width=1))
+            
+        # Shift coordinate system so World(x,y) maps to Bitmap(0,0)
+        # x,y is the TopLeft of the BBox.
+        # So we want Logical(x,y) -> Device(0,0).
+        # SetDeviceOrigin adds to logical coords.
+        # No, SetDeviceOrigin(u,v) means "Logical 0,0 is at Device u,v".
+        # We want Logical x,y to be at Device 0,0.
+        # Logical 0,0 is at Device -x, -y.
+        mem.SetDeviceOrigin(int(-x), int(-y))
+        
+        # Now draw using WORLD coordinates (params relative to 0,0)
+        
+        if type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
+            rect_x, rect_y = int(x), int(y) # Rect starts at BBox TL
+            rect_w, rect_h = int(w), int(h)
+            
+            # Correction for 1px Outline:
+            # DrawRectangle w,h fills 0..w, 0..h (size w+1?) 
+            # In wx.DC, DrawRectangle(x,y,w,h) outline is w+1?
+            # Outline goes from x to x+w. Code usually expects w means size.
+            # Usually we subtract 1 from w,h if stroking?
+            if not filled and type != "MD_MARKER":
+                mem.DrawRectangle(rect_x, rect_y, rect_w, rect_h)
+            elif type == "MD_MARKER":
+                # Cross
+                mem.DrawLine(rect_x, rect_y, rect_x + rect_w - 1, rect_y + rect_h - 1)
+                mem.DrawLine(rect_x + rect_w - 1, rect_y, rect_x, rect_y + rect_h - 1)
+            else:
+                 # Filled
+                 # wx.DC.DrawRectangle fills x..x+w-1?
+                 mem.DrawRectangle(rect_x, rect_y, rect_w, rect_h)
+                 
+        elif type in ("MD_ARC", "MD_FILL_ARC"):
+            # Elliptic Arc
+            # DC.DrawEllipticArc(x, y, w, h, start, end)
+            start, sweep = params if len(params) >= 2 else (0, 360)
+            
+            # DC angles are counter-clockwise from X-axis?
+            # GraphicsContext was Clockwise (radians).
+            # wx.DC.DrawEllipticArc: "start and end are in degrees, 0 is East, positive is counter-clockwise"
+            # AuroraGT/Our UI used Clockwise?
+            # GraphicsPath.AddArc(..., clockwise=True).
+            # User UI: Start, Sweep.
+            # If default Arc is "Start 0, Sweep 360", we expect full circle.
+            # If Sweep is positive in UI (User set 0..360), and we assume Clockwise (standard for screen coords Y-down).
+            # wx.DC with Y-down: "positive angle is counter-clockwise" usually in math, but in Y-down?
+            # Let's try direct map. If inverted, we flip signs.
+            # But wait, we want to MATCH the previous Vector look.
+            # Previous: `path.AddArc(..., start_rad, end_rad, True)`. (True=Clockwise).
+            # So angles increase Clockwise.
+            # wx.DC: "positive is counter-clockwise".
+            # So for DC, we should Negate angles?
+            # Start -> -Start. End -> -(Start+Sweep).
+            # Also swap start/end if needed because DC expects start < end?
+            # Or DC handles it.
+            
+            dc_start = -start
+            dc_end = -(start + sweep)
+            # Ensure correct order/sweep
+            
+            mem.DrawEllipticArc(int(x), int(y), int(w), int(h), dc_start, dc_end)
+            
+        elif type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+            if len(params) >= 4:
+                p2x, p2y, p3x, p3y = params
+            else:
+                p2x, p2y = w, 0
+                p3x, p3y = 0, h
+            
+            # Points are relative to TopLeft (x, y)
+            # Since DC is set to World Origin via SetDeviceOrigin(-x,-y), we must draw in World Coords.
+            # So P1(0,0) becomes (x, y). P2 becomes (x+p2x, y+p2y).
+            points = [
+                (int(x), int(y)), 
+                (int(x + p2x), int(y + p2y)), 
+                (int(x + p3x), int(y + p3y))
+            ]
+            mem.DrawPolygon(points) # Auto closes
+            
+        elif type == "MD_LINE":
+            if len(params) >= 2:
+                endX, endY = params
+            else:
+                endX, endY = w, h
+            # Line from P1(x,y) to End(x+endX, y+endY)
+            mem.DrawLine(int(x), int(y), int(x + endX), int(y + endY))
+
+        mem.SelectObject(wx.NullBitmap)
+        del mem
+        
+        # 3. Scale up to Screen Size (Nearest Neighbor)
+        img = bmp.ConvertToImage()
+        screen_w = int(w * self.zoom)
+        screen_h = int(h * self.zoom)
+        
+        if screen_w > 0 and screen_h > 0:
+            img.Rescale(screen_w, screen_h, wx.IMAGE_QUALITY_NEAREST)
+            scaled_bmp = img.ConvertToBitmap()
+            
+            # 4. Render to Main Canvas
+            sx, sy = self.world_to_screen((x, y))
+            # Round destination to snap to pixel alignment
+            gc.DrawBitmap(scaled_bmp, round(sx), round(sy), screen_w, screen_h)
 
     def _draw_handles(self, gc: wx.GraphicsContext, x: float, y: float, w: float, h: float) -> None:
         size = 6
@@ -470,7 +645,8 @@ class ModuleCanvas(BaseCanvas):
         return None
 
     def _hit_module_overlay(self, world: Tuple[float, float]) -> Optional[Tuple[str, bool]]:
-        for rect, is_sel, mid in reversed(self.module_overlays):
+        for item in reversed(self.module_overlays):
+            rect, is_sel, mid = item[0], item[1], item[2]
             x, y, w, h = rect
             if x <= world[0] <= x + w and y <= world[1] <= y + h:
                 return (mid, is_sel)
@@ -588,6 +764,79 @@ class ModuleEditorPanel(wx.Panel):
         self.module_list.InsertColumn(1, "Rect", width=120)
         self.module_list.InsertColumn(2, "Pivot", width=90)
         
+        # Row 0: Type & Color
+        shape_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.choice_type = wx.Choice(self.mod_box, choices=[
+            "MD_IMAGE", "MD_RECT", "MD_FILL_RECT", "MD_ARC", "MD_FILL_ARC", 
+            "MD_MARKER", "MD_TRIANGLE", "MD_FILL_TRIANGLE", "MD_LINE"
+        ])
+        self.choice_type.SetSelection(0)
+        self.clr_picker = wx.ColourPickerCtrl(self.mod_box, colour=wx.Colour(255, 255, 255))
+        self.clr_picker.Disable() # Default is Image, so disable color
+        
+        shape_sizer.Add(self.choice_type, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
+        shape_sizer.Add(self.clr_picker, 0, wx.ALIGN_CENTER_VERTICAL)
+        mod_sizer.Add(shape_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 4)
+        
+        self.Bind(wx.EVT_CHOICE, self.on_type_change, self.choice_type)
+        self.Bind(wx.EVT_COLOURPICKER_CHANGED, self.on_color_change, self.clr_picker)
+
+        # --- Shape Properties (Container) ---
+        # Wrapper Panel to allow clean Show/Hide of the entire StaticBox group
+        self.props_container = wx.Panel(self.mod_box)
+        props_cont_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        self.props_box = wx.StaticBox(self.props_container, label="Properties")
+        self.props_sizer = wx.StaticBoxSizer(self.props_box, wx.VERTICAL)
+        
+        # Arc Params Panel
+        self.panel_arc = wx.Panel(self.props_box)
+        arc_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.spin_start = wx.SpinCtrlDouble(self.panel_arc, min=0.0, max=360.0, initial=0.0, inc=15.0)
+        self.spin_sweep = wx.SpinCtrlDouble(self.panel_arc, min=-360.0, max=360.0, initial=360.0, inc=15.0)
+        arc_sizer.Add(wx.StaticText(self.panel_arc, label="Start:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        arc_sizer.Add(self.spin_start, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
+        arc_sizer.Add(wx.StaticText(self.panel_arc, label="Sweep:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        arc_sizer.Add(self.spin_sweep, 1, wx.EXPAND | wx.LEFT, 2)
+        self.panel_arc.SetSizer(arc_sizer)
+        self.props_sizer.Add(self.panel_arc, 0, wx.EXPAND | wx.ALL, 2)
+        
+        # Triangle/Line Params Panel
+        self.panel_tri = wx.Panel(self.props_box)
+        self.pts_sizer = wx.BoxSizer(wx.VERTICAL) # Keep ref to hide/show P3 row internally
+        
+        # P2 / End
+        row_p2 = wx.BoxSizer(wx.HORIZONTAL)
+        self.spin_p2x = wx.SpinCtrl(self.panel_tri, min=-9999, max=9999, initial=0)
+        self.spin_p2y = wx.SpinCtrl(self.panel_tri, min=-9999, max=9999, initial=0)
+        self.lbl_p2 = wx.StaticText(self.panel_tri, label="P2:")
+        row_p2.Add(self.lbl_p2, 0, wx.ALIGN_CENTER_VERTICAL)
+        row_p2.Add(self.spin_p2x, 1, wx.EXPAND | wx.LEFT, 2)
+        row_p2.Add(self.spin_p2y, 1, wx.EXPAND | wx.LEFT, 2)
+        self.pts_sizer.Add(row_p2, 0, wx.EXPAND | wx.BOTTOM, 2)
+
+        # P3
+        row_p3 = wx.BoxSizer(wx.HORIZONTAL)
+        self.spin_p3x = wx.SpinCtrl(self.panel_tri, min=-9999, max=9999, initial=0)
+        self.spin_p3y = wx.SpinCtrl(self.panel_tri, min=-9999, max=9999, initial=0)
+        self.lbl_p3 = wx.StaticText(self.panel_tri, label="P3:")
+        row_p3.Add(self.lbl_p3, 0, wx.ALIGN_CENTER_VERTICAL)
+        row_p3.Add(self.spin_p3x, 1, wx.EXPAND | wx.LEFT, 2)
+        row_p3.Add(self.spin_p3y, 1, wx.EXPAND | wx.LEFT, 2)
+        self.pts_sizer.Add(row_p3, 0, wx.EXPAND)
+        
+        self.panel_tri.SetSizer(self.pts_sizer)
+        self.props_sizer.Add(self.panel_tri, 0, wx.EXPAND | wx.ALL, 2)
+        
+        props_cont_sizer.Add(self.props_sizer, 1, wx.EXPAND | wx.ALL, 0)
+        self.props_container.SetSizer(props_cont_sizer)
+        
+        mod_sizer.Add(self.props_container, 0, wx.EXPAND | wx.ALL, 4)
+        
+        # Bindings for Properties
+        for ctrl in [self.spin_start, self.spin_sweep, self.spin_p2x, self.spin_p2y, self.spin_p3x, self.spin_p3y]:
+            ctrl.Bind(wx.EVT_SPINCTRLDOUBLE if isinstance(ctrl, wx.SpinCtrlDouble) else wx.EVT_SPINCTRL, self.on_shape_param_change)
+
         # Row 1: Create Module
         mod_create_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_create_module = wx.Button(self.mod_box, label="Create from selection")
@@ -615,7 +864,11 @@ class ModuleEditorPanel(wx.Panel):
         mod_sizer.Add(mod_auto_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         mod_sizer.Add(mod_edit_btns, 0, wx.EXPAND | wx.ALL, 4)
 
+        # Call initial update to hide properties for default MD_IMAGE
+        self._update_property_panel("MD_IMAGE")
+        
         # Grid slicing controls
+
         slice_box = wx.StaticBox(self.left_panel, label="Grid Slice")
         slice_sizer = wx.StaticBoxSizer(slice_box, wx.VERTICAL)
         grid = wx.FlexGridSizer(rows=0, cols=2, vgap=4, hgap=4)
@@ -787,13 +1040,153 @@ class ModuleEditorPanel(wx.Panel):
         self.select_image(image_id)
 
     # Module handling
+    def on_type_change(self, event):
+        sel = self.choice_type.GetStringSelection()
+        is_shape = sel != "MD_IMAGE"
+        self.clr_picker.Enable(is_shape)
+        
+        if is_shape:
+            self.btn_create_module.SetLabel("Create Shape")
+        else:
+            self.btn_create_module.SetLabel("Create from selection")
+            
+        self._update_property_panel(sel)
+        
+        # If we are changing type, set reasonable defaults in UI
+        # (unless we are just reflecting a selection change, handled by select_module)
+        # But wait, on_type_change is called by Choice event (User) OR manually.
+        # If manually called by select_module, we might overwrite params?
+        # NO, select_module sets UI values *after* calling on_type_change (if it calls it).
+        # Check select_module: calls on_type_change(None).
+        # We need to distinguish user event vs programmatic.
+        # event is None if programmatic.
+        if event is not None:
+             self._set_default_ui_params(sel)
+             
+        # Update Canvas Preview
+        c = self.clr_picker.GetColour()
+        color = (c.Red(), c.Green(), c.Blue())
+        # Parse current params from UI to show preview
+        params = self._get_params_from_ui(sel)
+        self.canvas.set_active_shape(sel, color, params)
+
+    def _update_property_panel(self, type_str: str) -> None:
+        """Show/Hide property controls based on type."""
+        show_arc = type_str in ("MD_ARC", "MD_FILL_ARC")
+        show_tri = type_str in ("MD_TRIANGLE", "MD_FILL_TRIANGLE")
+        show_line = type_str == "MD_LINE"
+        
+        # Use simple Panel visibility
+        self.panel_arc.Show(show_arc)
+        self.panel_tri.Show(show_tri or show_line)
+        
+        if show_tri or show_line:
+            # Handle internals of panel_tri (sizer still valid)
+            self.pts_sizer.Show(0, True) # P2
+            self.pts_sizer.Show(1, show_tri) # P3
+            
+            if show_line:
+                self.lbl_p2.SetLabel("End:")
+            else:
+                self.lbl_p2.SetLabel("P2:")
+                self.lbl_p3.SetLabel("P3:")
+            self.panel_tri.Layout() # Layout internal panel
+        
+        # Show entire Container (hides StaticBox too)
+        self.props_container.Show(show_arc or show_tri or show_line)
+        
+        # Layout propagation
+        self.mod_box.Layout()
+        self.left_panel.Layout()
+        self.Layout()
+
+    def _get_params_from_ui(self, type_str: str) -> list:
+        if type_str in ("MD_ARC", "MD_FILL_ARC"):
+            return [self.spin_start.GetValue(), self.spin_sweep.GetValue()]
+        elif type_str in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+            return [self.spin_p2x.GetValue(), self.spin_p2y.GetValue(), 
+                    self.spin_p3x.GetValue(), self.spin_p3y.GetValue()]
+        elif type_str == "MD_LINE":
+            return [self.spin_p2x.GetValue(), self.spin_p2y.GetValue()]
+        elif type_str == "MD_LINE":
+            return [self.spin_p2x.GetValue(), self.spin_p2y.GetValue()]
+        return []
+
+    def _set_default_ui_params(self, type_str: str) -> None:
+        """Reset UI controls to default values for the given type."""
+        if type_str in ("MD_ARC", "MD_FILL_ARC"):
+            self.spin_start.SetValue(0.0)
+            self.spin_sweep.SetValue(360.0)
+        elif type_str in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+            # Default to some visible triangle? 
+            # hard to guess scale without context, but 32x32 is minimal.
+            # But params are relative to P1=0,0.
+            # Let's say (32,0) and (0,32) for a right triangle.
+            self.spin_p2x.SetValue(32)
+            self.spin_p2y.SetValue(0)
+            self.spin_p3x.SetValue(0)
+            self.spin_p3y.SetValue(32)
+        elif type_str == "MD_LINE":
+            self.spin_p2x.SetValue(32)
+            self.spin_p2y.SetValue(32)
+
+
+    def on_shape_param_change(self, event):
+        sel = self.choice_type.GetStringSelection()
+        params = self._get_params_from_ui(sel)
+        
+        # Update Preview
+        c = self.clr_picker.GetColour()
+        color = (c.Red(), c.Green(), c.Blue())
+        self.canvas.set_active_shape(sel, color, params)
+        
+        # Update Actual Module if Selected
+        if self.selected_module_id:
+            mod = self.project.get_module(self.selected_module_id)
+            if mod and mod.type == sel:
+                 mod.params = params
+                 self._autosave_current_module() # Triggers refresh
+                 self.refresh_modules(select_id=mod.id)
+
+    def on_color_change(self, event):
+        sel = self.choice_type.GetStringSelection()
+        c = self.clr_picker.GetColour()
+        color = (c.Red(), c.Green(), c.Blue())
+        params = self._get_params_from_ui(sel)
+        self.canvas.set_active_shape(sel, color, params)
+        
+        if self.selected_module_id:
+            mod = self.project.get_module(self.selected_module_id)
+            if mod:
+                mod.color = color
+                self.refresh_modules(select_id=mod.id)
+
     def refresh_modules(self, select_id: Optional[str] = None) -> None:
         self.module_list.DeleteAllItems()
-        mods = (
-            [m for m in self.project.modules if m.image_id == self.selected_image_id]
-            if self.selected_image_id
-            else self.project.modules
-        )
+        
+        # Filter: if image selected, show its modules. 
+        # If no image selected, show ALL modules (including shapes).
+        # OR: Shape modules have image_id="missing" or similar.
+        # User request: "When selecting an existing module..." implies we want visibility.
+        # Let's show all modules if no image selected, or only compatible ones.
+        
+        # Default Initial Params if Creation
+        if self.selected_module_id:
+             # Already handled by on_select_module loading
+             pass
+        else:
+             # Set logical defaults for creation
+             # e.g. Triangle P2/P3 should default to reasonable relative vals?
+             # Or 0,0 is fine, they will edit it.
+             pass
+
+        if self.selected_image_id:
+            # Show modules for this image OR modules that are global shapes
+            mods = [m for m in self.project.modules if m.image_id == self.selected_image_id or m.type != "MD_IMAGE"]
+        else:
+            mods = self.project.modules
+
+        mods.sort(key=lambda m: m.name)
         self._modules_view = mods
         
         # Update title with count
@@ -835,7 +1228,8 @@ class ModuleEditorPanel(wx.Panel):
             # self._unselect_all_modules() # Removed to prevent scroll jump
             self._suppress_module_events = False
             # Pass center_view=True when selecting from list
-            self.select_module(self._modules_view[idx].id, center_view=True)
+            # Pass center_view=True when selecting from list, and indicate origin
+            self.select_module(self._modules_view[idx].id, center_view=True, from_list=True)
 
     def on_deselect_module(self, _: wx.ListEvent) -> None:
         if self._suppress_module_events:
@@ -845,11 +1239,59 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.selection = None
         self.canvas.pivot = None
         self.canvas.set_selection_style("active")
+        
+        # Enable Type Selection for new modules
+        self.choice_type.Enable(True)
+        
+        # Don't full refresh list (prevents "double highlight" on switch), just canvas
+        self._rebuild_overlays()
+        self.canvas.Refresh()
 
-    def select_module(self, module_id: str, center_view: bool = False) -> None:
+    def select_module(self, module_id: str, center_view: bool = False, from_list: bool = False) -> None:
         if module_id != self.selected_module_id:
             self._autosave_current_module()
         self.selected_module_id = module_id
+        
+        # Disable Type Selection when editing existing module
+        self.choice_type.Enable(False)
+        
+        # Sync Dropdown & Color
+        if module_id:
+            mod = self.project.get_module(module_id)
+            if mod:
+                # Type
+                idx = self.choice_type.FindString(mod.type)
+                if idx != wx.NOT_FOUND:
+                    self.choice_type.SetSelection(idx)
+                    self.on_type_change(None) # Update UI state
+                
+                # Color
+                if "color" in mod.__dict__: # Check existence just in case
+                    self.clr_picker.SetColour(wx.Colour(*mod.color))
+                    
+                # Params -> UI
+                self._update_property_panel(mod.type)
+                try:
+                    p = mod.params
+                    if mod.type in ("MD_ARC", "MD_FILL_ARC") and len(p) >= 2:
+                        self.spin_start.SetValue(p[0])
+                        self.spin_sweep.SetValue(p[1])
+                    elif mod.type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE") and len(p) >= 4:
+                        self.spin_p2x.SetValue(int(p[0]))
+                        self.spin_p2y.SetValue(int(p[1]))
+                        self.spin_p3x.SetValue(int(p[2]))
+                        self.spin_p3y.SetValue(int(p[3]))
+                    elif mod.type == "MD_LINE" and len(p) >= 2:
+                        self.spin_p2x.SetValue(int(p[0]))
+                        self.spin_p2y.SetValue(int(p[1]))
+                except Exception:
+                    pass
+                
+                # Update Canvas active shape config to match the loaded module
+                # (on_type_change set it using stale UI values, so we must overwrite it)
+                self.canvas.set_active_shape(mod.type, mod.color, mod.params)
+
+        # Focus in list
         mod = self.project.get_module(module_id)
         if mod:
             self.canvas.selection = (mod.rect[0], mod.rect[1], mod.rect[2], mod.rect[3])
@@ -866,19 +1308,22 @@ class ModuleEditorPanel(wx.Panel):
                 self.canvas.center_view((cx, cy))
             
             # Sync list selection
-            for idx, m_view in enumerate(self._modules_view):
-                if m_view.id == module_id:
-                    # Check if actually needs update to avoid recursion/flicker
-                    if not (self.module_list.GetItemState(idx, wx.LIST_STATE_SELECTED) & wx.LIST_STATE_SELECTED):
+            if not from_list:
+                for idx, m_view in enumerate(self._modules_view):
+                    if m_view.id == module_id:
+                        # Robust sync: Ensure ONLY this item is selected, clearing any others.
                         self._suppress_module_events = True
-                        # Clear others first ensures clean state without relying on control behavior
                         for i in range(self.module_list.GetItemCount()):
-                             if i != idx and (self.module_list.GetItemState(i, wx.LIST_STATE_SELECTED) & wx.LIST_STATE_SELECTED):
-                                  self.module_list.SetItemState(i, 0, wx.LIST_STATE_SELECTED)
-                        self.module_list.SetItemState(idx, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
-                        self.module_list.EnsureVisible(idx)
+                            is_sel = (self.module_list.GetItemState(i, wx.LIST_STATE_SELECTED) & wx.LIST_STATE_SELECTED)
+                            if i == idx:
+                                if not is_sel:
+                                    self.module_list.SetItemState(i, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
+                                    self.module_list.EnsureVisible(i)
+                            else:
+                                if is_sel:
+                                    self.module_list.SetItemState(i, 0, wx.LIST_STATE_SELECTED)
                         self._suppress_module_events = False
-                    break
+                        break
             
             self.canvas.Refresh(False)
         self._rebuild_overlays()
@@ -895,20 +1340,72 @@ class ModuleEditorPanel(wx.Panel):
             self.pivot_label.SetLabel("Pivot: -")
 
     def on_create_module(self, _: wx.CommandEvent) -> None:
-        if not self.selected_image_id:
-            wx.MessageBox("Select an image first", "Info")
-            return
-        if not self.canvas.selection:
-            wx.MessageBox("Select a rectangle on the image", "Info")
-            return
+        mod_type = self.choice_type.GetStringSelection()
+        
+        # 1. Validation
+        if mod_type == "MD_IMAGE":
+            if not self.selected_image_id:
+                wx.MessageBox("Select an image first", "Info")
+                return
+            if not self.canvas.selection:
+                wx.MessageBox("Select a rectangle on the image", "Info")
+                return
+        else:
+            # Shape: Must have a selection to define bounds
+            if not self.canvas.selection:
+                wx.MessageBox("Draw a selection on the canvas defining the shape bounds.", "Info")
+                return
+
         rect = self.canvas.selection
-        name = f"Module {len(self.project.modules)+1}"
         pivot_abs = self.canvas.pivot
+        
+        # Calculate pivot relative to rect
         pivot = (
             pivot_abs[0] - rect[0],
             pivot_abs[1] - rect[1],
         ) if pivot_abs else (rect[2] // 2, rect[3] // 2)
-        mod = self.project.create_module(name, self.selected_image_id, rect, pivot)
+
+        # Name
+        count = len(self.project.modules) + 1
+        name = f"Module {count}"
+
+        # Params & Color
+        color = (255, 255, 255)
+        params = []
+        
+        if mod_type != "MD_IMAGE":
+            c = self.clr_picker.GetColour()
+            color = (c.Red(), c.Green(), c.Blue())
+            
+            # Params per type
+            # Params per type (Get current from UI)
+            params = self._get_params_from_ui(mod_type)
+            
+            # Fallback if params empty/invalid for some reason (though init defaults should handle it)
+            if not params:
+                if mod_type in ("MD_ARC", "MD_FILL_ARC"):
+                    params = [0.0, 360.0]
+                elif mod_type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+                     w, h = rect[2], rect[3]
+                     params = [float(w), 0.0, 0.0, float(h)]
+                elif mod_type == "MD_LINE":
+                    w, h = rect[2], rect[3]
+                    params = [float(w), float(h)]
+        
+        # Create
+        img_id = self.selected_image_id if mod_type == "MD_IMAGE" else "missing"
+        
+        mod = Module(
+            id=generate_id("md"),
+            name=name,
+            image_id=img_id,
+            rect=rect,
+            pivot=pivot,
+            type=mod_type,
+            color=color,
+            params=params
+        )
+        self.project.modules.append(mod)
         self.refresh_modules(select_id=mod.id)
 
     def on_auto_detect(self, _: wx.CommandEvent) -> None:
@@ -1250,13 +1747,25 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.selection = None
         self.canvas.pivot = None
         self.canvas.set_selection_style("active")
+        
+        # Re-enable Type Selection for new modules
+        self.choice_type.Enable(True)
+        
         self.refresh_modules()
 
     def _rebuild_overlays(self) -> None:
         overlays = []
         for m in self._modules_view:
             is_sel = m.id == self.selected_module_id
-            overlays.append(((m.rect[0], m.rect[1], m.rect[2], m.rect[3]), is_sel, m.id))
+            # Pack extended data: (rect, is_sel, id, type, color, params)
+            overlays.append((
+                (m.rect[0], m.rect[1], m.rect[2], m.rect[3]),
+                is_sel,
+                m.id,
+                m.type,
+                getattr(m, 'color', (255, 255, 255)),
+                getattr(m, 'params', [])
+            ))
         if self.selected_module_id is None:
             # Clear selection highlight on canvas
             self.canvas.selection = None

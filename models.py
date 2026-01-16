@@ -49,6 +49,9 @@ class Module:
     image_id: str
     rect: Tuple[int, int, int, int]
     pivot: Tuple[int, int]
+    type: str = "MD_IMAGE"
+    color: Tuple[int, int, int] = (255, 255, 255)
+    params: List[float] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         return {
@@ -57,6 +60,9 @@ class Module:
             "image_id": self.image_id,
             "rect": list(self.rect),
             "pivot": list(self.pivot),
+            "type": self.type,
+            "color": list(self.color),
+            "params": self.params,
         }
 
     @staticmethod
@@ -69,6 +75,9 @@ class Module:
             image_id=data["image_id"],
             rect=rect,  # type: ignore[arg-type]
             pivot=pivot,  # type: ignore[arg-type]
+            type=data.get("type", "MD_IMAGE"),
+            color=tuple(data["color"]) if "color" in data else (255, 255, 255), # type: ignore
+            params=data.get("params", []),
         )
 
 
@@ -330,6 +339,24 @@ class Animation:
 
 class AuroraSpriteParser:
     """Parses AuroraGT .sprite format."""
+
+    @staticmethod
+    def _parse_color(val: str) -> Tuple[int, int, int]:
+        try:
+            if val.startswith("0x") or val.startswith("0X"):
+                v = int(val, 16)
+                r = (v >> 16) & 0xFF
+                g = (v >> 8) & 0xFF
+                b = v & 0xFF
+                return (r, g, b)
+            # If plain int, assume it's also packed RGB
+            v = int(val)
+            r = (v >> 16) & 0xFF
+            g = (v >> 8) & 0xFF
+            b = v & 0xFF
+            return (r, g, b)
+        except ValueError:
+            return (255, 255, 255)
     
     @staticmethod
     def parse(content: str, base_path: str) -> "Project":
@@ -421,39 +448,91 @@ class AuroraSpriteParser:
             # 4. Content Parsing based on block
             if current_block == "MODULES":
                 if line.startswith("MD"):
-                    # MD [id] MD_IMAGE [img_idx] [x] [y] [w] [h] ["name"]
+                    # MD [id] [type] [params...] ["name"]
                     parts = line.split()
-                    if len(parts) >= 8 and parts[2] == "MD_IMAGE":
+                    if len(parts) >= 3:
                         md_id = parts[1].strip()
+                        md_type = parts[2].strip()
+                        
+                        # Extract name if present
+                        name = ""
+                        name_match = re.search(r'"([^"]*)"', line)
+                        if name_match:
+                            name = name_match.group(1)
+                        else:
+                            name = f"Module {md_id}"
+
+                        # Defaults
+                        rect = (0, 0, 0, 0)
+                        pivot = (0, 0)
+                        image_id = "missing"
+                        color = (255, 255, 255)
+                        params = []
+
                         try:
-                            img_idx = int(parts[3])
-                            x, y, w, h = int(parts[4]), int(parts[5]), int(parts[6]), int(parts[7])
-                            
-                            # Optional name
-                            name = ""
-                            name_match = re.search(r'"([^"]*)"', line)
-                            if name_match:
-                                name = name_match.group(1)
-                            else:
-                                name = f"Module {md_id}"
-                            
-                                name = f"Module {md_id}"
-                            
-                            # Lookup ID from map (which now holds IDs, not paths)
-                            target_img_id = images_map.get(img_idx, None)
-                            if not target_img_id and project.images:
-                                # Fallback? Or create missing?
-                                # For now safely default to first available or keep empty
-                                target_img_id = project.images[0].id
+                            # 1. MD_IMAGE: img_idx x y w h
+                            if md_type == "MD_IMAGE":
+                                img_idx = int(parts[3])
+                                x, y, w, h = int(parts[4]), int(parts[5]), int(parts[6]), int(parts[7])
+                                rect = (x, y, w, h)
+                                pivot = (w // 2, h // 2)
                                 
-                            module = Module(
+                                target_img_id = images_map.get(img_idx, None)
+                                if target_img_id:
+                                    image_id = target_img_id
+                                elif project.images:
+                                    image_id = project.images[0].id
+
+                            # 2. MD_RECT / FILL_RECT / MARKER: color w h
+                            elif md_type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
+                                color = AuroraSpriteParser._parse_color(parts[3])
+                                w, h = int(parts[4]), int(parts[5])
+                                rect = (0, 0, w, h)
+                                pivot = (w // 2, h // 2)
+
+                            # 3. MD_ARC / FILL_ARC: color w h start arc
+                            elif md_type in ("MD_ARC", "MD_FILL_ARC"):
+                                color = AuroraSpriteParser._parse_color(parts[3])
+                                w, h = int(parts[4]), int(parts[5])
+                                start, arc = float(parts[6]), float(parts[7])
+                                rect = (0, 0, w, h)
+                                pivot = (w // 2, h // 2)
+                                params = [start, arc]
+
+                            # 4. MD_TRIANGLE / FILL: color p2x p2y p3x p3y
+                            elif md_type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+                                color = AuroraSpriteParser._parse_color(parts[3])
+                                p2x, p2y = int(parts[4]), int(parts[5])
+                                p3x, p3y = int(parts[6]), int(parts[7])
+                                
+                                # Calc bounding box relative to P1(0,0)
+                                min_x, max_x = min(0, p2x, p3x), max(0, p2x, p3x)
+                                min_y, max_y = min(0, p2y, p3y), max(0, p2y, p3y)
+                                rect = (min_x, min_y, max_x - min_x, max_y - min_y)
+                                pivot = (0, 0) # Pivot at P1
+                                params = [float(p2x), float(p2y), float(p3x), float(p3y)]
+
+                            # 5. MD_LINE: color endX endY
+                            elif md_type == "MD_LINE":
+                                color = AuroraSpriteParser._parse_color(parts[3])
+                                endX, endY = int(parts[4]), int(parts[5])
+                                
+                                min_x, max_x = min(0, endX), max(0, endX)
+                                min_y, max_y = min(0, endY), max(0, endY)
+                                rect = (min_x, min_y, max_x - min_x, max_y - min_y)
+                                pivot = (0, 0)
+                                params = [float(endX), float(endY)]
+
+                            project.modules.append(Module(
                                 id=md_id,
                                 name=name,
-                                image_id=target_img_id if target_img_id else "missing",
-                                rect=(x, y, w, h),
-                                pivot=(0, 0)
-                            )
-                            project.modules.append(module)
+                                image_id=image_id,
+                                rect=rect,
+                                pivot=pivot,
+                                type=md_type,
+                                color=color,
+                                params=params
+                            ))
                         except (ValueError, IndexError):
                             pass
                 continue
