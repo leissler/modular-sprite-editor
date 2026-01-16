@@ -460,135 +460,15 @@ class ModuleCanvas(BaseCanvas):
         """Helper to render vector shapes given world bounds using pixel-perfect scaling."""
         import math
         
-        # 1. Setup small bitmap for native resolution
+        # 1. Generate Bitmap using Shared Utility
+        from ui.utils import render_pixel_shape_to_bitmap
         # Ceil dimensions to ensure we cover the area
         bw, bh = int(math.ceil(w)), int(math.ceil(h))
-        if bw <= 0 or bh <= 0:
+        
+        bmp = render_pixel_shape_to_bitmap(type, bw, bh, color, params)
+        if not bmp:
             return
             
-        # Use FromRGBA to ensure alpha channel exists and is cleared to 0 (transparent)
-        try:
-             bmp = wx.Bitmap.FromRGBA(bw, bh, red=0, green=0, blue=0, alpha=0)
-        except AttributeError:
-             # Fallback for older wx
-             bmp = wx.Bitmap(bw, bh, 32)
-             # We must clear it manualy if FromRGBA didn't exist
-             # But FromRGBA is available in Phoenix (which we likely use given type annotations)
-        
-        # 2. Draw sharp shape into bitmap
-        mem = wx.MemoryDC(bmp)
-        
-        # Clear again just to be safe if fallback was used, 
-        # but with FromRGBA it's already 0.
-        # However, drawing with GDI on Windows sometimes ignores alpha in MemoryDC?
-        # Usually GraphicsContext is needed for proper alpha drawing, but simple 1-bit alpha (mask) works with DC.
-        # But we want partial alpha maybe? No, "pixelated".
-        # Let's trust MemoryDC + FromRGBA works for basic transparency.
-        
-        wx_color = wx.Colour(*color)
-        filled = "FILL" in type
-        
-        if filled:
-            mem.SetBrush(wx.Brush(wx_color))
-            mem.SetPen(wx.Pen(wx_color, 1, wx.PENSTYLE_TRANSPARENT))
-        elif type == "MD_MARKER":
-            mem.SetPen(wx.Pen(wx_color, width=1))
-            mem.SetBrush(wx.Brush(wx_color, wx.BRUSHSTYLE_TRANSPARENT))
-        elif type == "MD_LINE":
-            mem.SetPen(wx.Pen(wx_color, width=1))
-        else:
-            mem.SetBrush(wx.Brush(wx_color, wx.BRUSHSTYLE_TRANSPARENT))
-            mem.SetPen(wx.Pen(wx_color, width=1))
-            
-        # Shift coordinate system so World(x,y) maps to Bitmap(0,0)
-        # x,y is the TopLeft of the BBox.
-        # So we want Logical(x,y) -> Device(0,0).
-        # SetDeviceOrigin adds to logical coords.
-        # No, SetDeviceOrigin(u,v) means "Logical 0,0 is at Device u,v".
-        # We want Logical x,y to be at Device 0,0.
-        # Logical 0,0 is at Device -x, -y.
-        mem.SetDeviceOrigin(int(-x), int(-y))
-        
-        # Now draw using WORLD coordinates (params relative to 0,0)
-        
-        if type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
-            rect_x, rect_y = int(x), int(y) # Rect starts at BBox TL
-            rect_w, rect_h = int(w), int(h)
-            
-            # Correction for 1px Outline:
-            # DrawRectangle w,h fills 0..w, 0..h (size w+1?) 
-            # In wx.DC, DrawRectangle(x,y,w,h) outline is w+1?
-            # Outline goes from x to x+w. Code usually expects w means size.
-            # Usually we subtract 1 from w,h if stroking?
-            if not filled and type != "MD_MARKER":
-                mem.DrawRectangle(rect_x, rect_y, rect_w, rect_h)
-            elif type == "MD_MARKER":
-                # Cross
-                mem.DrawLine(rect_x, rect_y, rect_x + rect_w - 1, rect_y + rect_h - 1)
-                mem.DrawLine(rect_x + rect_w - 1, rect_y, rect_x, rect_y + rect_h - 1)
-            else:
-                 # Filled
-                 # wx.DC.DrawRectangle fills x..x+w-1?
-                 mem.DrawRectangle(rect_x, rect_y, rect_w, rect_h)
-                 
-        elif type in ("MD_ARC", "MD_FILL_ARC"):
-            # Elliptic Arc
-            # DC.DrawEllipticArc(x, y, w, h, start, end)
-            start, sweep = params if len(params) >= 2 else (0, 360)
-            
-            # DC angles are counter-clockwise from X-axis?
-            # GraphicsContext was Clockwise (radians).
-            # wx.DC.DrawEllipticArc: "start and end are in degrees, 0 is East, positive is counter-clockwise"
-            # AuroraGT/Our UI used Clockwise?
-            # GraphicsPath.AddArc(..., clockwise=True).
-            # User UI: Start, Sweep.
-            # If default Arc is "Start 0, Sweep 360", we expect full circle.
-            # If Sweep is positive in UI (User set 0..360), and we assume Clockwise (standard for screen coords Y-down).
-            # wx.DC with Y-down: "positive angle is counter-clockwise" usually in math, but in Y-down?
-            # Let's try direct map. If inverted, we flip signs.
-            # But wait, we want to MATCH the previous Vector look.
-            # Previous: `path.AddArc(..., start_rad, end_rad, True)`. (True=Clockwise).
-            # So angles increase Clockwise.
-            # wx.DC: "positive is counter-clockwise".
-            # So for DC, we should Negate angles?
-            # Start -> -Start. End -> -(Start+Sweep).
-            # Also swap start/end if needed because DC expects start < end?
-            # Or DC handles it.
-            
-            dc_start = -start
-            dc_end = -(start + sweep)
-            # Ensure correct order/sweep
-            
-            mem.DrawEllipticArc(int(x), int(y), int(w), int(h), dc_start, dc_end)
-            
-        elif type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
-            if len(params) >= 4:
-                p2x, p2y, p3x, p3y = params
-            else:
-                p2x, p2y = w, 0
-                p3x, p3y = 0, h
-            
-            # Points are relative to TopLeft (x, y)
-            # Since DC is set to World Origin via SetDeviceOrigin(-x,-y), we must draw in World Coords.
-            # So P1(0,0) becomes (x, y). P2 becomes (x+p2x, y+p2y).
-            points = [
-                (int(x), int(y)), 
-                (int(x + p2x), int(y + p2y)), 
-                (int(x + p3x), int(y + p3y))
-            ]
-            mem.DrawPolygon(points) # Auto closes
-            
-        elif type == "MD_LINE":
-            if len(params) >= 2:
-                endX, endY = params
-            else:
-                endX, endY = w, h
-            # Line from P1(x,y) to End(x+endX, y+endY)
-            mem.DrawLine(int(x), int(y), int(x + endX), int(y + endY))
-
-        mem.SelectObject(wx.NullBitmap)
-        del mem
-        
         # 3. Scale up to Screen Size (Nearest Neighbor)
         img = bmp.ConvertToImage()
         screen_w = int(w * self.zoom)

@@ -10,6 +10,7 @@ from models import Project, Frame, generate_id
 from ui.canvas import FrameCanvas
 from ui.collision_manager import CollisionManagerPanel
 from ui.point_manager import PointManagerPanel
+from ui.utils import render_pixel_shape_to_bitmap
 
 class ModulePalette(wx.ListCtrl):
     """Visual list of modules draggable onto the canvas."""
@@ -127,9 +128,27 @@ class ModulePalette(wx.ListCtrl):
                         dc.DrawLine(0, 0, item_side, item_side)
                         dc.DrawLine(item_side, 0, 0, item_side)
                 else:
-                    dc.SetPen(wx.Pen(wx.Colour(100, 100, 100)))
-                    dc.SetBrush(wx.Brush(wx.Colour(70, 70, 70)))
-                    dc.DrawRectangle(4, 4, item_side-8, item_side-8)
+                    # Shape Module Rendering using Shared Utility
+                    w, h = mod.rect[2], mod.rect[3]
+                    shape_bmp = render_pixel_shape_to_bitmap(mod.type, w, h, mod.color, mod.params)
+                    
+                    if shape_bmp:
+                        # 1. Calc scale
+                        new_w = max(1, int(w * uniform_scale))
+                        new_h = max(1, int(h * uniform_scale))
+                        
+                        # 2. Rescale (Nearest Neighbor)
+                        img = shape_bmp.ConvertToImage()
+                        img.Rescale(new_w, new_h, wx.IMAGE_QUALITY_NEAREST)
+                        
+                        # 3. Draw Centered
+                        off_x = (item_side - new_w) // 2
+                        off_y = (item_side - new_h) // 2
+                        dc.DrawBitmap(img.ConvertToBitmap(), off_x, off_y, True)
+                    else:
+                        dc.SetPen(wx.Pen(wx.Colour(100, 100, 100)))
+                        dc.SetBrush(wx.Brush(wx.Colour(70, 70, 70)))
+                        dc.DrawRectangle(4, 4, item_side-8, item_side-8)
                 
                 dc.SelectObject(wx.NullBitmap)
                 

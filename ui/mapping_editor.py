@@ -26,6 +26,8 @@ class MappingVisualizer(wx.ScrolledWindow):
         self._drag_source_module_id: Optional[str] = None
         self._show_names = True # Match Default Checkbox State
         self._zoom_scale = 1.0
+        
+        self.on_change_callback = None
 
         self.SetScrollRate(10, 10)
         
@@ -291,6 +293,9 @@ class MappingVisualizer(wx.ScrolledWindow):
                 target_module = self.project.modules[idx]
                 self.mapping.map[target_module.id] = self._drag_source_module_id
                 self.Refresh()
+                
+                if self.on_change_callback:
+                    self.on_change_callback()
         
         self._drag_source_module_id = None
         self._drag_cursor_pos = None
@@ -587,6 +592,7 @@ class MappingEditorPanel(wx.Panel):
         self.right_splitter = wx.SplitterWindow(self.right_panel, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
         self.visualizer = MappingVisualizer(self.right_splitter, self.project)
+        self.visualizer.on_change_callback = self.on_mapping_changed
         
         # Preview Container with Header
         self.preview_container = wx.Panel(self.right_splitter)
@@ -637,7 +643,19 @@ class MappingEditorPanel(wx.Panel):
     def on_list_resize(self, event):
         width = self.list_ctrl.GetClientSize().width
         self.list_ctrl.SetColumnWidth(0, width)
+        self.list_ctrl.SetColumnWidth(0, width)
         event.Skip()
+
+    def on_mapping_changed(self):
+        """Called when visualizer modifies the mapping."""
+        # Force cache invalidation in preview? 
+        # Preview checks id(mapping), which hasn't changed, only content.
+        # But Preview.on_paint calls _calculate_uniform_scale, which iterates content.
+        # However, _calculate_uniform_scale caches the scale!
+        # If mapping changes, the BOUNDS of frames might change (different modules -> different sizes).
+        # So we must force Preview to clear its cache.
+        self.preview._cached_scale = 0.0
+        self.preview.Refresh()
 
     def set_project(self, project: Project):
         self.project = project

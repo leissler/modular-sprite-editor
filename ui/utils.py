@@ -1,6 +1,84 @@
+import math
 import wx
-from models import Project, Frame, Module
-from typing import Optional
+from typing import Optional, Tuple
+
+def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int, int, int], params: list) -> Optional[wx.Bitmap]:
+    """
+    Renders a vector shape into a transparent bitmap at native resolution (1x).
+    This allows for pixel-perfect scaling (Nearest Neighbor) later.
+    """
+    if w <= 0 or h <= 0:
+        return None
+        
+    # Use FromRGBA to ensure alpha channel exists and is cleared to 0 (transparent)
+    try:
+         bmp = wx.Bitmap.FromRGBA(w, h, red=0, green=0, blue=0, alpha=0)
+    except AttributeError:
+         # Fallback
+         bmp = wx.Bitmap(w, h, 32)
+    
+    mem = wx.MemoryDC(bmp)
+    
+    # Check fallback transparency if needed (usually FromRGBA handles it)
+    if not bmp.HasAlpha():
+         mem.SetBackground(wx.Brush(wx.Colour(0, 0, 0, 0)))
+         mem.Clear()
+
+    wx_color = wx.Colour(*color)
+    filled = "FILL" in mod_type
+    
+    mem.SetPen(wx.Pen(wx_color, width=1))
+    if filled:
+        mem.SetBrush(wx.Brush(wx_color))
+    else:
+        mem.SetBrush(wx.TRANSPARENT_BRUSH)
+        
+    # Note: We draw at (0,0) in the bitmap space.
+    # The 'rect' passed in is just for size.
+    # The params for Triangle/Line usually are relative to TopLeft.
+    
+    if mod_type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
+        if not filled and mod_type != "MD_MARKER":
+            mem.DrawRectangle(0, 0, w, h)
+        elif mod_type == "MD_MARKER":
+            mem.DrawLine(0, 0, w - 1, h - 1)
+            mem.DrawLine(w - 1, 0, 0, h - 1)
+        else:
+             mem.DrawRectangle(0, 0, w, h)
+             
+    elif mod_type in ("MD_ARC", "MD_FILL_ARC"):
+        start, sweep = params if len(params) >= 2 else (0, 360)
+        # DC angles: positive is counter-clockwise.
+        # Aurora/UI angles: positive was clockwise implies inverted?
+        # Let's match ModuleEditor logic: -start, -(start+sweep).
+        dc_start = -start
+        dc_end = -(start + sweep)
+        mem.DrawEllipticArc(0, 0, w, h, dc_start, dc_end)
+        
+    elif mod_type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+        if len(params) >= 4:
+            p2x, p2y, p3x, p3y = params
+        else:
+            p2x, p2y = w, 0
+            p3x, p3y = 0, h
+            
+        # Params are relative to P1 at (0,0) of the module
+        points = [
+            (0, 0), 
+            (int(p2x), int(p2y)), 
+            (int(p3x), int(p3y))
+        ]
+        mem.DrawPolygon(points)
+        
+    elif mod_type == "MD_LINE":
+        if len(params) >= 2:
+            endX, endY = params
+        else:
+            endX, endY = w, h
+        mem.DrawLine(0, 0, int(endX), int(endY))
+
+    mem.SelectObject(wx.NullBitmap)
+    return bmp
 
 class ThumbnailGenerator:
     def __init__(self):
@@ -32,7 +110,7 @@ class ThumbnailGenerator:
         x_off, y_off = rect.x, rect.y
         
         
-         # Handle Module Rendering (Duck Typed)
+         # Handle Module Rendering
         if getattr(item, 'image_id', None) is not None and getattr(item, 'rect', None) is not None and not hasattr(item, 'fmodules'):
             mod = item
             mw, mh = mod.rect[2], mod.rect[3]
@@ -50,32 +128,45 @@ class ThumbnailGenerator:
             off_y = y_off + (height - content_h * scale) / 2
             
             # Direct Draw
-            asset = project.get_image(mod.image_id)
-            if asset:
-                 try:
-                    if asset.id not in self.asset_cache:
-                        full_img = wx.Image(asset.file_path)
-                        if asset.transparent_color:
-                            full_img.SetMaskColour(*asset.transparent_color)
-                        self.asset_cache[asset.id] = full_img
-                    
-                    full_img = self.asset_cache[asset.id]
-                    rx, ry, rw, rh = mod.rect
-                    if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
-                        sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
+            if mod.type == "MD_IMAGE":
+                asset = project.get_image(mod.image_id)
+                if asset:
+                     try:
+                        if asset.id not in self.asset_cache:
+                            full_img = wx.Image(asset.file_path)
+                            if asset.transparent_color:
+                                full_img.SetMaskColour(*asset.transparent_color)
+                            self.asset_cache[asset.id] = full_img
                         
-                        if flip_x: sub = sub.Mirror(True)
-                        if flip_y: sub = sub.Mirror(False)
-                        
-                        w_scaled = int(rw * scale)
-                        h_scaled = int(rh * scale)
-                        
-                        if w_scaled > 0 and h_scaled > 0:
-                            sub = sub.Scale(w_scaled, h_scaled, wx.IMAGE_QUALITY_NEAREST)
-                            sub_bmp = sub.ConvertToBitmap()
-                            dc.DrawBitmap(sub_bmp, int(off_x), int(off_y), True) 
-                 except Exception:
-                     pass
+                        full_img = self.asset_cache[asset.id]
+                        rx, ry, rw, rh = mod.rect
+                        if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
+                            sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
+                            
+                            if flip_x: sub = sub.Mirror(True)
+                            if flip_y: sub = sub.Mirror(False)
+                            
+                            w_scaled = int(rw * scale)
+                            h_scaled = int(rh * scale)
+                            
+                            if w_scaled > 0 and h_scaled > 0:
+                                sub = sub.Scale(w_scaled, h_scaled, wx.IMAGE_QUALITY_NEAREST)
+                                sub_bmp = sub.ConvertToBitmap()
+                                dc.DrawBitmap(sub_bmp, int(off_x), int(off_y), True) 
+                     except Exception:
+                         pass
+            else:
+                 # Shape Module
+                 shape_bmp = render_pixel_shape_to_bitmap(mod.type, mw, mh, mod.color, mod.params)
+                 if shape_bmp:
+                     # Flatten to scaled size
+                     img = shape_bmp.ConvertToImage()
+                     w_scaled = int(mw * scale)
+                     h_scaled = int(mh * scale)
+                     if w_scaled > 0 and h_scaled > 0:
+                         img.Rescale(w_scaled, h_scaled, wx.IMAGE_QUALITY_NEAREST)
+                         final_bmp = img.ConvertToBitmap()
+                         dc.DrawBitmap(final_bmp, int(off_x), int(off_y), True)
             return
 
         # Handle Frame
@@ -222,6 +313,66 @@ class ThumbnailGenerator:
                                      dc.DrawBitmap(sub_bmp, int(dest_x), int(dest_y), True)
                         except Exception:
                              pass
+                    else:
+                        # Shape Module in Frame
+                        mw, mh = mod.rect[2], mod.rect[3]
+                        shape_bmp = render_pixel_shape_to_bitmap(mod.type, mw, mh, mod.color, mod.params)
+                        
+                        if shape_bmp:
+                            img = shape_bmp.ConvertToImage()
+                            
+                            # Module Flips
+                            if fm.flip_x: img = img.Mirror(True)
+                            if fm.flip_y: img = img.Mirror(False)
+                            
+                            rw, rh = mw, mh
+                            
+                            piv_x, piv_y = mod.pivot
+                            raw_x = fm.position[0] - piv_x
+                            raw_y = fm.position[1] - piv_y
+                            
+                            rel_x = raw_x - min_x
+                            rel_y = raw_y - min_y
+                            
+                            # Global Flip X -> Flip around center of content rectangle
+                            if flip_x:
+                                rel_x = content_w - rel_x - rw
+                                img = img.Mirror(True)
+                            if flip_y:
+                                rel_y = content_h - rel_y - rh
+                                img = img.Mirror(False)
+
+                            # Apply Rotation to Coordinates and Image
+                            rot_int = int(rotation) % 360
+                            if rot_int == 90:
+                                # (x, y) -> (content_h - y - rh, x)
+                                new_x = content_h - rel_y - rh
+                                new_y = rel_x
+                                rel_x, rel_y = new_x, new_y
+                                img = img.Rotate90(True) # Clockwise
+                                rw, rh = rh, rw
+                            elif rot_int == 180:
+                                # (x, y) -> (content_w - x - rw, content_h - y - rh)
+                                new_x = content_w - rel_x - rw
+                                new_y = content_h - rel_y - rh
+                                rel_x, rel_y = new_x, new_y
+                                img = img.Rotate180()
+                            elif rot_int == 270:
+                                # (x, y) -> (y, content_w - x - rw)
+                                new_x = rel_y
+                                new_y = content_w - rel_x - rw
+                                rel_x, rel_y = new_x, new_y
+                                img = img.Rotate90(False) # Counter-Clockwise
+                                rw, rh = rh, rw
+                            
+                            dest_x = off_x + rel_x * scale
+                            dest_y = off_y + rel_y * scale
+                            dest_w = rw * scale
+                            dest_h = rh * scale
+                            
+                            if dest_w > 0 and dest_h > 0:
+                                 img.Rescale(int(dest_w), int(dest_h), wx.IMAGE_QUALITY_NEAREST)
+                                 dc.DrawBitmap(img.ConvertToBitmap(), int(dest_x), int(dest_y), True)
         
         # DEBUG: Fall through - Check if we reached end
         # If nothing drawn, but arrived here

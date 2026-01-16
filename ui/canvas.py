@@ -9,6 +9,7 @@ import wx
 
 from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
+from ui.utils import render_pixel_shape_to_bitmap
 
 Color = Tuple[int, int, int]
 
@@ -224,139 +225,113 @@ class FrameCanvas(BaseCanvas):
 
              mod = self.project.get_module(ref_id)
              if mod:
-                 if mod.type == "MD_IMAGE":
-                     bmp = self._get_module_bitmap(mod)
-                     if bmp:
-                         # High Quality (Nearest Neighbor) Scaling hack for GraphicsContext
-                         target_w, target_h = int(round(w)), int(round(h))
-                         if target_w > 0 and target_h > 0:
-                             img = bmp.ConvertToImage()
-                             
-                             # Apply flipping (Combine local flip with frame-level flip)
-                             final_flip_x = fm.flip_x ^ self.render_flip_x
-                             final_flip_y = fm.flip_y ^ self.render_flip_y
-                             
-                             if final_flip_x:
-                                 img = img.Mirror(horizontally=True)
-                             if final_flip_y:
-                                 img = img.Mirror(horizontally=False) # Vertical flip
-
-                             # Apply Rotation (Pixel perfect 90 deg steps)
-                             rot = int(fm.rotation_degrees + self.render_rotation) % 360
-                             if rot == 90:
-                                 img = img.Rotate90(clockwise=True)
-                             elif rot == 180:
-                                 img = img.Rotate180()
-                             elif rot == 270:
-                                 img = img.Rotate90(clockwise=False)
-
-                             img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
-                             scaled_bmp = img.ConvertToBitmap()
-                             
-                             gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
-                 else:
-                     # Vector Shape Rendering
-                     gc.PushState()
-                     
-                     # 1. Transform to FModule Origin in Screen Space
-                     w_pos = self.local_to_world(fm.position)
-                     s_pos = self.world_to_screen(w_pos)
-                     gc.Translate(s_pos[0], s_pos[1])
-                     
-                     # 2. Apply Rotation (Global + Local)
-                     total_rot = fm.rotation_degrees + self.render_rotation
-                     if total_rot:
-                         gc.Rotate(math.radians(total_rot))
+                 bmp = self._get_module_bitmap(mod)
+                 if bmp:
+                     # High Quality (Nearest Neighbor) Scaling hack for GraphicsContext
+                     target_w, target_h = int(round(w)), int(round(h))
+                     if target_w > 0 and target_h > 0:
+                         img = bmp.ConvertToImage()
                          
-                     # 3. Apply Scale (Zoom + Flip)
-                     # Flip logic: 
-                     # render_flip_x flips the view (world_to_screen).
-                     # fm.flip_x flips the object locally.
-                     # We combine them via XOR logic essentially (multiplication of signs)
-                     sx = (-1 if fm.flip_x else 1) * (-1 if self.render_flip_x else 1) * self.zoom
-                     sy = (-1 if fm.flip_y else 1) * (-1 if self.render_flip_y else 1) * self.zoom
-                     gc.Scale(sx, sy)
+                         # Apply flipping (Combine local flip with frame-level flip)
+                         final_flip_x = fm.flip_x ^ self.render_flip_x
+                         final_flip_y = fm.flip_y ^ self.render_flip_y
+                         
+                         if final_flip_x:
+                             img = img.Mirror(horizontally=True)
+                         if final_flip_y:
+                             img = img.Mirror(horizontally=False) # Vertical flip
+
+                         # Apply Rotation (Pixel perfect 90 deg steps)
+                         rot = int(fm.rotation_degrees + self.render_rotation) % 360
+                         if rot == 90:
+                             img = img.Rotate90(clockwise=True)
+                         elif rot == 180:
+                             img = img.Rotate180()
+                         elif rot == 270:
+                             img = img.Rotate90(clockwise=False)
+
+                         img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
+                         scaled_bmp = img.ConvertToBitmap()
+                         
+                         gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
                      
-                     # 4. Draw Shape (Local to Module 0,0)
-                     # Draw relative to Pivot
-                     px, py = mod.pivot
-                     
-                     # Color
-                     c = mod.color
-                     color = wx.Colour(c[0], c[1], c[2])
-                     
-                     # Setup Pen/Brush
-                     filled = "FILL" in mod.type
-                     if filled:
-                         gc.SetBrush(wx.Brush(color))
-                         gc.SetPen(wx.TRANSPARENT_PEN)
-                     elif mod.type == "MD_MARKER":
-                         gc.SetPen(wx.Pen(color, width=2))
-                         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-                     elif mod.type == "MD_LINE":
-                         # Zoom-independent width? or Scaled? 
-                         # Here we are scaled by zoom. So width=1 is 1 pixel in module space.
-                         # This scales up with zoom.
-                         gc.SetPen(wx.Pen(color, width=1)) 
                      else:
+                         # Fallback for when bitmap scaling is not possible (e.g., zero width/height)
                          gc.SetBrush(wx.TRANSPARENT_BRUSH)
                          gc.SetPen(wx.Pen(color, width=1))
-
-                     if mod.type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
-                         x, y, w, h = mod.rect
-                         # Draw at module rect offset, shifted by pivot
-                         # Usually module rect x,y is 0,0 for shapes created via editor?
-                         # Parser sets x,y=0,0.
-                         draw_x, draw_y = x - px, y - py
                          
-                         if mod.type == "MD_MARKER":
-                             # Draw X
-                             gc.StrokeLine(draw_x, draw_y, draw_x + w, draw_y + h)
-                             gc.StrokeLine(draw_x + w, draw_y, draw_x, draw_y + h)
-                         else:
-                             gc.DrawRectangle(draw_x, draw_y, w, h)
+                         px, py = mod.pivot
+
+                         if mod.type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
+                             x, y, w, h = mod.rect
+                             # Draw at module rect offset, shifted by pivot
+                             # Usually module rect x,y is 0,0 for shapes created via editor?
+                             # Parser sets x,y=0,0.
+                             draw_x, draw_y = x - px, y - py
                              
-                     elif mod.type in ("MD_ARC", "MD_FILL_ARC"):
-                         x, y, w, h = mod.rect
-                         draw_x, draw_y = x - px, y - py
-                         start, sweep = mod.params if len(mod.params) >= 2 else (0, 360)
-                         start_rad = math.radians(start)
-                         end_rad = math.radians(start + sweep)
-                         
-                         # DrawEllipticArc path (x, y, w, h, start, end)
-                         # wxGraphicsContext DrawEllipticArc uses start/end angles in radians
-                         # It strokes/fills based on current state.
-                         gc.DrawEllipticArc(draw_x, draw_y, w, h, start_rad, end_rad)
-                         
-                         if filled:
-                             # DrawEllipticArc with brush fills the sector (pie)?
-                             # Or chord? 
-                             # On some backends it's just the arc.
-                             # For simplicity, assume it works or just leave as is.
-                             pass
-
-                     elif mod.type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
-                         # params: p2x, p2y, p3x, p3y. P1 is (0,0) relative to Module origin?
-                         # Wait, pivot applies to Module Origin.
-                         # If params defined relative to Module Origin (0,0):
-                         # Then P1=(0-px, 0-py)?
-                         # Yes.
-                         if len(mod.params) >= 4:
-                             p2x, p2y, p3x, p3y = mod.params
+                             if mod.type == "MD_MARKER":
+                                 # Draw X
+                                 gc.StrokeLine(draw_x, draw_y, draw_x + w, draw_y + h)
+                                 gc.StrokeLine(draw_x + w, draw_y, draw_x, draw_y + h)
+                             else:
+                                 gc.DrawRectangle(draw_x, draw_y, w, h)
+                                 
+                         elif mod.type in ("MD_ARC", "MD_FILL_ARC"):
+                             x, y, w, h = mod.rect
+                             draw_x, draw_y = x - px, y - py
+                             start, sweep = mod.params if len(mod.params) >= 2 else (0, 360)
+                             start_rad = math.radians(start)
+                             end_rad = math.radians(start + sweep)
+                             
+                             # DrawEllipticArc path (x, y, w, h, start, end)
+                             # wxGraphicsContext DrawEllipticArc uses start/end angles in radians
+                             # It strokes/fills based on current state.
+                             gc.DrawEllipticArc(draw_x, draw_y, w, h, start_rad, end_rad)
+                             
+                             if filled:
+                                 # DrawEllipticArc with brush fills the sector (pie)?
+                                 # Or chord? 
+                                 # On some backends it's just the arc.
+                                 # For simplicity, assume it works or just leave as is.
+                                 pass
+    
+                         elif mod.type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+                             # params: p2x, p2y, p3x, p3y. P1 is (0,0) relative to Module origin?
+                             # Wait, pivot applies to Module Origin.
+                             # If params defined relative to Module Origin (0,0):
+                             # P1 = (0,0).
+                             # But we must draw relative to Pivot.
+                             # Draw at (0-px, 0-py).
+                             draw_base_x = -px
+                             draw_base_y = -py
+                             if len(mod.params) >= 4:
+                                 p2x, p2y, p3x, p3y = mod.params
+                             else:
+                                 p2x, p2y = w, 0
+                                 p3x, p3y = 0, h
+                                 
+                             points = [
+                                 (draw_base_x, draw_base_y),
+                                 (draw_base_x + p2x, draw_base_y + p2y),
+                                 (draw_base_x + p3x, draw_base_y + p3y)
+                             ]
+                             # GC expects list of points for DrawLines or Path for Polygon
                              path = gc.CreatePath()
-                             path.MoveToPoint(-px, -py) # P1
-                             path.AddLineToPoint(p2x - px, p2y - py) # P2
-                             path.AddLineToPoint(p3x - px, p3y - py) # P3
-                             path.CloseSubpath() # Back to P1
+                             path.MoveToPoint(*points[0])
+                             path.AddLineToPoint(*points[1])
+                             path.AddLineToPoint(*points[2])
+                             path.CloseSubpath()
                              gc.DrawPath(path)
                              
-                     elif mod.type == "MD_LINE":
-                         # params: endX, endY
-                         if len(mod.params) >= 2:
-                             endX, endY = mod.params
-                             gc.StrokeLine(-px, -py, endX - px, endY - py)
-
-                     gc.PopState()
+                         elif mod.type == "MD_LINE":
+                             if len(mod.params) >= 2:
+                                 endX, endY = mod.params
+                             else:
+                                 endX, endY = mod.rect[2], mod.rect[3]
+                             draw_base_x = -px
+                             draw_base_y = -py
+                             gc.StrokeLine(draw_base_x, draw_base_y, draw_base_x + endX, draw_base_y + endY)
+                 gc.PopState()
         
         elif fm.ref_type == "frame":
              ref_frame = self.project.get_frame(fm.ref_id)
@@ -888,35 +863,49 @@ class FrameCanvas(BaseCanvas):
         return int(bounds[2] - bounds[0])
 
     def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
-        if mod.id in self._bitmap_cache:
-            return self._bitmap_cache[mod.id]
+        # Shape Cache Key needs to include params!
+        # Image Cache Key can just be ID (if we assume image data is static per session/ID)
+        
+        # Robust Key Generation
+        if mod.type == "MD_IMAGE":
+            key = mod.id
+        else:
+            # For shapes, include visual properties in key
+            key = f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
             
-        asset = self.project.get_image(mod.image_id)
-        if not asset:
-            return None
+        if key in self._bitmap_cache:
+            return self._bitmap_cache[key]
             
-        try:
-            # Can we share cache with Palette? 
-            # Ideally Project should hold the Asset cache (Images).
-            # But we need Module-specific cropped bitmaps.
-            
-            # Load full image (cached? We'll rely on FS cache for now or add one later if slow)
-            # Optimization: Cache logic is duplicate of Palette. Consolidate later.
-            full_img = wx.Image(asset.file_path)
-            if asset.transparent_color:
-                full_img.SetMaskColour(*asset.transparent_color)
+        if mod.type == "MD_IMAGE":
+            asset = self.project.get_image(mod.image_id)
+            if not asset:
+                return None
                 
-            rx, ry, rw, rh = mod.rect
-            img_w, img_h = full_img.GetWidth(), full_img.GetHeight()
-            
-            if rx + rw <= img_w and ry + rh <= img_h:
-                sub_img = full_img.GetSubImage(wx.Rect(rx, ry, rw, rh))
-                bmp = sub_img.ConvertToBitmap()
-                self._bitmap_cache[mod.id] = bmp
-                return bmp
-        except Exception as e:
-            print(f"Canvas bmp load fail: {e}")
-            return None
+            try:
+                # Load full image (cached? We'll rely on FS cache for now or add one later if slow)
+                full_img = wx.Image(asset.file_path)
+                if asset.transparent_color:
+                    full_img.SetMaskColour(*asset.transparent_color)
+                    
+                rx, ry, rw, rh = mod.rect
+                img_w, img_h = full_img.GetWidth(), full_img.GetHeight()
+                
+                if rx + rw <= img_w and ry + rh <= img_h:
+                    sub_img = full_img.GetSubImage(wx.Rect(rx, ry, rw, rh))
+                    bmp = sub_img.ConvertToBitmap()
+                    self._bitmap_cache[key] = bmp
+                    return bmp
+            except Exception as e:
+                print(f"Canvas bmp load fail: {e}")
+                return None
+        else:
+             # Shape Rendering
+             w, h = mod.rect[2], mod.rect[3]
+             bmp = render_pixel_shape_to_bitmap(mod.type, w, h, mod.color, mod.params)
+             if bmp:
+                 self._bitmap_cache[key] = bmp
+                 return bmp
+                 
         return None
 
     def handle_dropped_module(self, ref_id: str, pos: wx.Point, ref_type: str = "module"):
