@@ -505,12 +505,29 @@ class AuroraSpriteParser:
                                 p2x, p2y = int(parts[4]), int(parts[5])
                                 p3x, p3y = int(parts[6]), int(parts[7])
                                 
-                                # Calc bounding box relative to P1(0,0)
+                                # Calc bounding box encompassing Origin(0,0), P2, P3
                                 min_x, max_x = min(0, p2x, p3x), max(0, p2x, p3x)
                                 min_y, max_y = min(0, p2y, p3y), max(0, p2y, p3y)
-                                rect = (min_x, min_y, max_x - min_x, max_y - min_y)
-                                pivot = (0, 0) # Pivot at P1
-                                params = [float(p2x), float(p2y), float(p3x), float(p3y)]
+                                w, h = max(1, max_x - min_x), max(1, max_y - min_y) # Avoid div/0
+                                
+                                rect = (min_x, min_y, w, h)
+                                pivot = (0, 0) # Pivot remains 0,0 relative to origin? Or Center?
+                                # User said: "The first point... is always the top left (origin) of the module" (Legacy).
+                                # But we want to decouple it.
+                                # Pivot usually defaults to center.
+                                pivot = (w // 2, h // 2)
+                                
+                                # Convert 3 Points (0,0), (p2), (p3) to Percentages of Rect
+                                # P1 (0,0) relative to Rect Min:
+                                p1_rel_x, p1_rel_y = 0 - min_x, 0 - min_y
+                                p2_rel_x, p2_rel_y = p2x - min_x, p2y - min_y
+                                p3_rel_x, p3_rel_y = p3x - min_x, p3y - min_y
+                                
+                                params = [
+                                    (p1_rel_x / w) * 100.0, (p1_rel_y / h) * 100.0,
+                                    (p2_rel_x / w) * 100.0, (p2_rel_y / h) * 100.0,
+                                    (p3_rel_x / w) * 100.0, (p3_rel_y / h) * 100.0
+                                ]
 
                             # 5. MD_LINE: color endX endY
                             elif md_type == "MD_LINE":
