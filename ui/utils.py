@@ -320,11 +320,40 @@ def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int
         mem.DrawPolygon(points)
         
     elif mod_type == "MD_LINE":
-        if len(params) >= 2:
+        # 4-Point Percentage System (0-100 relative to w/h)
+        # Reusing the Inset Logic from Triangle
+        ss_pen_width = 1 * 4 # See comment above for Triangle (pen_w=1, scale=1)
+        pen_w = 1
+        half_pen = 0.5
+        
+        def to_px(pct, size):
+            return int(half_pen + (pct / 100.0) * (size - pen_w))
+
+        if len(params) >= 4:
+            x1, y1, x2, y2 = params
+        elif len(params) == 2:
+            # Legacy fallback (Shouldn't happen if Parser/Selector upgrades it, but for safety)
+            # Legacy: Start 0,0, End params[0], params[1]
+            x1, y1 = 0.0, 0.0
+            # Convert pixels to pct? No, legacy params hold pixels in old format...
+            # BUT if we upgraded the parser, the params in memory ARE PERCENTAGES.
+            # So if we see 2 params, what are they?
+            # If `models.py` ran, it has 4 params.
+            # If we load old JSON, it has 2 params (Pixels).
+            # We must detect if params are likely pixels or percentages?
+            # Or just assume 2 params = Pixels (old raw params).
+            # Let's map pixels to percentages, OR just map pixels to pixels.
             endX, endY = params
+            mem.DrawLine(0, 0, int(endX), int(endY))
+            mem.SelectObject(wx.NullBitmap)
+            return bmp
+            
         else:
-            endX, endY = w, h
-        mem.DrawLine(0, 0, int(endX), int(endY))
+             x1, y1, x2, y2 = 0.0, 0.0, 100.0, 100.0
+
+        p1 = (to_px(x1, w), to_px(y1, h))
+        p2 = (to_px(x2, w), to_px(y2, h))
+        mem.DrawLine(p1[0], p1[1], p2[0], p2[1])
 
     mem.SelectObject(wx.NullBitmap)
     return bmp

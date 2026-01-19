@@ -695,8 +695,8 @@ class ModuleEditorPanel(wx.Panel):
                 setattr(self, attr_lbl, lbl)
             
             # Percentages: 0.0 to 100.0
-            sx = wx.SpinCtrlDouble(parent, min=-200.0, max=200.0, initial=0.0, inc=5.0)
-            sy = wx.SpinCtrlDouble(parent, min=-200.0, max=200.0, initial=0.0, inc=5.0)
+            sx = wx.SpinCtrlDouble(parent, min=0.0, max=100.0, initial=0.0, inc=5.0)
+            sy = wx.SpinCtrlDouble(parent, min=0.0, max=100.0, initial=0.0, inc=5.0)
             setattr(self, attr_x, sx)
             setattr(self, attr_y, sy)
             
@@ -979,14 +979,17 @@ class ModuleEditorPanel(wx.Panel):
         
         if show_tri or show_line:
             # Handle internals of panel_tri (sizer still valid)
-            self.pts_sizer.Show(0, True) # P2
-            self.pts_sizer.Show(1, show_tri) # P3
+            self.pts_sizer.Show(0, True) # P1 (Always shown for Tri/Line)
+            self.pts_sizer.Show(1, True) # P2 (Always shown)
+            self.pts_sizer.Show(2, show_tri) # P3 (Only Tri)
             
             if show_line:
-                self.lbl_p2.SetLabel("End:")
+                self.lbl_p1.SetLabel("P1%")
+                self.lbl_p2.SetLabel("P2%")
             else:
-                self.lbl_p2.SetLabel("P2:")
-                self.lbl_p3.SetLabel("P3:")
+                self.lbl_p1.SetLabel("P1%")
+                self.lbl_p2.SetLabel("P2%")
+                self.lbl_p3.SetLabel("P3%")
             self.panel_tri.Layout() # Layout internal panel
         
         # Show entire Container (hides StaticBox too)
@@ -1006,14 +1009,9 @@ class ModuleEditorPanel(wx.Panel):
                     self.spin_p2x.GetValue(), self.spin_p2y.GetValue(),
                     self.spin_p3x.GetValue(), self.spin_p3y.GetValue()]
         elif type_str == "MD_LINE":
-            # Line uses P2 fields as End Point (using Percentages logic if we want consistency? Or absolute?)
-            # Plan said "MD_LINE... params=[endX, endY]".
-            # But the UI is using the same P2 fields which are now Double Percentages?
-            # Existing MD_LINE implementation expected Absolute Pixels in `render_pixel_shape_to_bitmap`?
-            # Wait, I didn't verify MD_LINE logic in utils.py.
-            # Assuming MD_LINE expects pixels for now, but UI is providing Doubles.
-            # Let's return raw values.
-            return [self.spin_p2x.GetValue(), self.spin_p2y.GetValue()] # Potentially broken if doubles passed to Int logic?
+            # 4 Percentages for Line
+            return [self.spin_p1x.GetValue(), self.spin_p1y.GetValue(),
+                    self.spin_p2x.GetValue(), self.spin_p2y.GetValue()]
         return []
 
     def _set_default_ui_params(self, type_str: str) -> None:
@@ -1030,6 +1028,8 @@ class ModuleEditorPanel(wx.Panel):
             self.spin_p3x.SetValue(0.0)
             self.spin_p3y.SetValue(100.0)
         elif type_str == "MD_LINE":
+            self.spin_p1x.SetValue(0.0)
+            self.spin_p1y.SetValue(0.0)
             self.spin_p2x.SetValue(100.0)
             self.spin_p2y.SetValue(100.0)
 
@@ -1210,9 +1210,26 @@ class ModuleEditorPanel(wx.Panel):
                            # Update Module Immediately
                            mod.params = [0.0, 0.0, p2x_pct, p2y_pct, p3x_pct, p3y_pct]
                         
-                    elif mod.type == "MD_LINE" and len(p) >= 2:
-                        self.spin_p2x.SetValue(p[0])
-                        self.spin_p2y.SetValue(p[1])
+                    elif mod.type == "MD_LINE":
+                        if len(p) >= 4:
+                            self.spin_p1x.SetValue(p[0])
+                            self.spin_p1y.SetValue(p[1])
+                            self.spin_p2x.SetValue(p[2])
+                            self.spin_p2y.SetValue(p[3])
+                        elif len(p) == 2:
+                            # Legacy Upgrade: Start 0,0 -> End p[0], p[1]
+                            # Convert to Percentages relative to Rect Size
+                            w, h = max(1, mod.rect[2]), max(1, mod.rect[3])
+                            p2x_pct = (p[0] / w) * 100.0
+                            p2y_pct = (p[1] / h) * 100.0
+                            
+                            self.spin_p1x.SetValue(0.0)
+                            self.spin_p1y.SetValue(0.0)
+                            self.spin_p2x.SetValue(p2x_pct)
+                            self.spin_p2y.SetValue(p2y_pct)
+                            
+                            # Update Module Immediately
+                            mod.params = [0.0, 0.0, p2x_pct, p2y_pct]
                 except Exception:
                     pass
                 
