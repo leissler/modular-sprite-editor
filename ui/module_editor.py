@@ -66,6 +66,13 @@ class ModuleCanvas(BaseCanvas):
                  self.on_delete()
         event.Skip()
 
+    def _is_existing_module_selected(self) -> bool:
+        if not self.selection: return False
+        # self.module_overlays entry: (rect, is_sel, id, ...)
+        for ov in self.module_overlays:
+            if ov[1]: return True
+        return False
+
 
 
     def set_bitmap(self, bmp: Optional[wx.Bitmap], size: Tuple[int, int], reset_state: bool = True) -> None:
@@ -252,6 +259,17 @@ class ModuleCanvas(BaseCanvas):
             w = world[0] - x
             h = world[1] - y
             self.selection = (int(x), int(y), int(w), int(h))
+            
+            # Auto-Center Pivot for New Selection
+            # Find normalized dimensions
+            nx, ny, nw, nh = int(x), int(y), int(w), int(h)
+            if nw < 0: nx += nw; nw = -nw
+            if nh < 0: ny += nh; nh = -nh
+            
+            self.pivot = (nx + nw // 2, ny + nh // 2)
+            if self.on_pivot_changed:
+                self.on_pivot_changed(self.pivot)
+
             if self.on_selection_changed:
                 self.on_selection_changed(self.selection)
             self.Refresh(False)
@@ -290,6 +308,15 @@ class ModuleCanvas(BaseCanvas):
                 new_top, new_bottom = new_bottom, new_top
                 
             self.selection = (new_left, new_top, new_right - new_left, new_bottom - new_top)
+            
+            # Auto-Center Pivot if Potential Module (Not Existing)
+            if not self._is_existing_module_selected():
+                 cx = new_left + (new_right - new_left) // 2
+                 cy = new_top + (new_bottom - new_top) // 2
+                 self.pivot = (cx, cy)
+                 if self.on_pivot_changed:
+                     self.on_pivot_changed(self.pivot)
+            
             if self.on_selection_changed:
                 self.on_selection_changed(self.selection)
             self.Refresh(False)
@@ -304,7 +331,18 @@ class ModuleCanvas(BaseCanvas):
             if self.on_selection_changed:
                  self.on_selection_changed(self.selection)
             
-            if self._move_start_pivot:
+            # Pivot Logic
+            if not self._is_existing_module_selected():
+                # Force Center for Potential Modules
+                nx, ny = x + dx, y + dy
+                # Normalize just in case, though move shouldn't flip
+                if w < 0: nx += w; w = -w
+                if h < 0: ny += h; h = -h
+                self.pivot = (nx + w // 2, ny + h // 2)
+                if self.on_pivot_changed:
+                    self.on_pivot_changed(self.pivot)
+            elif self._move_start_pivot:
+                # Relative Move for Existing Modules
                 px, py = self._move_start_pivot
                 self.pivot = (px + dx, py + dy)
                 if self.on_pivot_changed:
