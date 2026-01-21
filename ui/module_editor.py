@@ -486,13 +486,34 @@ class ModuleCanvas(BaseCanvas):
                 has_size = abs(self.selection[2]) > 0 or abs(self.selection[3]) > 0
                 if has_size or self._pivot_drag or self._hover_pivot:
                     sx, sy = self.world_to_screen(self.pivot)
+                    
+                    # Pivot is a single pixel. Visualize it as such.
+                    pixel_size = max(1, self.zoom)
+                    
                     color = wx.Colour(240, 80, 80) if self._pivot_drag or self._hover_pivot else wx.Colour(200, 60, 60)
+                    
+                    # 1. Draw Square around the pivot pixel
+                    # Use Rounding to align with grid
+                    dsx = round(sx)
+                    dsy = round(sy)
+                    dsize = round(pixel_size)
+                    
+                    gc.SetPen(wx.Pen(color, width=1))
+                    gc.SetBrush(wx.TRANSPARENT_BRUSH)
+                    gc.DrawRectangle(dsx, dsy, dsize, dsize)
+                    
+                    # 2. Draw Crosshair centered on the pixel
+                    # Make it slightly larger than the square
+                    cx = dsx + dsize / 2
+                    cy = dsy + dsize / 2
+                    
+                    # Extend by fixed amount (e.g. 6px) outside the square
+                    ext = 6
+                    half_len = (dsize / 2) + ext
+                    
                     gc.SetPen(wx.Pen(color, width=2))
-                    # Pivot center crosshair should also snap? Usually simpler to leave as is, or snap for consistency.
-                    # Let's snap it.
-                    sx, sy = round(sx), round(sy)
-                    gc.StrokeLine(sx - 8, sy, sx + 8, sy)
-                    gc.StrokeLine(sx, sy - 8, sx, sy + 8)
+                    gc.StrokeLine(cx - half_len, cy, cx + half_len, cy)
+                    gc.StrokeLine(cx, cy - half_len, cx, cy + half_len)
 
     def _render_vector_shape(self, gc: wx.GraphicsContext, type: str, color: Tuple[int, int, int], params: list, x: int, y: int, w: int, h: int) -> None:
         """Helper to render vector shapes given world bounds using pixel-perfect scaling."""

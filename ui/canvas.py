@@ -535,21 +535,47 @@ class FrameCanvas(BaseCanvas):
         col = self.point_type_colors.get(cp.type_id, (0, 255, 0))
         r, g, b = int(col[0]), int(col[1]), int(col[2])
         
-        # Draw Crosshair + Circle
-        # Fill: Solid type color
-        gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 255)))
+        # Visual Config
+        pixel_size = max(1, self.zoom)
         
-        # Outline: White if selected, None otherwise
-        if cp.id in self.selected_points:
-            gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 2))
+        # 1. Draw Square around the pixel
+        # Use Rounding to align with grid
+        dsx = round(sx)
+        dsy = round(sy)
+        dsize = round(pixel_size)
+        
+        # Fill with semi-transparent color if unselected, solid if selected?
+        # Module editor uses transparent brush for pivot.
+        # But for control points, we might want them visible.
+        # Let's use transparent brush but solid pen for the square, same as pivot.
+        
+        gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 80))) # Slight tint
+        
+        is_selected = cp.id in self.selected_points
+        
+        if is_selected:
+             gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=2))
         else:
-            gc.SetPen(wx.TRANSPARENT_PEN)
+             gc.SetPen(wx.Pen(wx.Colour(r, g, b), width=1))
+             
+        gc.DrawRectangle(dsx, dsy, dsize, dsize)
+        
+        # 2. Draw Crosshair centered on the pixel
+        # Make it slightly larger than the square
+        cx = dsx + dsize / 2
+        cy = dsy + dsize / 2
+        
+        # Extend by fixed amount (e.g. 6px) outside the square
+        ext = 6
+        half_len = (dsize / 2) + ext
+        
+        if is_selected:
+            gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=2))
+        else:
+            gc.SetPen(wx.Pen(wx.Colour(r, g, b), width=2))
             
-        gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
-        
-        gc.DrawEllipse(sx - 4, sy - 4, 8, 8)
-        
-        # Crosshair removed as per user request
+        gc.StrokeLine(cx - half_len, cy, cx + half_len, cy)
+        gc.StrokeLine(cx, cy - half_len, cx, cy + half_len)
 
     # Interaction
     def on_left_down(self, event: wx.MouseEvent) -> None:
