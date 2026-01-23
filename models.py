@@ -248,6 +248,9 @@ class Frame:
             "control_points": [cp.to_dict() for cp in self.control_points],
         }
 
+    def clone(self) -> "Frame":
+        return Frame.from_dict(self.to_dict())
+
     @staticmethod
     def from_dict(data: Dict) -> "Frame":
         fmodules = [FModule.from_dict(fm_data) for fm_data in data.get("fmodules", [])]
@@ -281,6 +284,9 @@ class AFrame:
             "flip_y": self.flip_y,
             "rotation_degrees": self.rotation_degrees,
         }
+
+    def clone(self) -> "AFrame":
+        return AFrame.from_dict(self.to_dict())
 
     @staticmethod
     def from_dict(data: Dict) -> "AFrame":
@@ -324,6 +330,9 @@ class Animation:
             "fps": self.fps,
             "aframes": [af.to_dict() for af in self.aframes],
         }
+
+    def clone(self) -> "Animation":
+        return Animation.from_dict(self.to_dict())
 
     @staticmethod
     def from_dict(data: Dict) -> "Animation":

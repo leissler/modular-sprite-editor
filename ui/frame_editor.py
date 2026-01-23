@@ -338,11 +338,15 @@ class FrameListDropTarget(wx.TextDropTarget):
         self.editor.move_frame(src_idx, target_idx)
         return True
 
+from ui.undo_manager import UndoManager
+
 class FrameEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent)
         self.project = project
         self.selected_frame_id: Optional[str] = None
+        
+        self.undo_manager = UndoManager()
         
         # Clipboard
         self._clipboard_col: List = [] 
@@ -444,15 +448,72 @@ class FrameEditorPanel(wx.Panel):
         
         self.palette.refresh_modules()
         self.refresh_frames()
-        self.on_col_type_change() # Init color map
-        self.on_point_type_change() # Init color map
-        # Canvas Interaction Events
+        
+        # Accelerators
+        accel_tbl = wx.AcceleratorTable([
+            (wx.ACCEL_CTRL, ord('Z'), wx.ID_UNDO),
+            (wx.ACCEL_CTRL, ord('Y'), wx.ID_REDO),
+            (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord('Z'), wx.ID_REDO)
+        ])
+        self.SetAcceleratorTable(accel_tbl)
+        
+        self.Bind(wx.EVT_MENU, self.on_undo, id=wx.ID_UNDO)
+        self.Bind(wx.EVT_MENU, self.on_redo, id=wx.ID_REDO)
+        
+        # Init color maps
+        self.on_col_type_change() 
+        self.on_point_type_change()
+
         # Canvas Interaction Events
         self.canvas.Bind(wx.EVT_RIGHT_DOWN, self.on_canvas_right_down)
         self.Bind(wx.EVT_CHAR_HOOK, self.on_key_down)
 
         # Sync selection
         self.canvas.on_selection_changed = self.on_canvas_selection_changed
+        self.canvas.on_modify_ended = self.snapshot
+        self.canvas.on_modify_started = self.snapshot
+        
+        # Initial Snapshot
+        self.snapshot()
+
+    def snapshot(self):
+        """Captures the current state of the active frame for Undo."""
+        if self.canvas.frame:
+            self.undo_manager.push_state(self.canvas.frame.clone())
+
+    def on_undo(self, event):
+        state = self.undo_manager.undo()
+        if state:
+            self._restore_state(state)
+
+    def on_redo(self, event):
+        state = self.undo_manager.redo()
+        if state:
+            self._restore_state(state)
+
+    def _restore_state(self, new_frame: Frame):
+        # 1. Update Project Data
+        # Find index of frame with same ID
+        found = False
+        for i, f in enumerate(self.project.frames):
+            if f.id == new_frame.id:
+                self.project.frames[i] = new_frame
+                found = True
+                break
+        
+        if not found:
+            print(f"Warning: Frame {new_frame.id} not found in project to restore.")
+            return
+
+        # 2. Update Canvas
+        self.canvas.set_frame(new_frame)
+        self.canvas.Refresh()
+        
+        # 3. Update Point Manager / Collision Manager
+        if hasattr(self.point_manager, 'refresh_list'):
+            self.point_manager.refresh_list()
+        if hasattr(self.col_manager, 'refresh_list'):
+            self.col_manager.refresh_list()
         
     def on_canvas_selection_changed(self, selected_ids: List[str]):
         if not selected_ids:
@@ -537,6 +598,8 @@ class FrameEditorPanel(wx.Panel):
     def _toggle_flip(self, param: str):
          frame = self.canvas.frame
          if not frame: return
+         
+         self.snapshot()
          
          # Identify targets
          # Pass explicit list if selection exists, else None (to imply All)
@@ -660,6 +723,7 @@ class FrameEditorPanel(wx.Panel):
          
          if changed:
              self.canvas.Refresh()
+             self.snapshot()
 
     def on_rotate_cw(self, event):
         self._rotate_selected(90)
@@ -671,6 +735,8 @@ class FrameEditorPanel(wx.Panel):
          frame = self.canvas.frame
          if not frame: return
          
+         self.snapshot()
+         
          changed = False
          for fm in frame.fmodules:
              if fm.id in self.canvas.selected_fmodules:
@@ -679,11 +745,14 @@ class FrameEditorPanel(wx.Panel):
          
          if changed:
              self.canvas.Refresh()
+             self.snapshot()
 
     def _change_z_order(self, direction: str):
         if not self.canvas.frame or not self.canvas.selected_fmodules:
             return
             
+        self.snapshot()
+        
         fmodules = self.canvas.frame.fmodules
         selected_ids = set(self.canvas.selected_fmodules)
         
@@ -730,10 +799,14 @@ class FrameEditorPanel(wx.Panel):
              fmodules[0:0] = selected_items
              
         self.canvas.Refresh()
+        self.snapshot()
+        self.snapshot()
 
     def _delete_selected_modules(self):
         if not self.canvas.frame or not self.canvas.selected_fmodules:
             return
+            
+        self.snapshot()
             
         # Ensure we don't modify list while iterating if we were doing that
         # Rebuild list excluding deleted ones
@@ -743,10 +816,13 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.frame.fmodules = new_list
         self.canvas.selected_fmodules = []
         self.canvas.Refresh()
+        self.snapshot()
 
     def _delete_selected_collision_rects(self):
         if not self.canvas.frame or not self.canvas.selected_collision_rects:
             return
+            
+        self.snapshot()
             
         selected = set(self.canvas.selected_collision_rects)
         new_list = [cr for cr in self.canvas.frame.collision_rects if cr.id not in selected]
@@ -754,10 +830,13 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.frame.collision_rects = new_list
         self.canvas.selected_collision_rects = []
         self.canvas.Refresh()
+        self.snapshot()
 
     def _delete_selected_points(self):
         if not self.canvas.frame or not self.canvas.selected_points:
             return
+
+        self.snapshot()
             
         selected = set(self.canvas.selected_points)
         new_list = [cp for cp in self.canvas.frame.control_points if cp.id not in selected]
@@ -765,6 +844,7 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.frame.control_points = new_list
         self.canvas.selected_points = []
         self.canvas.Refresh()
+        self.snapshot()
 
     def on_key_down(self, event: wx.KeyEvent):
         # Checking if canvas or panel has focus might be needed, 

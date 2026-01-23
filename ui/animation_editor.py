@@ -15,11 +15,13 @@ from models import AFrame, Animation, Project, generate_id
 from ui.canvas import AnimationCanvas
 from ui.components.timeline_control import TimelineControl
 from ui.components.frame_palette import FramePalette
+from ui.undo_manager import UndoManager
 
 class AnimationEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent)
         self.project = project
+        self.undo_manager = UndoManager()
         self.selected_animation_id: Optional[str] = None
         self.current_index: int = 0
         self.play_direction = 1
@@ -244,9 +246,74 @@ class AnimationEditorPanel(wx.Panel):
         self.timeline.on_insert_frame = self.on_timeline_insert
         self.timeline.on_reorder_frame = self.on_timeline_drag_reorder
         self.canvas.on_offset_change = self.on_canvas_offset_change
+        self.canvas.on_modify_ended = self.snapshot
+        self.canvas.on_modify_started = self.snapshot
 
         self.refresh_animations()
         self.frame_palette.refresh_frames()
+        
+        # Accelerators
+        accel_tbl = wx.AcceleratorTable([
+            (wx.ACCEL_CTRL, ord('Z'), wx.ID_UNDO),
+            (wx.ACCEL_CTRL, ord('Y'), wx.ID_REDO),
+            (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord('Z'), wx.ID_REDO)
+        ])
+        self.SetAcceleratorTable(accel_tbl)
+        
+        self.Bind(wx.EVT_MENU, self.on_undo, id=wx.ID_UNDO)
+        self.Bind(wx.EVT_MENU, self.on_redo, id=wx.ID_REDO)
+
+    def snapshot(self):
+        """Captures the current state of the active animation for Undo."""
+        anim = self.get_selected_anim()
+        if anim:
+            self.undo_manager.push_state(anim.clone())
+
+    def on_undo(self, event):
+        state = self.undo_manager.undo()
+        if state:
+            self._restore_state(state)
+
+    def on_redo(self, event):
+        state = self.undo_manager.redo()
+        if state:
+            self._restore_state(state)
+
+    def _restore_state(self, new_anim: Animation):
+        self.ui_updating = True 
+        try:
+            # 1. Update Project Data
+            found = False
+            for i, a in enumerate(self.project.animations):
+                if a.id == new_anim.id:
+                    self.project.animations[i] = new_anim
+                    found = True
+                    break
+            
+            if not found:
+                 print(f"Warning: Animation {new_anim.id} not found to restore.")
+                 return
+    
+            # 2. Update Context
+            self.selected_animation_id = new_anim.id
+            self.canvas.set_animation(new_anim)
+            self.timeline.set_animation(new_anim)
+            
+            # 3. Refresh UI
+            # We need to preserve current_index IF possible?
+            # Or does snapshot include 'current_index'? No, Animation model doesn't have it.
+            # So we keep current index, but clamp it.
+            if new_anim.aframes:
+                self.current_index = max(0, min(self.current_index, len(new_anim.aframes) - 1))
+            else:
+                self.current_index = 0
+                
+            self.canvas.set_current_index(self.current_index)
+            self.timeline.set_current_index(self.current_index)
+            self.update_aframe_ui()
+            self.refresh_animations(select_id=new_anim.id) # Updates list names/selection
+        finally:
+             self.ui_updating = False
 
     def on_anim_list_size(self, event):
         width = self.anim_list.GetClientSize().width
@@ -311,6 +378,7 @@ class AnimationEditorPanel(wx.Panel):
         self.current_index = 0
         self.canvas.set_current_index(0)
         self.timeline.set_current_index(0)
+        self.timeline.set_current_index(0)
         self.update_aframe_ui()
 
     def refresh_animations(self, select_id: Optional[str] = None) -> None:
@@ -333,6 +401,8 @@ class AnimationEditorPanel(wx.Panel):
         return None
 
     def on_select_animation(self, event) -> None:
+        if self.ui_updating: return
+
         anim = self.get_selected_anim()
         if not anim:
             self.selected_animation_id = None
@@ -358,6 +428,7 @@ class AnimationEditorPanel(wx.Panel):
 
         self.current_index = 0
         self.canvas.set_current_index(0)
+        self.timeline.set_current_index(0)
         self.timeline.set_current_index(0)
         self.update_aframe_ui()
 
@@ -409,6 +480,8 @@ class AnimationEditorPanel(wx.Panel):
             wx.MessageBox("Please select an animation first!", "No Animation Selected")
             return
             
+        self.snapshot()
+        
         new_aframe = AFrame(
             frame_id=frame_id,
             duration_frames=1, # Default 1 frame duration
@@ -419,10 +492,13 @@ class AnimationEditorPanel(wx.Panel):
         self.canvas.Refresh(False)
         # Maybe jump to end?
         self.jump_to_last()
+        self.snapshot()
 
     def on_remove_aframe(self, event) -> None:
         anim = self.get_selected_anim()
         if not anim or not anim.aframes: return
+        
+        self.snapshot()
         
         if 0 <= self.current_index < len(anim.aframes):
             anim.aframes.pop(self.current_index)
@@ -430,6 +506,7 @@ class AnimationEditorPanel(wx.Panel):
             self.update_aframe_ui()
             self.timeline.Refresh(False)
             self.canvas.Refresh(False)
+            self.snapshot()
 
     def on_change_playback(self, event) -> None:
         anim = self.get_selected_anim()
@@ -529,6 +606,8 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.get_selected_anim()
         if not anim: return
         
+        self.snapshot()
+        
         for af in anim.aframes:
             # Axis Swap Check
             rot = 0
@@ -545,10 +624,14 @@ class AnimationEditorPanel(wx.Panel):
             
         self.update_aframe_ui()
         self.canvas.Refresh()
+        self.snapshot()
 
     def on_flip_anim_v(self, event) -> None:
         anim = self.get_selected_anim()
         if not anim: return
+        
+        self.snapshot()
+        
         for af in anim.aframes:
             # Axis Swap Check
             rot = 0
@@ -565,10 +648,13 @@ class AnimationEditorPanel(wx.Panel):
             
         self.update_aframe_ui()
         self.canvas.Refresh()
+        self.snapshot()
 
     def _rotate_animation(self, degrees: float) -> None:
         anim = self.get_selected_anim()
         if not anim: return
+        
+        self.snapshot()
         
         rot_steps = int(degrees / 90) % 4
         if rot_steps == 0: return
@@ -594,6 +680,7 @@ class AnimationEditorPanel(wx.Panel):
         self.update_aframe_ui()
         self.canvas._update_frame() # Update render state
         self.canvas.Refresh()
+        self.snapshot()
 
     def on_begin_drag_anim(self, event):
         idx = event.GetIndex()
@@ -946,6 +1033,7 @@ class AnimationEditorPanel(wx.Panel):
             self.update_aframe_ui()
             self.timeline.Refresh(False)
             self.canvas.Refresh(False)
+            self.snapshot()
 
     def on_timeline_reorder(self, idx: int, direction: int) -> None:
         anim = self.get_selected_anim()
@@ -965,6 +1053,7 @@ class AnimationEditorPanel(wx.Panel):
             self.update_aframe_ui()
             self.timeline.Refresh(False)
             self.canvas.Refresh(False)
+            self.snapshot()
 
     def on_timeline_insert(self, frame_id: str, idx: int) -> None:
         anim = self.get_selected_anim()
@@ -983,6 +1072,7 @@ class AnimationEditorPanel(wx.Panel):
         self.update_aframe_ui()
         self.timeline.Refresh(False)
         self.canvas.Refresh(False)
+        self.snapshot()
 
     def on_timeline_drag_reorder(self, from_idx: int, to_idx: int) -> None:
         anim = self.get_selected_anim()
@@ -1016,6 +1106,7 @@ class AnimationEditorPanel(wx.Panel):
         self.update_aframe_ui()
         self.timeline.Refresh(False)
         self.canvas.Refresh(False)
+        self.snapshot()
 
     def on_toggle_trajectory(self, event) -> None:
         self.canvas.show_trajectory = event.IsChecked()

@@ -36,6 +36,9 @@ class FrameCanvas(BaseCanvas):
         self._drag_start_world: Optional[Tuple[float, float]] = None
         self._drag_start_positions: dict[str, Tuple[int, int]] = {}
         
+        self.on_modify_started: Optional[Callable[[], None]] = None
+        self.on_modify_ended: Optional[Callable[[], None]] = None
+        
         self.frame_offset: Tuple[float, float] = (0.0, 0.0)
         self.render_flip_x = False
         self.render_flip_y = False
@@ -621,6 +624,10 @@ class FrameCanvas(BaseCanvas):
                 if clicked.id not in self.selected_fmodules:
                     self.selected_fmodules = [clicked.id]
                 # If already selected, do not clear others (allows group drag)
+            
+            # Snapshot before potential drag
+            if self.on_modify_started:
+                self.on_modify_started()
                 
             self._dragging_ids = self.selected_fmodules[:]
             self._drag_start_world = pos_world
@@ -643,17 +650,25 @@ class FrameCanvas(BaseCanvas):
         self.Refresh(False)
 
     def on_left_up(self, event: wx.MouseEvent) -> None:
+        was_modifying = False
+        
         if self._panning:
             self.on_pan_end(event)
             
         if self.edit_mode == "collision":
+             if self._col_drag_mode != "none":
+                 was_modifying = True
              self._col_drag_mode = "none"
              self.ReleaseMouse()
+             if was_modifying and self.on_modify_ended: self.on_modify_ended()
              return
 
         if self.edit_mode == "point":
+             if self._pt_drag_mode != "none":
+                 was_modifying = True
              self._pt_drag_mode = "none"
              self.ReleaseMouse()
+             if was_modifying and self.on_modify_ended: self.on_modify_ended()
              return
 
         # Check if this was a click (not a drag) on a multi-selection
@@ -672,10 +687,16 @@ class FrameCanvas(BaseCanvas):
                          self.on_selection_changed(self.selected_fmodules)
                      self.Refresh(False)
 
+        if self._dragging_ids:
+            was_modifying = True
+
         if self.HasCapture():
             self.ReleaseMouse()
         self._dragging_ids = []
         self._drag_start_world = None
+        
+        if was_modifying and self.on_modify_ended:
+            self.on_modify_ended()
 
     # Interaction
     def on_mouse_drag(self, event: wx.MouseEvent) -> None:
@@ -954,6 +975,9 @@ class FrameCanvas(BaseCanvas):
 
         world_pt = self.screen_to_world(pos)
         
+        if self.on_modify_started:
+            self.on_modify_started()
+        
         # New FModule
         fm = FModule(
             id=generate_id("fmod"), 
@@ -964,6 +988,9 @@ class FrameCanvas(BaseCanvas):
         )
         self.frame.fmodules.append(fm)
         self.Refresh(False)
+        
+        if self.on_modify_ended:
+            self.on_modify_ended()
 
     # --- Collision Logic ---
     def on_collision_left_down(self, event, pos_screen):
@@ -975,18 +1002,21 @@ class FrameCanvas(BaseCanvas):
             if cr:
                 handle = self._hit_test_handle(cr, pos_screen)
                 if handle != -1:
+                    if self.on_modify_started: self.on_modify_started()
                     self._col_drag_mode = "resize"
                     self._col_drag_handle = handle
                     self._col_drag_rect_id = cid
                     self._col_drag_start_rect = cr.rect
-                    self._col_drag_start_screen = pos_screen # track delta
-                    self._drag_start_world = pos_world # For delta calc mapping
+                    self._drag_start_world = pos_world
                     self.CaptureMouse()
                     return
-
+                    
         # 2. Hit Test Rect
         hit_cr = self._hit_test_collision_rect(pos_world)
         if hit_cr:
+             # If we clicked, select it.
+             # Only start drag if we actually move, but we prep here.
+             if self.on_modify_started: self.on_modify_started()
              self.selected_collision_rects = [hit_cr.id]
              self._col_drag_mode = "move"
              self._col_drag_rect_id = hit_cr.id
@@ -995,7 +1025,7 @@ class FrameCanvas(BaseCanvas):
              self.CaptureMouse()
              self.Refresh(False)
              return
-        
+             
         # 3. Create
         # Fallback: If no active type set, try to pick first one
         if not self.active_collision_type_id and self.project.collision_types:
@@ -1006,6 +1036,7 @@ class FrameCanvas(BaseCanvas):
                  self.collision_type_colors[first_type.id] = first_type.color
 
         if self.active_collision_type_id:
+             if self.on_modify_started: self.on_modify_started()
              # Create new rect
              new_id = generate_id("crect")
              # Start with 0 size
@@ -1132,6 +1163,8 @@ class FrameCanvas(BaseCanvas):
             # SELECTION / INTERACTION MODE
             cp = self._hit_test_point(pos_world)
             if cp:
+                if self.on_modify_started: self.on_modify_started()
+                
                 # If Cmd/Ctrl, toggle. Else replace.
                 if event.CmdDown() or event.ControlDown():
                      if cp.id in self.selected_points:
@@ -1161,6 +1194,7 @@ class FrameCanvas(BaseCanvas):
         else:
             # CREATION MODE (Shift held)
             if self.active_point_type_id:
+                if self.on_modify_started: self.on_modify_started()
                 wx, wy = pos_world
                 # Usage of math.floor ensures consistent Top-Left behavior 
                 # even for negative coordinates, solving the 'bottom-left' bias issue.
@@ -1342,6 +1376,7 @@ class AnimationCanvas(FrameCanvas):
 
         pos = self.screen_to_world(event.GetPosition())
         if self.current_aframe:
+            if self.on_modify_started: self.on_modify_started()
             self.drag_start = pos
             self._drag_start_offset = self.current_aframe.offset
             try:
@@ -1403,9 +1438,15 @@ class AnimationCanvas(FrameCanvas):
         if self._panning:
              self.on_pan_end(event) # Resets _panning and ReleaseMouse
              return
+             
+        was_dragging = self.drag_start is not None
 
         if self.HasCapture():
             self.ReleaseMouse()
         self.drag_start = None
         self._drag_start_offset = None
+        
+        if was_dragging and self.on_modify_ended:
+            self.on_modify_ended()
+            
         event.Skip()
