@@ -817,6 +817,9 @@ class FrameCanvas(BaseCanvas):
             
             if mod:
                 w, h = mod.rect[2], mod.rect[3]
+                if getattr(mod, 'rotated', False):
+                    w, h = h, w
+
                 piv_x, piv_y = mod.pivot
                 
                 # Base corners relative to pivot
@@ -910,12 +913,9 @@ class FrameCanvas(BaseCanvas):
         return int(bounds[2] - bounds[0])
 
     def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
-        # Shape Cache Key needs to include params!
-        # Image Cache Key can just be ID (if we assume image data is static per session/ID)
-        
         # Robust Key Generation
         if mod.type == "MD_IMAGE":
-            key = mod.id
+            key = f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
         else:
             # For shapes, include visual properties in key
             key = f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
@@ -939,6 +939,10 @@ class FrameCanvas(BaseCanvas):
                 
                 if rx + rw <= img_w and ry + rh <= img_h:
                     sub_img = full_img.GetSubImage(wx.Rect(rx, ry, rw, rh))
+                    
+                    if getattr(mod, 'rotated', False):
+                        sub_img = sub_img.Rotate90(clockwise=False)
+                        
                     bmp = sub_img.ConvertToBitmap()
                     self._bitmap_cache[key] = bmp
                     return bmp

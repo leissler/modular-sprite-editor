@@ -392,6 +392,9 @@ class ThumbnailGenerator:
         if getattr(item, 'image_id', None) is not None and getattr(item, 'rect', None) is not None and not hasattr(item, 'fmodules'):
             mod = item
             mw, mh = mod.rect[2], mod.rect[3]
+            if getattr(mod, 'rotated', False):
+                mw, mh = mh, mw
+
             
             # Scale calculation
             content_w = max(1, mw)
@@ -420,6 +423,10 @@ class ThumbnailGenerator:
                         rx, ry, rw, rh = mod.rect
                         if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
                             sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
+                            
+                            if getattr(mod, 'rotated', False):
+                                sub = sub.Rotate90(clockwise=False)
+                                rw, rh = rh, rw
                             
                             if flip_x: sub = sub.Mirror(True)
                             if flip_y: sub = sub.Mirror(False)
@@ -473,6 +480,9 @@ class ThumbnailGenerator:
                 mod = project.get_module(ref_id)
                 if mod:
                     mw, mh = mod.rect[2], mod.rect[3]
+                    if getattr(mod, 'rotated', False):
+                        mw, mh = mh, mw
+
                     piv_x, piv_y = mod.pivot
                     x0 = fm.position[0] - piv_x
                     y0 = fm.position[1] - piv_y
@@ -534,6 +544,11 @@ class ThumbnailGenerator:
                             rx, ry, rw, rh = mod.rect
                             if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
                                 sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
+                                
+                                if getattr(mod, 'rotated', False):
+                                    sub = sub.Rotate90(clockwise=False)
+                                    # Swap dimensions for logical processing
+                                    rw, rh = rh, rw
                                 
                                 # Module Flips
                                 if fm.flip_x: sub = sub.Mirror(True)

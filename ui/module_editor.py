@@ -1301,7 +1301,17 @@ class ModuleEditorPanel(wx.Panel):
         if mod:
             self.canvas.selection = (mod.rect[0], mod.rect[1], mod.rect[2], mod.rect[3])
             # Display pivot in canvas space (absolute) while storing it relative to rect
-            self.canvas.pivot = (mod.rect[0] + mod.pivot[0], mod.rect[1] + mod.pivot[1])
+            p_x, p_y = mod.pivot
+            if getattr(mod, 'rotated', False):
+                # Logical -> Visual
+                # vx = RectW - py_log
+                # vy = px_log
+                vx = mod.rect[2] - p_y
+                vy = p_x
+                self.canvas.pivot = (mod.rect[0] + vx, mod.rect[1] + vy)
+            else:
+                self.canvas.pivot = (mod.rect[0] + p_x, mod.rect[1] + p_y)
+
             self.selection_label.SetLabel(f"Selection: {mod.rect}")
             self.pivot_label.SetLabel(f"Pivot (local): {mod.pivot}")
             self.canvas.set_selection_style("module")
@@ -1340,6 +1350,15 @@ class ModuleEditorPanel(wx.Panel):
         if pivot and self.canvas.selection:
             sel = self.canvas.selection
             local = (pivot[0] - sel[0], pivot[1] - sel[1])
+            
+            if self.selected_module_id:
+                mod = self.project.get_module(self.selected_module_id)
+                if mod and getattr(mod, 'rotated', False):
+                     # Visual (vx, vy) -> Logical (px, py)
+                     # px = vy
+                     # py = RectW - vx
+                     local = (local[1], sel[2] - local[0])
+
             self.pivot_label.SetLabel(f"Pivot (local): {local}")
         else:
             self.pivot_label.SetLabel("Pivot: -")
@@ -1594,11 +1613,54 @@ class ModuleEditorPanel(wx.Panel):
                 self.project.create_module(name, img.id, rect, pivot)
                 count += 1
         # Update visual grid to match the slice grid
-        self.grid_w.SetValue(tw)
         self.grid_h.SetValue(th)
         self.canvas.set_grid_spacing((tw, th))
         self.refresh_modules(select_id=self.selected_module_id)
-        wx.MessageBox(f"Created {count} unique non-empty modules", "Grid Slice")
+
+    def show_optimization_dialog(self) -> None:
+        if not self.selected_image_id and not self.project.modules:
+             wx.MessageBox("No images or modules to optimize.", "Info")
+             return
+             
+        # Determine modules to optimize
+        # Strategy: 
+        # 1. If an image is selected, optimize modules on that image?
+        # 2. If NO image selected, ask if they want to optimize ALL?
+        
+        target_mod_ids = []
+        if self.selected_image_id:
+             target_mod_ids = [m.id for m in self.project.modules if m.image_id == self.selected_image_id]
+             if not target_mod_ids:
+                 wx.MessageBox("Selected image has no modules.", "Info")
+                 return
+        else:
+             # Global optimize?
+             res = wx.MessageBox("Optimize ALL modules across current project?\nThis will merge them into a new single spritesheet.", "Confirm Global Optimization", wx.YES_NO | wx.ICON_QUESTION)
+             if res != wx.YES:
+                 return
+             target_mod_ids = [m.id for m in self.project.modules]
+
+        from ui.optimize_dialog import OptimizeDialog
+        from optimization import optimize_modules
+        
+        with OptimizeDialog(self) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                config = dlg.GetValues()
+                
+                with wx.BusyCursor():
+                    success, msg = optimize_modules(self.project, target_mod_ids, config)
+                    
+                if success:
+                    wx.MessageBox(msg, "Success")
+                    # Refresh
+                    self.refresh_images()
+                    self.refresh_modules()
+                    # Select the new image (it will be the last one added)
+                    if self.project.images:
+                        self.select_image(self.project.images[-1].id)
+                else:
+                    wx.MessageBox(f"Optimization failed: {msg}", "Error", wx.OK | wx.ICON_ERROR)
+
 
     def on_toggle_grid(self, event: wx.CommandEvent) -> None:
         self.canvas.set_show_grid(event.IsChecked())
@@ -1787,10 +1849,16 @@ class ModuleEditorPanel(wx.Panel):
         if self.canvas.selection:
             mod.rect = self.canvas.selection
         if self.canvas.pivot:
-            mod.pivot = (
-                int(self.canvas.pivot[0] - mod.rect[0]),
-                int(self.canvas.pivot[1] - mod.rect[1]),
-            )
+            vx = int(self.canvas.pivot[0] - mod.rect[0])
+            vy = int(self.canvas.pivot[1] - mod.rect[1])
+            
+            if getattr(mod, 'rotated', False):
+                 # Visual -> Logical
+                 # px = vy
+                 # py = RectW - vx
+                 mod.pivot = (vy, mod.rect[2] - vx)
+            else:
+                 mod.pivot = (vx, vy)
         # Update list item
         for i in range(self.module_list.GetItemCount()):
             if self._modules_view[i].id == mod.id:

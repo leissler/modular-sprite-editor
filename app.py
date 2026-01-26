@@ -293,9 +293,18 @@ class MainFrame(wx.Frame):
         self.m_import_aurora = import_menu.Append(wx.ID_ANY, "AuroraGT Sprite (*.sprite)...")
         file_menu.AppendSubMenu(import_menu, "Import")
         
+        
         self.Bind(wx.EVT_MENU, self.on_import_aurora, self.m_import_aurora)
         
         menubar.Append(file_menu, "&File")
+
+        # Tools Menu
+        tools_menu = wx.Menu()
+        self.m_opt_sprite = tools_menu.Append(wx.ID_ANY, "Optimize Sprite Sheet...")
+        menubar.Append(tools_menu, "&Tools")
+        
+        self.Bind(wx.EVT_MENU, self.on_tool_optimize, self.m_opt_sprite)
+
         self.SetMenuBar(menubar)
         _mac_force_app_menu_title(APP_NAME)
 
@@ -398,6 +407,16 @@ class MainFrame(wx.Frame):
     def _on_menu_debug(self, event: wx.CommandEvent) -> None:
         print(f"MENU DEBUG: id={event.GetId()} source={event.GetEventObject()}")
         event.Skip()
+    
+    def on_tool_optimize(self, _: wx.CommandEvent) -> None:
+        # Delegate to module editor
+        # We might need to ensure the Module tab is selected? 
+        # Or just let the dialog appear.
+        # The user's request said "simple menu option... opens a dialog".
+        # It doesn't strictly require switching tabs, but contextual actions usually imply focus.
+        # Let's switch to Module Editor tab for clarity if not active.
+        self.book.SetSelection(0)
+        self.module_editor.show_optimization_dialog()
 
     def on_close(self, event: wx.CloseEvent) -> None:
         self._save_recent_files()

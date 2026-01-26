@@ -51,6 +51,7 @@ class Module:
     pivot: Tuple[int, int]
     type: str = "MD_IMAGE"
     color: Tuple[int, int, int] = (255, 255, 255)
+    rotated: bool = False
     params: List[float] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -61,7 +62,9 @@ class Module:
             "rect": list(self.rect),
             "pivot": list(self.pivot),
             "type": self.type,
+            "type": self.type,
             "color": list(self.color),
+            "rotated": self.rotated,
             "params": self.params,
         }
 
@@ -77,6 +80,7 @@ class Module:
             pivot=pivot,  # type: ignore[arg-type]
             type=data.get("type", "MD_IMAGE"),
             color=tuple(data["color"]) if "color" in data else (255, 255, 255), # type: ignore
+            rotated=data.get("rotated", False),
             params=data.get("params", []),
         )
 

@@ -673,12 +673,14 @@ class MappingEditorPanel(wx.Panel):
             self.list_ctrl.InsertItem(i, m.name)
         
         if self.project.mappings:
-            # Try to restore selection
+            # Try to restore selection if valid
             if self.project.active_mapping in self.project.mappings:
                 idx_to_select = self.project.mappings.index(self.project.active_mapping)
                 self.list_ctrl.Select(idx_to_select)
                 self.list_ctrl.EnsureVisible(idx_to_select)
-            # If active_mapping is None, we select NOTHING.
+            else:
+                 # Do not select anything by default
+                 pass
         else:
             self.visualizer.set_mapping(None)
             self.preview.set_mapping(None)
@@ -765,11 +767,5 @@ class MappingEditorPanel(wx.Panel):
         
         self.refresh_list()
         
-        # Auto-select first mapping
-        if self.project.mappings:
-            first = self.project.mappings[0]
-            # Find index
-            for i in range(self.list_ctrl.GetItemCount()):
-                if self.list_ctrl.GetItemText(i) == first.name:
-                    self.list_ctrl.Select(i)
-                    break
+        # No Auto-select first mapping by default
+        pass
