@@ -37,6 +37,16 @@ class OptimizeDialog(wx.Dialog):
         row2.Add(self.spin_h, 0)
         sizer.Add(row2, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 
+        # Scope
+        scope_choices = ["Current Image (Local)", "Global (All Images)"]
+        self.rb_scope = wx.RadioBox(self, label="Scope", choices=scope_choices, majorDimension=1, style=wx.RA_SPECIFY_COLS)
+        sizer.Add(self.rb_scope, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+
+        # Options
+        self.chk_delete_unused = wx.CheckBox(self, label="Delete Unused Modules")
+        self.chk_delete_unused.SetToolTip("Any modules not used in Frames or Mappings will be permanently deleted.")
+        sizer.Add(self.chk_delete_unused, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
         # Rotation
         self.chk_rotation = wx.CheckBox(self, label="Allow Rotation (Advanced)")
         self.chk_rotation.SetToolTip("Warning: Requires engine support to handle rotated module regions.")
@@ -55,5 +65,7 @@ class OptimizeDialog(wx.Dialog):
             "border_padding": self.spin_border_padding.GetValue(),
             "max_w": self.spin_w.GetValue(),
             "max_h": self.spin_h.GetValue(),
-            "allow_rotation": self.chk_rotation.GetValue()
+            "allow_rotation": self.chk_rotation.GetValue(),
+            "scope": "global" if self.rb_scope.GetSelection() == 1 else "local",
+            "delete_unused": self.chk_delete_unused.GetValue()
         }

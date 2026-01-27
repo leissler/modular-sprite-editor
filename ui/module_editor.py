@@ -1663,43 +1663,81 @@ class ModuleEditorPanel(wx.Panel):
              wx.MessageBox("No images or modules to optimize.", "Info")
              return
              
-        # Determine modules to optimize
-        target_mod_ids = []
-        if self.selected_image_id:
-             target_mod_ids = [m.id for m in self.project.modules if m.image_id == self.selected_image_id]
-             if not target_mod_ids:
-                 wx.MessageBox("Selected image has no modules.", "Info")
-                 return
-             
-             # Calculate name hint from the selected image
-             img = self.project.get_image(self.selected_image_id)
-             if img and not name_hint:
-                 base = os.path.splitext(os.path.basename(img.file_path))[0]
-                 name_hint = f"{base}_optimized"
-
-        else:
-             # Global optimize?
-             res = wx.MessageBox("Optimize ALL modules across current project?\nThis will merge them into a new single spritesheet.", "Confirm Global Optimization", wx.YES_NO | wx.ICON_QUESTION)
-             if res != wx.YES:
-                 return
-             target_mod_ids = [m.id for m in self.project.modules]
-             
-             # Name hint for global?
-             if self.project.images and not name_hint:
-                 # Use first image as base?
-                 base = os.path.splitext(os.path.basename(self.project.images[0].file_path))[0]
-                 name_hint = f"{base}_optimized"
+    def show_optimization_dialog(self, output_dir: str = None, name_hint: str = None) -> None:
+        if not self.selected_image_id and not self.project.modules:
+             wx.MessageBox("No images or modules to optimize.", "Info")
+             return
 
         from ui.optimize_dialog import OptimizeDialog
         from optimization import optimize_modules
         
         with OptimizeDialog(self) as dlg:
+            # Pre-select Scope based on current selection?
+            # If image selected -> Local default?
+            # Dialog Init sets defaults. Current Image is Index 0.
+            
             if dlg.ShowModal() == wx.ID_OK:
                 config = dlg.GetValues()
                 
-                with wx.BusyCursor():
-                    success, msg = optimize_modules(self.project, target_mod_ids, config, output_dir, name_hint)
+                scope = config.get("scope", "local")
+                delete_unused = config.get("delete_unused", False)
+                
+                # 1. Determine Scope Modules
+                scope_modules = []
+                final_name_hint = name_hint
+                
+                if scope == "local":
+                    if self.selected_image_id:
+                        scope_modules = [m for m in self.project.modules if m.image_id == self.selected_image_id]
+                        
+                        # Name hint from selected image
+                        img = self.project.get_image(self.selected_image_id)
+                        if img and not final_name_hint:
+                             base = os.path.splitext(os.path.basename(img.file_path))[0]
+                             final_name_hint = f"{base}_optimized"
+                    else:
+                        # Fallback to global if nothing selected but local requested?
+                        # Or warn?
+                        wx.MessageBox("No image selected for Local Optimization.", "Error")
+                        return
+
+                else: # Global
+                    scope_modules = self.project.modules[:] # Copy
+                    # Name hint for global
+                    if not final_name_hint:
+                        if self.project.name:
+                            final_name_hint = f"{self.project.name.replace(' ', '_')}_optimized"
+                        else:
+                            final_name_hint = "Global_Optimized"
+
+                if not scope_modules:
+                     wx.MessageBox("No modules found in selected scope.", "Info")
+                     return
+
+                # 2. Filter Unused (if requested)
+                target_modules = scope_modules
+                if delete_unused:
+                    used_ids = self._get_used_module_ids()
+                    target_modules = [m for m in scope_modules if m.id in used_ids]
                     
+                    # Identify Unused modules to Delete
+                    unused_mods = [m for m in scope_modules if m.id not in used_ids]
+                    if unused_mods:
+                         res = wx.MessageBox(f"Found {len(unused_mods)} unused modules in scope. Delete them permanently?", "Confirm Deletion", wx.YES_NO | wx.ICON_WARNING)
+                         if res == wx.YES:
+                             for m in unused_mods:
+                                 if m in self.project.modules:
+                                     self.project.modules.remove(m)
+                    
+                    if not target_modules:
+                         wx.MessageBox("No Used modules found in scope to optimize.", "Info")
+                         return
+
+                with wx.BusyCursor():
+                    # Pass filtered list
+                    target_mod_ids = [m.id for m in target_modules]
+                    success, msg = optimize_modules(self.project, target_mod_ids, config, output_dir, final_name_hint)
+
                 if success:
                     wx.MessageBox(msg, "Success")
                     # Refresh
@@ -1714,6 +1752,25 @@ class ModuleEditorPanel(wx.Panel):
                         self.select_image(new_id)
                 else:
                     wx.MessageBox(f"Optimization failed: {msg}", "Error", wx.OK | wx.ICON_ERROR)
+
+    def _get_used_module_ids(self) -> set[str]:
+        """Returns a set of all module IDs referenced in Frames or Mappings."""
+        used = set()
+        
+        # Scan Frames
+        for frame in self.project.frames:
+            for fm in frame.fmodules:
+                if fm.ref_type == "module":
+                     used.add(fm.ref_id)
+                     
+        # Scan Mappings
+        for mapping in self.project.mappings:
+            for target_id in mapping.map.values():
+                if target_id: # Might be None/Null
+                    used.add(target_id)
+                    
+        return used
+
 
 
 
