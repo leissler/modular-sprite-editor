@@ -57,3 +57,4 @@ Thumbs.db
 # Generated Icons (Keep the pipeline source and final assets, but maybe not the intermediate iconset folder?)
 # Actually, keeping assets/icon.ico and assets/icon.icns involves binary blobs but they are small and useful for the repo.
 # We DO check in the assets.
+Binpack/

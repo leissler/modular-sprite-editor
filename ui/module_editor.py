@@ -976,6 +976,16 @@ class ModuleEditorPanel(wx.Panel):
             bmp = wx.Bitmap(asset.file_path)
             self._bitmap_cache[image_id] = bmp
         if asset:
+            if bmp and (asset.width != bmp.GetWidth() or asset.height != bmp.GetHeight()):
+                asset.width = bmp.GetWidth()
+                asset.height = bmp.GetHeight()
+                # Refresh list labels to show correct size, but avoid re-triggering selection
+                for idx in range(self.image_list.GetCount()):
+                    if self.image_list.GetClientData(idx) == asset.id:
+                        label = f"{os.path.basename(asset.file_path)} ({asset.width}x{asset.height})"
+                        self.image_list.SetString(idx, label)
+                        break
+                
             self._update_transparency_controls(asset)
             display_bmp = self._get_display_bitmap(asset, bmp)
             self.canvas.set_bitmap(display_bmp, (asset.width, asset.height))
@@ -1617,28 +1627,68 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.set_grid_spacing((tw, th))
         self.refresh_modules(select_id=self.selected_module_id)
 
-    def show_optimization_dialog(self) -> None:
+    def refresh_images(self, select_id: Optional[str] = None) -> None:
+        self.image_list.Clear()
+        
+        # Validate current selection against project images
+        current_valid = False
+        if self.selected_image_id:
+            for img in self.project.images:
+                if img.id == self.selected_image_id:
+                    current_valid = True
+                    break
+        if not current_valid:
+            self.selected_image_id = None
+            self.canvas.set_bitmap(None, (0,0))
+
+        selection_idx = -1
+        for idx, img in enumerate(self.project.images):
+            # Check for name/file existence?
+            name = os.path.basename(img.file_path)
+            label = f"{name} ({img.width}x{img.height})"
+            self.image_list.Append(label, img.id)
+            if select_id and img.id == select_id:
+                selection_idx = idx
+            elif not select_id and self.selected_image_id == img.id:
+                selection_idx = idx
+                
+        if selection_idx >= 0:
+            self.image_list.SetSelection(selection_idx)
+            self.image_list.EnsureVisible(selection_idx)
+            # Ensure client data matches?
+            # It's set in Append(label, clientData)
+            
+    def show_optimization_dialog(self, output_dir: str = None, name_hint: str = None) -> None:
         if not self.selected_image_id and not self.project.modules:
              wx.MessageBox("No images or modules to optimize.", "Info")
              return
              
         # Determine modules to optimize
-        # Strategy: 
-        # 1. If an image is selected, optimize modules on that image?
-        # 2. If NO image selected, ask if they want to optimize ALL?
-        
         target_mod_ids = []
         if self.selected_image_id:
              target_mod_ids = [m.id for m in self.project.modules if m.image_id == self.selected_image_id]
              if not target_mod_ids:
                  wx.MessageBox("Selected image has no modules.", "Info")
                  return
+             
+             # Calculate name hint from the selected image
+             img = self.project.get_image(self.selected_image_id)
+             if img and not name_hint:
+                 base = os.path.splitext(os.path.basename(img.file_path))[0]
+                 name_hint = f"{base}_optimized"
+
         else:
              # Global optimize?
              res = wx.MessageBox("Optimize ALL modules across current project?\nThis will merge them into a new single spritesheet.", "Confirm Global Optimization", wx.YES_NO | wx.ICON_QUESTION)
              if res != wx.YES:
                  return
              target_mod_ids = [m.id for m in self.project.modules]
+             
+             # Name hint for global?
+             if self.project.images and not name_hint:
+                 # Use first image as base?
+                 base = os.path.splitext(os.path.basename(self.project.images[0].file_path))[0]
+                 name_hint = f"{base}_optimized"
 
         from ui.optimize_dialog import OptimizeDialog
         from optimization import optimize_modules
@@ -1648,18 +1698,23 @@ class ModuleEditorPanel(wx.Panel):
                 config = dlg.GetValues()
                 
                 with wx.BusyCursor():
-                    success, msg = optimize_modules(self.project, target_mod_ids, config)
+                    success, msg = optimize_modules(self.project, target_mod_ids, config, output_dir, name_hint)
                     
                 if success:
                     wx.MessageBox(msg, "Success")
                     # Refresh
+                    # Force a full refresh which invalidates old IDs
                     self.refresh_images()
                     self.refresh_modules()
+                    
                     # Select the new image (it will be the last one added)
                     if self.project.images:
-                        self.select_image(self.project.images[-1].id)
+                        new_id = self.project.images[-1].id
+                        self.refresh_images(select_id=new_id)
+                        self.select_image(new_id)
                 else:
                     wx.MessageBox(f"Optimization failed: {msg}", "Error", wx.OK | wx.ICON_ERROR)
+
 
 
     def on_toggle_grid(self, event: wx.CommandEvent) -> None:
@@ -1678,6 +1733,10 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.set_bitmap(None, (0, 0))
         self.refresh_images()
         self.refresh_modules()
+        
+        # Select first image by default if available
+        if self.project.images:
+            self.select_image(self.project.images[0].id)
 
     # Transparency helpers
     def _apply_transparency_to_image(

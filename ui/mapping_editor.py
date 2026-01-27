@@ -137,13 +137,18 @@ class MappingVisualizer(wx.ScrolledWindow):
             
             # Find target
             target_mod = None
+            target_id = None
+            is_missing = False
+            
             if self.mapping:
                 target_id = self.mapping.map.get(mod.id, None)
                 if target_id:
                     target_mod = self.project.get_module(target_id)
+                    if not target_mod:
+                        is_missing = True
             
             is_highlight = (i == self.highlight_idx)
-            self._draw_slot(dc, x, strip_y, base_sz, target_mod, is_source=False, highlight=is_highlight, custom_scale=scale)
+            self._draw_slot(dc, x, strip_y, base_sz, target_mod, is_source=False, highlight=is_highlight, custom_scale=scale, missing_id=target_id if is_missing else None)
  
         # Draw Drag Ghost
         if self._drag_source_module_id and getattr(self, '_drag_cursor_pos', None):
@@ -155,7 +160,7 @@ class MappingVisualizer(wx.ScrolledWindow):
                  # thumb = self.generator.render_thumbnail(self.project, mod, 48, 48, custom_scale=scale)
                  # dc.DrawBitmap(thumb, pt.x - 24, pt.y - 24)
  
-    def _draw_slot(self, dc, x, y, size, module, is_source, highlight=False, custom_scale=0.0):
+    def _draw_slot(self, dc, x, y, size, module, is_source, highlight=False, custom_scale=0.0, missing_id: str = None):
         # Background
         if highlight:
             dc.SetBrush(wx.Brush(wx.Colour(100, 100, 150)))
@@ -170,8 +175,6 @@ class MappingVisualizer(wx.ScrolledWindow):
             # Draw Thumbnail
             rect = wx.Rect(int(x + 2), int(y + 2), size - 4, size - 4)
             self.generator.draw_thumbnail_direct(dc, self.project, module, rect, custom_scale=custom_scale)
-            # thumb = self.generator.render_thumbnail(self.project, module, size - 4, size - 4, custom_scale=custom_scale)
-            # dc.DrawBitmap(thumb, int(x + 2), int(y + 2))
             
             if self._show_names:
                 font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
@@ -183,14 +186,23 @@ class MappingVisualizer(wx.ScrolledWindow):
                 tw, th = dc.GetTextExtent(name)
                 dc.DrawText(name, int(x + (size - tw)/2), int(y + size + 2))
         else:
-            # Draw "None"
+            # Draw "None" or "Missing"
             if not is_source:
-                # gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(100, 100, 100))
-                # gc.DrawText("None", x + 10, y + size/2 - 5)
                 font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
                 dc.SetFont(font)
-                dc.SetTextForeground(wx.Colour(100, 100, 100))
-                dc.DrawText("None", int(x + 10), int(y + size/2 - 5))
+                
+                if missing_id:
+                    # Draw "Missing" in Red
+                    dc.SetTextForeground(wx.Colour(255, 100, 100))
+                    text = "Missing"
+                    # Maybe show ID tooltip?
+                else:
+                    # Draw "None" (Identity)
+                    dc.SetTextForeground(wx.Colour(100, 100, 100))
+                    text = "None"
+                    
+                tw, th = dc.GetTextExtent(text)
+                dc.DrawText(text, int(x + (size - tw)/2), int(y + size/2 - th/2))
 
     def _hit_test(self, pt) -> int:
         sw, sh = self._get_slot_size()

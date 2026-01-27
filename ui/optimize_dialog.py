@@ -4,10 +4,10 @@ class OptimizeDialog(wx.Dialog):
     def __init__(self, parent):
         super().__init__(parent, title="Optimize Sprite Sheet")
 
-        self.padding = 2
+        self.padding = 0
         self.max_w = 2048
         self.max_h = 2048
-        self.border_padding = 2
+        self.border_padding = 0
         self.allow_rotation = False
 
         sizer = wx.BoxSizer(wx.VERTICAL)

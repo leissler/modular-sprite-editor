@@ -3,7 +3,7 @@ from typing import List, Tuple, Dict
 from rect_packer import MaxRectsBinPack
 from models import Project, Module, generate_id, ImageAsset
 
-def optimize_modules(project: Project, module_ids: List[str], config: Dict) -> Tuple[bool, str]:
+def optimize_modules(project: Project, module_ids: List[str], config: Dict, output_dir: str = None, name_hint: str = None) -> Tuple[bool, str]:
     """
     Optimizes the packing of specified modules into a new sprite sheet.
     Returns (Success, Message).
@@ -55,7 +55,8 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict) -> T
 
         # Validate size
         if mod.rect[2] <= 0 or mod.rect[3] <= 0:
-            # Skip empty modules to avoid packing failures
+            # Skip packing for empty modules, BUT preserve them as "null" modules (e.g. for hiding)
+            # We will update their image_id later so they don't hold onto the old image.
             continue
 
         rects_to_pack.append((mod.rect[2] + padding, mod.rect[3] + padding, mod))
@@ -234,9 +235,23 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict) -> T
         
     # generate unique filename
     import os
-    base_dir = os.path.dirname(project.images[0].file_path) if project.images else "."
+    # generate unique filename
+    import os
+    if output_dir and os.path.exists(output_dir):
+        base_dir = output_dir
+    else:
+        base_dir = os.path.dirname(project.images[0].file_path) if project.images else "."
     
-    filename = f"optimized_sheet_{generate_id('img')}.png"
+    if name_hint:
+        # Counter-based naming: name_hint_1.png, name_hint_2.png...
+        counter = 1
+        filename = f"{name_hint}.png"
+        while os.path.exists(os.path.join(base_dir, filename)):
+             filename = f"{name_hint}_{counter}.png"
+             counter += 1
+    else:
+        filename = f"optimized_sheet_{generate_id('img')}.png"
+        
     out_path = os.path.join(base_dir, filename)
     
     try:
@@ -278,4 +293,19 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict) -> T
              mod.rect = (dest_x, dest_y, w_orig, h_orig)
              mod.rotated = False
              
-    return True, "Optimization successful."
+    # 5b. Update Skipped Modules (0x0 or otherwise skipped)
+    # They should also point to the new image so we can delete the old one.
+    packed_mods_set = {m.id for _, m in packed_modules}
+    for mod in modules:
+        if mod.id not in packed_mods_set:
+            # It was skipped (likely 0x0). Repoint it.
+            mod.image_id = new_asset.id
+            # Leave rect as is (presumably 0x0)
+             
+    # 6. Cleanup Old Images
+    # Find all images that are no longer used by any module
+    used_image_ids = {m.image_id for m in project.modules}
+    # Reassign the list entirely to filter out unused images
+    project.images = [img for img in project.images if img.id in used_image_ids]
+    
+    return True, "Optimization successful. Old images removed."

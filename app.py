@@ -412,11 +412,14 @@ class MainFrame(wx.Frame):
         # Delegate to module editor
         # We might need to ensure the Module tab is selected? 
         # Or just let the dialog appear.
-        # The user's request said "simple menu option... opens a dialog".
-        # It doesn't strictly require switching tabs, but contextual actions usually imply focus.
-        # Let's switch to Module Editor tab for clarity if not active.
         self.book.SetSelection(0)
-        self.module_editor.show_optimization_dialog()
+        
+        output_dir = None
+        
+        if self.current_path:
+             output_dir = os.path.dirname(self.current_path)
+        
+        self.module_editor.show_optimization_dialog(output_dir)
 
     def on_close(self, event: wx.CloseEvent) -> None:
         self._save_recent_files()

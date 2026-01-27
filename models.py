@@ -832,10 +832,26 @@ class Project:
         return anim
 
 
-    def to_dict(self) -> Dict:
+    def to_dict(self, base_path: Optional[str] = None) -> Dict:
+        # Helper to relativize paths if base_path is provided
+        def get_img_dict(img: ImageAsset) -> Dict:
+            d = img.to_dict()
+            if base_path and os.path.isabs(img.file_path):
+                try:
+                    rel = os.path.relpath(img.file_path, base_path)
+                    if not rel.startswith(".."): # Only use relative if it's within/nearby? User asked for relative.
+                        d["file_path"] = rel
+                    else:
+                        # Even if it's outside, relative path is valid and requested by user to move folder structures together.
+                        d["file_path"] = rel
+                except ValueError:
+                    # Windows checking for different drives, etc.
+                    pass
+            return d
+
         return {
             "name": self.name,
-            "images": [img.to_dict() for img in self.images],
+            "images": [get_img_dict(img) for img in self.images],
             "modules": [m.to_dict() for m in self.modules],
             "frames": [f.to_dict() for f in self.frames],
             "animations": [a.to_dict() for a in self.animations],
@@ -845,12 +861,20 @@ class Project:
         }
 
     def to_json(self, path: str) -> None:
+        base_path = os.path.dirname(os.path.abspath(path))
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2)
+            json.dump(self.to_dict(base_path=base_path), f, indent=2)
 
     @staticmethod
-    def from_dict(data: Dict) -> "Project":
-        images = [ImageAsset.from_dict(img) for img in data.get("images", [])]
+    def from_dict(data: Dict, base_path: Optional[str] = None) -> "Project":
+        # Helper to resolve paths
+        def resolve_img(d: Dict) -> ImageAsset:
+            img = ImageAsset.from_dict(d)
+            if base_path and not os.path.isabs(img.file_path):
+                img.file_path = os.path.abspath(os.path.join(base_path, img.file_path))
+            return img
+
+        images = [resolve_img(img) for img in data.get("images", [])]
         modules = [Module.from_dict(m) for m in data.get("modules", [])]
         frames = [Frame.from_dict(f) for f in data.get("frames", [])]
         animations = [Animation.from_dict(a) for a in data.get("animations", [])]
@@ -878,4 +902,4 @@ class Project:
             
         with open(path, "r") as f:
             data = json.load(f)
-        return Project.from_dict(data)
+        return Project.from_dict(data, base_path=os.path.dirname(os.path.abspath(path)))
