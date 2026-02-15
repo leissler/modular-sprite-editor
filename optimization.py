@@ -1,7 +1,9 @@
 import wx
 from typing import List, Tuple, Dict
 from rect_packer import MaxRectsBinPack
-from models import Project, Module, generate_id, ImageAsset
+from models import Project, Module, generate_id, ImageAsset, Frame, FModule
+from algorithms.decomposition import Decomposition
+import os
 
 def optimize_modules(project: Project, module_ids: List[str], config: Dict, output_dir: str = None, name_hint: str = None) -> Tuple[bool, str]:
     """
@@ -234,9 +236,6 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
         # We'll do a second pass after saving.
         
     # generate unique filename
-    import os
-    # generate unique filename
-    import os
     if output_dir and os.path.exists(output_dir):
         base_dir = output_dir
     else:
@@ -309,3 +308,168 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
     project.images = [img for img in project.images if img.id in used_image_ids]
     
     return True, "Optimization successful. Old images removed."
+
+def run_auto_modularization(project: Project, module_ids: List[str], config: Dict) -> Tuple[bool, str]:
+    """
+    Orchestrates the Auto-Modularization workflow:
+    1. Grid Slicing (handled by caller typically, or we can do it if source is Image)
+       - Helper logic: If module_ids are empty, we might Slice an Image?
+       - No, let's assume the UI creates the Initial Grid Modules and passes them here.
+    2. Background Reconstruction (Common Parts)
+    3. Decomposition (XY-Cut / Greedy)
+    4. Optimization (Packing)
+    """
+    if not module_ids:
+        return False, "No modules selected."
+        
+    modules_to_process = [project.get_module(mid) for mid in module_ids if project.get_module(mid)]
+    
+    # --- Step 1: Background Reconstruction (Common Parts) ---
+    if config.get("extract_common", False):
+        w0, h0 = modules_to_process[0].rect[2], modules_to_process[0].rect[3]
+        compatible_modules = []
+        pil_images = []
+        
+        wx_cache = {} # img_id -> wx.Image
+        
+        for mod in modules_to_process:
+            if mod.rect[2] != w0 or mod.rect[3] != h0:
+                continue # Skip size mismatch
+            
+            asset = project.get_image(mod.image_id)
+            if not asset: continue
+            
+            if mod.image_id not in wx_cache:
+                wx_img = wx.Image(asset.file_path)
+                if asset.transparent_color:
+                     if not wx_img.HasAlpha():
+                         wx_img.InitAlpha()
+                wx_cache[mod.image_id] = wx_img
+            
+            src_wx = wx_cache[mod.image_id]
+            sub = src_wx.GetSubImage(wx.Rect(*mod.rect))
+            pil_img = Decomposition.wx_image_to_pil(sub)
+            
+            compatible_modules.append(mod)
+            pil_images.append(pil_img)
+            
+        if len(pil_images) > 1:
+            common, residuals = Decomposition.reconstruct_background(pil_images)
+            if common and common.getbbox():
+                base_dir = os.path.dirname(project.images[0].file_path) if project.images else "."
+                common_path = os.path.join(base_dir, f"common_{generate_id('img')}.png")
+                
+                wx_common = Decomposition.pil_to_wx_image(common)
+                wx_common.SaveFile(common_path, wx.BITMAP_TYPE_PNG)
+                
+                common_asset = project.create_image(common_path, wx_common.GetWidth(), wx_common.GetHeight())
+                common_mod = project.create_module(f"Common Part", common_asset.id, (0, 0, wx_common.GetWidth(), wx_common.GetHeight()), (0, 0)) 
+                
+                # Create a map for step 2
+                common_fmod_proto = FModule(
+                    id=generate_id("fm"),
+                    ref_type="module",
+                    ref_id=common_mod.id,
+                    position=(0, 0)
+                )
+                extra_layers = {mod.id: [common_fmod_proto] for mod in compatible_modules}
+
+                # Save Residuals and Update Compatible Modules in place
+                for i, res in enumerate(residuals):
+                    res_path = os.path.join(base_dir, f"resid_{generate_id('img')}.png")
+                    wx_res = Decomposition.pil_to_wx_image(res)
+                    wx_res.SaveFile(res_path, wx.BITMAP_TYPE_PNG)
+                    res_asset = project.create_image(res_path, wx_res.GetWidth(), wx_res.GetHeight())
+                    
+                    orig_mod = compatible_modules[i]
+                    orig_mod.image_id = res_asset.id
+                    orig_mod.rect = (0, 0, wx_res.GetWidth(), wx_res.GetHeight())
+            else:
+                extra_layers = {}
+        else:
+             extra_layers = {}
+    else:
+        extra_layers = {}
+
+    # --- Step 2: Decomposition ---
+    method = config.get("method", "trim")
+    tolerance = config.get("tolerance", 0)
+    
+    new_frames_created = []
+    
+    for mod in modules_to_process:
+        asset = project.get_image(mod.image_id)
+        if not asset: continue
+        
+        wx_img = wx.Image(asset.file_path)
+        sub_wx = wx_img.GetSubImage(wx.Rect(*mod.rect))
+        pil_img = Decomposition.wx_image_to_pil(sub_wx)
+        
+        bbox = (0, 0, pil_img.width, pil_img.height)
+        mask = Decomposition.get_alpha_mask(pil_img, tolerance)
+        
+        rects = []
+        if method == "xy_cut":
+            rects = Decomposition.recursive_xy_cut(mask, bbox)
+        elif method == "greedy":
+            rects = Decomposition.greedy_maximal_rects(mask, bbox)
+        else:
+            b = mask.getbbox()
+            if b:
+                rects = [b]
+                
+        fmodules = []
+        if mod.id in extra_layers:
+            for proto in extra_layers[mod.id]:
+                fm = FModule(
+                    id=generate_id("fm"),
+                    ref_type=proto.ref_type,
+                    ref_id=proto.ref_id,
+                    position=proto.position
+                )
+                fmodules.append(fm)
+                
+        for i, (rx, ry, rw, rh) in enumerate(rects):
+            part_name = f"{mod.name}_part_{i}"
+            abs_x = mod.rect[0] + rx
+            abs_y = mod.rect[1] + ry
+            part_mod = project.create_module(
+                part_name, 
+                mod.image_id, 
+                (abs_x, abs_y, rw, rh),
+                (rw // 2, rh // 2)
+            )
+            
+            fm_pos = (rx + rw // 2, ry + rh // 2)
+            fm = FModule(
+                id=generate_id("fm"),
+                ref_type="module",
+                ref_id=part_mod.id,
+                position=fm_pos
+            )
+            fmodules.append(fm)
+            
+        frame_name = f"Frame {mod.name}"
+        new_frame = Frame(
+            id=generate_id("frm"),
+            name=frame_name,
+            fmodules=fmodules
+        )
+        project.frames.append(new_frame)
+        new_frames_created.append(new_frame)
+
+    # --- Step 3: Optimize (Pack) ---
+    if config.get("optimize", True):
+        modules_to_pack = set()
+        for frm in new_frames_created:
+            for fm in frm.fmodules:
+                if fm.ref_type == "module":
+                    modules_to_pack.add(fm.ref_id)
+        
+        if modules_to_pack:
+            optimize_config = config.copy()
+            optimize_config.setdefault("padding", 2)
+            optimize_config.setdefault("max_w", 2048)
+            optimize_modules(project, list(modules_to_pack), optimize_config)
+
+    return True, f"Created {len(new_frames_created)} decomposed frames."

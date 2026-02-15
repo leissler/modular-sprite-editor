@@ -11,6 +11,8 @@ from typing import Callable, Optional, Tuple
 import wx
 
 from models import ImageAsset, Module, Project, generate_id
+from ui.auto_modularize_dialog import AutoModularizeDialog
+from optimization import run_auto_modularization
 
 
 from ui.base_canvas import BaseCanvas
@@ -698,7 +700,7 @@ class ModuleEditorPanel(wx.Panel):
         # Modules
         self.mod_box = wx.StaticBox(self.left_panel, label="Modules")
         mod_sizer = wx.StaticBoxSizer(self.mod_box, wx.VERTICAL)
-        self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT)
         self.module_list.InsertColumn(0, "Name", width=120)
         self.module_list.InsertColumn(1, "Rect", width=120)
         self.module_list.InsertColumn(2, "Pivot", width=90)
@@ -891,7 +893,9 @@ class ModuleEditorPanel(wx.Panel):
         self.btn_delete_module.Bind(wx.EVT_BUTTON, self.on_delete_module)
         self.btn_rename_module.Bind(wx.EVT_BUTTON, self.on_rename_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
+        self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_deselect_module)
+        self.module_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_module_list_right_click)
         self.btn_slice.Bind(wx.EVT_BUTTON, self.on_slice_grid)
         self.canvas.on_selection_changed = self._on_canvas_selection
         self.canvas.on_pivot_changed = self._on_canvas_pivot
@@ -1203,9 +1207,19 @@ class ModuleEditorPanel(wx.Panel):
             # Pass center_view=True when selecting from list, and indicate origin
             self.select_module(self._modules_view[idx].id, center_view=True, from_list=True)
 
-    def on_deselect_module(self, _: wx.ListEvent) -> None:
+    def on_deselect_module(self, idx_event: wx.ListEvent) -> None:
         if self._suppress_module_events:
             return
+        
+        # If we still have selections, switch active module to one of them (e.g. the first one)
+        selected_idx = self.module_list.GetFirstSelected()
+        if selected_idx != -1:
+            # Switch focus to this one
+            mod_view_idx = selected_idx
+            if 0 <= mod_view_idx < len(self._modules_view):
+                self.select_module(self._modules_view[mod_view_idx].id, center_view=False, from_list=True)
+            return
+
         self._autosave_current_module()
         self.selected_module_id = None
         self.canvas.selection = None
@@ -1598,34 +1612,96 @@ class ModuleEditorPanel(wx.Panel):
         wx_image = bmp.ConvertToImage()
         if img.transparent_color:
             wx_image = self._apply_transparency_to_image(wx_image, img.transparent_color)
-        tw, th = self.tile_w.GetValue(), self.tile_h.GetValue()
+
+        w = wx_image.GetWidth()
+        h = wx_image.GetHeight()
+        
+        # Grid loop
         count = 0
-        seen_hashes: set[str] = set()
-        for y in range(0, img.height, th):
-            for x in range(0, img.width, tw):
-                rect = (x, y, min(tw, img.width - x), min(th, img.height - y))
-                sub = wx_image.GetSubImage(wx.Rect(*rect))
-                # Check emptiness
-                data = bytes(sub.GetData())
-                alpha = bytes(sub.GetAlphaBuffer()) if sub.HasAlpha() else b""
-                if alpha:
-                    if all(a == 0 for a in alpha):
-                        continue
-                else:
-                    if all(v == 0 for v in data):
-                        continue
-                digest = hashlib.sha1(data + alpha).hexdigest()
-                if digest in seen_hashes:
-                    continue
-                seen_hashes.add(digest)
-                name = f"Tile {x//tw},{y//th}"
-                pivot = (rect[2] // 2, rect[3] // 2)
-                self.project.create_module(name, img.id, rect, pivot)
+        tile_w = self.tile_w.GetValue()
+        tile_h = self.tile_h.GetValue()
+        
+        rows = h // tile_h
+        cols = w // tile_w
+        
+        for r in range(rows):
+            for c in range(cols):
+                rx = c * tile_w
+                ry = r * tile_h
+                # Optional: Check for empty content here to skip empty modules? 
+                # For now just create them all (Grid Mode usually implies forcing structure).
+                
+                name = f"Module {len(self.project.modules) + 1}"
+                pivot = (tile_w // 2, tile_h // 2)
+                self.project.create_module(name, img.id, (rx, ry, tile_w, tile_h), pivot)
                 count += 1
-        # Update visual grid to match the slice grid
-        self.grid_h.SetValue(th)
-        self.canvas.set_grid_spacing((tw, th))
-        self.refresh_modules(select_id=self.selected_module_id)
+                
+        self.refresh_modules()
+        wx.MessageBox(f"Sliced {count} grid modules.", "Success")
+
+    def on_module_list_right_click(self, event: wx.ListEvent) -> None:
+        menu = wx.Menu()
+        item_decompose = menu.Append(wx.ID_ANY, "Decompose / Auto-Modularize...")
+        self.Bind(wx.EVT_MENU, self.on_decompose_modules, item_decompose)
+        
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_decompose_modules(self, event: wx.CommandEvent) -> None:
+        # Get selected module(s)
+        selected_ids = []
+        
+        idx = self.module_list.GetFirstSelected()
+        while idx != -1:
+            if 0 <= idx < len(self._modules_view):
+                selected_ids.append(self._modules_view[idx].id)
+            idx = self.module_list.GetNextSelected(idx)
+            
+        if not selected_ids:
+            # Fallback to current active if any (though list selection should align)
+            if self.selected_module_id:
+                selected_ids.append(self.selected_module_id)
+        
+        if not selected_ids:
+            return
+
+        # Show Dialog
+        # We assume the user wants to Decompose the selected module(s).
+        
+        with AutoModularizeDialog(self, show_grid_options=False) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                config = dlg.GetValues()
+                
+                # Execute
+                success, msg = run_auto_modularization(self.project, selected_ids, config)
+                
+                if success:
+                    wx.MessageBox(msg, "Success")
+                    
+                    # Refresh images to reflect new assets (Optimized Sheet / Residuals)
+                    old_img_count = self.image_list.GetCount()
+                    self.refresh_images()
+                    new_img_count = self.image_list.GetCount()
+                    
+                    # Heuristic: If we created new images (Optimization/Residuals), 
+                    # switch view to the newest one so the user sees the result.
+                    # Otherwise they might see "nothing" if modules moved off the current image.
+                    if self.project.images:
+                        # If image count changed, or we just want to look at the output
+                        # The last image in the list is usually the newest one created.
+                        newest_id = self.project.images[-1].id
+                        if newest_id != self.selected_image_id:
+                            self.select_image(newest_id)
+                            # Ensure list is selected too
+                            for idx in range(self.image_list.GetCount()):
+                                if self.image_list.GetClientData(idx) == newest_id:
+                                    self.image_list.SetSelection(idx)
+                                    break
+                    
+                    self.refresh_modules()
+                else:
+                    wx.MessageBox(f"Error: {msg}", "Error")
+
 
     def refresh_images(self, select_id: Optional[str] = None) -> None:
         self.image_list.Clear()

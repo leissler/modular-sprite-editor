@@ -365,7 +365,7 @@ class ThumbnailGenerator:
     def clear_cache(self):
         self.asset_cache = {}
 
-    def render_thumbnail(self, project: Project, item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None) -> wx.Bitmap:
+    def render_thumbnail(self, project: 'Project', item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None) -> wx.Bitmap:
         # DEBUG: PROBE
         type_str = "Unknown"
         if getattr(item, 'fmodules', None) is not None: type_str = "Frame"
@@ -382,7 +382,7 @@ class ThumbnailGenerator:
         dc.SelectObject(wx.NullBitmap)
         return bmp
 
-    def draw_thumbnail_direct(self, dc: wx.DC, project: Project, item, rect: wx.Rect, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None):
+    def draw_thumbnail_direct(self, dc: wx.DC, project: 'Project', item, rect: wx.Rect, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None):
         """Draws the item directly onto the provided DC within the target rect."""
         width, height = rect.width, rect.height
         x_off, y_off = rect.x, rect.y
