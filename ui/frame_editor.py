@@ -7,6 +7,7 @@ import copy
 import wx
 
 from models import Project, Frame, generate_id
+from optimization import optimize_nested_frame_combos
 from ui.canvas import FrameCanvas
 from ui.collision_manager import CollisionManagerPanel
 from ui.point_manager import PointManagerPanel
@@ -1055,6 +1056,37 @@ class FrameEditorPanel(wx.Panel):
         
         self.PopupMenu(menu)
         menu.Destroy()
+
+    def on_optimize_nested_combos(self, _event: wx.CommandEvent) -> None:
+        if not self.project.frames:
+            wx.MessageBox("No frames available.", "Info")
+            return
+
+        res = wx.MessageBox(
+            (
+                "Detect repeated module groups across ALL frames and replace them with nested helper frames?\n\n"
+                "This keeps visual output but changes frame composition."
+            ),
+            "Optimize Nested Combos (All Frames)",
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
+        if res != wx.YES:
+            return
+
+        with wx.BusyCursor():
+            success, msg = optimize_nested_frame_combos(self.project)
+
+        if success:
+            wx.MessageBox(msg, "Nested Combo Optimization")
+            self.refresh_frames(self.selected_frame_id)
+            if self.selected_frame_id:
+                frame = self.project.get_frame(self.selected_frame_id)
+                if frame:
+                    self.canvas.set_frame(frame)
+            self.palette.refresh_modules()
+            self.canvas.Refresh()
+        else:
+            wx.MessageBox(msg, "Nested Combo Optimization")
         
     def _clone_rects(self, rects):
         new_list = []

@@ -301,9 +301,11 @@ class MainFrame(wx.Frame):
         # Tools Menu
         tools_menu = wx.Menu()
         self.m_opt_sprite = tools_menu.Append(wx.ID_ANY, "Optimize Sprite Sheet...")
+        self.m_opt_nested = tools_menu.Append(wx.ID_ANY, "Optimize Nested Frame Combos (All Frames)...")
         menubar.Append(tools_menu, "&Tools")
         
         self.Bind(wx.EVT_MENU, self.on_tool_optimize, self.m_opt_sprite)
+        self.Bind(wx.EVT_MENU, self.on_tool_optimize_nested, self.m_opt_nested)
 
         self.SetMenuBar(menubar)
         _mac_force_app_menu_title(APP_NAME)
@@ -420,6 +422,11 @@ class MainFrame(wx.Frame):
              output_dir = os.path.dirname(self.current_path)
         
         self.module_editor.show_optimization_dialog(output_dir)
+
+    def on_tool_optimize_nested(self, event: wx.CommandEvent) -> None:
+        # Global frame-level optimization entry point.
+        self.book.SetSelection(1)
+        self.frame_editor.on_optimize_nested_combos(event)
 
     def on_close(self, event: wx.CloseEvent) -> None:
         self._save_recent_files()

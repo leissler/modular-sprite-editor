@@ -1,6 +1,7 @@
 import hashlib
 import wx
 from collections import deque
+from itertools import combinations
 from typing import List, Tuple, Dict, Optional, Any
 import math
 from rect_packer import MaxRectsBinPack
@@ -1395,4 +1396,264 @@ def run_auto_modularization(project: Project, image_or_module_ids, config: Dict)
     if skipped_rotated > 0:
         msg += f" Skipped {skipped_rotated} rotated modules."
 
+    return True, msg
+
+
+def _rot_key(deg: float) -> int:
+    return int(round(float(deg) * 1000.0))
+
+
+def _combo_signature_and_anchor(fmods: List[FModule]) -> Tuple[Tuple[Tuple[Any, ...], ...], Tuple[int, int]]:
+    min_x = min(int(fm.position[0]) for fm in fmods)
+    min_y = min(int(fm.position[1]) for fm in fmods)
+    items: List[Tuple[Any, ...]] = []
+    for fm in fmods:
+        items.append(
+            (
+                fm.ref_id,
+                bool(fm.flip_x),
+                bool(fm.flip_y),
+                _rot_key(fm.rotation_degrees),
+                int(fm.position[0]) - min_x,
+                int(fm.position[1]) - min_y,
+            )
+        )
+    items.sort()
+    return tuple(items), (min_x, min_y)
+
+
+def _module_only_frame_signature(frame: Frame) -> Optional[Tuple[Tuple[Any, ...], ...]]:
+    if not frame.fmodules:
+        return None
+    if any(fm.ref_type != "module" for fm in frame.fmodules):
+        return None
+    sig, _anchor = _combo_signature_and_anchor(frame.fmodules)
+    return sig
+
+
+def optimize_nested_frame_combos(project: Project, config: Optional[Dict] = None) -> Tuple[bool, str]:
+    """
+    Detect repeated module groups with identical relative transforms, extract them into
+    helper frames, and replace occurrences with nested frame references.
+    """
+    cfg = config or {}
+    min_combo_size = max(2, int(cfg.get("min_combo_size", 3)))
+    max_combo_size = max(min_combo_size, int(cfg.get("max_combo_size", 4)))
+    min_support = max(2, int(cfg.get("min_support", 4)))
+    min_net_savings = int(cfg.get("min_net_savings", 2))
+    max_modules_per_frame = max(3, int(cfg.get("max_modules_per_frame", 18)))
+    helper_prefix = str(cfg.get("helper_prefix", "Combo"))
+
+    source_frames = list(project.frames)
+    if not source_frames:
+        return False, "No frames available."
+
+    source_frames_to_mine = [f for f in source_frames if not f.name.startswith(helper_prefix)]
+    if not source_frames_to_mine:
+        return False, "No non-helper frames available."
+
+    groups: Dict[Tuple[Tuple[Any, ...], ...], List[Dict[str, Any]]] = {}
+    skipped_large_frames = 0
+
+    for frame in source_frames_to_mine:
+        module_fmods = [fm for fm in frame.fmodules if fm.ref_type == "module"]
+        if len(module_fmods) < min_combo_size:
+            continue
+        if len(module_fmods) > max_modules_per_frame:
+            skipped_large_frames += 1
+            continue
+
+        n = len(module_fmods)
+        for k in range(min_combo_size, min(max_combo_size, n) + 1):
+            for idxs in combinations(range(n), k):
+                combo = [module_fmods[i] for i in idxs]
+                sig, anchor = _combo_signature_and_anchor(combo)
+                occ = {
+                    "frame_id": frame.id,
+                    "ids": tuple(sorted(fm.id for fm in combo)),
+                    "anchor": anchor,
+                    "k": k,
+                }
+                groups.setdefault(sig, []).append(occ)
+
+    candidates: List[Dict[str, Any]] = []
+    for sig, occs in groups.items():
+        uniq: Dict[Tuple[str, Tuple[str, ...]], Dict[str, Any]] = {}
+        for occ in occs:
+            uniq[(occ["frame_id"], occ["ids"])] = occ
+        unique_occs = list(uniq.values())
+
+        support = len(unique_occs)
+        k = len(sig)
+        if support < min_support:
+            continue
+        net_savings = (k - 1) * support - k
+        if net_savings <= 0 or net_savings < min_net_savings:
+            continue
+
+        candidates.append(
+            {
+                "sig": sig,
+                "k": k,
+                "support": support,
+                "net_savings": net_savings,
+                "occs": unique_occs,
+            }
+        )
+
+    if not candidates:
+        if skipped_large_frames > 0:
+            return False, (
+                f"No beneficial repeated combos found. Skipped {skipped_large_frames} frames "
+                f"that exceed {max_modules_per_frame} module refs."
+            )
+        return False, "No beneficial repeated combos found."
+
+    candidates.sort(
+        key=lambda c: (
+            -int(c["net_savings"]),
+            -int(c["k"]),
+            -int(c["support"]),
+        )
+    )
+
+    existing_helper_by_sig: Dict[Tuple[Tuple[Any, ...], ...], str] = {}
+    for frame in project.frames:
+        if not frame.name.startswith(helper_prefix):
+            continue
+        sig = _module_only_frame_signature(frame)
+        if sig:
+            existing_helper_by_sig.setdefault(sig, frame.id)
+
+    consumed_ids_by_frame: Dict[str, set] = {}
+    replacements_by_frame: Dict[str, List[Dict[str, Any]]] = {}
+
+    helpers_created = 0
+    helpers_reused = 0
+    occurrences_replaced = 0
+    module_refs_replaced = 0
+
+    for cand in candidates:
+        non_conflicting: List[Dict[str, Any]] = []
+        for occ in cand["occs"]:
+            frame_used = consumed_ids_by_frame.setdefault(occ["frame_id"], set())
+            occ_ids = set(occ["ids"])
+            if frame_used.intersection(occ_ids):
+                continue
+            non_conflicting.append(occ)
+
+        support = len(non_conflicting)
+        if support < min_support:
+            continue
+
+        k = int(cand["k"])
+        net_savings = (k - 1) * support - k
+        if net_savings <= 0 or net_savings < min_net_savings:
+            continue
+
+        sig = cand["sig"]
+        helper_frame_id = existing_helper_by_sig.get(sig)
+        if not helper_frame_id:
+            helper_frame = Frame(
+                id=generate_id("frm"),
+                name=f"{helper_prefix} {len(project.frames) + 1}",
+                fmodules=[],
+            )
+            for item in sig:
+                helper_frame.fmodules.append(
+                    FModule(
+                        id=generate_id("fm"),
+                        ref_type="module",
+                        ref_id=str(item[0]),
+                        position=(int(item[4]), int(item[5])),
+                        flip_x=bool(item[1]),
+                        flip_y=bool(item[2]),
+                        rotation_degrees=float(int(item[3]) / 1000.0),
+                    )
+                )
+            project.frames.append(helper_frame)
+            helper_frame_id = helper_frame.id
+            existing_helper_by_sig[sig] = helper_frame_id
+            helpers_created += 1
+        else:
+            helpers_reused += 1
+
+        for occ in non_conflicting:
+            frame_used = consumed_ids_by_frame.setdefault(occ["frame_id"], set())
+            occ_ids = set(occ["ids"])
+            if frame_used.intersection(occ_ids):
+                continue
+            frame_used.update(occ_ids)
+            replacements_by_frame.setdefault(occ["frame_id"], []).append(
+                {
+                    "ids": occ_ids,
+                    "anchor": occ["anchor"],
+                    "helper_id": helper_frame_id,
+                }
+            )
+            occurrences_replaced += 1
+            module_refs_replaced += k
+
+    if not replacements_by_frame:
+        return False, "No non-overlapping beneficial combo replacements found."
+
+    frame_refs_inserted = 0
+    for frame_id, repls in replacements_by_frame.items():
+        frame = project.get_frame(frame_id)
+        if not frame:
+            continue
+
+        id_to_idx = {fm.id: idx for idx, fm in enumerate(frame.fmodules)}
+        prepared: List[Dict[str, Any]] = []
+        for repl in repls:
+            idxs = [id_to_idx[mid] for mid in repl["ids"] if mid in id_to_idx]
+            if not idxs:
+                continue
+            repl2 = dict(repl)
+            repl2["start_idx"] = min(idxs)
+            prepared.append(repl2)
+
+        if not prepared:
+            continue
+
+        prepared.sort(key=lambda r: int(r["start_idx"]))
+        skip_ids = set()
+        insert_by_idx: Dict[int, List[Dict[str, Any]]] = {}
+        for repl in prepared:
+            skip_ids.update(repl["ids"])
+            insert_by_idx.setdefault(int(repl["start_idx"]), []).append(repl)
+
+        new_fmods: List[FModule] = []
+        for idx, fm in enumerate(frame.fmodules):
+            if idx in insert_by_idx:
+                for repl in insert_by_idx[idx]:
+                    new_fmods.append(
+                        FModule(
+                            id=generate_id("fm"),
+                            ref_type="frame",
+                            ref_id=str(repl["helper_id"]),
+                            position=(int(repl["anchor"][0]), int(repl["anchor"][1])),
+                            flip_x=False,
+                            flip_y=False,
+                            rotation_degrees=0.0,
+                        )
+                    )
+                    frame_refs_inserted += 1
+            if fm.id in skip_ids:
+                continue
+            new_fmods.append(fm)
+
+        frame.fmodules = new_fmods
+
+    msg = (
+        f"Nested combo optimization complete. Replaced {occurrences_replaced} occurrences "
+        f"({module_refs_replaced} module refs -> {frame_refs_inserted} frame refs), "
+        f"created {helpers_created} helper frames"
+    )
+    if helpers_reused > 0:
+        msg += f", reused {helpers_reused} existing helper frames"
+    if skipped_large_frames > 0:
+        msg += f". Skipped {skipped_large_frames} large frames (> {max_modules_per_frame} modules)."
+    else:
+        msg += "."
     return True, msg
