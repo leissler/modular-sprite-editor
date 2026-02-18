@@ -1,91 +1,99 @@
 import wx
 
 class AutoModularizeDialog(wx.Dialog):
-    def __init__(self, parent, show_grid_options=True):
-        super().__init__(parent, title="Auto-Modularize & Optimize")
-        
-        self.show_grid_options = show_grid_options
-        
-        # Defaults
-        self.rows = 1
-        self.cols = 1
-        
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        # --- Source Section ---
-        if self.show_grid_options:
-            sb_source = wx.StaticBoxSizer(wx.VERTICAL, self, "1. Source (Grid Slicing)")
-            
-            grid_sizer = wx.FlexGridSizer(2, 4, 5, 10)
-            
-            grid_sizer.Add(wx.StaticText(self, label="Rows:"), 0, wx.ALIGN_CENTER_VERTICAL)
-            self.spin_rows = wx.SpinCtrl(self, min=1, max=128, initial=1)
-            grid_sizer.Add(self.spin_rows)
-            
-            grid_sizer.Add(wx.StaticText(self, label="Columns:"), 0, wx.ALIGN_CENTER_VERTICAL)
-            self.spin_cols = wx.SpinCtrl(self, min=1, max=128, initial=1)
-            grid_sizer.Add(self.spin_cols)
-            
-            sb_source.Add(grid_sizer, 0, wx.ALL, 5)
-            sb_source.Add(wx.StaticText(self, label="Use this to slice a sprite sheet into initial frames."), 0, wx.ALL, 5)
-            
-            sizer.Add(sb_source, 0, wx.EXPAND | wx.ALL, 10)
-        
-        # --- Processing Section ---
-        sb_proc = wx.StaticBoxSizer(wx.VERTICAL, self, "2. Processing (Decomposition)")
-        
-        # Method
-        self.rb_method = wx.RadioBox(self, label="Decomposition Method", 
-                                     choices=["Simple Trim (Bounding Box)", "Recursive XY-Cut (Standard)", "Greedy Maximal Rects (Aggressive)"],
-                                     majorDimension=1, style=wx.RA_SPECIFY_COLS)
-        sb_proc.Add(self.rb_method, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Tolerance
-        tol_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        tol_sizer.Add(wx.StaticText(self, label="Tolerance (Hole Filling):"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.spin_tol = wx.SpinCtrl(self, min=0, max=10, initial=0)
-        tol_sizer.Add(self.spin_tol, 0)
-        tol_sizer.Add(wx.StaticText(self, label="px"), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
-        
-        sb_proc.Add(tol_sizer, 0, wx.ALL, 5)
-        sb_proc.Add(wx.StaticText(self, label="Higher tolerance ignores small gaps (0 = Exact)."), 0, wx.LEFT | wx.BOTTOM, 5)
-        
-        # Common Parts
-        self.chk_common = wx.CheckBox(self, label="Extract Static Backgrounds (Common Parts)")
-        self.chk_common.SetToolTip("Detects parts that are identical across frames (e.g. static body) and extracts them as single modules.")
-        sb_proc.Add(self.chk_common, 0, wx.ALL, 5)
-        
-        # Dedupe
-        self.chk_dedupe = wx.CheckBox(self, label="Deduplicate Parts")
-        self.chk_dedupe.SetValue(True)
-        sb_proc.Add(self.chk_dedupe, 0, wx.ALL, 5)
+    def __init__(self, parent, show_grid_options=False):
+        super().__init__(parent, title="Auto Modularize Spritesheet")
 
-        sizer.Add(sb_proc, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        
-        # --- Output Section ---
-        sb_out = wx.StaticBoxSizer(wx.VERTICAL, self, "3. Output")
-        self.chk_optimize = wx.CheckBox(self, label="Run Optimizer (Pack into new sheet)")
-        self.chk_optimize.SetValue(True)
-        sb_out.Add(self.chk_optimize, 0, wx.ALL, 5)
-        
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        sb_proc = wx.StaticBoxSizer(wx.VERTICAL, self, "Analysis")
+
+        grid = wx.FlexGridSizer(rows=0, cols=2, vgap=6, hgap=10)
+        grid.AddGrowableCol(1, 1)
+
+        grid.Add(wx.StaticText(self, label="Alpha Threshold"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.spin_alpha = wx.SpinCtrl(self, min=0, max=255, initial=0)
+        grid.Add(self.spin_alpha, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, label="Max Transparent %"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.spin_transparent_pct = wx.SpinCtrl(self, min=0, max=95, initial=50)
+        grid.Add(self.spin_transparent_pct, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, label="Min Part Area (px)"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.spin_min_area = wx.SpinCtrl(self, min=1, max=4096, initial=1)
+        grid.Add(self.spin_min_area, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, label="Merge Gap (px)"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.spin_merge_gap = wx.SpinCtrl(self, min=0, max=16, initial=1)
+        grid.Add(self.spin_merge_gap, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, label="Min Split Side"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.spin_min_split_side = wx.SpinCtrl(self, min=2, max=64, initial=2)
+        grid.Add(self.spin_min_split_side, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, label="Max Split Depth"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.spin_max_split_depth = wx.SpinCtrl(self, min=1, max=20, initial=8)
+        grid.Add(self.spin_max_split_depth, 0, wx.EXPAND)
+
+        sb_proc.Add(grid, 0, wx.EXPAND | wx.ALL, 8)
+        sb_proc.Add(
+            wx.StaticText(
+                self,
+                label=(
+                    "Lower Max Transparent % creates tighter cuts for sparse shapes "
+                    "(L-shapes, diagonals, thin weapons)."
+                ),
+            ),
+            0,
+            wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            8,
+        )
+        self.chk_pattern_mining = wx.CheckBox(
+            self,
+            label="Detect Reused Copy/Paste Parts (Pattern Mining)",
+        )
+        self.chk_pattern_mining.SetValue(True)
+        sb_proc.Add(self.chk_pattern_mining, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+
+        pattern_row = wx.BoxSizer(wx.HORIZONTAL)
+        pattern_row.Add(wx.StaticText(self, label="Min Pattern Occurrences"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.spin_pattern_occ = wx.SpinCtrl(self, min=2, max=32, initial=3)
+        pattern_row.Add(self.spin_pattern_occ, 0)
+        sb_proc.Add(pattern_row, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        sizer.Add(sb_proc, 0, wx.EXPAND | wx.ALL, 10)
+
+        sb_out = wx.StaticBoxSizer(wx.VERTICAL, self, "Output")
+        self.chk_dedupe = wx.CheckBox(self, label="Deduplicate Identical Parts")
+        self.chk_dedupe.SetValue(True)
+        sb_out.Add(self.chk_dedupe, 0, wx.ALL, 5)
+
+        self.chk_replace_refs = wx.CheckBox(self, label="Replace Frame References to Original Modules")
+        self.chk_replace_refs.SetValue(True)
+        sb_out.Add(self.chk_replace_refs, 0, wx.ALL, 5)
+
+        self.chk_delete_originals = wx.CheckBox(self, label="Delete Original Modules After Split")
+        self.chk_delete_originals.SetValue(True)
+        sb_out.Add(self.chk_delete_originals, 0, wx.ALL, 5)
+
         sizer.Add(sb_out, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        
-        # Buttons
+
         btns = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         sizer.Add(btns, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
-        
+
         self.SetSizerAndFit(sizer)
         self.CenterOnParent()
-        
+
     def GetValues(self):
-        vals = {
-            "method": ["trim", "xy_cut", "greedy"][self.rb_method.GetSelection()],
-            "tolerance": self.spin_tol.GetValue(),
-            "extract_common": self.chk_common.GetValue(),
+        return {
+            "alpha_threshold": self.spin_alpha.GetValue(),
+            "max_transparent_ratio": self.spin_transparent_pct.GetValue() / 100.0,
+            "min_part_area": self.spin_min_area.GetValue(),
+            "merge_gap": self.spin_merge_gap.GetValue(),
+            "min_split_side": self.spin_min_split_side.GetValue(),
+            "max_split_depth": self.spin_max_split_depth.GetValue(),
+            "pattern_mining": self.chk_pattern_mining.GetValue(),
+            "min_pattern_occurrences": self.spin_pattern_occ.GetValue(),
             "deduplicate": self.chk_dedupe.GetValue(),
-            "optimize": self.chk_optimize.GetValue()
+            "replace_in_frames": self.chk_replace_refs.GetValue(),
+            "delete_original_modules": self.chk_delete_originals.GetValue(),
         }
-        if self.show_grid_options:
-            vals["rows"] = self.spin_rows.GetValue()
-            vals["cols"] = self.spin_cols.GetValue()
-        return vals

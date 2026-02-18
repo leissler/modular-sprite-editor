@@ -334,8 +334,6 @@ class FrameCanvas(BaseCanvas):
                              draw_base_x = -px
                              draw_base_y = -py
                              gc.StrokeLine(draw_base_x, draw_base_y, draw_base_x + endX, draw_base_y + endY)
-                 gc.PopState()
-        
         elif fm.ref_type == "frame":
              ref_frame = self.project.get_frame(fm.ref_id)
              if ref_frame:

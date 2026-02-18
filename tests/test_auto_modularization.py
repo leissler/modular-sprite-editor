@@ -1,10 +1,8 @@
-
 import unittest
 import os
 import shutil
 from PIL import Image, ImageDraw
-import wx
-from models import Project, ImageAsset, Module
+from models import Project, Frame, FModule
 from optimization import run_auto_modularization
 
 class TestAutoModularization(unittest.TestCase):
@@ -14,77 +12,354 @@ class TestAutoModularization(unittest.TestCase):
             shutil.rmtree(self.test_dir)
         os.makedirs(self.test_dir)
         
-        # Initialize wx App (needed for wx.Image)
-        self.app = wx.App()
-        
         self.project = Project()
-        
-        # Create a dummy image: 64x64 transparent, with two 10x10 squares and a connecting line
-        # Square 1: (10, 10, 10, 10)
-        # Square 2: (40, 40, 10, 10)
-        # This should trigger decomposition if we cut
-        
-        self.img_path = os.path.join(self.test_dir, "test_sprite.png")
-        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        draw.rectangle((10, 10, 20, 20), fill=(255, 0, 0, 255))
-        draw.rectangle((40, 40, 50, 50), fill=(0, 255, 0, 255))
-        img.save(self.img_path)
-        
-        self.asset = self.project.create_image(os.path.abspath(self.img_path), 64, 64)
-        
-        # Create a Module covering the whole image
-        self.mod = self.project.create_module("FullMod", self.asset.id, (0, 0, 64, 64), (32, 32))
-        
+
     def tearDown(self):
         # clean up
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
-        del self.app
 
-    def test_recursive_decomposition(self):
+    def test_sheet_level_dedupe_and_reference_replacement(self):
+        img_path = os.path.join(self.test_dir, "grid_sheet.png")
+        img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Shared part (head) appears in both cells at different positions.
+        draw.rectangle((2, 2, 7, 7), fill=(255, 255, 255, 255))
+        draw.rectangle((38, 4, 43, 9), fill=(255, 255, 255, 255))
+
+        # Unique parts for each cell.
+        draw.rectangle((20, 10, 22, 23), fill=(255, 0, 0, 255))
+        draw.rectangle((50, 12, 59, 14), fill=(0, 255, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 64, 32)
+        mod_a = self.project.create_module("CellA", asset.id, (0, 0, 32, 32), (16, 16))
+        mod_b = self.project.create_module("CellB", asset.id, (32, 0, 32, 32), (16, 16))
+
+        frame = Frame(
+            id="frm_base",
+            name="Base",
+            fmodules=[
+                FModule(id="fm_a", ref_type="module", ref_id=mod_a.id, position=(10, 10)),
+                FModule(id="fm_b", ref_type="module", ref_id=mod_b.id, position=(50, 10)),
+            ],
+        )
+        self.project.frames.append(frame)
+
         config = {
-            "method": "xy_cut", 
-            "tolerance": 0, 
-            "optimize": False
+            "alpha_threshold": 0,
+            "max_transparent_ratio": 0.5,
+            "min_part_area": 1,
+            "merge_gap": 1,
+            "min_split_side": 2,
+            "max_split_depth": 8,
+            "deduplicate": True,
+            "replace_in_frames": True,
+            "delete_original_modules": True,
         }
-        
-        success, msg = run_auto_modularization(self.project, [self.mod.id], config)
+
+        success, msg = run_auto_modularization(self.project, asset.id, config)
         self.assertTrue(success, msg)
-        
-        # Should have created 1 Frame
-        self.assertEqual(len(self.project.frames), 1)
-        frame = self.project.frames[0]
-        
-        # Should have at least 2 FModules (the two squares)
-        # It might be 3 if it cut loosely, but XY cut should find the gap.
-        # Vertical cut at x=21..39?
-        print(f"Created {len(frame.fmodules)} sub-modules")
-        for fm in frame.fmodules:
-            m = self.project.get_module(fm.ref_id)
-            print(f"  Sub: {m.rect}")
-            
-        self.assertGreaterEqual(len(frame.fmodules), 2)
-        
-    def test_optimization_integration(self):
+
+        remaining_ids = {m.id for m in self.project.modules}
+        self.assertNotIn(mod_a.id, remaining_ids)
+        self.assertNotIn(mod_b.id, remaining_ids)
+
+        auto_frames = [f for f in self.project.frames if f.name.startswith("AutoMod ")]
+        self.assertEqual(len(auto_frames), 0)
+
+        updated_base = self.project.get_frame("frm_base")
+        self.assertIsNotNone(updated_base)
+        self.assertTrue(all(fm.ref_type == "module" for fm in updated_base.fmodules))
+
+        placement_count = len(updated_base.fmodules)
+        unique_part_refs = {fm.ref_id for fm in updated_base.fmodules}
+        self.assertLess(len(unique_part_refs), placement_count)
+        self.assertGreater(placement_count, 2)
+
+    def test_sparse_l_shape_splits_into_multiple_parts(self):
+        img_path = os.path.join(self.test_dir, "l_shape.png")
+        img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((1, 1, 12, 2), fill=(255, 255, 255, 255))
+        draw.rectangle((1, 1, 2, 12), fill=(255, 255, 255, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 16, 16)
+        self.project.create_module("LShape", asset.id, (0, 0, 16, 16), (8, 8))
+
         config = {
-            "method": "greedy",
-            "optimize": True
+            "alpha_threshold": 0,
+            "max_transparent_ratio": 0.35,
+            "min_part_area": 1,
+            "merge_gap": 0,
+            "min_split_side": 2,
+            "max_split_depth": 10,
+            "deduplicate": False,
+            "replace_in_frames": False,
+            "delete_original_modules": False,
         }
-        success, msg = run_auto_modularization(self.project, [self.mod.id], config)
+
+        success, msg = run_auto_modularization(self.project, asset.id, config)
         self.assertTrue(success, msg)
-        
-        # Check that we have a new image asset (the packed sheet)
-        # Original was 1 image. Now we should have 2 (Original + Optimized) 
-        # (Though optimize_modules removes unused old images, but the original FullMod still points to old image unless updated? No run_auto_mod creates *new* part mods.)
-        # The FullMod still points to `test_sprite.png`.
-        # The new Part Mods point to `optimized_sheet...png`.
-        
-        print("Images in project:")
-        for img in self.project.images:
-            print(f"  {img.file_path}")
-            
-        self.assertGreaterEqual(len(self.project.images), 1)
+
+        auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
+        self.assertGreaterEqual(len(auto_parts), 2)
+
+    def test_pattern_mining_reuses_large_patch_across_modules(self):
+        img_path = os.path.join(self.test_dir, "pattern_sheet.png")
+        img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Shared 10x10 patch appears in two cells at different offsets.
+        draw.rectangle((2, 2, 11, 11), fill=(255, 200, 120, 255))
+        draw.rectangle((38, 6, 47, 15), fill=(255, 200, 120, 255))
+
+        # Unique details to avoid whole-cell equality.
+        draw.rectangle((14, 10, 16, 12), fill=(255, 0, 0, 255))
+        draw.rectangle((50, 18, 52, 20), fill=(0, 255, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 64, 32)
+        mod_a = self.project.create_module("A", asset.id, (0, 0, 32, 32), (16, 16))
+        mod_b = self.project.create_module("B", asset.id, (32, 0, 32, 32), (16, 16))
+
+        self.project.frames.append(
+            Frame(
+                id="frm_a",
+                name="A",
+                fmodules=[FModule(id="fm_a", ref_type="module", ref_id=mod_a.id, position=(0, 0))],
+            )
+        )
+        self.project.frames.append(
+            Frame(
+                id="frm_b",
+                name="B",
+                fmodules=[FModule(id="fm_b", ref_type="module", ref_id=mod_b.id, position=(0, 0))],
+            )
+        )
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+                "pattern_mining": True,
+                "min_pattern_occurrences": 2,
+                "pattern_min_size": 10,
+                "pattern_max_size": 10,
+                "pattern_size_step": 1,
+                "pattern_stride": 1,
+                "min_pattern_area": 80,
+                "min_pattern_opaque": 60,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        frame_a = self.project.get_frame("frm_a")
+        frame_b = self.project.get_frame("frm_b")
+        self.assertIsNotNone(frame_a)
+        self.assertIsNotNone(frame_b)
+
+        ids_a = {fm.ref_id for fm in frame_a.fmodules if fm.ref_type == "module"}
+        ids_b = {fm.ref_id for fm in frame_b.fmodules if fm.ref_type == "module"}
+        shared_ids = ids_a.intersection(ids_b)
+        self.assertTrue(shared_ids)
+
+        shared_areas = [self.project.get_module(mid).rect[2] * self.project.get_module(mid).rect[3] for mid in shared_ids if self.project.get_module(mid)]
+        self.assertTrue(shared_areas)
+        self.assertGreaterEqual(max(shared_areas), 80)
+
+    def test_pattern_mining_avoids_redundant_overlap_duplicates(self):
+        img_path = os.path.join(self.test_dir, "pattern_overlap.png")
+        img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((4, 4, 13, 13), fill=(200, 200, 255, 255))
+        draw.rectangle((36, 4, 45, 13), fill=(200, 200, 255, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 64, 32)
+        mod_a = self.project.create_module("A", asset.id, (0, 0, 32, 32), (16, 16))
+        mod_b = self.project.create_module("B", asset.id, (32, 0, 32, 32), (16, 16))
+
+        self.project.frames.append(
+            Frame(
+                id="frm_a2",
+                name="A2",
+                fmodules=[FModule(id="fm_a2", ref_type="module", ref_id=mod_a.id, position=(0, 0))],
+            )
+        )
+        self.project.frames.append(
+            Frame(
+                id="frm_b2",
+                name="B2",
+                fmodules=[FModule(id="fm_b2", ref_type="module", ref_id=mod_b.id, position=(0, 0))],
+            )
+        )
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+                "pattern_mining": True,
+                "min_pattern_occurrences": 2,
+                "pattern_min_size": 6,
+                "pattern_max_size": 12,
+                "pattern_size_step": 1,
+                "pattern_stride": 1,
+                "min_pattern_area": 16,
+                "min_pattern_opaque": 8,
+                "min_pattern_new_coverage": 0.6,
+                "placement_min_unique_ratio": 0.4,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        fa = self.project.get_frame("frm_a2")
+        fb = self.project.get_frame("frm_b2")
+        self.assertIsNotNone(fa)
+        self.assertIsNotNone(fb)
+        self.assertLessEqual(len(fa.fmodules), 3)
+        self.assertLessEqual(len(fb.fmodules), 3)
+
+    def test_single_pixel_parts_are_kept_in_frames(self):
+        img_path = os.path.join(self.test_dir, "single_pixel_parts.png")
+        img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.point((8, 8), fill=(255, 255, 0, 255))
+        draw.point((40, 12), fill=(255, 255, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 64, 32)
+        mod_a = self.project.create_module("A", asset.id, (0, 0, 32, 32), (16, 16))
+        mod_b = self.project.create_module("B", asset.id, (32, 0, 32, 32), (16, 16))
+
+        self.project.frames.append(
+            Frame(
+                id="frm_px_a",
+                name="PxA",
+                fmodules=[FModule(id="fm_px_a", ref_type="module", ref_id=mod_a.id, position=(0, 0))],
+            )
+        )
+        self.project.frames.append(
+            Frame(
+                id="frm_px_b",
+                name="PxB",
+                fmodules=[FModule(id="fm_px_b", ref_type="module", ref_id=mod_b.id, position=(0, 0))],
+            )
+        )
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+                "pattern_mining": True,
+                "min_pattern_occurrences": 2,
+                "pattern_min_size": 1,
+                "pattern_max_size": 2,
+                "pattern_size_step": 1,
+                "pattern_stride": 1,
+                "min_pattern_area": 1,
+                "min_pattern_opaque": 1,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        frame_a = self.project.get_frame("frm_px_a")
+        frame_b = self.project.get_frame("frm_px_b")
+        self.assertIsNotNone(frame_a)
+        self.assertIsNotNone(frame_b)
+
+        self.assertGreaterEqual(len(frame_a.fmodules), 1)
+        self.assertGreaterEqual(len(frame_b.fmodules), 1)
+
+        def has_one_pixel_part(frame):
+            for fm in frame.fmodules:
+                if fm.ref_type != "module":
+                    continue
+                mod = self.project.get_module(fm.ref_id)
+                if mod and mod.rect[2] == 1 and mod.rect[3] == 1:
+                    return True
+            return False
+
+        self.assertTrue(has_one_pixel_part(frame_a))
+        self.assertTrue(has_one_pixel_part(frame_b))
+
+    def test_only_referenced_modules_are_rewritten(self):
+        img_path = os.path.join(self.test_dir, "refs.png")
+        img = Image.new("RGBA", (96, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((2, 2, 10, 10), fill=(255, 255, 255, 255))
+        draw.rectangle((34, 2, 42, 10), fill=(255, 0, 0, 255))
+        draw.rectangle((66, 2, 74, 10), fill=(0, 255, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 96, 32)
+        mod_a = self.project.create_module("A", asset.id, (0, 0, 32, 32), (16, 16))
+        mod_b = self.project.create_module("B", asset.id, (32, 0, 32, 32), (16, 16))
+        self.project.create_module("C_unused", asset.id, (64, 0, 32, 32), (16, 16))
+
+        self.project.frames.append(
+            Frame(
+                id="frm_refs",
+                name="Refs",
+                fmodules=[
+                    FModule(id="fm_a", ref_type="module", ref_id=mod_a.id, position=(0, 0)),
+                    FModule(id="fm_b", ref_type="module", ref_id=mod_b.id, position=(40, 0)),
+                ],
+            )
+        )
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        auto_frames = [f for f in self.project.frames if f.name.startswith("AutoMod ")]
+        self.assertEqual(len(auto_frames), 0)
+
+        frm = self.project.get_frame("frm_refs")
+        self.assertIsNotNone(frm)
+        self.assertGreaterEqual(len(frm.fmodules), 2)
+        # Both original references should have been expanded to module-part references.
+        self.assertTrue(all(fm.ref_type == "module" for fm in frm.fmodules))
+
+    def test_delete_without_replacement_is_blocked_when_frames_reference_modules(self):
+        img_path = os.path.join(self.test_dir, "single.png")
+        img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((2, 2, 6, 6), fill=(255, 255, 255, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 16, 16)
+        mod = self.project.create_module("One", asset.id, (0, 0, 16, 16), (8, 8))
+        self.project.frames.append(
+            Frame(
+                id="frm_ref",
+                name="Ref",
+                fmodules=[FModule(id="fm_ref", ref_type="module", ref_id=mod.id, position=(0, 0))],
+            )
+        )
+
+        config = {
+            "deduplicate": True,
+            "replace_in_frames": False,
+            "delete_original_modules": True,
+        }
+        success, msg = run_auto_modularization(self.project, asset.id, config)
+        self.assertFalse(success)
+        self.assertIn("Cannot delete originals", msg)
 
 if __name__ == '__main__':
     unittest.main()

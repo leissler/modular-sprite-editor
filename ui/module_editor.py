@@ -839,6 +839,8 @@ class ModuleEditorPanel(wx.Panel):
         slice_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
         self.btn_slice = wx.Button(slice_box, label="Slice Image")
         slice_sizer.Add(self.btn_slice, 0, wx.EXPAND | wx.ALL, 4)
+        self.btn_auto_modularize = wx.Button(slice_box, label="Auto Modularize Sheet")
+        slice_sizer.Add(self.btn_auto_modularize, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
 
         sidebar.Add(img_sizer, 1, wx.EXPAND | wx.ALL, 4)
         sidebar.Add(mod_sizer, 2, wx.EXPAND | wx.ALL, 4)
@@ -897,6 +899,7 @@ class ModuleEditorPanel(wx.Panel):
         self.module_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_deselect_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_module_list_right_click)
         self.btn_slice.Bind(wx.EVT_BUTTON, self.on_slice_grid)
+        self.btn_auto_modularize.Bind(wx.EVT_BUTTON, self.on_auto_modularize_sheet)
         self.canvas.on_selection_changed = self._on_canvas_selection
         self.canvas.on_pivot_changed = self._on_canvas_pivot
         self.canvas.on_pick_color = self.on_canvas_pick_color
@@ -1641,66 +1644,34 @@ class ModuleEditorPanel(wx.Panel):
 
     def on_module_list_right_click(self, event: wx.ListEvent) -> None:
         menu = wx.Menu()
-        item_decompose = menu.Append(wx.ID_ANY, "Decompose / Auto-Modularize...")
-        self.Bind(wx.EVT_MENU, self.on_decompose_modules, item_decompose)
+        item_auto = menu.Append(wx.ID_ANY, "Auto Modularize Sheet...")
+        self.Bind(wx.EVT_MENU, self.on_auto_modularize_sheet, item_auto)
         
         self.PopupMenu(menu)
         menu.Destroy()
 
-    def on_decompose_modules(self, event: wx.CommandEvent) -> None:
-        # Get selected module(s)
-        selected_ids = []
-        
-        idx = self.module_list.GetFirstSelected()
-        while idx != -1:
-            if 0 <= idx < len(self._modules_view):
-                selected_ids.append(self._modules_view[idx].id)
-            idx = self.module_list.GetNextSelected(idx)
-            
-        if not selected_ids:
-            # Fallback to current active if any (though list selection should align)
-            if self.selected_module_id:
-                selected_ids.append(self.selected_module_id)
-        
-        if not selected_ids:
+    def on_auto_modularize_sheet(self, _event: wx.CommandEvent = None) -> None:
+        if not self.selected_image_id:
+            wx.MessageBox("Select a spritesheet image first.", "Info")
             return
 
-        # Show Dialog
-        # We assume the user wants to Decompose the selected module(s).
-        
-        with AutoModularizeDialog(self, show_grid_options=False) as dlg:
-            if dlg.ShowModal() == wx.ID_OK:
-                config = dlg.GetValues()
-                
-                # Execute
-                success, msg = run_auto_modularization(self.project, selected_ids, config)
-                
-                if success:
-                    wx.MessageBox(msg, "Success")
-                    
-                    # Refresh images to reflect new assets (Optimized Sheet / Residuals)
-                    old_img_count = self.image_list.GetCount()
-                    self.refresh_images()
-                    new_img_count = self.image_list.GetCount()
-                    
-                    # Heuristic: If we created new images (Optimization/Residuals), 
-                    # switch view to the newest one so the user sees the result.
-                    # Otherwise they might see "nothing" if modules moved off the current image.
-                    if self.project.images:
-                        # If image count changed, or we just want to look at the output
-                        # The last image in the list is usually the newest one created.
-                        newest_id = self.project.images[-1].id
-                        if newest_id != self.selected_image_id:
-                            self.select_image(newest_id)
-                            # Ensure list is selected too
-                            for idx in range(self.image_list.GetCount()):
-                                if self.image_list.GetClientData(idx) == newest_id:
-                                    self.image_list.SetSelection(idx)
-                                    break
-                    
-                    self.refresh_modules()
-                else:
-                    wx.MessageBox(f"Error: {msg}", "Error")
+        with AutoModularizeDialog(self) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            config = dlg.GetValues()
+
+        with wx.BusyCursor():
+            success, msg = run_auto_modularization(self.project, self.selected_image_id, config)
+
+        if success:
+            wx.MessageBox(msg, "Success")
+            # Reload current image to ensure overlays and transparency cache are in sync.
+            current_id = self.selected_image_id
+            self.refresh_modules()
+            if current_id:
+                self.select_image(current_id)
+        else:
+            wx.MessageBox(f"Error: {msg}", "Error")
 
 
     def refresh_images(self, select_id: Optional[str] = None) -> None:
