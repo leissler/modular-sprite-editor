@@ -674,6 +674,92 @@ def _merge_rects_with_density(
     return unique
 
 
+def _rect_transparent_ratio(
+    integral: List[List[int]],
+    rect: Tuple[int, int, int, int],
+) -> float:
+    x, y, w, h = rect
+    area = max(1, int(w) * int(h))
+    opaque = _count_opaque(integral, int(x), int(y), int(w), int(h))
+    return 1.0 - (opaque / float(area))
+
+
+def _refine_sparse_rects(
+    mask: List[List[bool]],
+    integral: List[List[int]],
+    rects: List[Tuple[int, int, int, int]],
+    max_transparent_ratio: float,
+    min_density: float,
+    min_part_area: int,
+    min_split_side: int,
+    max_split_depth: int,
+) -> List[Tuple[int, int, int, int]]:
+    """
+    Second split pass for large sparse leftovers.
+
+    The first pass may exhaust max_split_depth on repeatedly unbalanced cuts
+    (common on diagonals), leaving oversized sparse rects. Re-split only those
+    leftovers with a deeper local budget, then keep tiny terminal strips as-is.
+    """
+    if not rects:
+        return []
+
+    refined_depth = max(max_split_depth, 24)
+    pending = list(rects)
+    changed = True
+
+    while changed:
+        changed = False
+        next_rects: List[Tuple[int, int, int, int]] = []
+        for rect in pending:
+            x, y, w, h = rect
+            if w <= 0 or h <= 0:
+                continue
+
+            transparent_ratio = _rect_transparent_ratio(integral, rect)
+            if (
+                transparent_ratio <= max_transparent_ratio
+                or w <= min_split_side
+                or h <= min_split_side
+            ):
+                next_rects.append(rect)
+                continue
+
+            split_rects = _split_sparse_region(
+                mask,
+                integral,
+                rect,
+                min_density,
+                min_part_area,
+                min_split_side,
+                refined_depth,
+            )
+            split_rects = [
+                r
+                for r in split_rects
+                if r[2] > 0 and r[3] > 0 and _count_opaque(integral, r[0], r[1], r[2], r[3]) > 0
+            ]
+
+            if len(split_rects) <= 1 or (len(split_rects) == 1 and split_rects[0] == rect):
+                next_rects.append(rect)
+                continue
+
+            changed = True
+            next_rects.extend(split_rects)
+
+        pending = next_rects
+
+    unique: List[Tuple[int, int, int, int]] = []
+    seen = set()
+    for rect in pending:
+        if rect in seen:
+            continue
+        seen.add(rect)
+        unique.append(rect)
+    unique.sort(key=lambda r: (r[1], r[0], r[2], r[3]))
+    return unique
+
+
 def _hash_patch_rgba(patch: Image.Image) -> str:
     return hashlib.sha1(patch.tobytes()).hexdigest()
 
@@ -1100,6 +1186,7 @@ def run_auto_modularization(project: Project, image_or_module_ids, config: Dict)
         for group in pattern_groups:
             gw = int(group["w"])
             gh = int(group["h"])
+            group_area = max(1, gw * gh)
             occurrences = group["occurrences"]
 
             # Evaluate occurrences greedily against temporary coverage to avoid redundant overlap.
@@ -1118,6 +1205,12 @@ def run_auto_modularization(project: Project, image_or_module_ids, config: Dict)
                 if not ctx or mod_id not in temp_covered:
                     continue
 
+                # Keep pattern-mined parts aligned with the global transparency constraint.
+                occ_opaque = max(1, int(occ.get("opaque", 1)))
+                occ_transparent_ratio = 1.0 - (occ_opaque / float(group_area))
+                if occ_transparent_ratio > max_transparent_ratio:
+                    continue
+
                 new_px = _count_new_opaque_pixels(
                     ctx["full_mask"],
                     temp_covered[mod_id],
@@ -1126,7 +1219,6 @@ def run_auto_modularization(project: Project, image_or_module_ids, config: Dict)
                     gw,
                     gh,
                 )
-                occ_opaque = max(1, int(occ.get("opaque", 1)))
                 new_ratio = new_px / float(occ_opaque)
                 if new_px < min_pattern_new_opaque or new_ratio < min_pattern_new_coverage:
                     continue
@@ -1227,6 +1319,17 @@ def run_auto_modularization(project: Project, image_or_module_ids, config: Dict)
                     max_split_depth,
                 )
             )
+
+        local_rects = _refine_sparse_rects(
+            residual_mask,
+            residual_integral,
+            local_rects,
+            max_transparent_ratio,
+            min_density,
+            min_part_area,
+            min_split_side,
+            max_split_depth,
+        )
 
         local_rects = _merge_rects_with_density(
             local_rects, residual_integral, max_transparent_ratio, merge_gap

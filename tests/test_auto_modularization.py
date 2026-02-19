@@ -107,6 +107,59 @@ class TestAutoModularization(unittest.TestCase):
         auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
         self.assertGreaterEqual(len(auto_parts), 2)
 
+    def test_sparse_diagonal_does_not_leave_large_sparse_chunk(self):
+        img_path = os.path.join(self.test_dir, "diag_sparse.png")
+        img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        for i in range(24):
+            x = 2 + i
+            y = 4 + (i // 2)
+            if 0 <= x < 32 and 0 <= y < 32:
+                draw.point((x, y), fill=(255, 255, 255, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 32, 32)
+        self.project.create_module("Diag", asset.id, (0, 0, 32, 32), (16, 16))
+
+        max_transparent_ratio = 0.1
+        min_split_side = 2
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "alpha_threshold": 0,
+                "max_transparent_ratio": max_transparent_ratio,
+                "min_part_area": 1,
+                "merge_gap": 1,
+                "min_split_side": min_split_side,
+                "max_split_depth": 8,
+                "pattern_mining": False,
+                "deduplicate": False,
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        sheet = Image.open(os.path.abspath(img_path)).convert("RGBA")
+        auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
+        self.assertGreater(len(auto_parts), 0)
+
+        # No large part should violate the threshold. Tiny strips may still do so
+        # because min_split_side stops further recursion.
+        for mod in auto_parts:
+            x, y, w, h = mod.rect
+            crop = sheet.crop((x, y, x + w, y + h))
+            raw = crop.tobytes()
+            opaque = sum(1 for idx in range(3, len(raw), 4) if raw[idx] > 0)
+            transparent_ratio = 1.0 - (opaque / float(max(1, w * h)))
+            if w > min_split_side and h > min_split_side:
+                self.assertLessEqual(
+                    transparent_ratio,
+                    max_transparent_ratio + 1e-9,
+                    f"{mod.name} remains a large sparse chunk: rect={mod.rect}",
+                )
+
     def test_pattern_mining_reuses_large_patch_across_modules(self):
         img_path = os.path.join(self.test_dir, "pattern_sheet.png")
         img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
@@ -334,6 +387,84 @@ class TestAutoModularization(unittest.TestCase):
         self.assertGreaterEqual(len(frm.fmodules), 2)
         # Both original references should have been expanded to module-part references.
         self.assertTrue(all(fm.ref_type == "module" for fm in frm.fmodules))
+
+    def test_pattern_mining_respects_max_transparent_ratio(self):
+        img_path = os.path.join(self.test_dir, "diag_pattern.png")
+        img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Same sparse diagonal appears in both cells to trigger pattern mining.
+        for off in (0, 32):
+            for i in range(20):
+                x = off + 5 + i
+                y = 5 + (i // 2)
+                if x < off + 32 and y < 32:
+                    draw.point((x, y), fill=(255, 255, 255, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 64, 32)
+        mod_a = self.project.create_module("A", asset.id, (0, 0, 32, 32), (16, 16))
+        mod_b = self.project.create_module("B", asset.id, (32, 0, 32, 32), (16, 16))
+
+        self.project.frames.append(
+            Frame(
+                id="frm_diag_a",
+                name="DiagA",
+                fmodules=[FModule(id="fm_diag_a", ref_type="module", ref_id=mod_a.id, position=(0, 0))],
+            )
+        )
+        self.project.frames.append(
+            Frame(
+                id="frm_diag_b",
+                name="DiagB",
+                fmodules=[FModule(id="fm_diag_b", ref_type="module", ref_id=mod_b.id, position=(0, 0))],
+            )
+        )
+
+        max_transparent_ratio = 0.1
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "max_transparent_ratio": max_transparent_ratio,
+                "min_part_area": 1,
+                "merge_gap": 1,
+                "min_split_side": 2,
+                "max_split_depth": 8,
+                "deduplicate": True,
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+                "pattern_mining": True,
+                "min_pattern_occurrences": 2,
+                "min_pattern_active_occurrences": 2,
+                "pattern_min_size": 6,
+                "pattern_max_size": 20,
+                "pattern_size_step": 2,
+                "pattern_stride": 1,
+                "min_pattern_area": 16,
+                "min_pattern_opaque": 8,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        sheet = Image.open(os.path.abspath(img_path)).convert("RGBA")
+        auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
+        self.assertGreater(len(auto_parts), 0)
+
+        for mod in auto_parts:
+            x, y, w, h = mod.rect
+            crop = sheet.crop((x, y, x + w, y + h))
+            raw = crop.tobytes()
+            opaque = sum(1 for idx in range(3, len(raw), 4) if raw[idx] > 0)
+            transparent_ratio = 1.0 - (opaque / float(max(1, w * h)))
+            # Small terminal fragments can still be sparse when min_split_side prevents
+            # further recursion; ensure larger parts still obey the threshold.
+            if w > 2 and h > 2:
+                self.assertLessEqual(
+                    transparent_ratio,
+                    max_transparent_ratio + 1e-9,
+                    f"{mod.name} exceeds max transparent ratio with rect={mod.rect}",
+                )
 
     def test_delete_without_replacement_is_blocked_when_frames_reference_modules(self):
         img_path = os.path.join(self.test_dir, "single.png")
