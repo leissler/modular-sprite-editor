@@ -1132,6 +1132,24 @@ class RetroAnimatorExporter:
         return img
 
     @staticmethod
+    def _apply_transparent_color_key(img: Any, transparent_color: Optional[Tuple[int, int, int]]) -> Any:
+        if not transparent_color:
+            return img
+
+        tr, tg, tb = (
+            int(transparent_color[0]),
+            int(transparent_color[1]),
+            int(transparent_color[2]),
+        )
+        raw = bytearray(img.tobytes())
+        for i in range(0, len(raw), 4):
+            if raw[i] == tr and raw[i + 1] == tg and raw[i + 2] == tb:
+                raw[i + 3] = 0
+        out = img.copy()
+        out.frombytes(bytes(raw))
+        return out
+
+    @staticmethod
     def _load_module_rgba(
         project: "Project",
         mod: "Module",
@@ -1157,9 +1175,18 @@ class RetroAnimatorExporter:
             module_cache[mod.id] = img
             return img
 
-        cache_key = os.path.abspath(asset.file_path)
+        trans_key = None
+        if asset.transparent_color:
+            trans_key = (
+                int(asset.transparent_color[0]),
+                int(asset.transparent_color[1]),
+                int(asset.transparent_color[2]),
+            )
+        cache_key = f"{os.path.abspath(asset.file_path)}|key={trans_key}"
         if cache_key not in full_image_cache:
-            full_image_cache[cache_key] = PILImage.open(cache_key).convert("RGBA")
+            loaded = PILImage.open(asset.file_path).convert("RGBA")
+            loaded = RetroAnimatorExporter._apply_transparent_color_key(loaded, asset.transparent_color)
+            full_image_cache[cache_key] = loaded
         source = full_image_cache[cache_key]
 
         rx, ry, rw, rh = mod.rect
@@ -1186,7 +1213,19 @@ class RetroAnimatorExporter:
         mapping: Optional["ModuleMapping"],
         parent_a: Tuple[Tuple[float, float], Tuple[float, float]],
         parent_b: Tuple[float, float],
-        out: List[Tuple["Module", Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]],
+        parent_rot: float,
+        parent_flip_x: bool,
+        parent_flip_y: bool,
+        out: List[
+            Tuple[
+                "Module",
+                Tuple[Tuple[float, float], Tuple[float, float]],
+                Tuple[float, float],
+                float,
+                bool,
+                bool,
+            ]
+        ],
         depth: int,
         stack: set[str],
     ) -> None:
@@ -1204,11 +1243,16 @@ class RetroAnimatorExporter:
             )
             local_b = (float(fm.position[0]), float(fm.position[1]))
             a_next, b_next = RetroAnimatorExporter._compose(parent_a, parent_b, local_a, local_b)
+            local_rot = float(getattr(fm, "rotation_degrees", 0.0))
+            parent_flipped = bool(parent_flip_x) ^ bool(parent_flip_y)
+            rot_next = float(parent_rot) + (-local_rot if parent_flipped else local_rot)
+            flip_x_next = bool(parent_flip_x) ^ bool(getattr(fm, "flip_x", False))
+            flip_y_next = bool(parent_flip_y) ^ bool(getattr(fm, "flip_y", False))
 
             if fm.ref_type == "module":
                 mod = RetroAnimatorExporter._resolve_module(project, fm.ref_id, mapping)
                 if mod:
-                    out.append((mod, a_next, b_next))
+                    out.append((mod, a_next, b_next, rot_next, flip_x_next, flip_y_next))
             elif fm.ref_type == "frame":
                 RetroAnimatorExporter._collect_leaf_instances(
                     project=project,
@@ -1216,6 +1260,9 @@ class RetroAnimatorExporter:
                     mapping=mapping,
                     parent_a=a_next,
                     parent_b=b_next,
+                    parent_rot=rot_next,
+                    parent_flip_x=flip_x_next,
+                    parent_flip_y=flip_y_next,
                     out=out,
                     depth=depth + 1,
                     stack=stack,
@@ -1259,13 +1306,25 @@ class RetroAnimatorExporter:
     ) -> Tuple[Any, int, int, List[Tuple[str, Tuple[int, int, int, int]]]]:
         from PIL import Image as PILImage
 
-        instances: List[Tuple[Module, Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]] = []
+        instances: List[
+            Tuple[
+                Module,
+                Tuple[Tuple[float, float], Tuple[float, float]],
+                Tuple[float, float],
+                float,
+                bool,
+                bool,
+            ]
+        ] = []
         RetroAnimatorExporter._collect_leaf_instances(
             project=project,
             frame_id=source_frame.id,
             mapping=mapping,
             parent_a=extra_a,
             parent_b=extra_b,
+            parent_rot=0.0,
+            parent_flip_x=False,
+            parent_flip_y=False,
             out=instances,
             depth=0,
             stack=set(),
@@ -1277,7 +1336,7 @@ class RetroAnimatorExporter:
         global_max_x = float("-inf")
         global_max_y = float("-inf")
 
-        for mod, a_mat, b_vec in instances:
+        for mod, a_mat, b_vec, rot_deg, flip_x, flip_y in instances:
             base = RetroAnimatorExporter._load_module_rgba(project, mod, full_image_cache, module_cache)
             w, h = base.size
             if w <= 0 or h <= 0:
@@ -1358,11 +1417,46 @@ class RetroAnimatorExporter:
         return image, handle_x, handle_y, transformed_collisions
 
     @staticmethod
+    def _module_handle_for_rotation(
+        mod: "Module",
+        anchor: Tuple[float, float],
+        rotation_degrees: float,
+    ) -> Tuple[int, int]:
+        w = int(mod.rect[2])
+        h = int(mod.rect[3])
+        if getattr(mod, "rotated", False):
+            w, h = h, w
+
+        piv_x = float(mod.pivot[0])
+        piv_y = float(mod.pivot[1])
+        corners = (
+            (0.0 - piv_x, 0.0 - piv_y),
+            (float(w) - piv_x, 0.0 - piv_y),
+            (0.0 - piv_x, float(h) - piv_y),
+            (float(w) - piv_x, float(h) - piv_y),
+        )
+
+        rad = math.radians(float(rotation_degrees))
+        cos_a = math.cos(rad)
+        sin_a = math.sin(rad)
+        xs: List[float] = []
+        ys: List[float] = []
+        for cx, cy in corners:
+            rx = cx * cos_a - cy * sin_a
+            ry = cx * sin_a + cy * cos_a
+            xs.append(rx + float(anchor[0]))
+            ys.append(ry + float(anchor[1]))
+        return int(round(min(xs))), int(round(min(ys)))
+
+    @staticmethod
     def _render_transformed_instance(
         project: "Project",
         mod: "Module",
         a_mat: Tuple[Tuple[float, float], Tuple[float, float]],
         b_vec: Tuple[float, float],
+        rotation_degrees: float,
+        flip_x: bool,
+        flip_y: bool,
         full_image_cache: Dict[str, Any],
         module_cache: Dict[str, Any],
     ) -> Optional[Tuple[Any, int, int]]:
@@ -1372,6 +1466,29 @@ class RetroAnimatorExporter:
         w, h = base.size
         if w <= 0 or h <= 0:
             return None
+
+        rot_norm = float(rotation_degrees) % 360.0
+        rot_int = int(round(rot_norm)) % 360
+        orthogonal = abs(rot_norm - float(rot_int)) < 1e-5 and rot_int in (0, 90, 180, 270)
+        if orthogonal:
+            transformed = base
+            if flip_x:
+                transformed = transformed.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+            if flip_y:
+                transformed = transformed.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+            if rot_int == 90:
+                transformed = transformed.transpose(PILImage.Transpose.ROTATE_270)  # clockwise
+            elif rot_int == 180:
+                transformed = transformed.transpose(PILImage.Transpose.ROTATE_180)
+            elif rot_int == 270:
+                transformed = transformed.transpose(PILImage.Transpose.ROTATE_90)   # counter-clockwise
+
+            handle_x, handle_y = RetroAnimatorExporter._module_handle_for_rotation(
+                mod, anchor=b_vec, rotation_degrees=float(rot_int)
+            )
+            if not transformed.getbbox():
+                return None
+            return transformed, handle_x, handle_y
 
         piv = (float(mod.pivot[0]), float(mod.pivot[1]))
         ap = RetroAnimatorExporter._mat_vec_mul(a_mat, piv)
@@ -1452,6 +1569,7 @@ class RetroAnimatorExporter:
         frame_name_by_id: Dict[str, str] = {}
         variant_cache: Dict[Tuple[Any, ...], str] = {}
         part_hash_to_filename: Dict[str, str] = {}
+        part_filename_to_size: Dict[str, Tuple[int, int]] = {}
         written_parts = 0
 
         def get_or_write_part_filename(part_img: Any, preferred_base: str) -> str:
@@ -1459,7 +1577,11 @@ class RetroAnimatorExporter:
             part_bytes = part_img.tobytes()
             digest = hashlib.sha1(part_bytes).hexdigest()
             if digest in part_hash_to_filename:
-                return part_hash_to_filename[digest]
+                filename = part_hash_to_filename[digest]
+                part_filename_to_size.setdefault(
+                    filename, (int(getattr(part_img, "width", 0)), int(getattr(part_img, "height", 0)))
+                )
+                return filename
 
             part_base = RetroAnimatorExporter._make_unique_name(
                 RetroAnimatorExporter._sanitize_name(preferred_base, fallback=f"part_{len(part_hash_to_filename) + 1}"),
@@ -1469,8 +1591,115 @@ class RetroAnimatorExporter:
             part_abs_path = os.path.join(parts_dir, filename)
             part_img.save(part_abs_path, format="PNG")
             part_hash_to_filename[digest] = filename
+            part_filename_to_size[filename] = (
+                int(getattr(part_img, "width", 0)),
+                int(getattr(part_img, "height", 0)),
+            )
             written_parts += 1
             return filename
+
+        def get_part_size_from_frame_path(frame_path: str) -> Tuple[int, int]:
+            normalized = str(frame_path or "").replace("\\", "/")
+            filename = normalized.split("/")[-1] if normalized else ""
+            if not filename:
+                return (0, 0)
+
+            if filename in part_filename_to_size:
+                return part_filename_to_size[filename]
+
+            part_abs_path = os.path.join(parts_dir, filename)
+            if os.path.exists(part_abs_path):
+                try:
+                    from PIL import Image as PILImage
+                    with PILImage.open(part_abs_path) as img:
+                        size = (int(img.width), int(img.height))
+                    part_filename_to_size[filename] = size
+                    return size
+                except Exception:
+                    pass
+            return (0, 0)
+
+        def write_simple_aframe_variant(
+            source_frame: Frame,
+            variant_key: Tuple[Any, ...],
+            desired_frame_name: str,
+            off: Tuple[int, int],
+            flip_x: bool,
+            flip_y: bool,
+            rot: float,
+        ) -> Optional[str]:
+            if variant_key in variant_cache:
+                return variant_cache[variant_key]
+
+            # RetroAnimator animation frames cannot carry per-frame transforms.
+            # For pure translation + X-flip, convert from already-exported base-frame payload.
+            if abs(float(rot)) >= 1e-9 or bool(flip_y):
+                return None
+
+            base_frame_name = frame_name_by_id.get(source_frame.id)
+            if not base_frame_name:
+                return None
+            base_payload = frame_payloads.get(base_frame_name)
+            if not isinstance(base_payload, dict):
+                return None
+
+            base_sprites = base_payload.get("Sprites", [])
+            if not isinstance(base_sprites, list):
+                return None
+
+            dx = int(off[0])
+            dy = int(off[1])
+            sprites_json: List[Dict[str, Any]] = []
+            for sprite in base_sprites:
+                if not isinstance(sprite, dict):
+                    continue
+                out_sprite = dict(sprite)
+                handle_x = int(out_sprite.get("HandleX", 0))
+                handle_y = int(out_sprite.get("HandleY", 0))
+                x_flipped = bool(out_sprite.get("XFlip", False))
+
+                if flip_x:
+                    width, _ = get_part_size_from_frame_path(str(out_sprite.get("FramePath", "")))
+                    handle_x = -handle_x - int(width)
+                    x_flipped = not x_flipped
+
+                out_sprite["HandleX"] = int(handle_x + dx)
+                out_sprite["HandleY"] = int(handle_y + dy)
+                out_sprite["XFlip"] = bool(x_flipped)
+                sprites_json.append(out_sprite)
+
+            base_colrects = base_payload.get("ColRects", {})
+            col_rects_json: Dict[str, Dict[str, Any]] = {}
+            if isinstance(base_colrects, dict):
+                for key, rect_data in base_colrects.items():
+                    if not isinstance(rect_data, dict):
+                        continue
+                    out_rect = dict(rect_data)
+                    x = int(out_rect.get("X", 0))
+                    y = int(out_rect.get("Y", 0))
+                    w = int(out_rect.get("Width", 0))
+                    h = int(out_rect.get("Height", 0))
+                    if flip_x:
+                        x = -x - w
+                    out_rect["X"] = int(x + dx)
+                    out_rect["Y"] = int(y + dy)
+                    out_rect["Width"] = int(w)
+                    out_rect["Height"] = int(h)
+                    col_rects_json[str(key)] = out_rect
+
+            frame_name = RetroAnimatorExporter._make_unique_name(
+                RetroAnimatorExporter._sanitize_name(desired_frame_name, fallback=source_frame.id),
+                used_frame_names,
+            )
+            frame_payloads[frame_name] = {
+                "Sprites": sprites_json,
+                "ColRects": col_rects_json,
+                "Properties": dict(base_payload.get("Properties", {}))
+                if isinstance(base_payload.get("Properties", {}), dict)
+                else {},
+            }
+            variant_cache[variant_key] = frame_name
+            return frame_name
 
         def write_variant(
             source_frame: Frame,
@@ -1485,25 +1714,40 @@ class RetroAnimatorExporter:
                 RetroAnimatorExporter._sanitize_name(desired_frame_name, fallback=source_frame.id),
                 used_frame_names,
             )
-            instances: List[Tuple[Module, Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]] = []
+            instances: List[
+                Tuple[
+                    Module,
+                    Tuple[Tuple[float, float], Tuple[float, float]],
+                    Tuple[float, float],
+                    float,
+                    bool,
+                    bool,
+                ]
+            ] = []
             RetroAnimatorExporter._collect_leaf_instances(
                 project=project,
                 frame_id=source_frame.id,
                 mapping=active_mapping,
                 parent_a=extra_transform[0],
                 parent_b=extra_transform[1],
+                parent_rot=0.0,
+                parent_flip_x=False,
+                parent_flip_y=False,
                 out=instances,
                 depth=0,
                 stack=set(),
             )
 
             sprites_json: List[Dict[str, Any]] = []
-            for idx, (mod, a_mat, b_vec) in enumerate(instances):
+            for idx, (mod, a_mat, b_vec, rot_deg, flip_x, flip_y) in enumerate(instances):
                 rendered = RetroAnimatorExporter._render_transformed_instance(
                     project=project,
                     mod=mod,
                     a_mat=a_mat,
                     b_vec=b_vec,
+                    rotation_degrees=rot_deg,
+                    flip_x=flip_x,
+                    flip_y=flip_y,
                     full_image_cache=full_image_cache,
                     module_cache=module_cache,
                 )
@@ -1598,18 +1842,29 @@ class RetroAnimatorExporter:
                             identity_transform,
                         )
                 else:
+                    variant_key = ("aframe", source_frame.id, off, flip_x, flip_y, rot, mapping_key)
                     local_a = RetroAnimatorExporter._mat_mul(
                         RetroAnimatorExporter._rotation_matrix(rot),
                         RetroAnimatorExporter._flip_matrix(flip_x, flip_y),
                     )
                     local_b = (float(off[0]), float(off[1]))
                     desired = f"{source_frame.name or source_frame.id} {anim_name} {idx + 1}"
-                    out_frame_name = write_variant(
+                    out_frame_name = write_simple_aframe_variant(
                         source_frame,
-                        ("aframe", source_frame.id, off, flip_x, flip_y, rot, mapping_key),
+                        variant_key,
                         desired,
-                        (local_a, local_b),
+                        off,
+                        flip_x,
+                        flip_y,
+                        rot,
                     )
+                    if not out_frame_name:
+                        out_frame_name = write_variant(
+                            source_frame,
+                            variant_key,
+                            desired,
+                            (local_a, local_b),
+                        )
 
                 ticks = max(
                     1,
