@@ -6,8 +6,10 @@ import json
 import uuid
 import re
 import os
+import math
+import hashlib
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def generate_id(prefix: str) -> str:
@@ -992,6 +994,687 @@ class RetroAnimatorParser:
         return project
 
 
+class RetroAnimatorExporter:
+    """Exports the current project into RetroAnimator JSON + cropped PNG parts."""
+
+    RETRO_TICKS_PER_SECOND = 50
+    PARTS_DIRNAME = "Cropped parts"
+
+    @staticmethod
+    def _identity_matrix() -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        return ((1.0, 0.0), (0.0, 1.0))
+
+    @staticmethod
+    def _identity_offset() -> Tuple[float, float]:
+        return (0.0, 0.0)
+
+    @staticmethod
+    def _flip_matrix(flip_x: bool, flip_y: bool) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        return ((-1.0 if flip_x else 1.0, 0.0), (0.0, -1.0 if flip_y else 1.0))
+
+    @staticmethod
+    def _rotation_matrix(degrees: float) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        rad = math.radians(float(degrees))
+        c = math.cos(rad)
+        s = math.sin(rad)
+        return ((c, -s), (s, c))
+
+    @staticmethod
+    def _mat_mul(
+        a: Tuple[Tuple[float, float], Tuple[float, float]],
+        b: Tuple[Tuple[float, float], Tuple[float, float]],
+    ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        return (
+            (a[0][0] * b[0][0] + a[0][1] * b[1][0], a[0][0] * b[0][1] + a[0][1] * b[1][1]),
+            (a[1][0] * b[0][0] + a[1][1] * b[1][0], a[1][0] * b[0][1] + a[1][1] * b[1][1]),
+        )
+
+    @staticmethod
+    def _mat_vec_mul(
+        a: Tuple[Tuple[float, float], Tuple[float, float]],
+        v: Tuple[float, float],
+    ) -> Tuple[float, float]:
+        return (a[0][0] * v[0] + a[0][1] * v[1], a[1][0] * v[0] + a[1][1] * v[1])
+
+    @staticmethod
+    def _compose(
+        parent_a: Tuple[Tuple[float, float], Tuple[float, float]],
+        parent_b: Tuple[float, float],
+        local_a: Tuple[Tuple[float, float], Tuple[float, float]],
+        local_b: Tuple[float, float],
+    ) -> Tuple[Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]:
+        out_a = RetroAnimatorExporter._mat_mul(parent_a, local_a)
+        pb = RetroAnimatorExporter._mat_vec_mul(parent_a, local_b)
+        out_b = (pb[0] + parent_b[0], pb[1] + parent_b[1])
+        return out_a, out_b
+
+    @staticmethod
+    def _invert(
+        a: Tuple[Tuple[float, float], Tuple[float, float]]
+    ) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+        det = a[0][0] * a[1][1] - a[0][1] * a[1][0]
+        if abs(det) < 1e-9:
+            return None
+        inv_det = 1.0 / det
+        return (
+            (a[1][1] * inv_det, -a[0][1] * inv_det),
+            (-a[1][0] * inv_det, a[0][0] * inv_det),
+        )
+
+    @staticmethod
+    def _sanitize_name(value: str, fallback: str = "item") -> str:
+        v = re.sub(r"[^A-Za-z0-9 _.-]+", "_", str(value or "")).strip()
+        return v if v else fallback
+
+    @staticmethod
+    def _make_unique_name(base: str, used: set[str]) -> str:
+        candidate = base
+        i = 2
+        while candidate in used:
+            candidate = f"{base} {i}"
+            i += 1
+        used.add(candidate)
+        return candidate
+
+    @staticmethod
+    def _resolve_module(project: "Project", module_id: str, mapping: Optional["ModuleMapping"]) -> Optional["Module"]:
+        ref_id = module_id
+        if mapping and ref_id in mapping.map:
+            ref_id = mapping.map[ref_id]
+        if not ref_id:
+            return None
+        return project.get_module(ref_id)
+
+    @staticmethod
+    def _render_shape_module(mod: "Module") -> Any:
+        from PIL import Image as PILImage, ImageDraw
+
+        w = max(1, int(mod.rect[2]))
+        h = max(1, int(mod.rect[3]))
+        img = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        color = (int(mod.color[0]), int(mod.color[1]), int(mod.color[2]), 255)
+        fill = color if "FILL" in mod.type else None
+
+        if mod.type in ("MD_RECT", "MD_FILL_RECT"):
+            draw.rectangle((0, 0, w - 1, h - 1), outline=color, fill=fill)
+        elif mod.type == "MD_MARKER":
+            draw.line((0, 0, w - 1, h - 1), fill=color, width=1)
+            draw.line((w - 1, 0, 0, h - 1), fill=color, width=1)
+        elif mod.type in ("MD_ARC", "MD_FILL_ARC"):
+            start = float(mod.params[0]) if len(mod.params) >= 1 else 0.0
+            sweep = float(mod.params[1]) if len(mod.params) >= 2 else 360.0
+            draw.pieslice((0, 0, w - 1, h - 1), start=start, end=start + sweep, outline=color, fill=fill)
+        elif mod.type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
+            if len(mod.params) >= 6:
+                p = mod.params
+                points = [
+                    (int(round((p[0] / 100.0) * w)), int(round((p[1] / 100.0) * h))),
+                    (int(round((p[2] / 100.0) * w)), int(round((p[3] / 100.0) * h))),
+                    (int(round((p[4] / 100.0) * w)), int(round((p[5] / 100.0) * h))),
+                ]
+            else:
+                points = [(w // 2, 0), (w - 1, h - 1), (0, h - 1)]
+            draw.polygon(points, outline=color, fill=fill)
+        elif mod.type == "MD_LINE":
+            if len(mod.params) >= 4:
+                p1 = (int(round((mod.params[0] / 100.0) * w)), int(round((mod.params[1] / 100.0) * h)))
+                p2 = (int(round((mod.params[2] / 100.0) * w)), int(round((mod.params[3] / 100.0) * h)))
+            elif len(mod.params) >= 2:
+                p1 = (0, 0)
+                p2 = (int(round(mod.params[0])), int(round(mod.params[1])))
+            else:
+                p1 = (0, 0)
+                p2 = (w - 1, h - 1)
+            draw.line((p1[0], p1[1], p2[0], p2[1]), fill=color, width=1)
+        else:
+            draw.rectangle((0, 0, w - 1, h - 1), outline=color, fill=fill)
+        return img
+
+    @staticmethod
+    def _load_module_rgba(
+        project: "Project",
+        mod: "Module",
+        full_image_cache: Dict[str, Any],
+        module_cache: Dict[str, Any],
+    ) -> Any:
+        from PIL import Image as PILImage
+
+        if mod.id in module_cache:
+            return module_cache[mod.id]
+
+        if mod.type != "MD_IMAGE":
+            img = RetroAnimatorExporter._render_shape_module(mod)
+            module_cache[mod.id] = img
+            return img
+
+        asset = project.get_image(mod.image_id)
+        w = max(1, int(mod.rect[2]))
+        h = max(1, int(mod.rect[3]))
+
+        if not asset or not os.path.exists(asset.file_path):
+            img = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+            module_cache[mod.id] = img
+            return img
+
+        cache_key = os.path.abspath(asset.file_path)
+        if cache_key not in full_image_cache:
+            full_image_cache[cache_key] = PILImage.open(cache_key).convert("RGBA")
+        source = full_image_cache[cache_key]
+
+        rx, ry, rw, rh = mod.rect
+        left = max(0, int(rx))
+        top = max(0, int(ry))
+        right = min(source.width, int(rx + rw))
+        bottom = min(source.height, int(ry + rh))
+        if right <= left or bottom <= top:
+            img = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+            module_cache[mod.id] = img
+            return img
+
+        img = source.crop((left, top, right, bottom))
+        if mod.rotated:
+            # Match current editor behavior (Rotate90(clockwise=False))
+            img = img.transpose(PILImage.ROTATE_90)
+        module_cache[mod.id] = img
+        return img
+
+    @staticmethod
+    def _collect_leaf_instances(
+        project: "Project",
+        frame_id: str,
+        mapping: Optional["ModuleMapping"],
+        parent_a: Tuple[Tuple[float, float], Tuple[float, float]],
+        parent_b: Tuple[float, float],
+        out: List[Tuple["Module", Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]],
+        depth: int,
+        stack: set[str],
+    ) -> None:
+        if depth > 48:
+            return
+        frame = project.get_frame(frame_id)
+        if not frame or frame_id in stack:
+            return
+
+        stack.add(frame_id)
+        for fm in frame.fmodules:
+            local_a = RetroAnimatorExporter._mat_mul(
+                RetroAnimatorExporter._rotation_matrix(float(getattr(fm, "rotation_degrees", 0.0))),
+                RetroAnimatorExporter._flip_matrix(bool(getattr(fm, "flip_x", False)), bool(getattr(fm, "flip_y", False))),
+            )
+            local_b = (float(fm.position[0]), float(fm.position[1]))
+            a_next, b_next = RetroAnimatorExporter._compose(parent_a, parent_b, local_a, local_b)
+
+            if fm.ref_type == "module":
+                mod = RetroAnimatorExporter._resolve_module(project, fm.ref_id, mapping)
+                if mod:
+                    out.append((mod, a_next, b_next))
+            elif fm.ref_type == "frame":
+                RetroAnimatorExporter._collect_leaf_instances(
+                    project=project,
+                    frame_id=fm.ref_id,
+                    mapping=mapping,
+                    parent_a=a_next,
+                    parent_b=b_next,
+                    out=out,
+                    depth=depth + 1,
+                    stack=stack,
+                )
+        stack.remove(frame_id)
+
+    @staticmethod
+    def _transform_rect(
+        rect: Tuple[int, int, int, int],
+        a: Tuple[Tuple[float, float], Tuple[float, float]],
+        b: Tuple[float, float],
+    ) -> Tuple[int, int, int, int]:
+        x, y, w, h = rect
+        corners = (
+            (float(x), float(y)),
+            (float(x + w), float(y)),
+            (float(x), float(y + h)),
+            (float(x + w), float(y + h)),
+        )
+        tx = []
+        ty = []
+        for cx, cy in corners:
+            px, py = RetroAnimatorExporter._mat_vec_mul(a, (cx, cy))
+            tx.append(px + b[0])
+            ty.append(py + b[1])
+        min_x = int(math.floor(min(tx)))
+        min_y = int(math.floor(min(ty)))
+        max_x = int(math.ceil(max(tx)))
+        max_y = int(math.ceil(max(ty)))
+        return (min_x, min_y, max(0, max_x - min_x), max(0, max_y - min_y))
+
+    @staticmethod
+    def _render_frame_variant(
+        project: "Project",
+        source_frame: "Frame",
+        mapping: Optional["ModuleMapping"],
+        extra_a: Tuple[Tuple[float, float], Tuple[float, float]],
+        extra_b: Tuple[float, float],
+        full_image_cache: Dict[str, Any],
+        module_cache: Dict[str, Any],
+    ) -> Tuple[Any, int, int, List[Tuple[str, Tuple[int, int, int, int]]]]:
+        from PIL import Image as PILImage
+
+        instances: List[Tuple[Module, Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]] = []
+        RetroAnimatorExporter._collect_leaf_instances(
+            project=project,
+            frame_id=source_frame.id,
+            mapping=mapping,
+            parent_a=extra_a,
+            parent_b=extra_b,
+            out=instances,
+            depth=0,
+            stack=set(),
+        )
+
+        rendered: List[Tuple[Any, int, int]] = []
+        global_min_x = float("inf")
+        global_min_y = float("inf")
+        global_max_x = float("-inf")
+        global_max_y = float("-inf")
+
+        for mod, a_mat, b_vec in instances:
+            base = RetroAnimatorExporter._load_module_rgba(project, mod, full_image_cache, module_cache)
+            w, h = base.size
+            if w <= 0 or h <= 0:
+                continue
+
+            piv = (float(mod.pivot[0]), float(mod.pivot[1]))
+            ap = RetroAnimatorExporter._mat_vec_mul(a_mat, piv)
+            c_vec = (b_vec[0] - ap[0], b_vec[1] - ap[1])
+
+            corners = (
+                (0.0, 0.0),
+                (float(w), 0.0),
+                (0.0, float(h)),
+                (float(w), float(h)),
+            )
+            xs: List[float] = []
+            ys: List[float] = []
+            for u, v in corners:
+                tx, ty = RetroAnimatorExporter._mat_vec_mul(a_mat, (u, v))
+                xs.append(tx + c_vec[0])
+                ys.append(ty + c_vec[1])
+
+            min_x = int(math.floor(min(xs)))
+            min_y = int(math.floor(min(ys)))
+            max_x = int(math.ceil(max(xs)))
+            max_y = int(math.ceil(max(ys)))
+            out_w = max_x - min_x
+            out_h = max_y - min_y
+            if out_w <= 0 or out_h <= 0:
+                continue
+
+            inv = RetroAnimatorExporter._invert(a_mat)
+            if not inv:
+                continue
+
+            dx = float(min_x) - c_vec[0]
+            dy = float(min_y) - c_vec[1]
+            coeff = (
+                inv[0][0],
+                inv[0][1],
+                inv[0][0] * dx + inv[0][1] * dy,
+                inv[1][0],
+                inv[1][1],
+                inv[1][0] * dx + inv[1][1] * dy,
+            )
+            transformed = base.transform(
+                (out_w, out_h),
+                PILImage.AFFINE,
+                coeff,
+                resample=PILImage.NEAREST,
+                fillcolor=(0, 0, 0, 0),
+            )
+            if not transformed.getbbox():
+                continue
+
+            rendered.append((transformed, min_x, min_y))
+            global_min_x = min(global_min_x, min_x)
+            global_min_y = min(global_min_y, min_y)
+            global_max_x = max(global_max_x, max_x)
+            global_max_y = max(global_max_y, max_y)
+
+        if not rendered:
+            image = PILImage.new("RGBA", (1, 1), (0, 0, 0, 0))
+            return image, 0, 0, []
+
+        handle_x = int(global_min_x)
+        handle_y = int(global_min_y)
+        canvas_w = int(max(1, global_max_x - global_min_x))
+        canvas_h = int(max(1, global_max_y - global_min_y))
+        image = PILImage.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+        for sprite, sx, sy in rendered:
+            image.alpha_composite(sprite, (int(sx - global_min_x), int(sy - global_min_y)))
+
+        transformed_collisions = [
+            (cr.type_id, RetroAnimatorExporter._transform_rect(cr.rect, extra_a, extra_b))
+            for cr in source_frame.collision_rects
+        ]
+        return image, handle_x, handle_y, transformed_collisions
+
+    @staticmethod
+    def _render_transformed_instance(
+        project: "Project",
+        mod: "Module",
+        a_mat: Tuple[Tuple[float, float], Tuple[float, float]],
+        b_vec: Tuple[float, float],
+        full_image_cache: Dict[str, Any],
+        module_cache: Dict[str, Any],
+    ) -> Optional[Tuple[Any, int, int]]:
+        from PIL import Image as PILImage
+
+        base = RetroAnimatorExporter._load_module_rgba(project, mod, full_image_cache, module_cache)
+        w, h = base.size
+        if w <= 0 or h <= 0:
+            return None
+
+        piv = (float(mod.pivot[0]), float(mod.pivot[1]))
+        ap = RetroAnimatorExporter._mat_vec_mul(a_mat, piv)
+        c_vec = (b_vec[0] - ap[0], b_vec[1] - ap[1])
+
+        corners = (
+            (0.0, 0.0),
+            (float(w), 0.0),
+            (0.0, float(h)),
+            (float(w), float(h)),
+        )
+        xs: List[float] = []
+        ys: List[float] = []
+        for u, v in corners:
+            tx, ty = RetroAnimatorExporter._mat_vec_mul(a_mat, (u, v))
+            xs.append(tx + c_vec[0])
+            ys.append(ty + c_vec[1])
+
+        min_x = int(math.floor(min(xs)))
+        min_y = int(math.floor(min(ys)))
+        max_x = int(math.ceil(max(xs)))
+        max_y = int(math.ceil(max(ys)))
+        out_w = max_x - min_x
+        out_h = max_y - min_y
+        if out_w <= 0 or out_h <= 0:
+            return None
+
+        inv = RetroAnimatorExporter._invert(a_mat)
+        if not inv:
+            return None
+
+        dx = float(min_x) - c_vec[0]
+        dy = float(min_y) - c_vec[1]
+        coeff = (
+            inv[0][0],
+            inv[0][1],
+            inv[0][0] * dx + inv[0][1] * dy,
+            inv[1][0],
+            inv[1][1],
+            inv[1][0] * dx + inv[1][1] * dy,
+        )
+        transformed = base.transform(
+            (out_w, out_h),
+            PILImage.AFFINE,
+            coeff,
+            resample=PILImage.NEAREST,
+            fillcolor=(0, 0, 0, 0),
+        )
+        if not transformed.getbbox():
+            return None
+
+        return transformed, min_x, min_y
+
+    @staticmethod
+    def export(
+        project: "Project",
+        path: str,
+        mapping: Optional["ModuleMapping"] = None,
+    ) -> Dict[str, Any]:
+        if not path.lower().endswith(".json"):
+            path += ".json"
+
+        base_dir = os.path.dirname(os.path.abspath(path))
+        os.makedirs(base_dir, exist_ok=True)
+        parts_dir = os.path.join(base_dir, RetroAnimatorExporter.PARTS_DIRNAME)
+        os.makedirs(parts_dir, exist_ok=True)
+
+        active_mapping = mapping
+        full_image_cache: Dict[str, Any] = {}
+        module_cache: Dict[str, Any] = {}
+        collision_types = {ct.id: ct for ct in project.collision_types}
+
+        used_frame_names: set[str] = set()
+        used_anim_names: set[str] = set()
+        used_part_file_names: set[str] = set()
+
+        frame_payloads: Dict[str, Dict[str, Any]] = {}
+        frame_name_by_id: Dict[str, str] = {}
+        variant_cache: Dict[Tuple[Any, ...], str] = {}
+        part_hash_to_filename: Dict[str, str] = {}
+        written_parts = 0
+
+        def get_or_write_part_filename(part_img: Any, preferred_base: str) -> str:
+            nonlocal written_parts
+            part_bytes = part_img.tobytes()
+            digest = hashlib.sha1(part_bytes).hexdigest()
+            if digest in part_hash_to_filename:
+                return part_hash_to_filename[digest]
+
+            part_base = RetroAnimatorExporter._make_unique_name(
+                RetroAnimatorExporter._sanitize_name(preferred_base, fallback=f"part_{len(part_hash_to_filename) + 1}"),
+                used_part_file_names,
+            )
+            filename = f"{part_base}.png"
+            part_abs_path = os.path.join(parts_dir, filename)
+            part_img.save(part_abs_path, format="PNG")
+            part_hash_to_filename[digest] = filename
+            written_parts += 1
+            return filename
+
+        def write_variant(
+            source_frame: Frame,
+            variant_key: Tuple[Any, ...],
+            desired_frame_name: str,
+            extra_transform: Tuple[Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]],
+        ) -> str:
+            if variant_key in variant_cache:
+                return variant_cache[variant_key]
+
+            frame_name = RetroAnimatorExporter._make_unique_name(
+                RetroAnimatorExporter._sanitize_name(desired_frame_name, fallback=source_frame.id),
+                used_frame_names,
+            )
+            instances: List[Tuple[Module, Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]]] = []
+            RetroAnimatorExporter._collect_leaf_instances(
+                project=project,
+                frame_id=source_frame.id,
+                mapping=active_mapping,
+                parent_a=extra_transform[0],
+                parent_b=extra_transform[1],
+                out=instances,
+                depth=0,
+                stack=set(),
+            )
+
+            sprites_json: List[Dict[str, Any]] = []
+            for idx, (mod, a_mat, b_vec) in enumerate(instances):
+                rendered = RetroAnimatorExporter._render_transformed_instance(
+                    project=project,
+                    mod=mod,
+                    a_mat=a_mat,
+                    b_vec=b_vec,
+                    full_image_cache=full_image_cache,
+                    module_cache=module_cache,
+                )
+                if not rendered:
+                    continue
+                part_img, handle_x, handle_y = rendered
+                part_filename = get_or_write_part_filename(part_img, preferred_base=mod.name or f"part_{idx + 1}")
+                sprites_json.append(
+                    {
+                        "FramePath": f"{RetroAnimatorExporter.PARTS_DIRNAME}\\{part_filename}",
+                        "HandleX": int(handle_x),
+                        "HandleY": int(handle_y),
+                        "XFlip": False,
+                        "NoFlip": False,
+                        "RenderMode": 0,
+                        "Properties": {},
+                    }
+                )
+
+            col_rects_json: Dict[str, Dict[str, Any]] = {}
+            col_name_counts: Dict[str, int] = {}
+            transformed_colrects = [
+                (cr.type_id, RetroAnimatorExporter._transform_rect(cr.rect, extra_transform[0], extra_transform[1]))
+                for cr in source_frame.collision_rects
+            ]
+            for type_id, rect in transformed_colrects:
+                ct = collision_types.get(type_id)
+                base_name = (ct.name if ct else type_id) or "colrect"
+                count = col_name_counts.get(base_name, 0) + 1
+                col_name_counts[base_name] = count
+                key = base_name if count == 1 else f"{base_name} {count}"
+                color = ct.color if ct else (255, 0, 0)
+                col_rects_json[key] = {
+                    "Value": 0,
+                    "X": int(rect[0]),
+                    "Y": int(rect[1]),
+                    "Width": int(rect[2]),
+                    "Height": int(rect[3]),
+                    "ColorR": int(color[0]),
+                    "ColorG": int(color[1]),
+                    "ColorB": int(color[2]),
+                    "Properties": {},
+                }
+
+            frame_payloads[frame_name] = {
+                "Sprites": sprites_json,
+                "ColRects": col_rects_json,
+                "Properties": {},
+            }
+
+            variant_cache[variant_key] = frame_name
+            return frame_name
+
+        identity_transform = (RetroAnimatorExporter._identity_matrix(), RetroAnimatorExporter._identity_offset())
+        mapping_key = active_mapping.id if active_mapping else None
+
+        # Export all base frames.
+        for frame in project.frames:
+            base_name = frame.name or frame.id
+            key = ("base", frame.id, mapping_key)
+            out_name = write_variant(frame, key, base_name, identity_transform)
+            frame_name_by_id[frame.id] = out_name
+
+        animations_json: Dict[str, Dict[str, Any]] = {}
+        for anim in project.animations:
+            anim_name = RetroAnimatorExporter._make_unique_name(
+                RetroAnimatorExporter._sanitize_name(anim.name, fallback=anim.id),
+                used_anim_names,
+            )
+            frame_data: List[Dict[str, Any]] = []
+            source_fps = anim.fps if anim.fps > 0 else 10
+
+            for idx, af in enumerate(anim.aframes):
+                source_frame = project.get_frame(af.frame_id)
+                if not source_frame:
+                    continue
+
+                rot = float(getattr(af, "rotation_degrees", 0.0))
+                rot = round(rot, 4)
+                flip_x = bool(getattr(af, "flip_x", False))
+                flip_y = bool(getattr(af, "flip_y", False))
+                off = (int(af.offset[0]), int(af.offset[1]))
+                is_identity = (off == (0, 0) and not flip_x and not flip_y and abs(rot) < 1e-9)
+
+                if is_identity:
+                    out_frame_name = frame_name_by_id.get(source_frame.id)
+                    if not out_frame_name:
+                        out_frame_name = write_variant(
+                            source_frame,
+                            ("base", source_frame.id, mapping_key),
+                            source_frame.name or source_frame.id,
+                            identity_transform,
+                        )
+                else:
+                    local_a = RetroAnimatorExporter._mat_mul(
+                        RetroAnimatorExporter._rotation_matrix(rot),
+                        RetroAnimatorExporter._flip_matrix(flip_x, flip_y),
+                    )
+                    local_b = (float(off[0]), float(off[1]))
+                    desired = f"{source_frame.name or source_frame.id} {anim_name} {idx + 1}"
+                    out_frame_name = write_variant(
+                        source_frame,
+                        ("aframe", source_frame.id, off, flip_x, flip_y, rot, mapping_key),
+                        desired,
+                        (local_a, local_b),
+                    )
+
+                ticks = max(
+                    1,
+                    int(round((float(af.duration_frames) / float(source_fps)) * RetroAnimatorExporter.RETRO_TICKS_PER_SECOND)),
+                )
+                frame_data.append(
+                    {
+                        "FrameID": out_frame_name,
+                        "Duration": ticks,
+                        "Properties": {},
+                    }
+                )
+
+            animations_json[anim_name] = {
+                "FrameData": frame_data,
+                "Properties": {
+                    "source_playback_type": str(anim.playback_type),
+                    "source_loop_count": str(anim.loop_count if anim.loop_count is not None else 0),
+                    "source_fps": str(source_fps),
+                },
+            }
+
+        losses: List[str] = []
+        losses.append("Module mappings are not part of RetroAnimator. The selected active mapping is baked into exported frames.")
+        losses.append("Animation playback type/loop semantics are not native in RetroAnimator; only frame sequence + duration are exported.")
+        if any(frame.control_points for frame in project.frames):
+            losses.append("Control points are not supported in RetroAnimator and are omitted.")
+        if any(
+            fm.ref_type == "frame" or abs(float(getattr(fm, "rotation_degrees", 0.0))) > 1e-9 or bool(getattr(fm, "flip_y", False))
+            for frame in project.frames
+            for fm in frame.fmodules
+        ):
+            losses.append("Nested frames, Y-flips, and rotations are baked into raster frame parts.")
+        if any(af.offset != (0, 0) or af.flip_x or af.flip_y or abs(float(getattr(af, "rotation_degrees", 0.0))) > 1e-9
+               for anim in project.animations for af in anim.aframes):
+            losses.append("Per-animation frame offsets/flips/rotations are baked into generated frame variants.")
+        if any(mod.type != "MD_IMAGE" for mod in project.modules):
+            losses.append("Procedural shape modules are rasterized during export.")
+
+        data = {
+            "ProjectType": "RetroAnimator",
+            "Animations": animations_json,
+            "Frames": frame_payloads,
+            "Properties": {
+                "source_project_name": project.name,
+            },
+        }
+        if active_mapping:
+            data["Properties"]["active_mapping_name"] = active_mapping.name
+            data["Properties"]["active_mapping_id"] = active_mapping.id
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        return {
+            "path": os.path.abspath(path),
+            "parts_dir": os.path.abspath(parts_dir),
+            "frames_exported": len(frame_payloads),
+            "animations_exported": len(animations_json),
+            "parts_written": written_parts,
+            "mapping_baked": bool(active_mapping),
+            "losses": losses,
+        }
+
+
 @dataclass
 class Project:
     name: str = "New Project"
@@ -1116,6 +1799,9 @@ class Project:
         base_path = os.path.dirname(os.path.abspath(path))
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(base_path=base_path), f, indent=2)
+
+    def to_retro_animator_json(self, path: str, mapping: Optional[ModuleMapping] = None) -> Dict[str, Any]:
+        return RetroAnimatorExporter.export(self, path=path, mapping=mapping)
 
     @staticmethod
     def from_dict(data: Dict, base_path: Optional[str] = None) -> "Project":

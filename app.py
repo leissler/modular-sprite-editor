@@ -293,10 +293,16 @@ class MainFrame(wx.Frame):
         self.m_import_aurora = import_menu.Append(wx.ID_ANY, "AuroraGT Sprite (*.sprite)...")
         self.m_import_retro = import_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         file_menu.AppendSubMenu(import_menu, "Import")
+
+        # Export Submenu
+        export_menu = wx.Menu()
+        self.m_export_retro = export_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
+        file_menu.AppendSubMenu(export_menu, "Export")
         
         
         self.Bind(wx.EVT_MENU, self.on_import_aurora, self.m_import_aurora)
         self.Bind(wx.EVT_MENU, self.on_import_retro_animator, self.m_import_retro)
+        self.Bind(wx.EVT_MENU, self.on_export_retro_animator, self.m_export_retro)
         
         menubar.Append(file_menu, "&File")
 
@@ -413,6 +419,53 @@ class MainFrame(wx.Frame):
             self._reload_project_into_panels()
             self._update_title()
             wx.MessageBox("Imported RetroAnimator project successfully. Please save as a new project.", "Import Complete", wx.OK | wx.ICON_INFORMATION)
+
+    def on_export_retro_animator(self, _: wx.CommandEvent) -> None:
+        if not self.project.frames:
+            wx.MessageBox("No frames available to export.", "Export RetroAnimator", wx.OK | wx.ICON_WARNING)
+            return
+
+        default_name = (self.project.name or "sprite").strip().replace(" ", "_")
+        if not default_name:
+            default_name = "sprite"
+        default_name = f"{default_name}.json"
+
+        with wx.FileDialog(
+            self,
+            "Export RetroAnimator Project",
+            defaultFile=default_name,
+            wildcard="JSON files (*.json)|*.json|All files (*.*)|*.*",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dlg:
+            # wxPython 4.2.5 macOS can assert on ShowModal when filter index is out of bounds.
+            # Explicitly select first filter and provide a fallback wildcard entry.
+            dlg.SetFilterIndex(0)
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+
+        try:
+            with wx.BusyCursor():
+                report = self.project.to_retro_animator_json(path, mapping=self.project.active_mapping)
+        except Exception as exc:
+            wx.MessageBox(f"Failed to export RetroAnimator project: {exc}", "Export Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        losses = report.get("losses", [])
+        summary = [
+            f"Exported RetroAnimator project to:\n{report.get('path', path)}",
+            "",
+            f"Frames: {report.get('frames_exported', 0)}",
+            f"Animations: {report.get('animations_exported', 0)}",
+            f"Generated parts: {report.get('parts_written', 0)}",
+            f"Parts folder: {report.get('parts_dir', '')}",
+            f"Active mapping baked: {'Yes' if report.get('mapping_baked') else 'No'}",
+        ]
+        if losses:
+            summary.append("")
+            summary.append("Important compatibility notes:")
+            summary.extend([f"- {line}" for line in losses])
+        wx.MessageBox("\n".join(summary), "Export Complete", wx.OK | wx.ICON_INFORMATION)
 
     def on_about(self, _: wx.CommandEvent) -> None:
         wx.MessageBox(
