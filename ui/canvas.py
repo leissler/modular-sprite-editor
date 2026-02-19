@@ -9,7 +9,7 @@ import wx
 
 from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
-from ui.utils import render_pixel_shape_to_bitmap
+from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
 
 Color = Tuple[int, int, int]
 
@@ -928,7 +928,7 @@ class FrameCanvas(BaseCanvas):
                 
             try:
                 # Load full image (cached? We'll rely on FS cache for now or add one later if slow)
-                full_img = wx.Image(asset.file_path)
+                full_img = load_wx_image_safely(asset.file_path)
                 if asset.transparent_color:
                     full_img.SetMaskColour(*asset.transparent_color)
                     

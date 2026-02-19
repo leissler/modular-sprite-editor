@@ -291,10 +291,12 @@ class MainFrame(wx.Frame):
         # Import Submenu
         import_menu = wx.Menu()
         self.m_import_aurora = import_menu.Append(wx.ID_ANY, "AuroraGT Sprite (*.sprite)...")
+        self.m_import_retro = import_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         file_menu.AppendSubMenu(import_menu, "Import")
         
         
         self.Bind(wx.EVT_MENU, self.on_import_aurora, self.m_import_aurora)
+        self.Bind(wx.EVT_MENU, self.on_import_retro_animator, self.m_import_retro)
         
         menubar.Append(file_menu, "&File")
 
@@ -394,6 +396,23 @@ class MainFrame(wx.Frame):
             self._reload_project_into_panels()
             self._update_title()
             wx.MessageBox("Imported successfully. Please save as a new project.", "Import Complete", wx.OK | wx.ICON_INFORMATION)
+
+    def on_import_retro_animator(self, _: wx.CommandEvent) -> None:
+        with wx.FileDialog(
+            self,
+            "Import RetroAnimator Project",
+            wildcard="RetroAnimator JSON (*.json)|*.json",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+            os.chdir(os.path.dirname(path))
+            self.project = Project.from_retro_animator_json(path)
+            self.current_path = None
+            self._reload_project_into_panels()
+            self._update_title()
+            wx.MessageBox("Imported RetroAnimator project successfully. Please save as a new project.", "Import Complete", wx.OK | wx.ICON_INFORMATION)
 
     def on_about(self, _: wx.CommandEvent) -> None:
         wx.MessageBox(

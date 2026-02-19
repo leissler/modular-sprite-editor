@@ -2,6 +2,30 @@ import math
 import wx
 import math
 from typing import Optional, Tuple
+from PIL import Image as PILImage
+
+def load_wx_image_safely(path: str) -> wx.Image:
+    """Load image robustly; prefer Pillow decode to avoid libpng ICC warnings."""
+    try:
+        with PILImage.open(path) as pil_img:
+            rgba = pil_img.convert("RGBA")
+            w, h = rgba.size
+            wx_img = wx.Image(w, h)
+            wx_img.SetData(rgba.convert("RGB").tobytes())
+            wx_img.SetAlpha(rgba.getchannel("A").tobytes())
+            return wx_img
+    except Exception:
+        pass
+
+    # Fallback to wx decoder with warnings suppressed.
+    with wx.LogNull():
+        return wx.Image(path)
+
+def load_wx_bitmap_safely(path: str) -> wx.Bitmap:
+    img = load_wx_image_safely(path)
+    if not img.IsOk():
+        return wx.Bitmap()
+    return wx.Bitmap(img)
 
 def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int, int, int], params: list) -> Optional[wx.Bitmap]:
     """
@@ -414,7 +438,7 @@ class ThumbnailGenerator:
                 if asset:
                      try:
                         if asset.id not in self.asset_cache:
-                            full_img = wx.Image(asset.file_path)
+                            full_img = load_wx_image_safely(asset.file_path)
                             if asset.transparent_color:
                                 full_img.SetMaskColour(*asset.transparent_color)
                             self.asset_cache[asset.id] = full_img
@@ -534,7 +558,7 @@ class ThumbnailGenerator:
                     if asset:
                         try:
                             if asset.id not in self.asset_cache:
-                                full_img = wx.Image(asset.file_path)
+                                full_img = load_wx_image_safely(asset.file_path)
                                 if asset.transparent_color:
                                     full_img.SetMaskColour(*asset.transparent_color)
                                 self.asset_cache[asset.id] = full_img

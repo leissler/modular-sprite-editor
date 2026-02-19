@@ -13,6 +13,7 @@ import wx
 from models import ImageAsset, Module, Project, generate_id
 from ui.auto_modularize_dialog import AutoModularizeDialog
 from optimization import run_auto_modularization
+from ui.utils import load_wx_image_safely, load_wx_bitmap_safely
 
 
 from ui.base_canvas import BaseCanvas
@@ -934,7 +935,7 @@ class ModuleEditorPanel(wx.Panel):
             if dlg.ShowModal() != wx.ID_OK:
                 return
             path = dlg.GetPath()
-            img = wx.Image(path)
+            img = load_wx_image_safely(path)
             if not img.IsOk():
                 wx.MessageBox("Failed to load image", "Error")
                 return
@@ -980,8 +981,11 @@ class ModuleEditorPanel(wx.Panel):
         asset = self.project.get_image(image_id)
         bmp = self._bitmap_cache.get(image_id)
         if asset and not bmp and os.path.exists(asset.file_path):
-            bmp = wx.Bitmap(asset.file_path)
-            self._bitmap_cache[image_id] = bmp
+            bmp = load_wx_bitmap_safely(asset.file_path)
+            if bmp and bmp.IsOk():
+                self._bitmap_cache[image_id] = bmp
+            else:
+                bmp = None
         if asset:
             if bmp and (asset.width != bmp.GetWidth() or asset.height != bmp.GetHeight()):
                 asset.width = bmp.GetWidth()
@@ -1605,8 +1609,11 @@ class ModuleEditorPanel(wx.Panel):
             return
         bmp = self._bitmap_cache.get(img.id)
         if not bmp and os.path.exists(img.file_path):
-            bmp = wx.Bitmap(img.file_path)
-            self._bitmap_cache[img.id] = bmp
+            bmp = load_wx_bitmap_safely(img.file_path)
+            if bmp and bmp.IsOk():
+                self._bitmap_cache[img.id] = bmp
+            else:
+                bmp = None
         if not bmp:
             wx.MessageBox("Image bitmap not available for slicing", "Error")
             return

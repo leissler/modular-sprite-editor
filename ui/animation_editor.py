@@ -16,6 +16,7 @@ from ui.canvas import AnimationCanvas
 from ui.components.timeline_control import TimelineControl
 from ui.components.frame_palette import FramePalette
 from ui.undo_manager import UndoManager
+from ui.utils import load_wx_image_safely
 
 class AnimationEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
@@ -877,7 +878,7 @@ class AnimationEditorPanel(wx.Panel):
                      img = self.project.get_image(mod.image_id)
                      if img:
                          if img.id not in gen.asset_cache:
-                             loaded = wx.Image(img.file_path)
+                             loaded = load_wx_image_safely(img.file_path)
                              if img.transparent_color:
                                  loaded.SetMaskColour(*img.transparent_color)
                              gen.asset_cache[img.id] = loaded

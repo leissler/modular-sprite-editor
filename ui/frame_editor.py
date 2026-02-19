@@ -11,7 +11,7 @@ from optimization import optimize_nested_frame_combos
 from ui.canvas import FrameCanvas
 from ui.collision_manager import CollisionManagerPanel
 from ui.point_manager import PointManagerPanel
-from ui.utils import render_pixel_shape_to_bitmap
+from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
 
 class ModulePalette(wx.ListCtrl):
     """Visual list of modules draggable onto the canvas."""
@@ -96,7 +96,7 @@ class ModulePalette(wx.ListCtrl):
                     try:
                         # Use persistent source image cache
                         if asset.id not in self._source_images:
-                            img = wx.Image(asset.file_path)
+                            img = load_wx_image_safely(asset.file_path)
                             if trans_color:
                                  img.SetMaskColour(*trans_color)
                             self._source_images[asset.id] = img
