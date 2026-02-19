@@ -1631,9 +1631,10 @@ class RetroAnimatorExporter:
             if variant_key in variant_cache:
                 return variant_cache[variant_key]
 
-            # RetroAnimator animation frames cannot carry per-frame transforms.
-            # For pure translation + X-flip, convert from already-exported base-frame payload.
-            if abs(float(rot)) >= 1e-9 or bool(flip_y):
+            rot_norm = float(rot) % 360.0
+            rot_int = int(round(rot_norm)) % 360
+            is_orthogonal = abs(rot_norm - float(rot_int)) < 1e-5 and rot_int in (0, 90, 180, 270)
+            if not is_orthogonal:
                 return None
 
             base_frame_name = frame_name_by_id.get(source_frame.id)
@@ -1649,6 +1650,31 @@ class RetroAnimatorExporter:
 
             dx = int(off[0])
             dy = int(off[1])
+
+            def transform_point(px: float, py: float) -> Tuple[float, float]:
+                fx = -px if flip_x else px
+                fy = -py if flip_y else py
+                if rot_int == 90:
+                    return (-fy, fx)
+                if rot_int == 180:
+                    return (-fx, -fy)
+                if rot_int == 270:
+                    return (fy, -fx)
+                return (fx, fy)
+
+            def load_part_image_from_frame_path(frame_path: str) -> Optional[Any]:
+                filename = str(frame_path or "").replace("\\", "/").split("/")[-1]
+                if not filename:
+                    return None
+                abs_path = os.path.join(parts_dir, filename)
+                if not os.path.exists(abs_path):
+                    return None
+                try:
+                    from PIL import Image as PILImage
+                    return PILImage.open(abs_path).convert("RGBA")
+                except Exception:
+                    return None
+
             sprites_json: List[Dict[str, Any]] = []
             for sprite in base_sprites:
                 if not isinstance(sprite, dict):
@@ -1657,15 +1683,64 @@ class RetroAnimatorExporter:
                 handle_x = int(out_sprite.get("HandleX", 0))
                 handle_y = int(out_sprite.get("HandleY", 0))
                 x_flipped = bool(out_sprite.get("XFlip", False))
+                frame_path = str(out_sprite.get("FramePath", ""))
+                width, height = get_part_size_from_frame_path(frame_path)
 
+                # Fast path: preserve existing metadata-only behavior for X-only flip + translation.
+                if rot_int == 0 and not flip_y:
+                    if flip_x:
+                        handle_x = -handle_x - int(width)
+                        x_flipped = not x_flipped
+                    out_sprite["HandleX"] = int(handle_x + dx)
+                    out_sprite["HandleY"] = int(handle_y + dy)
+                    out_sprite["XFlip"] = bool(x_flipped)
+                    sprites_json.append(out_sprite)
+                    continue
+
+                # General orthogonal path: bake aframe transform into the part image, recompute handle
+                # from transformed sprite bounds in frame-space.
+                base_part = load_part_image_from_frame_path(frame_path)
+                if base_part is None:
+                    continue
+                if x_flipped:
+                    from PIL import Image as PILImage
+                    base_part = base_part.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+
+                transformed_part = base_part
+                from PIL import Image as PILImage
                 if flip_x:
-                    width, _ = get_part_size_from_frame_path(str(out_sprite.get("FramePath", "")))
-                    handle_x = -handle_x - int(width)
-                    x_flipped = not x_flipped
+                    transformed_part = transformed_part.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+                if flip_y:
+                    transformed_part = transformed_part.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+                if rot_int == 90:
+                    transformed_part = transformed_part.transpose(PILImage.Transpose.ROTATE_270)  # clockwise
+                elif rot_int == 180:
+                    transformed_part = transformed_part.transpose(PILImage.Transpose.ROTATE_180)
+                elif rot_int == 270:
+                    transformed_part = transformed_part.transpose(PILImage.Transpose.ROTATE_90)   # counter-clockwise
 
-                out_sprite["HandleX"] = int(handle_x + dx)
-                out_sprite["HandleY"] = int(handle_y + dy)
-                out_sprite["XFlip"] = bool(x_flipped)
+                part_filename = get_or_write_part_filename(
+                    transformed_part,
+                    preferred_base=os.path.splitext(os.path.basename(frame_path.replace("\\", "/")))[0] or "part",
+                )
+
+                corners = (
+                    (float(handle_x), float(handle_y)),
+                    (float(handle_x + width), float(handle_y)),
+                    (float(handle_x), float(handle_y + height)),
+                    (float(handle_x + width), float(handle_y + height)),
+                )
+                tx: List[float] = []
+                ty: List[float] = []
+                for cx, cy in corners:
+                    px, py = transform_point(cx, cy)
+                    tx.append(px)
+                    ty.append(py)
+
+                out_sprite["FramePath"] = f"{RetroAnimatorExporter.PARTS_DIRNAME}\\{part_filename}"
+                out_sprite["HandleX"] = int(round(min(tx))) + dx
+                out_sprite["HandleY"] = int(round(min(ty))) + dy
+                out_sprite["XFlip"] = False
                 sprites_json.append(out_sprite)
 
             base_colrects = base_payload.get("ColRects", {})
@@ -1679,12 +1754,29 @@ class RetroAnimatorExporter:
                     y = int(out_rect.get("Y", 0))
                     w = int(out_rect.get("Width", 0))
                     h = int(out_rect.get("Height", 0))
-                    if flip_x:
-                        x = -x - w
-                    out_rect["X"] = int(x + dx)
-                    out_rect["Y"] = int(y + dy)
-                    out_rect["Width"] = int(w)
-                    out_rect["Height"] = int(h)
+
+                    corners = (
+                        (float(x), float(y)),
+                        (float(x + w), float(y)),
+                        (float(x), float(y + h)),
+                        (float(x + w), float(y + h)),
+                    )
+                    tx: List[float] = []
+                    ty: List[float] = []
+                    for cx, cy in corners:
+                        px, py = transform_point(cx, cy)
+                        tx.append(px + dx)
+                        ty.append(py + dy)
+
+                    min_x = int(math.floor(min(tx)))
+                    min_y = int(math.floor(min(ty)))
+                    max_x = int(math.ceil(max(tx)))
+                    max_y = int(math.ceil(max(ty)))
+
+                    out_rect["X"] = int(min_x)
+                    out_rect["Y"] = int(min_y)
+                    out_rect["Width"] = int(max(0, max_x - min_x))
+                    out_rect["Height"] = int(max(0, max_y - min_y))
                     col_rects_json[str(key)] = out_rect
 
             frame_name = RetroAnimatorExporter._make_unique_name(
@@ -1706,6 +1798,9 @@ class RetroAnimatorExporter:
             variant_key: Tuple[Any, ...],
             desired_frame_name: str,
             extra_transform: Tuple[Tuple[Tuple[float, float], Tuple[float, float]], Tuple[float, float]],
+            root_rot: float = 0.0,
+            root_flip_x: bool = False,
+            root_flip_y: bool = False,
         ) -> str:
             if variant_key in variant_cache:
                 return variant_cache[variant_key]
@@ -1730,9 +1825,9 @@ class RetroAnimatorExporter:
                 mapping=active_mapping,
                 parent_a=extra_transform[0],
                 parent_b=extra_transform[1],
-                parent_rot=0.0,
-                parent_flip_x=False,
-                parent_flip_y=False,
+                parent_rot=float(root_rot),
+                parent_flip_x=bool(root_flip_x),
+                parent_flip_y=bool(root_flip_y),
                 out=instances,
                 depth=0,
                 stack=set(),
@@ -1864,6 +1959,9 @@ class RetroAnimatorExporter:
                             variant_key,
                             desired,
                             (local_a, local_b),
+                            root_rot=rot,
+                            root_flip_x=flip_x,
+                            root_flip_y=flip_y,
                         )
 
                 ticks = max(

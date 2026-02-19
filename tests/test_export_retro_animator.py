@@ -249,6 +249,65 @@ class TestRetroAnimatorExport(unittest.TestCase):
             self.assertEqual(var_sprite["HandleY"], 0)
             self.assertTrue(var_sprite["XFlip"])
 
+    def test_export_aframe_flip_xy_bakes_and_shifts_handle_by_size(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sheet_path = os.path.join(tmpdir, "sheet_aframe_xy.png")
+            img = Image.new("RGBA", (2, 2), (0, 0, 0, 0))
+            img.putpixel((0, 0), (255, 0, 0, 255))
+            img.putpixel((1, 0), (0, 255, 0, 255))
+            img.putpixel((0, 1), (0, 0, 255, 255))
+            img.putpixel((1, 1), (255, 255, 0, 255))
+            img.save(sheet_path)
+
+            project = Project(name="AFrameFlipXY")
+            asset = project.create_image(sheet_path, 2, 2)
+            mod = project.create_module("Asym2x2", asset.id, (0, 0, 2, 2), (0, 0))
+
+            frame = Frame(id=generate_id("frm"), name="Pose")
+            frame.fmodules.append(
+                FModule(
+                    id=generate_id("fmod"),
+                    ref_type="module",
+                    ref_id=mod.id,
+                    position=(1, 2),
+                    flip_x=False,
+                    flip_y=False,
+                    rotation_degrees=0.0,
+                )
+            )
+            project.frames.append(frame)
+
+            anim = project.create_animation("idle")
+            anim.aframes.append(AFrame(frame_id=frame.id, duration_frames=1, offset=(0, 0), flip_x=False, flip_y=False))
+            anim.aframes.append(AFrame(frame_id=frame.id, duration_frames=1, offset=(0, 0), flip_x=True, flip_y=True))
+
+            out_json = os.path.join(tmpdir, "retro_export.json")
+            project.to_retro_animator_json(out_json)
+
+            with open(out_json, "r", encoding="utf-8") as f:
+                exported = json.load(f)
+
+            frame_data = exported["Animations"]["idle"]["FrameData"]
+            base_payload = exported["Frames"][frame_data[0]["FrameID"]]
+            var_payload = exported["Frames"][frame_data[1]["FrameID"]]
+            base_sprite = base_payload["Sprites"][0]
+            var_sprite = var_payload["Sprites"][0]
+
+            # Bounding-box transform under global X/Y flip around origin.
+            self.assertEqual(var_sprite["HandleX"], -3)  # -1 - width(2)
+            self.assertEqual(var_sprite["HandleY"], -4)  # -2 - height(2)
+            self.assertFalse(var_sprite["XFlip"])  # transform baked into the part image
+            self.assertNotEqual(base_sprite["FramePath"], var_sprite["FramePath"])
+
+            rel_part = var_sprite["FramePath"].replace("\\", os.sep)
+            abs_part = os.path.join(os.path.dirname(out_json), rel_part)
+            with Image.open(abs_part).convert("RGBA") as part_img:
+                self.assertEqual(part_img.size, (2, 2))
+                self.assertEqual(part_img.getpixel((0, 0))[:3], (255, 255, 0))
+                self.assertEqual(part_img.getpixel((1, 0))[:3], (0, 0, 255))
+                self.assertEqual(part_img.getpixel((0, 1))[:3], (0, 255, 0))
+                self.assertEqual(part_img.getpixel((1, 1))[:3], (255, 0, 0))
+
     def test_export_keeps_frame_as_multiple_parts_not_single_baked_sprite(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             sheet_path = os.path.join(tmpdir, "sheet.png")
