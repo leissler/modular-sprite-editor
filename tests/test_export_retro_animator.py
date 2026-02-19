@@ -308,6 +308,105 @@ class TestRetroAnimatorExport(unittest.TestCase):
                 self.assertEqual(part_img.getpixel((0, 1))[:3], (0, 255, 0))
                 self.assertEqual(part_img.getpixel((1, 1))[:3], (255, 0, 0))
 
+    def test_export_frame_module_rotation_90_is_baked(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sheet_path = os.path.join(tmpdir, "sheet_rot90.png")
+            img = Image.new("RGBA", (3, 3), (0, 0, 0, 0))
+            img.putpixel((0, 0), (255, 0, 0, 255))
+            img.putpixel((2, 0), (0, 255, 0, 255))
+            img.putpixel((0, 2), (0, 0, 255, 255))
+            img.putpixel((1, 1), (255, 255, 0, 255))
+            img.save(sheet_path)
+
+            project = Project(name="Rot90")
+            asset = project.create_image(sheet_path, 3, 3)
+            mod = project.create_module("Asym3x3", asset.id, (0, 0, 3, 3), (1, 1))
+
+            frame = Frame(id=generate_id("frm"), name="Pose")
+            frame.fmodules.append(
+                FModule(
+                    id=generate_id("fmod"),
+                    ref_type="module",
+                    ref_id=mod.id,
+                    position=(10, 20),
+                    rotation_degrees=90.0,
+                )
+            )
+            project.frames.append(frame)
+            anim = project.create_animation("idle")
+            anim.aframes.append(AFrame(frame_id=frame.id, duration_frames=1))
+
+            out_json = os.path.join(tmpdir, "retro_export.json")
+            project.to_retro_animator_json(out_json)
+
+            with open(out_json, "r", encoding="utf-8") as f:
+                exported = json.load(f)
+
+            af = exported["Animations"]["idle"]["FrameData"][0]
+            frame_payload = exported["Frames"][af["FrameID"]]
+            sprite = frame_payload["Sprites"][0]
+            self.assertEqual((sprite["HandleX"], sprite["HandleY"]), (8, 19))
+            self.assertFalse(sprite["XFlip"])
+
+            rel_part = sprite["FramePath"].replace("\\", os.sep)
+            abs_part = os.path.join(os.path.dirname(out_json), rel_part)
+            with Image.open(abs_part).convert("RGBA") as part_img:
+                self.assertEqual(part_img.size, (3, 3))
+                self.assertEqual(part_img.getpixel((0, 0))[:3], (0, 0, 255))
+                self.assertEqual(part_img.getpixel((2, 0))[:3], (255, 0, 0))
+                self.assertEqual(part_img.getpixel((2, 2))[:3], (0, 255, 0))
+                self.assertEqual(part_img.getpixel((1, 1))[:3], (255, 255, 0))
+
+    def test_export_aframe_rotation_180_bakes_variant(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sheet_path = os.path.join(tmpdir, "sheet_rot180.png")
+            img = Image.new("RGBA", (3, 3), (0, 0, 0, 0))
+            img.putpixel((0, 0), (255, 0, 0, 255))
+            img.putpixel((2, 0), (0, 255, 0, 255))
+            img.putpixel((0, 2), (0, 0, 255, 255))
+            img.putpixel((1, 1), (255, 255, 0, 255))
+            img.save(sheet_path)
+
+            project = Project(name="Rot180")
+            asset = project.create_image(sheet_path, 3, 3)
+            mod = project.create_module("Asym3x3", asset.id, (0, 0, 3, 3), (1, 1))
+
+            frame = Frame(id=generate_id("frm"), name="Pose")
+            frame.fmodules.append(
+                FModule(
+                    id=generate_id("fmod"),
+                    ref_type="module",
+                    ref_id=mod.id,
+                    position=(10, 20),
+                )
+            )
+            project.frames.append(frame)
+
+            anim = project.create_animation("idle")
+            anim.aframes.append(AFrame(frame_id=frame.id, duration_frames=1, rotation_degrees=180.0))
+
+            out_json = os.path.join(tmpdir, "retro_export.json")
+            project.to_retro_animator_json(out_json)
+
+            with open(out_json, "r", encoding="utf-8") as f:
+                exported = json.load(f)
+
+            af = exported["Animations"]["idle"]["FrameData"][0]
+            frame_payload = exported["Frames"][af["FrameID"]]
+            sprite = frame_payload["Sprites"][0]
+            self.assertEqual((sprite["HandleX"], sprite["HandleY"]), (-12, -22))
+            self.assertFalse(sprite["XFlip"])
+
+            rel_part = sprite["FramePath"].replace("\\", os.sep)
+            abs_part = os.path.join(os.path.dirname(out_json), rel_part)
+            with Image.open(abs_part).convert("RGBA") as part_img:
+                self.assertEqual(part_img.size, (3, 3))
+                self.assertEqual(part_img.getpixel((0, 0))[:3], (0, 0, 0))
+                self.assertEqual(part_img.getpixel((2, 2))[:3], (255, 0, 0))
+                self.assertEqual(part_img.getpixel((0, 2))[:3], (0, 255, 0))
+                self.assertEqual(part_img.getpixel((2, 0))[:3], (0, 0, 255))
+                self.assertEqual(part_img.getpixel((1, 1))[:3], (255, 255, 0))
+
     def test_export_keeps_frame_as_multiple_parts_not_single_baked_sprite(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             sheet_path = os.path.join(tmpdir, "sheet.png")
