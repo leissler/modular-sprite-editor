@@ -18,6 +18,30 @@ from ui.utils import load_wx_image_safely, load_wx_bitmap_safely
 
 from ui.base_canvas import BaseCanvas
 
+SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp"}
+IMAGE_FILE_WILDCARD = "Image files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp"
+
+
+class FolderImportOptionsDialog(wx.Dialog):
+    def __init__(self, parent: wx.Window):
+        super().__init__(parent, title="Folder Import Options")
+        main = wx.BoxSizer(wx.VERTICAL)
+        main.Add(wx.StaticText(self, label="Choose how to import images from this folder:"), 0, wx.ALL, 10)
+
+        self.chk_recursive = wx.CheckBox(self, label="Include subfolders recursively")
+        self.chk_full_module = wx.CheckBox(self, label="Create one module per full imported image")
+        main.Add(self.chk_recursive, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        main.Add(self.chk_full_module, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+
+        btns = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        if btns:
+            main.Add(btns, 0, wx.EXPAND | wx.ALL, 10)
+        self.SetSizerAndFit(main)
+
+    def get_values(self) -> Tuple[bool, bool]:
+        return self.chk_recursive.GetValue(), self.chk_full_module.GetValue()
+
+
 class ModuleCanvas(BaseCanvas):
     """Top-left origin canvas for selecting module rects and pivots."""
 
@@ -681,8 +705,10 @@ class ModuleEditorPanel(wx.Panel):
         self.image_list = wx.ListBox(img_box)
         img_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_import = wx.Button(img_box, label="Import Image")
+        self.btn_import_folder = wx.Button(img_box, label="Import Folder")
         self.btn_remove_img = wx.Button(img_box, label="Remove")
         img_btns.Add(self.btn_import, 1, wx.RIGHT, 4)
+        img_btns.Add(self.btn_import_folder, 1, wx.RIGHT, 4)
         img_btns.Add(self.btn_remove_img, 0)
         img_sizer.Add(self.image_list, 1, wx.EXPAND | wx.ALL, 4)
         img_sizer.Add(img_btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
@@ -889,6 +915,7 @@ class ModuleEditorPanel(wx.Panel):
 
         # Events
         self.btn_import.Bind(wx.EVT_BUTTON, self.on_import_image)
+        self.btn_import_folder.Bind(wx.EVT_BUTTON, self.on_import_folder)
         self.btn_remove_img.Bind(wx.EVT_BUTTON, self.on_remove_image)
         self.image_list.Bind(wx.EVT_LISTBOX, self.on_select_image)
         self.btn_create_module.Bind(wx.EVT_BUTTON, self.on_create_module)
@@ -925,26 +952,124 @@ class ModuleEditorPanel(wx.Panel):
         self.on_change_grid_spacing(wx.CommandEvent())
 
     # Image handling
+    def _import_single_image_asset(self, path: str) -> Optional[ImageAsset]:
+        img = load_wx_image_safely(path)
+        if not img.IsOk():
+            return None
+        bmp = wx.Bitmap(img)
+        asset = self.project.create_image(path, bmp.GetWidth(), bmp.GetHeight())
+        asset.transparent_color = None
+        self._bitmap_cache[asset.id] = bmp
+        return asset
+
+    def _next_module_name(self, base_name: str, used_names: set[str]) -> str:
+        root = (base_name or "Module").strip() or "Module"
+        candidate = root
+        suffix = 2
+        while candidate in used_names:
+            candidate = f"{root} ({suffix})"
+            suffix += 1
+        used_names.add(candidate)
+        return candidate
+
+    def _create_full_image_module(self, asset: ImageAsset, used_names: set[str]) -> None:
+        base_name = os.path.splitext(os.path.basename(asset.file_path))[0]
+        module_name = self._next_module_name(base_name, used_names)
+        self.project.create_module(
+            module_name,
+            asset.id,
+            (0, 0, int(asset.width), int(asset.height)),
+            (int(asset.width) // 2, int(asset.height) // 2),
+        )
+
     def on_import_image(self, _: wx.CommandEvent) -> None:
         with wx.FileDialog(
             self,
             "Open image",
-            wildcard="Image files (*.png;*.jpg;*.bmp)|*.png;*.jpg;*.bmp",
+            wildcard=IMAGE_FILE_WILDCARD,
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         ) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
                 return
             path = dlg.GetPath()
-            img = load_wx_image_safely(path)
-            if not img.IsOk():
+            asset = self._import_single_image_asset(path)
+            if not asset:
                 wx.MessageBox("Failed to load image", "Error")
                 return
-            bmp = wx.Bitmap(img)
-            asset = self.project.create_image(path, bmp.GetWidth(), bmp.GetHeight())
-            asset.transparent_color = None
-            self._bitmap_cache[asset.id] = bmp
             self.refresh_images(select_id=asset.id)
             self.select_image(asset.id)
+
+    def on_import_folder(self, _: wx.CommandEvent) -> None:
+        with wx.DirDialog(
+            self,
+            "Select folder with images",
+            style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            folder = dlg.GetPath()
+
+        with FolderImportOptionsDialog(self) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            import_recursive, create_full_modules = dlg.get_values()
+
+        image_paths: list[str] = []
+        try:
+            if import_recursive:
+                for root, dirs, files in os.walk(folder):
+                    dirs.sort(key=lambda name: name.lower())
+                    for filename in sorted(files, key=lambda name: name.lower()):
+                        ext = os.path.splitext(filename)[1].lower()
+                        if ext in SUPPORTED_IMAGE_EXTENSIONS:
+                            image_paths.append(os.path.join(root, filename))
+            else:
+                for entry in sorted(os.scandir(folder), key=lambda x: x.name.lower()):
+                    if not entry.is_file():
+                        continue
+                    ext = os.path.splitext(entry.name)[1].lower()
+                    if ext in SUPPORTED_IMAGE_EXTENSIONS:
+                        image_paths.append(entry.path)
+        except OSError as exc:
+            wx.MessageBox(f"Failed to read folder:\n{exc}", "Error")
+            return
+
+        if not image_paths:
+            wx.MessageBox("No supported image files found in this folder.", "Info")
+            return
+
+        imported_assets: list[ImageAsset] = []
+        failed_files: list[str] = []
+        created_modules = 0
+        used_module_names = {m.name for m in self.project.modules}
+
+        with wx.BusyCursor():
+            for path in image_paths:
+                asset = self._import_single_image_asset(path)
+                if not asset:
+                    failed_files.append(os.path.relpath(path, folder))
+                    continue
+                imported_assets.append(asset)
+                if create_full_modules:
+                    self._create_full_image_module(asset, used_module_names)
+                    created_modules += 1
+
+        if not imported_assets:
+            wx.MessageBox("No images were imported.", "Error")
+            return
+
+        selected_id = imported_assets[-1].id
+        self.refresh_images(select_id=selected_id)
+        self.select_image(selected_id)
+        if create_full_modules:
+            self.refresh_modules()
+
+        parts = [f"Imported {len(imported_assets)} image(s)."]
+        if create_full_modules:
+            parts.append(f"Created {created_modules} full-image module(s).")
+        if failed_files:
+            parts.append(f"Skipped {len(failed_files)} file(s) that could not be loaded.")
+        wx.MessageBox("\n".join(parts), "Folder Import Complete")
 
     def on_remove_image(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:
