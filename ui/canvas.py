@@ -35,6 +35,9 @@ class FrameCanvas(BaseCanvas):
         self._dragging_ids: list[str] = []
         self._drag_start_world: Optional[Tuple[float, float]] = None
         self._drag_start_positions: dict[str, Tuple[int, int]] = {}
+        self._last_module_hit_cycle_key: Optional[Tuple[int, int, Tuple[str, ...]]] = None
+        self._last_module_hit_cycle_index: int = -1
+        self._selected_hit_on_mouse_down_id: Optional[str] = None
         
         self.on_modify_started: Optional[Callable[[], None]] = None
         self.on_modify_ended: Optional[Callable[[], None]] = None
@@ -44,6 +47,7 @@ class FrameCanvas(BaseCanvas):
         self.render_flip_y = False
         self.render_rotation = 0.0
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
+        self._asset_image_cache: dict[str, wx.Image] = {}
         
         # Interaction Modes
         self.edit_mode = "module" # "module" or "collision"
@@ -78,6 +82,8 @@ class FrameCanvas(BaseCanvas):
 
     def set_frame(self, frame: Optional[Frame]) -> None:
         self.frame = frame
+        self._reset_module_hit_cycle()
+        self._selected_hit_on_mouse_down_id = None
         self.Refresh(False)
 
     def set_frame_offset(self, offset: Tuple[float, float]) -> None:
@@ -86,6 +92,7 @@ class FrameCanvas(BaseCanvas):
         
     def clear_cache(self) -> None:
         self._bitmap_cache.clear()
+        self._asset_image_cache.clear()
         self.Refresh(False)
 
     # --- Frame-level Transforms (Local -> World) ---
@@ -610,7 +617,35 @@ class FrameCanvas(BaseCanvas):
         # Module Selection Logic (Default)
         # We must hit-test in LOCAL space
         local_pos = self.world_to_local(pos_world)
-        clicked = self._hit_test(local_pos)
+        hits = self._hit_test_all_local(local_pos)
+        clicked: Optional[FModule] = None
+        if hits:
+            if event.ShiftDown():
+                clicked = hits[0]
+                self._reset_module_hit_cycle()
+                self._selected_hit_on_mouse_down_id = None
+            else:
+                selected_hit = next((fm for fm in hits if fm.id in self.selected_fmodules), None)
+                if selected_hit:
+                    # Preserve selected target for immediate drag; click-cycle is handled on mouse-up.
+                    clicked = selected_hit
+                    self._selected_hit_on_mouse_down_id = selected_hit.id
+                else:
+                    self._selected_hit_on_mouse_down_id = None
+                    cycle_key = (
+                        int(math.floor(local_pos[0])),
+                        int(math.floor(local_pos[1])),
+                        tuple(fm.id for fm in hits),
+                    )
+                    if cycle_key == self._last_module_hit_cycle_key:
+                        self._last_module_hit_cycle_index = (self._last_module_hit_cycle_index + 1) % len(hits)
+                    else:
+                        self._last_module_hit_cycle_key = cycle_key
+                        self._last_module_hit_cycle_index = 0
+                    clicked = hits[self._last_module_hit_cycle_index]
+        else:
+            self._reset_module_hit_cycle()
+            self._selected_hit_on_mouse_down_id = None
         
         if clicked:
             if event.ShiftDown():
@@ -678,12 +713,31 @@ class FrameCanvas(BaseCanvas):
             
             # If moved less than ~3 pixels, treat as click
             if dist_sq < 9: 
-                clicked = self._hit_test(pos_world)
-                if clicked and len(self.selected_fmodules) > 1:
-                     self.selected_fmodules = [clicked.id]
-                     if self.on_selection_changed:
-                         self.on_selection_changed(self.selected_fmodules)
-                     self.Refresh(False)
+                local_pos = self.world_to_local(pos_world)
+                hits = self._hit_test_all_local(local_pos)
+                if (
+                    self._selected_hit_on_mouse_down_id
+                    and hits
+                    and any(fm.id == self._selected_hit_on_mouse_down_id for fm in hits)
+                ):
+                    current_idx = next(
+                        (idx for idx, fm in enumerate(hits) if fm.id == self._selected_hit_on_mouse_down_id),
+                        -1,
+                    )
+                    if current_idx >= 0 and len(hits) > 1:
+                        next_hit = hits[(current_idx + 1) % len(hits)]
+                        self.selected_fmodules = [next_hit.id]
+                        if self.on_selection_changed:
+                            self.on_selection_changed(self.selected_fmodules)
+                        self._selected_hit_on_mouse_down_id = next_hit.id
+                        self.Refresh(False)
+                else:
+                    clicked = hits[0] if hits else None
+                    if clicked and len(self.selected_fmodules) > 1:
+                         self.selected_fmodules = [clicked.id]
+                         if self.on_selection_changed:
+                             self.on_selection_changed(self.selected_fmodules)
+                         self.Refresh(False)
 
         if self._dragging_ids:
             was_modifying = True
@@ -692,6 +746,7 @@ class FrameCanvas(BaseCanvas):
             self.ReleaseMouse()
         self._dragging_ids = []
         self._drag_start_world = None
+        self._selected_hit_on_mouse_down_id = None
         
         if was_modifying and self.on_modify_ended:
             self.on_modify_ended()
@@ -780,28 +835,163 @@ class FrameCanvas(BaseCanvas):
         return self._hit_test(self.world_to_local(transformed_world_pt))
 
     def _hit_test(self, local_pt: Tuple[float, float]) -> Optional[FModule]:
-        if not self.frame:
-            return None
-            
-        # Iterate reversed (last in list = top, check timestamps first)
-        for fm in reversed(self.frame.fmodules):
-            x0, y0, x1, y1 = self._fmodule_bounds(fm)
-            if x0 <= local_pt[0] <= x1 and y0 <= local_pt[1] <= y1:
-                return fm
-        return None
+        hits = self._hit_test_all_local(local_pt)
+        return hits[0] if hits else None
 
     def hit_test_all(self, transformed_world_pt: Tuple[float, float]) -> List[FModule]:
         """Returns all modules under the cursor, sorted top-to-bottom."""
-        local_pt = self.world_to_local(transformed_world_pt)
-        hits = []
+        return self._hit_test_all_local(self.world_to_local(transformed_world_pt))
+
+    def _reset_module_hit_cycle(self) -> None:
+        self._last_module_hit_cycle_key = None
+        self._last_module_hit_cycle_index = -1
+
+    def _hit_test_all_local(self, local_pt: Tuple[float, float]) -> List[FModule]:
+        hits: List[FModule] = []
         if not self.frame:
             return hits
-            
         for fm in reversed(self.frame.fmodules):
-            x0, y0, x1, y1 = self._fmodule_bounds(fm)
-            if x0 <= local_pt[0] <= x1 and y0 <= local_pt[1] <= y1:
+            if self._fmodule_contains_local_point(fm, local_pt):
                 hits.append(fm)
         return hits
+
+    def _fmodule_contains_local_point(
+        self, fm: FModule, local_pt: Tuple[float, float], depth: int = 0
+    ) -> bool:
+        if depth > 16:
+            return False
+        x0, y0, x1, y1 = self._fmodule_bounds(fm)
+        min_x, min_y = min(x0, x1), min(y0, y1)
+        max_x, max_y = max(x0, x1), max(y0, y1)
+
+        # Half-open interval avoids double-hits on exact border pixels.
+        if not (min_x <= local_pt[0] < max_x and min_y <= local_pt[1] < max_y):
+            return False
+
+        if fm.ref_type == "frame":
+            ref_frame = self.project.get_frame(fm.ref_id)
+            if not ref_frame:
+                return True
+
+            # Undo this frame-reference transform to test children in their own local space.
+            test_x = local_pt[0] - fm.position[0]
+            test_y = local_pt[1] - fm.position[1]
+
+            rad = math.radians(-float(fm.rotation_degrees))
+            cos_a = math.cos(rad)
+            sin_a = math.sin(rad)
+            rot_x = test_x * cos_a - test_y * sin_a
+            rot_y = test_x * sin_a + test_y * cos_a
+
+            if fm.flip_x:
+                rot_x = -rot_x
+            if fm.flip_y:
+                rot_y = -rot_y
+
+            for child_fm in reversed(ref_frame.fmodules):
+                if self._fmodule_contains_local_point(child_fm, (rot_x, rot_y), depth + 1):
+                    return True
+            return False
+
+        if fm.ref_type != "module":
+            return True
+
+        ref_id = fm.ref_id
+        if self.project.active_mapping and ref_id in self.project.active_mapping.map:
+            ref_id = self.project.active_mapping.map[ref_id]
+        if not ref_id:
+            return False
+
+        mod = self.project.get_module(ref_id)
+        if not mod:
+            return True
+
+        target_w = max(1, int(round(max_x - min_x)))
+        target_h = max(1, int(round(max_y - min_y)))
+        px = int(math.floor(local_pt[0] - min_x))
+        py = int(math.floor(local_pt[1] - min_y))
+        if not (0 <= px < target_w and 0 <= py < target_h):
+            return False
+
+        if mod.type == "MD_IMAGE":
+            base_img = self._get_module_source_image(mod)
+        else:
+            bmp = self._get_module_bitmap(mod)
+            if not bmp or not bmp.IsOk():
+                return True
+            base_img = bmp.ConvertToImage()
+
+        if not base_img or not base_img.IsOk():
+            return True
+
+        img = base_img.Copy()
+        if fm.flip_x:
+            img = img.Mirror(horizontally=True)
+        if fm.flip_y:
+            img = img.Mirror(horizontally=False)
+
+        rot = int(fm.rotation_degrees) % 360
+        if rot == 90:
+            img = img.Rotate90(clockwise=True)
+        elif rot == 180:
+            img = img.Rotate180()
+        elif rot == 270:
+            img = img.Rotate90(clockwise=False)
+
+        if img.GetWidth() != target_w or img.GetHeight() != target_h:
+            img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
+
+        if mod.type == "MD_IMAGE":
+            asset = self.project.get_image(mod.image_id)
+            if asset and asset.transparent_color:
+                tr, tg, tb = asset.transparent_color
+                if (
+                    img.GetRed(px, py) == tr
+                    and img.GetGreen(px, py) == tg
+                    and img.GetBlue(px, py) == tb
+                ):
+                    return False
+
+        if img.HasAlpha():
+            return img.GetAlpha(px, py) > 0
+        if img.HasMask():
+            return not (
+                img.GetRed(px, py) == img.GetMaskRed()
+                and img.GetGreen(px, py) == img.GetMaskGreen()
+                and img.GetBlue(px, py) == img.GetMaskBlue()
+            )
+        return True
+
+    def _get_asset_source_image(self, asset_id: str) -> Optional[wx.Image]:
+        cached = self._asset_image_cache.get(asset_id)
+        if cached and cached.IsOk():
+            return cached
+        asset = self.project.get_image(asset_id)
+        if not asset:
+            return None
+        img = load_wx_image_safely(asset.file_path)
+        if not img or not img.IsOk():
+            return None
+        self._asset_image_cache[asset_id] = img
+        return img
+
+    def _get_module_source_image(self, mod: Module) -> Optional[wx.Image]:
+        if mod.type != "MD_IMAGE":
+            return None
+        full_img = self._get_asset_source_image(mod.image_id)
+        if not full_img:
+            return None
+
+        rx, ry, rw, rh = mod.rect
+        if rw <= 0 or rh <= 0:
+            return None
+        if rx < 0 or ry < 0 or rx + rw > full_img.GetWidth() or ry + rh > full_img.GetHeight():
+            return None
+
+        sub_img = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
+        if getattr(mod, "rotated", False):
+            sub_img = sub_img.Rotate90(clockwise=False)
+        return sub_img
 
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
         if fm.ref_type == "module":

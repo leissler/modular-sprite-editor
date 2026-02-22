@@ -10,7 +10,7 @@ from typing import Optional
 
 import wx
 
-from models import Project
+from models import FModule, Project, generate_id
 from ui.animation_editor import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.module_editor import ModuleEditorPanel
@@ -310,10 +310,15 @@ class MainFrame(wx.Frame):
         tools_menu = wx.Menu()
         self.m_opt_sprite = tools_menu.Append(wx.ID_ANY, "Optimize Sprite Sheet...")
         self.m_opt_nested = tools_menu.Append(wx.ID_ANY, "Optimize Nested Frame Combos (All Frames)...")
+        tools_menu.AppendSeparator()
+        self.m_create_reference_frames = tools_menu.Append(
+            wx.ID_ANY, "Create Reference Frames From All Image Modules..."
+        )
         menubar.Append(tools_menu, "&Tools")
         
         self.Bind(wx.EVT_MENU, self.on_tool_optimize, self.m_opt_sprite)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize_nested, self.m_opt_nested)
+        self.Bind(wx.EVT_MENU, self.on_tool_create_reference_frames, self.m_create_reference_frames)
 
         self.SetMenuBar(menubar)
         _mac_force_app_menu_title(APP_NAME)
@@ -499,6 +504,59 @@ class MainFrame(wx.Frame):
         # Global frame-level optimization entry point.
         self.book.SetSelection(1)
         self.frame_editor.on_optimize_nested_combos(event)
+
+    def on_tool_create_reference_frames(self, _: wx.CommandEvent) -> None:
+        if not self.project.images:
+            wx.MessageBox("No images in project.", "Info")
+            return
+
+        image_ids = {img.id for img in self.project.images}
+        modules = [m for m in self.project.modules if m.image_id in image_ids]
+        if not modules:
+            wx.MessageBox("No image-backed modules found to create reference frames.", "Info")
+            return
+
+        used_frame_names = {f.name for f in self.project.frames}
+
+        def unique_frame_name(base_name: str) -> str:
+            root = (base_name or "Reference").strip() or "Reference"
+            candidate = root
+            suffix = 2
+            while candidate in used_frame_names:
+                candidate = f"{root} ({suffix})"
+                suffix += 1
+            used_frame_names.add(candidate)
+            return candidate
+
+        created = 0
+        last_frame_id: Optional[str] = None
+        for mod in modules:
+            img = self.project.get_image(mod.image_id)
+            image_base = os.path.splitext(os.path.basename(img.file_path))[0] if img else "Image"
+            frame_name = unique_frame_name(f"Ref {image_base} - {mod.name}")
+            frame = self.project.create_frame(frame_name)
+            frame.fmodules.append(
+                FModule(
+                    id=generate_id("fmod"),
+                    ref_type="module",
+                    ref_id=mod.id,
+                    position=(int(mod.pivot[0]), int(mod.pivot[1])),
+                )
+            )
+            created += 1
+            last_frame_id = frame.id
+
+        self.frame_editor.refresh_choices()
+        self.frame_editor.refresh_frames(select_id=last_frame_id)
+        if last_frame_id:
+            self.frame_editor.selected_frame_id = last_frame_id
+            frame = self.project.get_frame(last_frame_id)
+            if frame:
+                self.frame_editor.canvas.set_frame(frame)
+        self.animation_editor.refresh_choices()
+        self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
+
+        wx.MessageBox(f"Created {created} reference frame(s).", "Reference Frames")
 
     def on_close(self, event: wx.CloseEvent) -> None:
         self._save_recent_files()
