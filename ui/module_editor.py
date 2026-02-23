@@ -727,7 +727,7 @@ class ModuleEditorPanel(wx.Panel):
         # Modules
         self.mod_box = wx.StaticBox(self.left_panel, label="Modules")
         mod_sizer = wx.StaticBoxSizer(self.mod_box, wx.VERTICAL)
-        self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT)
+        self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.module_list.InsertColumn(0, "Name", width=120)
         self.module_list.InsertColumn(1, "Rect", width=120)
         self.module_list.InsertColumn(2, "Pivot", width=90)
@@ -923,9 +923,7 @@ class ModuleEditorPanel(wx.Panel):
         self.btn_delete_module.Bind(wx.EVT_BUTTON, self.on_delete_module)
         self.btn_rename_module.Bind(wx.EVT_BUTTON, self.on_rename_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
-        self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_deselect_module)
-        self.module_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_module_list_right_click)
         self.btn_slice.Bind(wx.EVT_BUTTON, self.on_slice_grid)
         self.btn_auto_modularize.Bind(wx.EVT_BUTTON, self.on_auto_modularize_sheet)
         self.canvas.on_selection_changed = self._on_canvas_selection
@@ -1341,15 +1339,6 @@ class ModuleEditorPanel(wx.Panel):
 
     def on_deselect_module(self, idx_event: wx.ListEvent) -> None:
         if self._suppress_module_events:
-            return
-        
-        # If we still have selections, switch active module to one of them (e.g. the first one)
-        selected_idx = self.module_list.GetFirstSelected()
-        if selected_idx != -1:
-            # Switch focus to this one
-            mod_view_idx = selected_idx
-            if 0 <= mod_view_idx < len(self._modules_view):
-                self.select_module(self._modules_view[mod_view_idx].id, center_view=False, from_list=True)
             return
 
         self._autosave_current_module()
@@ -1773,14 +1762,6 @@ class ModuleEditorPanel(wx.Panel):
                 
         self.refresh_modules()
         wx.MessageBox(f"Sliced {count} grid modules.", "Success")
-
-    def on_module_list_right_click(self, event: wx.ListEvent) -> None:
-        menu = wx.Menu()
-        item_auto = menu.Append(wx.ID_ANY, "Auto Modularize Sheet...")
-        self.Bind(wx.EVT_MENU, self.on_auto_modularize_sheet, item_auto)
-        
-        self.PopupMenu(menu)
-        menu.Destroy()
 
     def on_auto_modularize_sheet(self, _event: wx.CommandEvent = None) -> None:
         if not self.selected_image_id:
