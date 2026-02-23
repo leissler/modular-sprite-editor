@@ -28,12 +28,8 @@ venv/
 .venv_mac/
 ENV/
 
-# PyInstaller & Build Tools
+# PyInstaller outputs
 *.manifest
-*.spec
-build_windows.bat
-build_macos.sh
-update_icons.py
 
 # Generated Assets
 assets/icon_source.png
