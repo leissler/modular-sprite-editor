@@ -1,7 +1,8 @@
 import unittest
 import os
 import shutil
-from PIL import Image, ImageDraw
+import math
+from PIL import Image, ImageDraw, ImageOps, ImageChops
 from models import Project, Frame, FModule
 from optimization import run_auto_modularization
 
@@ -18,6 +19,80 @@ class TestAutoModularization(unittest.TestCase):
         # clean up
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
+
+    def _render_frame_canvas_like(
+        self,
+        project: Project,
+        frame_id: str,
+        canvas_size=(256, 256),
+        origin=(128, 128),
+    ) -> Image.Image:
+        frame = project.get_frame(frame_id)
+        self.assertIsNotNone(frame)
+        canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+
+        image_cache = {}
+        for fm in frame.fmodules:  # type: ignore[union-attr]
+            if fm.ref_type != "module":
+                continue
+            mod = project.get_module(fm.ref_id)
+            if not mod:
+                continue
+            asset = project.get_image(mod.image_id)
+            if not asset or not os.path.exists(asset.file_path):
+                continue
+
+            if asset.id not in image_cache:
+                image_cache[asset.id] = Image.open(asset.file_path).convert("RGBA")
+            src_sheet = image_cache[asset.id]
+
+            rx, ry, rw, rh = mod.rect
+            patch = src_sheet.crop((rx, ry, rx + rw, ry + rh))
+
+            if fm.flip_x:
+                patch = ImageOps.mirror(patch)
+            if fm.flip_y:
+                patch = ImageOps.flip(patch)
+
+            rot = int(round(float(fm.rotation_degrees))) % 360
+            if rot == 90:
+                patch = patch.transpose(Image.Transpose.ROTATE_270)  # clockwise
+            elif rot == 180:
+                patch = patch.transpose(Image.Transpose.ROTATE_180)
+            elif rot == 270:
+                patch = patch.transpose(Image.Transpose.ROTATE_90)
+
+            piv_x, piv_y = mod.pivot
+            w, h = mod.rect[2], mod.rect[3]
+            corners = [
+                (0 - piv_x, 0 - piv_y),
+                (w - piv_x, 0 - piv_y),
+                (0 - piv_x, h - piv_y),
+                (w - piv_x, h - piv_y),
+            ]
+            rad = math.radians(float(fm.rotation_degrees))
+            cos_a = math.cos(rad)
+            sin_a = math.sin(rad)
+            points = []
+            for cx, cy in corners:
+                px = cx * cos_a - cy * sin_a + fm.position[0]
+                py = cx * sin_a + cy * cos_a + fm.position[1]
+                points.append((px, py))
+
+            x0 = min(p[0] for p in points)
+            y0 = min(p[1] for p in points)
+            x1 = max(p[0] for p in points)
+            y1 = max(p[1] for p in points)
+            target_w = max(1, int(round(abs(x1 - x0))))
+            target_h = max(1, int(round(abs(y1 - y0))))
+            if patch.size != (target_w, target_h):
+                patch = patch.resize((target_w, target_h), Image.Resampling.NEAREST)
+
+            dst_x = int(round(origin[0] + x0))
+            dst_y = int(round(origin[1] + y0))
+            canvas.alpha_composite(patch, (dst_x, dst_y))
+
+        return canvas
 
     def test_sheet_level_dedupe_and_reference_replacement(self):
         img_path = os.path.join(self.test_dir, "grid_sheet.png")
@@ -465,6 +540,277 @@ class TestAutoModularization(unittest.TestCase):
                     max_transparent_ratio + 1e-9,
                     f"{mod.name} exceeds max transparent ratio with rect={mod.rect}",
                 )
+
+    def test_tile_mode_snaps_parts_to_tile_grid(self):
+        img_path = os.path.join(self.test_dir, "tile_snap.png")
+        img = Image.new("RGBA", (32, 16), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((0, 0, 7, 7), fill=(255, 255, 255, 255))
+        draw.rectangle((8, 0, 15, 7), fill=(255, 0, 0, 255))
+        draw.rectangle((0, 8, 7, 15), fill=(0, 255, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 32, 16)
+        self.project.create_module("TileAligned", asset.id, (0, 0, 16, 16), (8, 8))
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "generic_8x8",
+                "tile_width": 8,
+                "tile_height": 8,
+                "meta_tile_mode": "off",
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
+        self.assertGreater(len(auto_parts), 0)
+        for mod in auto_parts:
+            self.assertEqual(mod.rect[0] % 8, 0)
+            self.assertEqual(mod.rect[1] % 8, 0)
+            self.assertEqual(mod.rect[2] % 8, 0)
+            self.assertEqual(mod.rect[3] % 8, 0)
+
+    def test_tile_mode_force_meta_tile_reports_meta_usage(self):
+        img_path = os.path.join(self.test_dir, "meta_force.png")
+        img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((0, 0, 7, 7), fill=(255, 255, 255, 255))
+        draw.rectangle((8, 0, 15, 7), fill=(255, 255, 255, 255))
+        draw.rectangle((0, 8, 7, 15), fill=(255, 255, 255, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 16, 16)
+        self.project.create_module("MetaCandidate", asset.id, (0, 0, 16, 16), (8, 8))
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "generic_8x8",
+                "meta_tile_mode": "force",
+                "meta_tile_sizes": [(16, 16)],
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+            },
+        )
+        self.assertTrue(success, msg)
+        self.assertIn("Selected meta-tiles", msg)
+
+        auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
+        self.assertTrue(any(m.rect[2] == 16 and m.rect[3] == 16 for m in auto_parts))
+
+    def test_tile_profile_reports_palette_constraint_violations(self):
+        img_path = os.path.join(self.test_dir, "palette_limits.png")
+        img = Image.new("RGBA", (8, 8), (0, 0, 0, 0))
+        pix = img.load()
+        c = 0
+        for y in range(8):
+            for x in range(8):
+                pix[x, y] = ((c * 17) % 256, (c * 31) % 256, (c * 47) % 256, 255)
+                c += 1
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 8, 8)
+        self.project.create_module("TooManyColors", asset.id, (0, 0, 8, 8), (4, 4))
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "mega_drive",
+                "tile_enforce_palette_constraints": True,
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+                "deduplicate": False,
+            },
+        )
+        self.assertTrue(success, msg)
+        self.assertIn("per-tile palette limits", msg)
+
+    def test_mega_drive_tile_mode_handles_unaligned_source_module(self):
+        img_path = os.path.join(self.test_dir, "unaligned_source.png")
+        img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((5, 6, 18, 19), fill=(255, 220, 60, 255))
+        draw.rectangle((10, 10, 11, 11), fill=(0, 0, 0, 0))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 32, 32)
+        self.project.create_module("Unaligned", asset.id, (5, 6, 14, 14), (7, 7))
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "mega_drive",
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+                "deduplicate": True,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        auto_parts = [m for m in self.project.modules if m.name.startswith("AutoPart ")]
+        self.assertGreater(len(auto_parts), 0)
+        self.assertTrue(all(m.rect[2] % 8 == 0 and m.rect[3] % 8 == 0 for m in auto_parts))
+        self.assertIn("padded tile snapping", msg)
+
+    def test_tile_mode_transparency_threshold_changes_grouping(self):
+        img_path = os.path.join(self.test_dir, "tile_threshold_effect.png")
+        img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        # Four sparse islands: one inside each 8x8 tile.
+        draw.rectangle((2, 2, 5, 5), fill=(255, 255, 255, 255))
+        draw.rectangle((10, 2, 13, 5), fill=(255, 255, 255, 255))
+        draw.rectangle((2, 10, 5, 13), fill=(255, 255, 255, 255))
+        draw.rectangle((10, 10, 13, 13), fill=(255, 255, 255, 255))
+        img.save(img_path)
+
+        low_proj = Project()
+        low_asset = low_proj.create_image(os.path.abspath(img_path), 16, 16)
+        low_proj.create_module("SparseCell", low_asset.id, (0, 0, 16, 16), (8, 8))
+        low_ok, low_msg = run_auto_modularization(
+            low_proj,
+            low_asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "generic_8x8",
+                "meta_tile_mode": "off",
+                "max_transparent_ratio": 0.5,
+                "deduplicate": False,
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+            },
+        )
+        self.assertTrue(low_ok, low_msg)
+        low_parts = [m for m in low_proj.modules if m.name.startswith("AutoPart ")]
+        self.assertGreater(len(low_parts), 0)
+
+        high_proj = Project()
+        high_asset = high_proj.create_image(os.path.abspath(img_path), 16, 16)
+        high_proj.create_module("SparseCell", high_asset.id, (0, 0, 16, 16), (8, 8))
+        high_ok, high_msg = run_auto_modularization(
+            high_proj,
+            high_asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "generic_8x8",
+                "meta_tile_mode": "off",
+                "max_transparent_ratio": 0.9,
+                "deduplicate": False,
+                "replace_in_frames": False,
+                "delete_original_modules": False,
+            },
+        )
+        self.assertTrue(high_ok, high_msg)
+        high_parts = [m for m in high_proj.modules if m.name.startswith("AutoPart ")]
+        self.assertGreater(len(high_parts), 0)
+
+        self.assertGreater(len(low_parts), len(high_parts))
+
+    def test_freeform_rewrite_preserves_canvas_pixels_for_flipped_offcenter_pivot(self):
+        img_path = os.path.join(self.test_dir, "flip_offcenter_freeform.png")
+        img = Image.new("RGBA", (16, 8), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((0, 0, 3, 7), fill=(255, 255, 255, 255))
+        draw.rectangle((12, 0, 15, 7), fill=(255, 0, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 16, 8)
+        mod = self.project.create_module("Base", asset.id, (0, 0, 16, 8), (1, 4))
+        self.project.frames.append(
+            Frame(
+                id="frm_flip_free",
+                name="FlipFree",
+                fmodules=[
+                    FModule(
+                        id="fm_src_free",
+                        ref_type="module",
+                        ref_id=mod.id,
+                        position=(20, 12),
+                        flip_x=True,
+                        flip_y=False,
+                        rotation_degrees=0.0,
+                    )
+                ],
+            )
+        )
+        before = self._render_frame_canvas_like(self.project, "frm_flip_free")
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+                "pattern_mining": False,
+                "deduplicate": False,
+                "max_transparent_ratio": 0.2,
+                "merge_gap": 0,
+                "min_split_side": 2,
+                "max_split_depth": 8,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        after = self._render_frame_canvas_like(self.project, "frm_flip_free")
+        self.assertIsNone(ImageChops.difference(before, after).getbbox())
+
+    def test_tile_rewrite_preserves_canvas_pixels_for_flipped_offcenter_pivot(self):
+        img_path = os.path.join(self.test_dir, "flip_offcenter_tile.png")
+        img = Image.new("RGBA", (16, 8), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((0, 0, 3, 7), fill=(255, 255, 255, 255))
+        draw.rectangle((12, 0, 15, 7), fill=(255, 0, 0, 255))
+        img.save(img_path)
+
+        asset = self.project.create_image(os.path.abspath(img_path), 16, 8)
+        mod = self.project.create_module("Base", asset.id, (0, 0, 16, 8), (1, 4))
+        self.project.frames.append(
+            Frame(
+                id="frm_flip_tile",
+                name="FlipTile",
+                fmodules=[
+                    FModule(
+                        id="fm_src_tile",
+                        ref_type="module",
+                        ref_id=mod.id,
+                        position=(20, 12),
+                        flip_x=True,
+                        flip_y=False,
+                        rotation_degrees=0.0,
+                    )
+                ],
+            )
+        )
+        before = self._render_frame_canvas_like(self.project, "frm_flip_tile")
+
+        success, msg = run_auto_modularization(
+            self.project,
+            asset.id,
+            {
+                "modularization_mode": "tile_constrained",
+                "platform_profile": "mega_drive",
+                "replace_in_frames": True,
+                "delete_original_modules": False,
+                "deduplicate": False,
+                "meta_tile_mode": "off",
+                "max_transparent_ratio": 0.2,
+            },
+        )
+        self.assertTrue(success, msg)
+
+        after = self._render_frame_canvas_like(self.project, "frm_flip_tile")
+        self.assertIsNone(ImageChops.difference(before, after).getbbox())
 
     def test_delete_without_replacement_is_blocked_when_frames_reference_modules(self):
         img_path = os.path.join(self.test_dir, "single.png")

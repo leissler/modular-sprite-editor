@@ -1773,16 +1773,27 @@ class ModuleEditorPanel(wx.Panel):
                 return
             config = dlg.GetValues()
 
+        before_image_ids = {img.id for img in self.project.images}
         with wx.BusyCursor():
             success, msg = run_auto_modularization(self.project, self.selected_image_id, config)
 
         if success:
             wx.MessageBox(msg, "Success")
-            # Reload current image to ensure overlays and transparency cache are in sync.
             current_id = self.selected_image_id
-            self.refresh_modules()
-            if current_id:
-                self.select_image(current_id)
+            after_image_ids = {img.id for img in self.project.images}
+            new_image_ids = [img.id for img in self.project.images if img.id in (after_image_ids - before_image_ids)]
+
+            mode = str(config.get("modularization_mode", "freeform")).strip().lower()
+            prefer_new_image = mode in ("tile", "tile_constrained", "tile-constrained")
+            target_image_id = new_image_ids[-1] if (prefer_new_image and new_image_ids) else current_id
+            if target_image_id and not self.project.get_image(target_image_id):
+                target_image_id = current_id
+
+            self.refresh_images(select_id=target_image_id)
+            if target_image_id:
+                self.select_image(target_image_id)
+            else:
+                self.refresh_modules()
         else:
             wx.MessageBox(f"Error: {msg}", "Error")
 
