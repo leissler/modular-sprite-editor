@@ -527,9 +527,166 @@ class FrameEditorPanel(wx.Panel):
         if fm and fm.ref_type == "module":
             self.palette.select_module(fm.ref_id)
 
+    def _prompt_role_value(self, title: str, current_value: str) -> Optional[str]:
+        dlg = wx.TextEntryDialog(
+            self,
+            "Enter a stable semantic role name (example: left_foot, torso_main).",
+            title,
+            value=str(current_value or ""),
+        )
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return None
+            return str(dlg.GetValue() or "").strip()
+        finally:
+            dlg.Destroy()
+
+    def _set_selected_collision_role(self) -> None:
+        frame = self.canvas.frame
+        if not frame or len(self.canvas.selected_collision_rects) != 1:
+            return
+        target_id = self.canvas.selected_collision_rects[0]
+        cr = next((r for r in frame.collision_rects if r.id == target_id), None)
+        if not cr:
+            return
+        current = str(getattr(cr, "role", "") or "")
+        new_role = self._prompt_role_value("Collision Role", current)
+        if new_role is None or new_role == current:
+            return
+        self.snapshot()
+        cr.role = new_role
+        self.canvas.Refresh()
+        self.snapshot()
+
+    def _clear_selected_collision_roles(self) -> None:
+        frame = self.canvas.frame
+        if not frame or not self.canvas.selected_collision_rects:
+            return
+        selected = set(self.canvas.selected_collision_rects)
+        to_clear = [cr for cr in frame.collision_rects if cr.id in selected and str(getattr(cr, "role", "") or "")]
+        if not to_clear:
+            return
+        self.snapshot()
+        changed = False
+        for cr in to_clear:
+            cr.role = ""
+            changed = True
+        if not changed:
+            return
+        self.canvas.Refresh()
+        self.snapshot()
+
+    def _set_selected_point_role(self) -> None:
+        frame = self.canvas.frame
+        if not frame or len(self.canvas.selected_points) != 1:
+            return
+        target_id = self.canvas.selected_points[0]
+        cp = next((p for p in frame.control_points if p.id == target_id), None)
+        if not cp:
+            return
+        current = str(getattr(cp, "role", "") or "")
+        new_role = self._prompt_role_value("Control Point Role", current)
+        if new_role is None or new_role == current:
+            return
+        self.snapshot()
+        cp.role = new_role
+        self.canvas.Refresh()
+        self.snapshot()
+
+    def _clear_selected_point_roles(self) -> None:
+        frame = self.canvas.frame
+        if not frame or not self.canvas.selected_points:
+            return
+        selected = set(self.canvas.selected_points)
+        to_clear = [cp for cp in frame.control_points if cp.id in selected and str(getattr(cp, "role", "") or "")]
+        if not to_clear:
+            return
+        self.snapshot()
+        changed = False
+        for cp in to_clear:
+            cp.role = ""
+            changed = True
+        if not changed:
+            return
+        self.canvas.Refresh()
+        self.snapshot()
+
+    def _show_collision_context_menu(self, event: wx.MouseEvent) -> None:
+        frame = self.canvas.frame
+        if not frame:
+            return
+        pos_world = self.canvas.screen_to_world(event.GetPosition())
+        hit = self.canvas.hit_test_collision_rect(pos_world)
+        if hit:
+            if hit.id not in self.canvas.selected_collision_rects:
+                self.canvas.selected_collision_rects = [hit.id]
+        elif not event.ShiftDown():
+            self.canvas.selected_collision_rects = []
+        self.canvas.Refresh()
+
+        selected_ids = set(self.canvas.selected_collision_rects)
+        selected = [cr for cr in frame.collision_rects if cr.id in selected_ids]
+        if not selected:
+            return
+
+        menu = wx.Menu()
+        item_set_role = menu.Append(wx.ID_ANY, "Set Role...")
+        item_clear_role = menu.Append(wx.ID_ANY, "Clear Role")
+        menu.AppendSeparator()
+        item_delete = menu.Append(wx.ID_ANY, "Delete (Del/Backspace)")
+
+        if len(selected) != 1:
+            item_set_role.Enable(False)
+        if not any(str(getattr(cr, "role", "") or "").strip() for cr in selected):
+            item_clear_role.Enable(False)
+
+        self.Bind(wx.EVT_MENU, lambda e: self._set_selected_collision_role(), id=item_set_role.GetId())
+        self.Bind(wx.EVT_MENU, lambda e: self._clear_selected_collision_roles(), id=item_clear_role.GetId())
+        self.Bind(wx.EVT_MENU, lambda e: self._delete_selected_collision_rects(), id=item_delete.GetId())
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def _show_point_context_menu(self, event: wx.MouseEvent) -> None:
+        frame = self.canvas.frame
+        if not frame:
+            return
+        pos_world = self.canvas.screen_to_world(event.GetPosition())
+        hit = self.canvas.hit_test_control_point(pos_world)
+        if hit:
+            if hit.id not in self.canvas.selected_points:
+                self.canvas.selected_points = [hit.id]
+        elif not event.ShiftDown():
+            self.canvas.selected_points = []
+        self.canvas.Refresh()
+
+        selected_ids = set(self.canvas.selected_points)
+        selected = [cp for cp in frame.control_points if cp.id in selected_ids]
+        if not selected:
+            return
+
+        menu = wx.Menu()
+        item_set_role = menu.Append(wx.ID_ANY, "Set Role...")
+        item_clear_role = menu.Append(wx.ID_ANY, "Clear Role")
+        menu.AppendSeparator()
+        item_delete = menu.Append(wx.ID_ANY, "Delete (Del/Backspace)")
+
+        if len(selected) != 1:
+            item_set_role.Enable(False)
+        if not any(str(getattr(cp, "role", "") or "").strip() for cp in selected):
+            item_clear_role.Enable(False)
+
+        self.Bind(wx.EVT_MENU, lambda e: self._set_selected_point_role(), id=item_set_role.GetId())
+        self.Bind(wx.EVT_MENU, lambda e: self._clear_selected_point_roles(), id=item_clear_role.GetId())
+        self.Bind(wx.EVT_MENU, lambda e: self._delete_selected_points(), id=item_delete.GetId())
+        self.PopupMenu(menu)
+        menu.Destroy()
+
     def on_canvas_right_down(self, event: wx.MouseEvent):
-        # Suppress context menu if in collision or point mode
-        if self.canvas.edit_mode in ("collision", "point"):
+        if self.canvas.edit_mode == "collision":
+            self._show_collision_context_menu(event)
+            return
+        if self.canvas.edit_mode == "point":
+            self._show_point_context_menu(event)
             return
 
         # Hit test to see if we clicked a module

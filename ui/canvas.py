@@ -517,6 +517,11 @@ class FrameCanvas(BaseCanvas):
             gc.SetPen(wx.Pen(pen_col, 1, style=wx.PENSTYLE_SOLID))
             
         gc.DrawRectangle(sx0, sy0, w, h)
+
+        role = str(getattr(cr, "role", "") or "").strip()
+        if role and self.edit_mode == "collision":
+            gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
+            gc.DrawText(role, sx0 + 3, max(0, sy0 - 16))
         
         # If selected, draw corner handles
         if self.edit_mode == "collision" and cr.id in self.selected_collision_rects:
@@ -584,6 +589,11 @@ class FrameCanvas(BaseCanvas):
             
         gc.StrokeLine(cx - half_len, cy, cx + half_len, cy)
         gc.StrokeLine(cx, cy - half_len, cx, cy + half_len)
+
+        role = str(getattr(cp, "role", "") or "").strip()
+        if role and self.edit_mode == "point":
+            gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
+            gc.DrawText(role, dsx + dsize + 4, dsy - 2)
 
     # Interaction
     def on_left_down(self, event: wx.MouseEvent) -> None:
@@ -849,6 +859,16 @@ class FrameCanvas(BaseCanvas):
     def hit_test_all(self, transformed_world_pt: Tuple[float, float]) -> List[FModule]:
         """Returns all modules under the cursor, sorted top-to-bottom."""
         return self._hit_test_all_local(self.world_to_local(transformed_world_pt))
+
+    def hit_test_collision_rect(self, world_pt: Tuple[float, float]) -> Optional[CollisionRect]:
+        if not self.frame:
+            return None
+        return self._hit_test_collision_rect(world_pt)
+
+    def hit_test_control_point(self, world_pt: Tuple[float, float]) -> Optional[ControlPoint]:
+        if not self.frame:
+            return None
+        return self._hit_test_point(world_pt)
 
     def _reset_module_hit_cycle(self) -> None:
         self._last_module_hit_cycle_key = None

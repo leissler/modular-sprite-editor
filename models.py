@@ -191,12 +191,14 @@ class CollisionRect:
     id: str
     type_id: str
     rect: Tuple[int, int, int, int] # x,y,w,h relative to frame origin
+    role: str = ""
 
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
             "type_id": self.type_id,
             "rect": list(self.rect),
+            "role": str(getattr(self, "role", "") or ""),
         }
 
     @staticmethod
@@ -205,6 +207,7 @@ class CollisionRect:
             id=data["id"],
             type_id=data["type_id"],
             rect=tuple(data["rect"]), # type: ignore
+            role=str(data.get("role", "") or ""),
         )
 
 
@@ -214,13 +217,15 @@ class ControlPoint:
     type_id: str
     x: int
     y: int
+    role: str = ""
 
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
             "type_id": self.type_id,
             "x": self.x,
-            "y": self.y
+            "y": self.y,
+            "role": str(getattr(self, "role", "") or ""),
         }
 
     @staticmethod
@@ -228,11 +233,16 @@ class ControlPoint:
         # Migration for legacy simple name points?
         # If 'name' in data and 'type_id' not in data...
         # For now assume clean slate or migrated manually.
+        role = data.get("role")
+        if role is None and isinstance(data.get("name"), str):
+            # Legacy project variants may have stored semantic point names in `name`.
+            role = data.get("name")
         return ControlPoint(
             id=data.get("id", generate_id("pt")),
             type_id=data.get("type_id", "unknown"),
             x=data["x"],
-            y=data["y"]
+            y=data["y"],
+            role=str(role or ""),
         )
 
 
@@ -256,6 +266,36 @@ class Frame:
 
     def clone(self) -> "Frame":
         return Frame.from_dict(self.to_dict())
+
+    @staticmethod
+    def _norm_role(value: Optional[str]) -> str:
+        return str(value or "").strip().lower()
+
+    def find_collision_rect(self, role: str, type_id: Optional[str] = None) -> Optional[CollisionRect]:
+        """Find the first collision rect by semantic role (and optional type)."""
+        role_key = self._norm_role(role)
+        if not role_key:
+            return None
+        for cr in self.collision_rects:
+            if self._norm_role(getattr(cr, "role", "")) != role_key:
+                continue
+            if type_id is not None and cr.type_id != type_id:
+                continue
+            return cr
+        return None
+
+    def find_control_point(self, role: str, type_id: Optional[str] = None) -> Optional[ControlPoint]:
+        """Find the first control point by semantic role (and optional type)."""
+        role_key = self._norm_role(role)
+        if not role_key:
+            return None
+        for cp in self.control_points:
+            if self._norm_role(getattr(cp, "role", "")) != role_key:
+                continue
+            if type_id is not None and cp.type_id != type_id:
+                continue
+            return cp
+        return None
 
     @staticmethod
     def from_dict(data: Dict) -> "Frame":
@@ -2172,6 +2212,91 @@ class Project:
             frame.control_points = [cp for cp in frame.control_points if cp.type_id != type_id]
             removed += before - len(frame.control_points)
         return removed
+
+    @staticmethod
+    def _norm_role(value: Optional[str]) -> str:
+        return str(value or "").strip().lower()
+
+    def compile_animation_role_tables(self, animation_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Build dense per-frame lookup tables for semantic `type + role` identities.
+
+        Output tables contain control-point/collision indices into each frame list, or -1 when absent.
+        """
+        anim = self.get_animation(animation_id)
+        if not anim:
+            return None
+
+        point_roles: List[Tuple[str, str]] = []
+        collision_roles: List[Tuple[str, str]] = []
+        point_seen: set[Tuple[str, str]] = set()
+        collision_seen: set[Tuple[str, str]] = set()
+        point_idx_norm: Dict[Tuple[str, str], int] = {}
+        collision_idx_norm: Dict[Tuple[str, str], int] = {}
+
+        for af in anim.aframes:
+            frame = self.get_frame(af.frame_id)
+            if not frame:
+                continue
+            for cp in frame.control_points:
+                role_raw = str(getattr(cp, "role", "") or "").strip()
+                role_norm = self._norm_role(role_raw)
+                if not role_norm:
+                    continue
+                key_norm = (cp.type_id, role_norm)
+                if key_norm not in point_seen:
+                    point_seen.add(key_norm)
+                    point_idx_norm[key_norm] = len(point_roles)
+                    point_roles.append((cp.type_id, role_raw))
+            for cr in frame.collision_rects:
+                role_raw = str(getattr(cr, "role", "") or "").strip()
+                role_norm = self._norm_role(role_raw)
+                if not role_norm:
+                    continue
+                key_norm = (cr.type_id, role_norm)
+                if key_norm not in collision_seen:
+                    collision_seen.add(key_norm)
+                    collision_idx_norm[key_norm] = len(collision_roles)
+                    collision_roles.append((cr.type_id, role_raw))
+
+        point_table: List[List[int]] = []
+        collision_table: List[List[int]] = []
+        frame_ids: List[str] = []
+
+        for af in anim.aframes:
+            frame_ids.append(af.frame_id)
+            point_row = [-1] * len(point_roles)
+            collision_row = [-1] * len(collision_roles)
+
+            frame = self.get_frame(af.frame_id)
+            if frame:
+                for i, cp in enumerate(frame.control_points):
+                    role_norm = self._norm_role(str(getattr(cp, "role", "") or ""))
+                    if not role_norm:
+                        continue
+                    col = point_idx_norm.get((cp.type_id, role_norm))
+                    if col is not None and point_row[col] == -1:
+                        point_row[col] = i
+                for i, cr in enumerate(frame.collision_rects):
+                    role_norm = self._norm_role(str(getattr(cr, "role", "") or ""))
+                    if not role_norm:
+                        continue
+                    col = collision_idx_norm.get((cr.type_id, role_norm))
+                    if col is not None and collision_row[col] == -1:
+                        collision_row[col] = i
+
+            point_table.append(point_row)
+            collision_table.append(collision_row)
+
+        return {
+            "animation_id": anim.id,
+            "animation_name": anim.name,
+            "frame_ids": frame_ids,
+            "point_roles": [{"type_id": t, "role": r} for t, r in point_roles],
+            "collision_roles": [{"type_id": t, "role": r} for t, r in collision_roles],
+            "point_table": point_table,
+            "collision_table": collision_table,
+        }
 
 
     def to_dict(self, base_path: Optional[str] = None) -> Dict:
