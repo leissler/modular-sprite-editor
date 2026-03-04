@@ -92,3 +92,33 @@ def test_compile_animation_role_tables_uses_minus_one_for_missing_roles():
     # Row values are indices into frame.control_points / frame.collision_rects.
     assert tables["point_table"] == [[0], [-1]]
     assert tables["collision_table"] == [[0], [0]]
+
+
+def test_validate_role_uniqueness_reports_duplicates_per_frame():
+    project = Project(name="validator")
+    ptype = PointType(id=generate_id("ptype"), name="socket", color=(0, 255, 0))
+    ctype = CollisionType(id=generate_id("ctype"), name="hurtbox", color=(255, 0, 0))
+    project.point_types.append(ptype)
+    project.collision_types.append(ctype)
+
+    frame = Frame(id=generate_id("frm"), name="Pose")
+    frame.control_points = [
+        ControlPoint(id=generate_id("pt"), type_id=ptype.id, x=1, y=1, role="Left_Foot"),
+        ControlPoint(id=generate_id("pt"), type_id=ptype.id, x=2, y=2, role="left_foot"),
+    ]
+    frame.collision_rects = [
+        CollisionRect(id=generate_id("crect"), type_id=ctype.id, rect=(0, 0, 2, 2), role="torso_main"),
+        CollisionRect(id=generate_id("crect"), type_id=ctype.id, rect=(1, 1, 2, 2), role="TORSO_MAIN"),
+    ]
+    project.frames = [frame]
+
+    issues = project.validate_role_uniqueness()
+    assert len(issues) == 2
+
+    kinds = {issue["kind"] for issue in issues}
+    assert kinds == {"point", "collision"}
+
+    for issue in issues:
+        assert issue["frame_id"] == frame.id
+        assert issue["frame_name"] == frame.name
+        assert len(issue["item_ids"]) == 2

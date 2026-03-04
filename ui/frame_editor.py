@@ -681,6 +681,34 @@ class FrameEditorPanel(wx.Panel):
         self.PopupMenu(menu)
         menu.Destroy()
 
+    def _validate_roles(self) -> None:
+        issues = self.project.validate_role_uniqueness()
+        if not issues:
+            wx.MessageBox(
+                "No duplicate role keys found.\nEach frame has unique (type, role) pairs.",
+                "Role Validation",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+
+        lines = [
+            f"{len(issues)} duplicate role key(s) found:",
+            "",
+        ]
+        preview_limit = 20
+        for i, issue in enumerate(issues[:preview_limit], start=1):
+            lines.append(
+                f"{i}. [{issue.get('kind')}] frame='{issue.get('frame_name')}' "
+                f"type='{issue.get('type_id')}' role='{issue.get('role')}' "
+                f"count={len(issue.get('item_ids', []))}"
+            )
+        if len(issues) > preview_limit:
+            lines.append(f"... and {len(issues) - preview_limit} more.")
+        lines.append("")
+        lines.append("Tip: keep each (type, role) unique per frame for O(1) runtime lookup tables.")
+
+        wx.MessageBox("\n".join(lines), "Role Validation", wx.OK | wx.ICON_WARNING)
+
     def on_canvas_right_down(self, event: wx.MouseEvent):
         if self.canvas.edit_mode == "collision":
             self._show_collision_context_menu(event)
@@ -1196,6 +1224,9 @@ class FrameEditorPanel(wx.Panel):
         item_prop_p = menu.Append(wx.ID_ANY, "Propagate Control Points to ALL Frames")
         if not self._clipboard_pts: item_paste_p.Enable(False)
 
+        menu.AppendSeparator()
+        item_validate_roles = menu.Append(wx.ID_ANY, "Validate Roles (All Frames)")
+
         # Bind
         self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), item_dup)
         self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "x"), item_mirror_x)
@@ -1210,6 +1241,7 @@ class FrameEditorPanel(wx.Panel):
         self.Bind(wx.EVT_MENU, lambda e: self._copy_points(frame), item_copy_p)
         self.Bind(wx.EVT_MENU, lambda e: self._paste_points(), item_paste_p)
         self.Bind(wx.EVT_MENU, lambda e: self._propagate_points(frame), item_prop_p)
+        self.Bind(wx.EVT_MENU, lambda e: self._validate_roles(), item_validate_roles)
         
         self.PopupMenu(menu)
         menu.Destroy()

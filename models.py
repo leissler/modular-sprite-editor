@@ -2298,6 +2298,67 @@ class Project:
             "collision_table": collision_table,
         }
 
+    def validate_role_uniqueness(self, frame_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Validate that each frame has at most one item per `(type_id, role)` key.
+
+        Empty roles are ignored.
+        """
+        frames_to_check: List[Frame]
+        if frame_ids is None:
+            frames_to_check = list(self.frames)
+        else:
+            wanted = set(frame_ids)
+            frames_to_check = [f for f in self.frames if f.id in wanted]
+
+        issues: List[Dict[str, Any]] = []
+        for frame in frames_to_check:
+            point_buckets: Dict[Tuple[str, str], List[str]] = {}
+            for cp in frame.control_points:
+                role_raw = str(getattr(cp, "role", "") or "").strip()
+                role_norm = self._norm_role(role_raw)
+                if not role_norm:
+                    continue
+                point_buckets.setdefault((cp.type_id, role_norm), []).append(cp.id)
+
+            for (type_id, role_norm), ids in point_buckets.items():
+                if len(ids) <= 1:
+                    continue
+                issues.append(
+                    {
+                        "frame_id": frame.id,
+                        "frame_name": frame.name,
+                        "kind": "point",
+                        "type_id": type_id,
+                        "role": role_norm,
+                        "item_ids": ids,
+                    }
+                )
+
+            collision_buckets: Dict[Tuple[str, str], List[str]] = {}
+            for cr in frame.collision_rects:
+                role_raw = str(getattr(cr, "role", "") or "").strip()
+                role_norm = self._norm_role(role_raw)
+                if not role_norm:
+                    continue
+                collision_buckets.setdefault((cr.type_id, role_norm), []).append(cr.id)
+
+            for (type_id, role_norm), ids in collision_buckets.items():
+                if len(ids) <= 1:
+                    continue
+                issues.append(
+                    {
+                        "frame_id": frame.id,
+                        "frame_name": frame.name,
+                        "kind": "collision",
+                        "type_id": type_id,
+                        "role": role_norm,
+                        "item_ids": ids,
+                    }
+                )
+
+        return issues
+
 
     def to_dict(self, base_path: Optional[str] = None) -> Dict:
         # Helper to relativize paths if base_path is provided
