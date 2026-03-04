@@ -8,6 +8,9 @@ class PointManagerPanel(wx.Panel):
         super().__init__(parent)
         self.project = project
         self.on_change = on_change
+
+        if not self.project.point_types:
+            self.project.ensure_default_point_type()
         
         # State
         self.active_type_id: Optional[str] = None
@@ -15,12 +18,7 @@ class PointManagerPanel(wx.Panel):
         # Visibility mapping: type_id -> bool
         self.visibility: dict[str, bool] = {} 
         
-        # Initialize visibility for existing
-        for pt in self.project.point_types:
-            self.visibility[pt.id] = True
-            
-        if self.project.point_types:
-            self.active_type_id = self.project.point_types[0].id
+        self._sync_state_with_project()
             
         # Layout
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -52,7 +50,27 @@ class PointManagerPanel(wx.Panel):
         
         self.refresh_list()
 
+    def set_project(self, project: Project):
+        self.project = project
+        if not self.project.point_types:
+            self.project.ensure_default_point_type()
+        self._sync_state_with_project()
+        self.refresh_list()
+
+    def _sync_state_with_project(self) -> None:
+        valid_ids = {pt.id for pt in self.project.point_types}
+
+        self.visibility = {tid: vis for tid, vis in self.visibility.items() if tid in valid_ids}
+        for pt in self.project.point_types:
+            self.visibility.setdefault(pt.id, True)
+
+        if self.active_type_id not in valid_ids:
+            self.active_type_id = self.project.point_types[0].id if self.project.point_types else None
+        if self.editing_type_id not in valid_ids:
+            self.editing_type_id = None
+
     def refresh_list(self):
+        self._sync_state_with_project()
         self.list_sizer.Clear(True)
         
         for pt in self.project.point_types:
@@ -141,17 +159,21 @@ class PointManagerPanel(wx.Panel):
     def on_delete(self, event):
         if not self.active_type_id: return
         
-        # Confirm?
-        # Remove from project
-        self.project.point_types = [t for t in self.project.point_types if t.id != self.active_type_id]
-        if self.active_type_id in self.visibility:
-            del self.visibility[self.active_type_id]
-            
-        # Reset active
-        if self.project.point_types:
-            self.active_type_id = self.project.point_types[0].id
-        else:
-            self.active_type_id = None
+        delete_id = self.active_type_id
+        self.project.remove_point_type(delete_id)
+        self.visibility.pop(delete_id, None)
+
+        # Keep at least one type available to avoid empty-mode failures.
+        if not self.project.point_types:
+            default_type = self.project.ensure_default_point_type()
+            self.visibility[default_type.id] = True
+            wx.MessageBox(
+                "You deleted the last control point type. A default point type was created automatically.",
+                "Control Point Types",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+
+        self._sync_state_with_project()
             
         self.refresh_list()
         if self.on_change: self.on_change()

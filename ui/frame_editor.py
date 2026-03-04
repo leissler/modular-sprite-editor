@@ -1255,10 +1255,8 @@ class FrameEditorPanel(wx.Panel):
         parent.Layout()
         
         # Update Managers
-        self.col_manager.project = project 
-        self.col_manager.refresh_list()
-        self.point_manager.project = project 
-        self.point_manager.refresh_list()
+        self.col_manager.set_project(project)
+        self.point_manager.set_project(project)
         
         self.palette.refresh_modules()
         
@@ -1355,6 +1353,14 @@ class FrameEditorPanel(wx.Panel):
                  visible_map[ct.id] = ct.color
                  
         self.canvas.collision_type_colors = visible_map
+
+        if self.canvas.frame:
+            valid_ids = {cr.id for cr in self.canvas.frame.collision_rects}
+            self.canvas.selected_collision_rects = [cid for cid in self.canvas.selected_collision_rects if cid in valid_ids]
+            if self.canvas._col_drag_rect_id not in valid_ids:
+                self.canvas._col_drag_mode = "none"
+                self.canvas._col_drag_rect_id = None
+                self.canvas._col_drag_handle = -1
         self.canvas.Refresh()
 
     def on_point_type_change(self):
@@ -1364,6 +1370,13 @@ class FrameEditorPanel(wx.Panel):
              if self.point_manager.visibility.get(pt.id, True):
                  visible_map[pt.id] = pt.color
         self.canvas.point_type_colors = visible_map
+
+        if self.canvas.frame:
+            valid_ids = {cp.id for cp in self.canvas.frame.control_points}
+            self.canvas.selected_points = [pid for pid in self.canvas.selected_points if pid in valid_ids]
+            if self.canvas._pt_drag_id not in valid_ids:
+                self.canvas._pt_drag_mode = "none"
+                self.canvas._pt_drag_id = None
         self.canvas.Refresh()
 
     def on_toggle_show_col(self, event):

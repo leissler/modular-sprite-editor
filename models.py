@@ -2119,6 +2119,60 @@ class Project:
         self.animations.append(anim)
         return anim
 
+    def ensure_default_collision_type(self) -> CollisionType:
+        """Ensure at least one collision type exists and return it."""
+        if self.collision_types:
+            return self.collision_types[0]
+
+        default_type = CollisionType(
+            id=generate_id("ctype"),
+            name="Default",
+            color=(255, 0, 0),
+        )
+        self.collision_types.append(default_type)
+        return default_type
+
+    def ensure_default_point_type(self) -> PointType:
+        """Ensure at least one control-point type exists and return it."""
+        if self.point_types:
+            return self.point_types[0]
+
+        default_type = PointType(
+            id=generate_id("ptype"),
+            name="Default",
+            color=(0, 255, 0),
+        )
+        self.point_types.append(default_type)
+        return default_type
+
+    def remove_collision_type(self, type_id: str) -> int:
+        """
+        Remove a collision type and all frame collision rects using it.
+        Returns the number of removed collision rects.
+        """
+        self.collision_types = [ct for ct in self.collision_types if ct.id != type_id]
+
+        removed = 0
+        for frame in self.frames:
+            before = len(frame.collision_rects)
+            frame.collision_rects = [cr for cr in frame.collision_rects if cr.type_id != type_id]
+            removed += before - len(frame.collision_rects)
+        return removed
+
+    def remove_point_type(self, type_id: str) -> int:
+        """
+        Remove a point type and all frame control points using it.
+        Returns the number of removed control points.
+        """
+        self.point_types = [pt for pt in self.point_types if pt.id != type_id]
+
+        removed = 0
+        for frame in self.frames:
+            before = len(frame.control_points)
+            frame.control_points = [cp for cp in frame.control_points if cp.type_id != type_id]
+            removed += before - len(frame.control_points)
+        return removed
+
 
     def to_dict(self, base_path: Optional[str] = None) -> Dict:
         # Helper to relativize paths if base_path is provided

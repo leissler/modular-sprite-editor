@@ -692,7 +692,11 @@ class FrameCanvas(BaseCanvas):
              if self._col_drag_mode != "none":
                  was_modifying = True
              self._col_drag_mode = "none"
-             self.ReleaseMouse()
+             self._col_drag_rect_id = None
+             self._col_drag_handle = -1
+             self._drag_start_world = None
+             if self.HasCapture():
+                 self.ReleaseMouse()
              if was_modifying and self.on_modify_ended: self.on_modify_ended()
              return
 
@@ -700,7 +704,11 @@ class FrameCanvas(BaseCanvas):
              if self._pt_drag_mode != "none":
                  was_modifying = True
              self._pt_drag_mode = "none"
-             self.ReleaseMouse()
+             self._pt_drag_id = None
+             self._drag_start_world = None
+             self._drag_start_positions = {}
+             if self.HasCapture():
+                 self.ReleaseMouse()
              if was_modifying and self.on_modify_ended: self.on_modify_ended()
              return
 
@@ -1185,6 +1193,24 @@ class FrameCanvas(BaseCanvas):
             self.on_modify_ended()
 
     # --- Collision Logic ---
+    def _resolve_active_collision_type_id(self) -> Optional[str]:
+        if not self.project.collision_types:
+            self.active_collision_type_id = None
+            return None
+        valid_ids = {ct.id for ct in self.project.collision_types}
+        if self.active_collision_type_id not in valid_ids:
+            self.active_collision_type_id = self.project.collision_types[0].id
+        return self.active_collision_type_id
+
+    def _resolve_active_point_type_id(self) -> Optional[str]:
+        if not self.project.point_types:
+            self.active_point_type_id = None
+            return None
+        valid_ids = {pt.id for pt in self.project.point_types}
+        if self.active_point_type_id not in valid_ids:
+            self.active_point_type_id = self.project.point_types[0].id
+        return self.active_point_type_id
+
     def on_collision_left_down(self, event, pos_screen):
         pos_world = self.screen_to_world(pos_screen)
         # 1. Handle Resize?
@@ -1219,21 +1245,14 @@ class FrameCanvas(BaseCanvas):
              return
              
         # 3. Create
-        # Fallback: If no active type set, try to pick first one
-        if not self.active_collision_type_id and self.project.collision_types:
-             first_type = self.project.collision_types[0]
-             self.active_collision_type_id = first_type.id
-             # Ensure valid locally for rendering immediately
-             if first_type.id not in self.collision_type_colors:
-                 self.collision_type_colors[first_type.id] = first_type.color
-
-        if self.active_collision_type_id:
+        active_type_id = self._resolve_active_collision_type_id()
+        if active_type_id:
              if self.on_modify_started: self.on_modify_started()
              # Create new rect
              new_id = generate_id("crect")
              # Start with 0 size
              x, y = int(pos_world[0] - self.frame_offset[0]), int(pos_world[1] - self.frame_offset[1])
-             new_rect = CollisionRect(id=new_id, type_id=self.active_collision_type_id, rect=(x, y, 0, 0))
+             new_rect = CollisionRect(id=new_id, type_id=active_type_id, rect=(x, y, 0, 0))
              self.frame.collision_rects.append(new_rect)
              self.selected_collision_rects = [new_id]
              
@@ -1243,6 +1262,12 @@ class FrameCanvas(BaseCanvas):
              self._col_drag_start_rect = (x, y, 0, 0) 
              self._drag_start_world = pos_world
              self.CaptureMouse()
+             self.Refresh(False)
+        else:
+             self.selected_collision_rects = []
+             self._col_drag_mode = "none"
+             self._col_drag_rect_id = None
+             self._drag_start_world = None
              self.Refresh(False)
              
     def _handle_collision_drag(self, pos_screen, pos_world):
@@ -1385,7 +1410,8 @@ class FrameCanvas(BaseCanvas):
                 self.Refresh()
         else:
             # CREATION MODE (Shift held)
-            if self.active_point_type_id:
+            active_type_id = self._resolve_active_point_type_id()
+            if active_type_id:
                 if self.on_modify_started: self.on_modify_started()
                 wx, wy = pos_world
                 # Usage of math.floor ensures consistent Top-Left behavior 
@@ -1395,7 +1421,7 @@ class FrameCanvas(BaseCanvas):
                      
                 new_cp = ControlPoint(
                     id=generate_id("pt"),
-                    type_id=self.active_point_type_id,
+                    type_id=active_type_id,
                     x=wx,
                     y=wy
                 )
@@ -1412,6 +1438,10 @@ class FrameCanvas(BaseCanvas):
                 self.Refresh()
             else:
                 self.selected_points = []
+                self._pt_drag_mode = "none"
+                self._pt_drag_id = None
+                self._drag_start_world = None
+                self._drag_start_positions = {}
                 self.Refresh()
 
     def _handle_point_drag(self, pos_screen):
