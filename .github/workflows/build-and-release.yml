@@ -1,0 +1,92 @@
+name: Build And Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag (example: 0.2)"
+        required: true
+        default: "0.2"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        run: |
+          python -m PyInstaller --clean --noconfirm --distpath dist/mac --workpath build/mac build_mac.spec
+          if [ -d "dist/mac/ModularSpriteEditor" ]; then
+            rm -rf dist/mac/ModularSpriteEditor
+          fi
+          cd dist/mac
+          ditto -c -k --sequesterRsrc --keepParent ModularSpriteEditor.app ModularSpriteEditor-macos.zip
+
+      - name: Build Windows exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean --noconfirm --distpath dist/windows --workpath build/windows build_windows.spec
+          Compress-Archive -Path "dist/windows/ModularSpriteEditor.exe" -DestinationPath "dist/windows/ModularSpriteEditor-windows.zip" -Force
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ModularSpriteEditor-macos
+          path: dist/mac/ModularSpriteEditor-macos.zip
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ModularSpriteEditor-windows
+          path: dist/windows/ModularSpriteEditor-windows.zip
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Show assets
+        run: find release-assets -maxdepth 3 -type f -print
+
+      - name: Create/Update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: ${{ github.event.inputs.version }}
+          generate_release_notes: true
+          overwrite_files: true
+          files: |
+            release-assets/ModularSpriteEditor-macos/ModularSpriteEditor-macos.zip
+            release-assets/ModularSpriteEditor-windows/ModularSpriteEditor-windows.zip
