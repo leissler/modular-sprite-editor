@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Optional, List, Tuple
 import copy
 import wx
@@ -379,6 +380,7 @@ class FrameEditorPanel(wx.Panel):
         frame_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add = wx.Button(left_panel, label="+", size=(30,-1))
         self.btn_del = wx.Button(left_panel, label="-", size=(30,-1))
+        self.btn_role_tools = wx.Button(left_panel, label="Role Tools")
         
         # Mode Selection
         self.mode_choices = ["Modules", "Collision", "Points"]
@@ -388,6 +390,7 @@ class FrameEditorPanel(wx.Panel):
         frame_btns.Add(self.btn_add, 0)
         frame_btns.Add(self.btn_del, 0)
         frame_btns.Add(self.choice_mode, 1, wx.LEFT, 5)
+        frame_btns.Add(self.btn_role_tools, 0, wx.LEFT, 5)
         
         left_sizer.Add(frame_btns, 0, wx.EXPAND | wx.ALL, 5)
         
@@ -443,6 +446,7 @@ class FrameEditorPanel(wx.Panel):
         self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_frame_list_context_menu, self.frame_list)
         self.Bind(wx.EVT_BUTTON, self.on_add_frame, self.btn_add)
         self.Bind(wx.EVT_BUTTON, self.on_delete_frame, self.btn_del)
+        self.Bind(wx.EVT_BUTTON, self.on_role_tools_menu, self.btn_role_tools)
         self.Bind(wx.EVT_CHOICE, self.on_mode_change, self.choice_mode)
         self.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_col, self.chk_show_col)
         self.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_pts, self.chk_show_pts)
@@ -708,6 +712,80 @@ class FrameEditorPanel(wx.Panel):
         lines.append("Tip: keep each (type, role) unique per frame for O(1) runtime lookup tables.")
 
         wx.MessageBox("\n".join(lines), "Role Validation", wx.OK | wx.ICON_WARNING)
+
+    def _show_readonly_text_dialog(self, title: str, text: str) -> None:
+        dlg = wx.Dialog(self, title=title, size=(920, 640))
+        try:
+            sizer = wx.BoxSizer(wx.VERTICAL)
+            txt = wx.TextCtrl(
+                dlg,
+                value=text,
+                style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL,
+            )
+            txt.SetFont(wx.Font(wx.FontInfo(9).Family(wx.FONTFAMILY_TELETYPE)))
+            sizer.Add(txt, 1, wx.EXPAND | wx.ALL, 8)
+            btns = dlg.CreateSeparatedButtonSizer(wx.OK)
+            if btns:
+                sizer.Add(btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+            dlg.SetSizer(sizer)
+            dlg.Layout()
+            dlg.ShowModal()
+        finally:
+            dlg.Destroy()
+
+    def _inspect_compiled_role_tables(self) -> None:
+        if not self.project.animations:
+            wx.MessageBox("No animations available.", "Role Table Inspection", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        selected_anim = None
+        if len(self.project.animations) == 1:
+            selected_anim = self.project.animations[0]
+        else:
+            choices = [
+                f"{anim.name} [{anim.id}] ({len(anim.aframes)} frames)"
+                for anim in self.project.animations
+            ]
+            dlg = wx.SingleChoiceDialog(
+                self,
+                "Choose an animation to compile role tables for inspection.",
+                "Inspect Role Tables",
+                choices,
+            )
+            try:
+                if dlg.ShowModal() != wx.ID_OK:
+                    return
+                idx = dlg.GetSelection()
+            finally:
+                dlg.Destroy()
+            if idx < 0 or idx >= len(self.project.animations):
+                return
+            selected_anim = self.project.animations[idx]
+
+        tables = self.project.compile_animation_role_tables(selected_anim.id)
+        if tables is None:
+            wx.MessageBox("Failed to compile role tables for selected animation.", "Role Table Inspection", wx.OK | wx.ICON_WARNING)
+            return
+
+        payload = {
+            "animation_name": selected_anim.name,
+            "animation_id": selected_anim.id,
+            "tables": tables,
+        }
+        self._show_readonly_text_dialog(
+            f"Role Tables: {selected_anim.name}",
+            json.dumps(payload, indent=2),
+        )
+
+    def on_role_tools_menu(self, event: wx.CommandEvent) -> None:
+        menu = wx.Menu()
+        item_validate_roles = menu.Append(wx.ID_ANY, "Validate Roles (All Frames)")
+        item_inspect_tables = menu.Append(wx.ID_ANY, "Inspect Compiled Role Tables...")
+
+        self.Bind(wx.EVT_MENU, lambda e: self._validate_roles(), item_validate_roles)
+        self.Bind(wx.EVT_MENU, lambda e: self._inspect_compiled_role_tables(), item_inspect_tables)
+        self.btn_role_tools.PopupMenu(menu)
+        menu.Destroy()
 
     def on_canvas_right_down(self, event: wx.MouseEvent):
         if self.canvas.edit_mode == "collision":
@@ -1224,9 +1302,6 @@ class FrameEditorPanel(wx.Panel):
         item_prop_p = menu.Append(wx.ID_ANY, "Propagate Control Points to ALL Frames")
         if not self._clipboard_pts: item_paste_p.Enable(False)
 
-        menu.AppendSeparator()
-        item_validate_roles = menu.Append(wx.ID_ANY, "Validate Roles (All Frames)")
-
         # Bind
         self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), item_dup)
         self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "x"), item_mirror_x)
@@ -1241,7 +1316,6 @@ class FrameEditorPanel(wx.Panel):
         self.Bind(wx.EVT_MENU, lambda e: self._copy_points(frame), item_copy_p)
         self.Bind(wx.EVT_MENU, lambda e: self._paste_points(), item_paste_p)
         self.Bind(wx.EVT_MENU, lambda e: self._propagate_points(frame), item_prop_p)
-        self.Bind(wx.EVT_MENU, lambda e: self._validate_roles(), item_validate_roles)
         
         self.PopupMenu(menu)
         menu.Destroy()
