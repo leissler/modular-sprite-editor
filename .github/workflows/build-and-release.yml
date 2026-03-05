@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }}, py${{ matrix.python-version }})
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -24,13 +24,14 @@ jobs:
           - os: windows-latest
             python-version: "3.11"
           - os: ubuntu-latest
-            python-version: "3.10"
+            python-version: ""
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
+        if: runner.os != 'Linux'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -40,6 +41,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            python3-pip \
+            python3-wxgtk4.0 \
             libgtk-3-dev \
             libnotify-dev \
             libsdl2-dev \
@@ -53,9 +56,16 @@ jobs:
             libgstreamer-plugins-base1.0-dev
 
       - name: Install dependencies
+        if: runner.os != 'Linux'
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+
+      - name: Install Linux Python dependencies
+        if: runner.os == 'Linux'
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install Pillow pyinstaller
 
       - name: Build macOS app
         if: runner.os == 'macOS'
@@ -77,7 +87,7 @@ jobs:
       - name: Build Linux binary
         if: runner.os == 'Linux'
         run: |
-          python -m PyInstaller --clean --noconfirm --distpath dist/linux --workpath build/linux build_linux.spec
+          python3 -m PyInstaller --clean --noconfirm --distpath dist/linux --workpath build/linux build_linux.spec
           cd dist/linux
           if [ -f "ModularSpriteEditor" ]; then
             tar -czf ModularSpriteEditor-linux.tar.gz ModularSpriteEditor
