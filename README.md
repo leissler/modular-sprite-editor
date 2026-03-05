@@ -71,6 +71,20 @@ Construct complex character animations from individual body parts (modules). Def
     python app.py
     ```
 
+### Build Executables
+```bash
+# macOS
+./build_macos.sh
+
+# Linux
+./build_linux.sh
+```
+
+```bat
+REM Windows
+build_windows.bat
+```
+
 ---
 
 ## ⌨️ Controls

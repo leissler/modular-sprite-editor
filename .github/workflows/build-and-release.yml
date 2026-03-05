@@ -21,6 +21,7 @@ jobs:
         os:
           - macos-latest
           - windows-latest
+          - ubuntu-latest
 
     steps:
       - name: Checkout
@@ -30,6 +31,23 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libnotify-dev \
+            libsdl2-dev \
+            libsm-dev \
+            libxtst-dev \
+            libxrender-dev \
+            libxext-dev \
+            libjpeg-dev \
+            libtiff-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev
 
       - name: Install dependencies
         run: |
@@ -53,6 +71,20 @@ jobs:
           python -m PyInstaller --clean --noconfirm --distpath dist/windows --workpath build/windows build_windows.spec
           Compress-Archive -Path "dist/windows/ModularSpriteEditor.exe" -DestinationPath "dist/windows/ModularSpriteEditor-windows.zip" -Force
 
+      - name: Build Linux binary
+        if: runner.os == 'Linux'
+        run: |
+          python -m PyInstaller --clean --noconfirm --distpath dist/linux --workpath build/linux build_linux.spec
+          cd dist/linux
+          if [ -f "ModularSpriteEditor" ]; then
+            tar -czf ModularSpriteEditor-linux.tar.gz ModularSpriteEditor
+          elif [ -d "ModularSpriteEditor" ]; then
+            tar -czf ModularSpriteEditor-linux.tar.gz ModularSpriteEditor
+          else
+            echo "Linux build output not found"
+            exit 1
+          fi
+
       - name: Upload macOS artifact
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
@@ -66,6 +98,13 @@ jobs:
         with:
           name: ModularSpriteEditor-windows
           path: dist/windows/ModularSpriteEditor-windows.zip
+
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ModularSpriteEditor-linux
+          path: dist/linux/ModularSpriteEditor-linux.tar.gz
 
   release:
     name: Publish Release
@@ -90,3 +129,4 @@ jobs:
           files: |
             release-assets/ModularSpriteEditor-macos/ModularSpriteEditor-macos.zip
             release-assets/ModularSpriteEditor-windows/ModularSpriteEditor-windows.zip
+            release-assets/ModularSpriteEditor-linux/ModularSpriteEditor-linux.tar.gz
