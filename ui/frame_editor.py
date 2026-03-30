@@ -10,6 +10,7 @@ import wx
 from models import Project, Frame, generate_id
 from optimization import optimize_nested_frame_combos
 from ui.canvas import FrameCanvas
+from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.collision_manager import CollisionManagerPanel
 from ui.point_manager import PointManagerPanel
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
@@ -431,6 +432,8 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.on_create_frame_needed = self.on_auto_create_frame
         
         canvas_sizer.Add(self.canvas, 1, wx.EXPAND)
+        self.canvas_controls = CanvasDisplayControls(right_panel, self.canvas, show_transparency=True)
+        canvas_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.TOP, 4)
         right_panel.SetSizer(canvas_sizer)
         
         # Split

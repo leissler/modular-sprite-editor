@@ -13,6 +13,7 @@ from typing import Optional, Tuple
 
 from models import AFrame, Animation, Project, generate_id
 from ui.canvas import AnimationCanvas
+from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.timeline_control import TimelineControl
 from ui.components.frame_palette import FramePalette
 from ui.undo_manager import UndoManager
@@ -160,6 +161,8 @@ class AnimationEditorPanel(wx.Panel):
         # Removed btn_remove_frame button
 
         right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
+        self.canvas_controls = CanvasDisplayControls(self.right_panel, self.canvas, show_transparency=True)
+        right_sizer.Add(self.canvas_controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         right_sizer.Add(bottom_sizer, 0, wx.EXPAND | wx.ALL, 4)
         self.right_panel.SetSizer(right_sizer)
         

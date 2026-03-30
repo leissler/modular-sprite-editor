@@ -20,6 +20,7 @@ class BaseCanvas(wx.Panel):
         self.pan: Tuple[float, float] = (0, 0)
         self.grid_spacing: Tuple[int, int] = (32, 32)
         self.show_grid: bool = True
+        self.show_transparency: bool = True
         self.max_zoom: float = 32.0
         
         # Internal Interaction State
@@ -71,6 +72,10 @@ class BaseCanvas(wx.Panel):
 
     def set_show_grid(self, show: bool) -> None:
         self.show_grid = show
+        self.Refresh(False)
+
+    def set_show_transparency(self, show: bool) -> None:
+        self.show_transparency = show
         self.Refresh(False)
 
     # --- Drawing Helpers ---

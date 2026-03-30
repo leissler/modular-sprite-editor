@@ -13,6 +13,7 @@ import wx
 from models import ImageAsset, Module, Project, generate_id
 from ui.auto_modularize_dialog import AutoModularizeDialog
 from optimization import run_auto_modularization
+from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.utils import load_wx_image_safely, load_wx_bitmap_safely
 
 
@@ -388,7 +389,7 @@ class ModuleCanvas(BaseCanvas):
     def on_paint(self, _: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
-        if self.transparent_view:
+        if self.show_transparency:
             self._draw_checkerboard(dc)
         gc = wx.GraphicsContext.Create(dc)
         
@@ -664,7 +665,7 @@ class ModuleCanvas(BaseCanvas):
 
     def set_transparent_view(self, enable: bool) -> None:
         self.transparent_view = enable
-        self.Refresh(False)
+        self.set_show_transparency(enable)
 
     def _is_over_pivot(self, world: Tuple[float, float]) -> bool:
         if not self.pivot:
@@ -879,21 +880,17 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas = ModuleCanvas(self.right_panel)
         canvas_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
         
-        # Compact view grid controls
-        controls = wx.BoxSizer(wx.HORIZONTAL)
-        controls.Add(wx.StaticText(self.right_panel, label="Grid X"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.grid_w = wx.SpinCtrl(self.right_panel, min=4, max=512, initial=32)
-        controls.Add(self.grid_w, 0, wx.RIGHT, 8)
-        controls.Add(wx.StaticText(self.right_panel, label="Grid Y"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.grid_h = wx.SpinCtrl(self.right_panel, min=4, max=512, initial=32)
-        controls.Add(self.grid_h, 0, wx.RIGHT, 12)
-        self.chk_grid = wx.CheckBox(self.right_panel, label="Show Grid")
-        self.chk_grid.SetValue(True)
-        controls.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.chk_trans_view = wx.CheckBox(self.right_panel, label="Transparency")
-        self.chk_trans_view.SetValue(True)
-        controls.Add(self.chk_trans_view, 0, wx.ALIGN_CENTER_VERTICAL)
-        canvas_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        self.canvas_controls = CanvasDisplayControls(
+            self.right_panel,
+            self.canvas,
+            show_transparency=True,
+            on_transparency_changed=self._on_canvas_transparency_changed,
+        )
+        self.grid_w = self.canvas_controls.grid_w
+        self.grid_h = self.canvas_controls.grid_h
+        self.chk_grid = self.canvas_controls.chk_grid
+        self.chk_trans_view = self.canvas_controls.chk_transparency
+        canvas_sizer.Add(self.canvas_controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         
         # Status labels
         status_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -934,10 +931,6 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.on_deselect = self.on_canvas_deselect
         self.canvas.on_edit_end = self._autosave_current_module
         self.canvas.on_delete = self.on_delete_module
-        self.chk_grid.Bind(wx.EVT_CHECKBOX, self.on_toggle_grid)
-        self.grid_w.Bind(wx.EVT_SPINCTRL, self.on_change_grid_spacing)
-        self.grid_h.Bind(wx.EVT_SPINCTRL, self.on_change_grid_spacing)
-        self.chk_trans_view.Bind(wx.EVT_CHECKBOX, self.on_toggle_trans_view)
         self.btn_pick_from_image.Bind(wx.EVT_BUTTON, self.on_pick_from_image)
         self._view_states: dict[str, Tuple[Tuple[float, float], float]] = {}
         self._bitmap_cache_transparent: dict[str, wx.Bitmap] = {}
@@ -946,8 +939,7 @@ class ModuleEditorPanel(wx.Panel):
         self._suppress_module_events: bool = False
         self._modules_view: list[Module] = []
         self._last_canvas_selection: Optional[str] = None
-        # Initialize visual grid spacing from controls
-        self.on_change_grid_spacing(wx.CommandEvent())
+        self.canvas_controls.set_transparency_value(self.transparent_view)
 
     # Image handling
     def _import_single_image_asset(self, path: str) -> Optional[ImageAsset]:
@@ -2002,12 +1994,12 @@ class ModuleEditorPanel(wx.Panel):
         return tbmp
 
     def _update_transparency_controls(self, asset: ImageAsset) -> None:
-        if not getattr(self, "trans_swatch", None) or not getattr(self, "chk_trans_view", None):
+        if not getattr(self, "trans_swatch", None) or not getattr(self, "canvas_controls", None):
             return
         color = asset.transparent_color or (0, 0, 0)
         self.trans_swatch.SetBackgroundColour(wx.Colour(*color))
         self.trans_swatch.Refresh()
-        self.chk_trans_view.SetValue(self.transparent_view)
+        self.canvas_controls.set_transparency_value(self.transparent_view)
 
     def on_pick_transparent_color(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:
@@ -2029,8 +2021,13 @@ class ModuleEditorPanel(wx.Panel):
                 self.canvas.set_bitmap(display_bmp, (asset.width, asset.height), reset_state=False)
                 self.canvas.set_transparent_view(self.transparent_view)
 
-    def on_toggle_trans_view(self, event: wx.CommandEvent) -> None:
-        self.transparent_view = event.IsChecked()
+    def _on_canvas_transparency_changed(self, enabled: bool) -> None:
+        self._apply_transparency_toggle(enabled, sync_controls=False)
+
+    def _apply_transparency_toggle(self, enabled: bool, sync_controls: bool = True) -> None:
+        self.transparent_view = bool(enabled)
+        if sync_controls and getattr(self, "canvas_controls", None):
+            self.canvas_controls.set_transparency_value(self.transparent_view)
         self.canvas.set_transparent_view(self.transparent_view)
         if not self.selected_image_id:
             return
@@ -2042,6 +2039,9 @@ class ModuleEditorPanel(wx.Panel):
             self.canvas.set_bitmap(disp, (asset.width, asset.height), reset_state=False)
             self._rebuild_overlays()
             self.canvas.Refresh(False)
+
+    def on_toggle_trans_view(self, event: wx.CommandEvent) -> None:
+        self._apply_transparency_toggle(event.IsChecked())
 
     def on_pick_from_image(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:

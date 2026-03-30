@@ -149,7 +149,7 @@ class FrameCanvas(BaseCanvas):
     def on_paint(self, event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
-        if self.show_grid:
+        if self.show_transparency:
             self._draw_checkerboard(dc)
             
         gc = wx.GraphicsContext.Create(dc)
@@ -969,7 +969,7 @@ class FrameCanvas(BaseCanvas):
         if img.GetWidth() != target_w or img.GetHeight() != target_h:
             img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
 
-        if mod.type == "MD_IMAGE":
+        if mod.type == "MD_IMAGE" and self.show_transparency:
             asset = self.project.get_image(mod.image_id)
             if asset and asset.transparent_color:
                 tr, tg, tb = asset.transparent_color
@@ -1131,7 +1131,12 @@ class FrameCanvas(BaseCanvas):
     def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
         # Robust Key Generation
         if mod.type == "MD_IMAGE":
-            key = f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
+            asset = self.project.get_image(mod.image_id)
+            transparent_color = asset.transparent_color if asset else None
+            key = (
+                f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
+                f"_{self.show_transparency}_{transparent_color}"
+            )
         else:
             # For shapes, include visual properties in key
             key = f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
@@ -1140,14 +1145,13 @@ class FrameCanvas(BaseCanvas):
             return self._bitmap_cache[key]
             
         if mod.type == "MD_IMAGE":
-            asset = self.project.get_image(mod.image_id)
             if not asset:
                 return None
                 
             try:
                 # Load full image (cached? We'll rely on FS cache for now or add one later if slow)
                 full_img = load_wx_image_safely(asset.file_path)
-                if asset.transparent_color:
+                if self.show_transparency and asset.transparent_color:
                     full_img.SetMaskColour(*asset.transparent_color)
                     
                 rx, ry, rw, rh = mod.rect
