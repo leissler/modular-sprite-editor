@@ -10,6 +10,7 @@ import wx
 from models import (
     FModule,
     TIMELINE_EASINGS,
+    TIMELINE_PATH_MODES,
     TIMELINE_SOURCE_TYPES,
     TimelineKeyframe,
     TimelineObject,
@@ -125,9 +126,15 @@ class TimelineCanvas(FrameCanvas):
         self.scene: Optional[TimelineScene] = None
         self.current_time: float = 0.0
         self.selected_object_id: Optional[str] = None
+        self.selected_key_id: Optional[str] = None
         self.on_select_object: Optional[Callable[[str], None]] = None
+        self.on_select_key: Optional[Callable[[str, str], None]] = None
         self.on_begin_drag_object: Optional[Callable[[str], None]] = None
         self.on_drag_object: Optional[Callable[[str, float, float], None]] = None
+        self.on_begin_drag_keyframe: Optional[Callable[[str, str], None]] = None
+        self.on_drag_keyframe: Optional[Callable[[str, str, float, float], None]] = None
+        self.on_begin_drag_key_handle: Optional[Callable[[str, str, str, float, float], None]] = None
+        self.on_drag_key_handle: Optional[Callable[[str, str, str, float, float], None]] = None
         self.on_flip_object_x: Optional[Callable[[str], None]] = None
         self.on_flip_object_y: Optional[Callable[[str], None]] = None
         self.on_rotate_object_90_cw: Optional[Callable[[str], None]] = None
@@ -140,9 +147,24 @@ class TimelineCanvas(FrameCanvas):
         self.show_points = False
         self.selected_fmodules = []
         self._drawn_objects: List[Dict[str, Any]] = []
+        self._drawn_key_markers: List[Dict[str, Any]] = []
+        self._drawn_path_handles: List[Dict[str, Any]] = []
         self._drag_object_id: Optional[str] = None
         self._drag_parent_matrix: Tuple[float, float, float, float, float, float] = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
         self._drag_start_world: Optional[Tuple[float, float]] = None
+        self._drag_key_object_id: Optional[str] = None
+        self._drag_key_id: Optional[str] = None
+        self._drag_key_parent_matrix: Tuple[float, float, float, float, float, float] = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        self._drag_key_start_world: Optional[Tuple[float, float]] = None
+        self._drag_handle_object_id: Optional[str] = None
+        self._drag_handle_key_id: Optional[str] = None
+        self._drag_handle_kind: Optional[str] = None
+        self._drag_handle_parent_matrix: Tuple[float, float, float, float, float, float] = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        self._drag_handle_start_world: Optional[Tuple[float, float]] = None
+        self._key_marker_radius = 4
+        self._key_marker_hit_radius = 8
+        self._path_handle_radius = 4
+        self._path_handle_hit_radius = 8
         self._last_hit_cycle_key: Optional[Tuple[int, int, Tuple[str, ...]]] = None
         self._last_hit_cycle_idx: int = -1
 
@@ -171,6 +193,10 @@ class TimelineCanvas(FrameCanvas):
 
     def set_selected_object(self, object_id: Optional[str]) -> None:
         self.selected_object_id = object_id
+        self.Refresh(False)
+
+    def set_selected_key(self, key_id: Optional[str]) -> None:
+        self.selected_key_id = key_id
         self.Refresh(False)
 
     def _build_local_matrix(self, state: Dict[str, Any]) -> Tuple[float, float, float, float, float, float]:
@@ -384,6 +410,140 @@ class TimelineCanvas(FrameCanvas):
             self._last_hit_cycle_idx = 0
         return hits[len(hits) - 1 - self._last_hit_cycle_idx]
 
+    def _hit_test_key_marker(self, pos: wx.Point) -> Optional[Dict[str, Any]]:
+        hits: List[Tuple[float, Dict[str, Any]]] = []
+        hit_r2 = float(self._key_marker_hit_radius * self._key_marker_hit_radius)
+        for marker in self._drawn_key_markers:
+            mx, my = marker["screen_pos"]
+            dx = float(pos.x) - float(mx)
+            dy = float(pos.y) - float(my)
+            d2 = dx * dx + dy * dy
+            if d2 <= hit_r2:
+                hits.append((d2, marker))
+        if not hits:
+            return None
+        hits.sort(key=lambda item: (0 if item[1]["key_id"] == self.selected_key_id else 1, item[0]))
+        return hits[0][1]
+
+    def _hit_test_path_handle(self, pos: wx.Point) -> Optional[Dict[str, Any]]:
+        hits: List[Tuple[float, Dict[str, Any]]] = []
+        hit_r2 = float(self._path_handle_hit_radius * self._path_handle_hit_radius)
+        for handle in self._drawn_path_handles:
+            hx, hy = handle["screen_pos"]
+            dx = float(pos.x) - float(hx)
+            dy = float(pos.y) - float(hy)
+            d2 = dx * dx + dy * dy
+            if d2 <= hit_r2:
+                hits.append((d2, handle))
+        if not hits:
+            return None
+        hits.sort(
+            key=lambda item: (
+                0 if item[1]["key_id"] == self.selected_key_id else 1,
+                0 if item[1]["explicit"] else 1,
+                item[0],
+            )
+        )
+        return hits[0][1]
+
+    def _auto_tangent_handles_for_key(
+        self, keys: List[TimelineKeyframe], index: int
+    ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
+        if index < 0 or index >= len(keys):
+            return (None, None)
+        if len(keys) <= 1:
+            return (None, None)
+        key = keys[index]
+        px, py = float(key.x), float(key.y)
+
+        if 0 < index < len(keys) - 1:
+            prev_key = keys[index - 1]
+            next_key = keys[index + 1]
+            tx = (float(next_key.x) - float(prev_key.x)) / 6.0
+            ty = (float(next_key.y) - float(prev_key.y)) / 6.0
+            return ((px - tx, py - ty), (px + tx, py + ty))
+
+        if index == 0 and len(keys) >= 2:
+            next_key = keys[1]
+            return (
+                None,
+                (
+                    px + (float(next_key.x) - px) / 3.0,
+                    py + (float(next_key.y) - py) / 3.0,
+                ),
+            )
+
+        prev_key = keys[-2]
+        return (
+            (
+                px - (px - float(prev_key.x)) / 3.0,
+                py - (py - float(prev_key.y)) / 3.0,
+            ),
+            None,
+        )
+
+    def _sample_object_world_position(
+        self,
+        obj: TimelineObject,
+        time_value: float,
+        sample_cache: Optional[Dict[float, Optional[Tuple[Tuple[float, float], Tuple[float, float, float, float, float, float]]]]] = None,
+    ) -> Optional[Tuple[float, float]]:
+        sampled = self._sample_object_world_and_parent_matrix(obj, time_value, sample_cache)
+        if sampled is None:
+            return None
+        return sampled[0]
+
+    def _sample_object_world_and_parent_matrix(
+        self,
+        obj: TimelineObject,
+        time_value: float,
+        sample_cache: Optional[Dict[float, Optional[Tuple[Tuple[float, float], Tuple[float, float, float, float, float, float]]]]] = None,
+    ) -> Optional[Tuple[Tuple[float, float], Tuple[float, float, float, float, float, float]]]:
+        if not self.scene:
+            return None
+        time_key = round(float(time_value), 6)
+        if sample_cache is not None and time_key in sample_cache:
+            return sample_cache[time_key]
+
+        scene = self.scene
+        identity = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        state_cache: Dict[str, Optional[Dict[str, Any]]] = {}
+        world_cache: Dict[str, Tuple[float, float, float, float, float, float]] = {}
+
+        def sample_state(object_id: str) -> Optional[Dict[str, Any]]:
+            if object_id not in state_cache:
+                state_cache[object_id] = scene.evaluate_object_state(self.project, object_id, float(time_key))
+            return state_cache[object_id]
+
+        def sample_world(object_id: str) -> Tuple[float, float, float, float, float, float]:
+            if object_id in world_cache:
+                return world_cache[object_id]
+            current_obj = scene.get_object(object_id)
+            current_state = sample_state(object_id)
+            if current_obj is None or current_state is None:
+                world_cache[object_id] = identity
+                return identity
+            parent_id = current_obj.parent_id
+            if parent_id and scene.get_object(parent_id):
+                parent_world = sample_world(parent_id)
+            else:
+                parent_world = identity
+            world = self._compose_matrix(parent_world, self._build_local_matrix(current_state))
+            world_cache[object_id] = world
+            return world
+
+        state = sample_state(obj.id)
+        if state is None:
+            if sample_cache is not None:
+                sample_cache[time_key] = None
+            return None
+        parent_id = obj.parent_id
+        parent_world = sample_world(parent_id) if parent_id and scene.get_object(parent_id) else identity
+        result = (self._apply_matrix(parent_world, float(state["x"]), float(state["y"])), parent_world)
+        if sample_cache is not None:
+            sample_cache[time_key] = result
+        return result
+
     def _draw_state_recursive(
         self,
         gc: wx.GraphicsContext,
@@ -405,37 +565,137 @@ class TimelineCanvas(FrameCanvas):
             self._draw_state_recursive(gc, state_map, children_map, child_id, world_matrix)
 
     def _draw_path_for_selected(self, gc: wx.GraphicsContext) -> None:
+        self._drawn_key_markers = []
+        self._drawn_path_handles = []
         if not self.scene or not self.selected_object_id:
             return
         obj = self.scene.get_object(self.selected_object_id)
         if not obj:
             return
+
+        keys = obj.sorted_keyframes()
+        sample_cache: Dict[
+            float,
+            Optional[Tuple[Tuple[float, float], Tuple[float, float, float, float, float, float]]],
+        ] = {}
         points: List[Tuple[float, float]] = []
-        sample_count = max(1, self.scene.duration_in_frames())
-        frame_step = 1.0 / float(max(1, self.scene.fps))
-        for step in range(sample_count + 1):
-            sample_time = min(float(self.scene.duration_seconds), float(step) * frame_step)
-            state = self.scene.evaluate_object_state(self.project, obj.id, sample_time)
-            if state is None:
-                continue
-            points.append((float(state["x"]), float(state["y"])))
-        if len(points) < 2:
-            return
+        if len(keys) >= 2:
+            for idx in range(len(keys) - 1):
+                start_t = float(keys[idx].time)
+                end_t = float(keys[idx + 1].time)
+                span = end_t - start_t
+                if span <= 1e-9:
+                    continue
+
+                probe_count = 6
+                probe_screen: List[Tuple[float, float]] = []
+                for probe_idx in range(probe_count + 1):
+                    ratio = float(probe_idx) / float(probe_count)
+                    probe_t = start_t + span * ratio
+                    pos = self._sample_object_world_position(obj, probe_t, sample_cache)
+                    if pos is None:
+                        continue
+                    probe_screen.append(self.world_to_screen(pos))
+
+                length_px = 0.0
+                for probe_idx in range(1, len(probe_screen)):
+                    dx = float(probe_screen[probe_idx][0]) - float(probe_screen[probe_idx - 1][0])
+                    dy = float(probe_screen[probe_idx][1]) - float(probe_screen[probe_idx - 1][1])
+                    length_px += math.hypot(dx, dy)
+
+                time_based = int(math.ceil(span * float(max(1, self.scene.fps)) * 1.5))
+                distance_based = int(math.ceil(length_px / 8.0))
+                segments = max(2, time_based, distance_based)
+                segments = max(2, min(120, segments))
+
+                for seg_idx in range(segments + 1):
+                    if idx > 0 and seg_idx == 0:
+                        continue
+                    ratio = float(seg_idx) / float(segments)
+                    sample_t = start_t + span * ratio
+                    pos = self._sample_object_world_position(obj, sample_t, sample_cache)
+                    if pos is not None:
+                        points.append(pos)
+        elif len(keys) == 1:
+            single_pos = self._sample_object_world_position(obj, float(keys[0].time), sample_cache)
+            if single_pos is not None:
+                points.append(single_pos)
+
+        if points:
+            gc.PushState()
+            gc.SetPen(wx.Pen(wx.Colour(110, 180, 255), 1))
+            path = gc.CreatePath()
+            p0 = self.world_to_screen(points[0])
+            path.MoveToPoint(p0[0], p0[1])
+            for px, py in points[1:]:
+                sx, sy = self.world_to_screen((px, py))
+                path.AddLineToPoint(sx, sy)
+            gc.StrokePath(path)
+            gc.PopState()
+
         gc.PushState()
-        gc.SetPen(wx.Pen(wx.Colour(110, 180, 255), 1))
-        path = gc.CreatePath()
-        p0 = self.world_to_screen(points[0])
-        path.MoveToPoint(p0[0], p0[1])
-        for px, py in points[1:]:
-            sx, sy = self.world_to_screen((px, py))
-            path.AddLineToPoint(sx, sy)
-        gc.StrokePath(path)
+        for index, key in enumerate(keys):
+            sampled = self._sample_object_world_and_parent_matrix(obj, float(key.time), sample_cache)
+            if sampled is None:
+                continue
+            key_pos, parent_world = sampled
+            wx_pos, wy_pos = key_pos
+            sx, sy = self.world_to_screen((wx_pos, wy_pos))
+            marker = {
+                "object_id": obj.id,
+                "key_id": key.id,
+                "parent_matrix": parent_world,
+                "screen_pos": (float(sx), float(sy)),
+            }
+            self._drawn_key_markers.append(marker)
+            is_selected = key.id == self.selected_key_id
+            radius = self._key_marker_radius + (1 if is_selected else 0)
+            fill = wx.Colour(255, 194, 102) if is_selected else wx.Colour(110, 180, 255)
+            outline = wx.Colour(255, 255, 255) if is_selected else wx.Colour(20, 20, 20)
+            gc.SetPen(wx.Pen(outline, 1))
+            gc.SetBrush(wx.Brush(fill))
+            gc.DrawEllipse(float(sx) - radius, float(sy) - radius, radius * 2, radius * 2)
+
+            if is_selected and (obj.path_mode or "linear") == "spline":
+                auto_in, auto_out = self._auto_tangent_handles_for_key(keys, index)
+                in_local = tuple(float(v) for v in key.path_in) if key.path_in is not None else auto_in
+                out_local = tuple(float(v) for v in key.path_out) if key.path_out is not None else auto_out
+                for kind, local_pt, explicit, color in (
+                    ("in", in_local, key.path_in is not None, wx.Colour(255, 160, 80)),
+                    ("out", out_local, key.path_out is not None, wx.Colour(120, 220, 255)),
+                ):
+                    if local_pt is None:
+                        continue
+                    handle_wx, handle_wy = self._apply_matrix(parent_world, float(local_pt[0]), float(local_pt[1]))
+                    hsx, hsy = self.world_to_screen((handle_wx, handle_wy))
+                    gc.SetPen(wx.Pen(color, 1, style=wx.PENSTYLE_SOLID if explicit else wx.PENSTYLE_DOT))
+                    gc.StrokeLine(float(sx), float(sy), float(hsx), float(hsy))
+                    gc.SetPen(wx.Pen(color, 1))
+                    if explicit:
+                        gc.SetBrush(wx.Brush(color))
+                    else:
+                        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+                    hr = self._path_handle_radius
+                    gc.DrawRectangle(float(hsx) - hr, float(hsy) - hr, hr * 2, hr * 2)
+                    self._drawn_path_handles.append(
+                        {
+                            "object_id": obj.id,
+                            "key_id": key.id,
+                            "handle_kind": kind,
+                            "parent_matrix": parent_world,
+                            "local_pos": (float(local_pt[0]), float(local_pt[1])),
+                            "screen_pos": (float(hsx), float(hsy)),
+                            "explicit": bool(explicit),
+                        }
+                    )
         gc.PopState()
 
     def on_paint(self, event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
         self._drawn_objects = []
+        self._drawn_key_markers = []
+        self._drawn_path_handles = []
         if self.scene:
             bg = wx.Colour(*self.scene.background_color)
             dc.SetBackground(wx.Brush(bg))
@@ -485,6 +745,58 @@ class TimelineCanvas(FrameCanvas):
         if event.AltDown() or event.ControlDown():
             self.on_pan_start(event)
             return
+        handle_hit = self._hit_test_path_handle(event.GetPosition())
+        if handle_hit:
+            object_id = str(handle_hit["object_id"])
+            key_id = str(handle_hit["key_id"])
+            handle_kind = str(handle_hit["handle_kind"])
+            self.selected_object_id = object_id
+            self.selected_key_id = key_id
+            if self.on_select_key:
+                self.on_select_key(object_id, key_id)
+            self._drag_object_id = None
+            self._drag_start_world = None
+            self._drag_key_object_id = None
+            self._drag_key_id = None
+            self._drag_key_start_world = None
+            self._drag_handle_object_id = object_id
+            self._drag_handle_key_id = key_id
+            self._drag_handle_kind = handle_kind
+            self._drag_handle_parent_matrix = handle_hit["parent_matrix"]
+            self._drag_handle_start_world = self.screen_to_world(event.GetPosition())
+            if self.on_begin_drag_key_handle:
+                local_pos = handle_hit["local_pos"]
+                self.on_begin_drag_key_handle(
+                    object_id, key_id, handle_kind, float(local_pos[0]), float(local_pos[1])
+                )
+            if not self.HasCapture():
+                self.CaptureMouse()
+            event.Skip()
+            return
+        key_hit = self._hit_test_key_marker(event.GetPosition())
+        if key_hit:
+            object_id = str(key_hit["object_id"])
+            key_id = str(key_hit["key_id"])
+            self.selected_object_id = object_id
+            self.selected_key_id = key_id
+            if self.on_select_key:
+                self.on_select_key(object_id, key_id)
+            self._drag_object_id = None
+            self._drag_start_world = None
+            self._drag_key_object_id = object_id
+            self._drag_key_id = key_id
+            self._drag_key_parent_matrix = key_hit["parent_matrix"]
+            self._drag_key_start_world = self.screen_to_world(event.GetPosition())
+            self._drag_handle_object_id = None
+            self._drag_handle_key_id = None
+            self._drag_handle_kind = None
+            self._drag_handle_start_world = None
+            if self.on_begin_drag_keyframe:
+                self.on_begin_drag_keyframe(object_id, key_id)
+            if not self.HasCapture():
+                self.CaptureMouse()
+            event.Skip()
+            return
         hit = self._hit_test_object(event.GetPosition())
         if not hit:
             event.Skip()
@@ -494,6 +806,13 @@ class TimelineCanvas(FrameCanvas):
         if self.on_select_object:
             self.on_select_object(object_id)
 
+        self._drag_key_object_id = None
+        self._drag_key_id = None
+        self._drag_key_start_world = None
+        self._drag_handle_object_id = None
+        self._drag_handle_key_id = None
+        self._drag_handle_kind = None
+        self._drag_handle_start_world = None
         self._drag_object_id = object_id
         self._drag_parent_matrix = hit["parent_matrix"]
         self._drag_start_world = self.screen_to_world(event.GetPosition())
@@ -507,6 +826,23 @@ class TimelineCanvas(FrameCanvas):
         if self._panning:
             self.on_pan_end(event)
             return
+        if self._drag_handle_object_id is not None:
+            self._drag_handle_object_id = None
+            self._drag_handle_key_id = None
+            self._drag_handle_kind = None
+            self._drag_handle_start_world = None
+            if self.HasCapture():
+                self.ReleaseMouse()
+            event.Skip()
+            return
+        if self._drag_key_object_id is not None:
+            self._drag_key_object_id = None
+            self._drag_key_id = None
+            self._drag_key_start_world = None
+            if self.HasCapture():
+                self.ReleaseMouse()
+            event.Skip()
+            return
         if self._drag_object_id is not None:
             self._drag_object_id = None
             self._drag_start_world = None
@@ -516,6 +852,59 @@ class TimelineCanvas(FrameCanvas):
 
     def on_mouse_drag(self, event: wx.MouseEvent) -> None:
         if self.handle_pan_motion(event):
+            return
+        if (
+            event.Dragging()
+            and event.LeftIsDown()
+            and self._drag_handle_object_id
+            and self._drag_handle_key_id
+            and self._drag_handle_kind
+            and self._drag_handle_start_world
+        ):
+            curr_world = self.screen_to_world(event.GetPosition())
+            dx_world = curr_world[0] - self._drag_handle_start_world[0]
+            dy_world = curr_world[1] - self._drag_handle_start_world[1]
+
+            ap, bp, cp, dp, _txp, _typ = self._drag_handle_parent_matrix
+            det = ap * dp - bp * cp
+            if abs(det) > 1e-6:
+                dx_local = (dp * dx_world - cp * dy_world) / det
+                dy_local = (-bp * dx_world + ap * dy_world) / det
+            else:
+                dx_local = dx_world
+                dy_local = dy_world
+            if self.on_drag_key_handle:
+                self.on_drag_key_handle(
+                    self._drag_handle_object_id,
+                    self._drag_handle_key_id,
+                    self._drag_handle_kind,
+                    dx_local,
+                    dy_local,
+                )
+            event.Skip()
+            return
+        if (
+            event.Dragging()
+            and event.LeftIsDown()
+            and self._drag_key_object_id
+            and self._drag_key_id
+            and self._drag_key_start_world
+        ):
+            curr_world = self.screen_to_world(event.GetPosition())
+            dx_world = curr_world[0] - self._drag_key_start_world[0]
+            dy_world = curr_world[1] - self._drag_key_start_world[1]
+
+            ap, bp, cp, dp, _txp, _typ = self._drag_key_parent_matrix
+            det = ap * dp - bp * cp
+            if abs(det) > 1e-6:
+                dx_local = (dp * dx_world - cp * dy_world) / det
+                dy_local = (-bp * dx_world + ap * dy_world) / det
+            else:
+                dx_local = dx_world
+                dy_local = dy_world
+            if self.on_drag_keyframe:
+                self.on_drag_keyframe(self._drag_key_object_id, self._drag_key_id, dx_local, dy_local)
+            event.Skip()
             return
         if not event.Dragging() or not event.LeftIsDown() or not self._drag_object_id or not self._drag_start_world:
             event.Skip()
@@ -607,6 +996,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.on_select_key: Optional[Callable[[Optional[str], Optional[str]], None]] = None
         self.on_select_object: Optional[Callable[[Optional[str]], None]] = None
         self.on_toggle_object: Optional[Callable[[str], None]] = None
+        self.on_reparent_object: Optional[Callable[[str, Optional[str]], None]] = None
 
         self.left_w = 260
         self.min_left_w = 160
@@ -622,6 +1012,17 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self._collapsed_ids: set[str] = set()
         self._resizing_divider = False
         self._divider_hit_slop = 5
+        self._dragging_playhead = False
+        self._playhead_marker_half_w = 7
+        self._playhead_marker_h = 8
+        self._playhead_hit_slop = 5
+        self._playhead_footer_h = 16
+        self._drag_track_object_id: Optional[str] = None
+        self._drag_track_start_pos: Optional[wx.Point] = None
+        self._drag_track_active = False
+        self._drag_target_parent_id: Optional[str] = None
+        self._drag_target_row: Optional[int] = None
+        self._drag_target_valid = False
 
         self.SetScrollRate(0, self.row_h)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
@@ -737,8 +1138,38 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self._clamp_scroll_x()
         self.Refresh(False)
 
+    def _playhead_x(self) -> int:
+        return int(round(self.left_w + self._time_x(self.current_time) - self.scroll_x))
+
+    def _playhead_marker_positions(self) -> Tuple[int, int, int]:
+        self._update_virtual_size()
+        _total_w, total_h = self.GetVirtualSize()
+        _view_x, view_y = self.GetViewStart()
+        _ppu_x, ppu_y = self.GetScrollPixelsPerUnit()
+        _client_w, client_h = self.GetClientSize()
+        header_y = view_y * ppu_y
+        top_y = header_y
+        visible_bottom = header_y + max(self.header_h, client_h)
+        footer_top = max(header_y + self.header_h + 1, visible_bottom - self._playhead_footer_h)
+        bottom_y = min(total_h, footer_top + (self._playhead_footer_h // 2))
+        return (self._playhead_x(), top_y, bottom_y)
+
+    def _is_over_playhead_marker(self, pos: wx.Point) -> bool:
+        x, y = self.CalcUnscrolledPosition(pos)
+        playhead_x, top_y, bottom_y = self._playhead_marker_positions()
+        if x < self.left_w - (self._playhead_marker_half_w + self._playhead_hit_slop):
+            return False
+        near_x = abs(x - playhead_x) <= (self._playhead_marker_half_w + self._playhead_hit_slop)
+        if not near_x:
+            return False
+        near_top = abs(y - top_y) <= (self._playhead_marker_h + self._playhead_hit_slop)
+        near_bottom = abs(y - bottom_y) <= (self._playhead_marker_h + self._playhead_hit_slop)
+        return near_top or near_bottom
+
     def _update_cursor(self, pos: wx.Point) -> None:
         if self._resizing_divider or self._divider_hit_test(pos):
+            self.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
+        elif self._dragging_playhead or self._is_over_playhead_marker(pos):
             self.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
         else:
             self.SetCursor(wx.NullCursor)
@@ -767,6 +1198,22 @@ class TimelineDopesheet(wx.ScrolledWindow):
             return f"{seconds:.1f}"
         return str(frame_idx)
 
+    def _reparent_target_from_pos(self, pos: wx.Point, dragged_object_id: str) -> Tuple[bool, Optional[str], Optional[int]]:
+        x, y = self.CalcUnscrolledPosition(pos)
+        if x >= self.left_w:
+            return (False, None, None)
+
+        # Left gutter and areas outside rows represent root drop.
+        if x <= 16:
+            return (True, None, None)
+        row = -1 if y < self.header_h else (y - self.header_h) // self.row_h
+        if row < 0 or row >= len(self.rows):
+            return (True, None, None)
+        target_obj = self.rows[row][0]
+        if target_obj.id == dragged_object_id:
+            return (False, None, row)
+        return (True, target_obj.id, row)
+
     def _hit_test(self, pos: wx.Point) -> Tuple[Optional[str], Optional[str], Optional[float]]:
         x, y = self.CalcUnscrolledPosition(pos)
         if y < self.header_h:
@@ -791,10 +1238,25 @@ class TimelineDopesheet(wx.ScrolledWindow):
         event.Skip()
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
+        self._drag_track_object_id = None
+        self._drag_track_start_pos = None
+        self._drag_track_active = False
+        self._drag_target_parent_id = None
+        self._drag_target_row = None
+        self._drag_target_valid = False
         if self._divider_hit_test(event.GetPosition()):
             self._resizing_divider = True
             if not self.HasCapture():
                 self.CaptureMouse()
+            self._update_cursor(event.GetPosition())
+            return
+        if self._is_over_playhead_marker(event.GetPosition()):
+            self._dragging_playhead = True
+            if not self.HasCapture():
+                self.CaptureMouse()
+            x, _y = self.CalcUnscrolledPosition(event.GetPosition())
+            if self.on_seek:
+                self.on_seek(self._time_from_x(x))
             self._update_cursor(event.GetPosition())
             return
         x, y = self.CalcUnscrolledPosition(event.GetPosition())
@@ -807,6 +1269,12 @@ class TimelineDopesheet(wx.ScrolledWindow):
                     if self.on_toggle_object:
                         self.on_toggle_object(obj.id)
                     return
+                self._drag_track_object_id = obj.id
+                self._drag_track_start_pos = event.GetPosition()
+                self._drag_track_active = False
+                self._drag_target_parent_id = None
+                self._drag_target_row = None
+                self._drag_target_valid = False
                 if self.on_select_object:
                     self.on_select_object(obj.id)
                 if self.on_select_key:
@@ -820,6 +1288,34 @@ class TimelineDopesheet(wx.ScrolledWindow):
             self.on_seek(time_value)
 
     def on_left_up(self, event: wx.MouseEvent) -> None:
+        if self._drag_track_active:
+            if self._drag_target_valid and self._drag_track_object_id and self.on_reparent_object:
+                self.on_reparent_object(self._drag_track_object_id, self._drag_target_parent_id)
+            self._drag_track_active = False
+            self._drag_track_object_id = None
+            self._drag_track_start_pos = None
+            self._drag_target_parent_id = None
+            self._drag_target_row = None
+            self._drag_target_valid = False
+            if self.HasCapture():
+                self.ReleaseMouse()
+            self._update_cursor(event.GetPosition())
+            self.Refresh(False)
+            event.Skip()
+            return
+        if self._drag_track_object_id:
+            self._drag_track_object_id = None
+            self._drag_track_start_pos = None
+            self._drag_target_parent_id = None
+            self._drag_target_row = None
+            self._drag_target_valid = False
+        if self._dragging_playhead:
+            self._dragging_playhead = False
+            if self.HasCapture():
+                self.ReleaseMouse()
+            self._update_cursor(event.GetPosition())
+            event.Skip()
+            return
         if self._resizing_divider:
             self._resizing_divider = False
             if self.HasCapture():
@@ -828,6 +1324,40 @@ class TimelineDopesheet(wx.ScrolledWindow):
         event.Skip()
 
     def on_motion(self, event: wx.MouseEvent) -> None:
+        if (
+            self._drag_track_object_id
+            and self._drag_track_start_pos
+            and event.LeftIsDown()
+        ):
+            if not self._drag_track_active:
+                dx = abs(event.GetPosition().x - self._drag_track_start_pos.x)
+                dy = abs(event.GetPosition().y - self._drag_track_start_pos.y)
+                if dx + dy >= 4:
+                    self._drag_track_active = True
+                    if not self.HasCapture():
+                        self.CaptureMouse()
+            if self._drag_track_active:
+                valid, parent_id, row = self._reparent_target_from_pos(
+                    event.GetPosition(), self._drag_track_object_id
+                )
+                changed = (
+                    valid != self._drag_target_valid
+                    or parent_id != self._drag_target_parent_id
+                    or row != self._drag_target_row
+                )
+                self._drag_target_valid = valid
+                self._drag_target_parent_id = parent_id
+                self._drag_target_row = row
+                self._update_cursor(event.GetPosition())
+                if changed:
+                    self.Refresh(False)
+                return
+        if self._dragging_playhead:
+            x, _y = self.CalcUnscrolledPosition(event.GetPosition())
+            if self.on_seek:
+                self.on_seek(self._time_from_x(x))
+            self._update_cursor(event.GetPosition())
+            return
         if self._resizing_divider:
             self._set_left_width(event.GetPosition().x)
             self._update_cursor(event.GetPosition())
@@ -837,6 +1367,13 @@ class TimelineDopesheet(wx.ScrolledWindow):
 
     def on_capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
         self._resizing_divider = False
+        self._dragging_playhead = False
+        self._drag_track_active = False
+        self._drag_track_object_id = None
+        self._drag_track_start_pos = None
+        self._drag_target_parent_id = None
+        self._drag_target_row = None
+        self._drag_target_valid = False
         self.SetCursor(wx.NullCursor)
         event.Skip()
 
@@ -914,9 +1451,41 @@ class TimelineDopesheet(wx.ScrolledWindow):
                 dc.SetPen(wx.Pen(wx.Colour(20, 20, 20)))
                 dc.DrawPolygon(points)
 
-        playhead_x = int(round(self.left_w + self._time_x(self.current_time) - self.scroll_x))
+        if self._drag_track_active and self._drag_target_valid:
+            dc.SetPen(wx.Pen(wx.Colour(140, 210, 255), 2))
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            if self._drag_target_parent_id is None:
+                dc.DrawRectangle(2, header_y + 1, max(10, self.left_w - 4), self.header_h - 2)
+            elif self._drag_target_row is not None and 0 <= self._drag_target_row < len(self.rows):
+                target_y = self.header_h + self._drag_target_row * self.row_h
+                dc.DrawRectangle(2, target_y + 1, max(10, self.left_w - 4), self.row_h - 2)
+
+        playhead_x = self._playhead_x()
         dc.SetPen(wx.Pen(wx.Colour(255, 92, 92), 2))
-        dc.DrawLine(playhead_x, header_y, playhead_x, total_h)
+        footer_top = max(header_bottom, visible.y + visible.height - self._playhead_footer_h)
+        dc.DrawLine(playhead_x, header_y, playhead_x, footer_top)
+        marker_color = wx.Colour(255, 92, 92)
+        dc.SetPen(wx.Pen(marker_color, 1))
+        dc.SetBrush(wx.Brush(marker_color))
+        top_marker_tip_y = header_y
+        bottom_marker_tip_y = footer_top + (self._playhead_footer_h // 2)
+        top_points = [
+            wx.Point(playhead_x, top_marker_tip_y),
+            wx.Point(playhead_x - self._playhead_marker_half_w, top_marker_tip_y - self._playhead_marker_h),
+            wx.Point(playhead_x + self._playhead_marker_half_w, top_marker_tip_y - self._playhead_marker_h),
+        ]
+        dc.DrawPolygon(top_points)
+        dc.SetPen(wx.Pen(wx.Colour(58, 58, 58), 1))
+        dc.SetBrush(wx.Brush(wx.Colour(46, 46, 46)))
+        dc.DrawRectangle(self.left_w, footer_top, max(0, total_w - self.left_w), self._playhead_footer_h)
+        dc.SetPen(wx.Pen(marker_color, 1))
+        dc.SetBrush(wx.Brush(marker_color))
+        bottom_points = [
+            wx.Point(playhead_x, bottom_marker_tip_y),
+            wx.Point(playhead_x - self._playhead_marker_half_w, bottom_marker_tip_y + self._playhead_marker_h),
+            wx.Point(playhead_x + self._playhead_marker_half_w, bottom_marker_tip_y + self._playhead_marker_h),
+        ]
+        dc.DrawPolygon(bottom_points)
 
         dc.SetPen(wx.Pen(wx.Colour(66, 66, 66)))
         dc.SetBrush(wx.Brush(wx.Colour(42, 42, 42)))
@@ -1086,6 +1655,8 @@ class TimelineEditorPanel(wx.Panel):
         self.snap_mode = SNAP_FRAMES
         self.custom_snap_step = 0.25
         self._canvas_drag_start: Optional[Tuple[str, str, float, float]] = None
+        self._canvas_key_drag_start: Optional[Tuple[str, str, float, float]] = None
+        self._canvas_key_handle_drag_start: Optional[Tuple[str, str, str, float, float]] = None
         self.timer = wx.Timer(self)
         self._source_choice_ids: List[Optional[str]] = []
         self._parent_choice_ids: List[Optional[str]] = []
@@ -1141,6 +1712,7 @@ class TimelineEditorPanel(wx.Panel):
         self.source_choice = wx.Choice(props_box)
         self.draw_order_spin = wx.SpinCtrl(props_box, min=0, max=9999, initial=0)
         self.playback_mode_choice = wx.Choice(props_box, choices=["loop", "once", "ping_pong"])
+        self.path_mode_choice = wx.Choice(props_box, choices=list(TIMELINE_PATH_MODES))
         self.playback_speed = wx.SpinCtrlDouble(props_box, min=0.05, max=16.0, initial=1.0, inc=0.05)
         self.playback_offset = wx.SpinCtrlDouble(props_box, min=-9999.0, max=9999.0, initial=0.0, inc=0.1)
         self.chk_source_root = wx.CheckBox(props_box, label="Use Source Root Motion")
@@ -1170,6 +1742,7 @@ class TimelineEditorPanel(wx.Panel):
             ("Asset", self.source_choice),
             ("Draw Order", self.draw_order_spin),
             ("Playback", self.playback_mode_choice),
+            ("Path", self.path_mode_choice),
             ("Speed", self.playback_speed),
             ("Offset (s)", self.playback_offset),
             ("Key Time (s)", self.key_time),
@@ -1296,9 +1869,15 @@ class TimelineEditorPanel(wx.Panel):
         self.dopesheet.on_select_key = self.on_dopesheet_select_key
         self.dopesheet.on_select_object = self.on_dopesheet_select_object
         self.dopesheet.on_toggle_object = self.on_dopesheet_toggle_object
+        self.dopesheet.on_reparent_object = self.on_dopesheet_reparent_object
         self.canvas.on_select_object = self.on_canvas_select_object
+        self.canvas.on_select_key = self.on_canvas_select_key
         self.canvas.on_begin_drag_object = self.on_canvas_begin_drag_object
         self.canvas.on_drag_object = self.on_canvas_drag_object
+        self.canvas.on_begin_drag_keyframe = self.on_canvas_begin_drag_keyframe
+        self.canvas.on_drag_keyframe = self.on_canvas_drag_keyframe
+        self.canvas.on_begin_drag_key_handle = self.on_canvas_begin_drag_key_handle
+        self.canvas.on_drag_key_handle = self.on_canvas_drag_key_handle
         self.canvas.on_flip_object_x = self.on_canvas_flip_object_x
         self.canvas.on_flip_object_y = self.on_canvas_flip_object_y
         self.canvas.on_rotate_object_90_cw = self.on_canvas_rotate_object_90_cw
@@ -1311,6 +1890,7 @@ class TimelineEditorPanel(wx.Panel):
             self.source_choice,
             self.draw_order_spin,
             self.playback_mode_choice,
+            self.path_mode_choice,
             self.playback_speed,
             self.playback_offset,
             self.chk_source_root,
@@ -1351,10 +1931,22 @@ class TimelineEditorPanel(wx.Panel):
             ctrl.Bind(wx.EVT_CHECKBOX, self.on_any_property_changed)
         elif isinstance(ctrl, wx.SpinCtrlDouble):
             ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_any_property_changed)
-            ctrl.Bind(wx.EVT_TEXT, self.on_any_property_changed)
+            ctrl.Bind(wx.EVT_KILL_FOCUS, self._on_spin_commit)
         elif isinstance(ctrl, wx.SpinCtrl):
             ctrl.Bind(wx.EVT_SPINCTRL, self.on_any_property_changed)
-            ctrl.Bind(wx.EVT_TEXT, self.on_any_property_changed)
+            ctrl.Bind(wx.EVT_KILL_FOCUS, self._on_spin_commit)
+
+    def _on_spin_commit(self, event: wx.FocusEvent) -> None:
+        self.on_any_property_changed(event)
+
+    def _update_selected_scene_label(self) -> None:
+        scene = self.get_selected_scene()
+        if not scene:
+            return
+        for idx, candidate in enumerate(self.project.timeline_scenes):
+            if candidate.id == scene.id:
+                self.scene_list.SetItem(idx, 0, scene.name)
+                break
 
     def on_scene_list_size(self, event: wx.SizeEvent) -> None:
         width = self.scene_list.GetClientSize().width
@@ -1384,6 +1976,17 @@ class TimelineEditorPanel(wx.Panel):
 
     def _update_snap_ui(self) -> None:
         self.custom_snap_spin.Enable(self.snap_mode == SNAP_CUSTOM)
+
+    def _update_path_handle_ui_enabled(self) -> None:
+        obj = self.get_selected_object()
+        enabled = bool(obj) and (obj.path_mode or "linear") == "spline"
+        for ctrl in (
+            self.key_path_in_x,
+            self.key_path_in_y,
+            self.key_path_out_x,
+            self.key_path_out_y,
+        ):
+            ctrl.Enable(enabled)
 
     def refresh_choices(self) -> None:
         self.module_palette.project = self.project
@@ -1419,6 +2022,137 @@ class TimelineEditorPanel(wx.Panel):
         if not obj or not self.selected_key_id:
             return None
         return next((key for key in obj.keyframes if key.id == self.selected_key_id), None)
+
+    def _would_create_parent_cycle(
+        self, scene: TimelineScene, object_id: str, parent_id: Optional[str]
+    ) -> bool:
+        current_id = parent_id
+        visited: set[str] = set()
+        while current_id:
+            if current_id == object_id:
+                return True
+            if current_id in visited:
+                return True
+            visited.add(current_id)
+            current_obj = scene.get_object(current_id)
+            if not current_obj:
+                return False
+            current_id = current_obj.parent_id
+        return False
+
+    def _evaluate_state_map_at_time(
+        self, scene: TimelineScene, time_value: float
+    ) -> Dict[str, Dict[str, Any]]:
+        state_map: Dict[str, Dict[str, Any]] = {}
+        for obj in scene.objects:
+            state = scene.evaluate_object_state(self.project, obj.id, time_value)
+            if state is not None:
+                state_map[obj.id] = state
+        return state_map
+
+    def _world_matrix_for_object(
+        self,
+        scene: TimelineScene,
+        state_map: Dict[str, Dict[str, Any]],
+        object_id: str,
+        cache: Dict[str, Tuple[float, float, float, float, float, float]],
+    ) -> Tuple[float, float, float, float, float, float]:
+        if object_id in cache:
+            return cache[object_id]
+        state = state_map.get(object_id)
+        if state is None:
+            cache[object_id] = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+            return cache[object_id]
+        local_matrix = self.canvas._build_local_matrix(state)
+        obj = scene.get_object(object_id)
+        parent_id = obj.parent_id if obj else None
+        if parent_id and parent_id in state_map and scene.get_object(parent_id):
+            parent_world = self._world_matrix_for_object(scene, state_map, parent_id, cache)
+            world = self.canvas._compose_matrix(parent_world, local_matrix)
+        else:
+            world = local_matrix
+        cache[object_id] = world
+        return world
+
+    @staticmethod
+    def _invert_matrix(
+        matrix: Tuple[float, float, float, float, float, float]
+    ) -> Tuple[float, float, float, float, float, float]:
+        a, b, c, d, tx, ty = matrix
+        det = a * d - b * c
+        if abs(det) <= 1e-8:
+            return (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        inv_det = 1.0 / det
+        ai = d * inv_det
+        bi = -b * inv_det
+        ci = -c * inv_det
+        di = a * inv_det
+        txi = (c * ty - d * tx) * inv_det
+        tyi = (b * tx - a * ty) * inv_det
+        return (ai, bi, ci, di, txi, tyi)
+
+    @staticmethod
+    def _decompose_matrix_to_key(
+        matrix: Tuple[float, float, float, float, float, float],
+        flip_hint: Tuple[bool, bool] = (False, False),
+    ) -> Tuple[Tuple[float, float], float, bool, bool]:
+        a, b, c, d, tx, ty = matrix
+        best: Optional[Tuple[float, bool, bool, float]] = None
+        for flip_x in (False, True):
+            for flip_y in (False, True):
+                sx = -1.0 if flip_x else 1.0
+                sy = -1.0 if flip_y else 1.0
+                theta = math.atan2(b / sx, a / sx)
+                ca = math.cos(theta)
+                sa = math.sin(theta)
+                ra = ca * sx
+                rb = sa * sx
+                rc = -sa * sy
+                rd = ca * sy
+                err = abs(ra - a) + abs(rb - b) + abs(rc - c) + abs(rd - d)
+                if flip_x != flip_hint[0]:
+                    err += 1e-5
+                if flip_y != flip_hint[1]:
+                    err += 1e-5
+                if best is None or err < best[0]:
+                    best = (err, flip_x, flip_y, theta)
+        assert best is not None
+        _err, flip_x, flip_y, theta = best
+        return ((tx, ty), math.degrees(theta), flip_x, flip_y)
+
+    def _reparent_object_preserve_world(
+        self, scene: TimelineScene, obj: TimelineObject, new_parent_id: Optional[str]
+    ) -> None:
+        identity = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        obj_id = obj.id
+        for key in obj.keyframes:
+            t = float(key.time)
+            state_map = self._evaluate_state_map_at_time(scene, t)
+            if obj_id not in state_map:
+                continue
+            cache: Dict[str, Tuple[float, float, float, float, float, float]] = {}
+            old_world = self._world_matrix_for_object(scene, state_map, obj_id, cache)
+            if new_parent_id and new_parent_id in state_map:
+                parent_world = self._world_matrix_for_object(scene, state_map, new_parent_id, cache)
+            else:
+                parent_world = identity
+            parent_inv = self._invert_matrix(parent_world)
+            desired_local = self.canvas._compose_matrix(parent_inv, old_world)
+            state = state_map[obj_id]
+            source_offset = state.get("source_offset", (0.0, 0.0))
+            source_rotation = float(state.get("source_rotation", 0.0))
+            source_flip_x = bool(state.get("source_flip_x", False))
+            source_flip_y = bool(state.get("source_flip_y", False))
+            local_flip_hint = (bool(state.get("flip_x", False)), bool(state.get("flip_y", False)))
+            offset, rotation, local_flip_x, local_flip_y = self._decompose_matrix_to_key(
+                desired_local, local_flip_hint
+            )
+            key.x = float(offset[0] - float(source_offset[0]))
+            key.y = float(offset[1] - float(source_offset[1]))
+            key.rotation_degrees = float(rotation - source_rotation)
+            key.flip_x = bool(local_flip_x) ^ source_flip_x
+            key.flip_y = bool(local_flip_y) ^ source_flip_y
+        obj.parent_id = new_parent_id
 
     def _ensure_key_at_current_time(self, obj: TimelineObject) -> TimelineKeyframe:
         scene = self.get_selected_scene()
@@ -1581,10 +2315,12 @@ class TimelineEditorPanel(wx.Panel):
                 self.source_choice.SetSelection(0)
                 self.draw_order_spin.SetValue(0)
                 self.playback_mode_choice.SetSelection(0)
+                self.path_mode_choice.SetStringSelection("linear")
                 self.playback_speed.SetValue(1.0)
                 self.playback_offset.SetValue(0.0)
                 self.chk_source_root.SetValue(False)
                 self.parent_choice.SetSelection(0)
+                self._update_path_handle_ui_enabled()
                 return
             self.object_name.SetValue(obj.name)
             self.source_type_choice.SetStringSelection(obj.source_type)
@@ -1603,9 +2339,11 @@ class TimelineEditorPanel(wx.Panel):
             self.source_choice.SetSelection(source_idx)
             self.draw_order_spin.SetValue(obj.draw_order)
             self.playback_mode_choice.SetStringSelection(obj.playback_mode)
+            self.path_mode_choice.SetStringSelection(obj.path_mode or "linear")
             self.playback_speed.SetValue(obj.playback_speed)
             self.playback_offset.SetValue(obj.playback_offset)
             self.chk_source_root.SetValue(obj.use_source_root_motion)
+            self._update_path_handle_ui_enabled()
         finally:
             self.ui_updating = False
 
@@ -1654,6 +2392,7 @@ class TimelineEditorPanel(wx.Panel):
         self.canvas.set_scene(scene)
         self.canvas.set_time(self.current_time)
         self.canvas.set_selected_object(self.selected_object_id)
+        self.canvas.set_selected_key(self.selected_key_id)
         self.dopesheet.set_scene(scene)
         self.dopesheet.set_timeline_options(self.ruler_mode, self.snap_mode, self.custom_snap_step)
         self.refresh_track_rows()
@@ -1723,9 +2462,37 @@ class TimelineEditorPanel(wx.Panel):
             self.collapsed_object_ids.add(object_id)
         self.refresh_track_rows()
 
+    def on_dopesheet_reparent_object(self, object_id: str, parent_id: Optional[str]) -> None:
+        scene = self.get_selected_scene()
+        if not scene:
+            return
+        obj = scene.get_object(object_id)
+        if not obj:
+            return
+        if parent_id == obj.id:
+            return
+        if parent_id and not scene.get_object(parent_id):
+            parent_id = None
+        if parent_id == obj.parent_id:
+            return
+        if self._would_create_parent_cycle(scene, obj.id, parent_id):
+            return
+        self._reparent_object_preserve_world(scene, obj, parent_id)
+        self.selected_object_id = obj.id
+        if self.selected_key_id and not any(k.id == self.selected_key_id for k in obj.keyframes):
+            self.selected_key_id = obj.sorted_keyframes()[0].id if obj.keyframes else None
+        self.refresh_track_rows()
+        self.refresh_parent_choices()
+        self.update_object_ui()
+        self.update_key_ui()
+        self.sync_preview()
+
     def on_dopesheet_select_object(self, object_id: Optional[str]) -> None:
         if object_id:
             self.selected_object_id = object_id
+            self._canvas_drag_start = None
+            self._canvas_key_drag_start = None
+            self._canvas_key_handle_drag_start = None
             self.refresh_track_rows()
             self.update_object_ui()
             self.sync_preview()
@@ -1734,6 +2501,9 @@ class TimelineEditorPanel(wx.Panel):
         if object_id:
             self.selected_object_id = object_id
         self.selected_key_id = key_id
+        self._canvas_drag_start = None
+        self._canvas_key_drag_start = None
+        self._canvas_key_handle_drag_start = None
         self.update_object_ui()
         self.update_key_ui()
         self.sync_preview()
@@ -1741,6 +2511,8 @@ class TimelineEditorPanel(wx.Panel):
     def on_canvas_select_object(self, object_id: str) -> None:
         self.selected_object_id = object_id
         self._canvas_drag_start = None
+        self._canvas_key_drag_start = None
+        self._canvas_key_handle_drag_start = None
         obj = self.get_selected_object()
         if obj and any(abs(float(key.time) - float(self.current_time)) <= 1e-6 for key in obj.keyframes):
             key = next(key for key in obj.keyframes if abs(float(key.time) - float(self.current_time)) <= 1e-6)
@@ -1752,8 +2524,21 @@ class TimelineEditorPanel(wx.Panel):
         self.update_key_ui()
         self.sync_preview()
 
+    def on_canvas_select_key(self, object_id: str, key_id: str) -> None:
+        self.selected_object_id = object_id
+        self.selected_key_id = key_id
+        self._canvas_drag_start = None
+        self._canvas_key_drag_start = None
+        self._canvas_key_handle_drag_start = None
+        self.refresh_track_rows()
+        self.update_object_ui()
+        self.update_key_ui()
+        self.sync_preview()
+
     def on_canvas_begin_drag_object(self, object_id: str) -> None:
         self.selected_object_id = object_id
+        self._canvas_key_drag_start = None
+        self._canvas_key_handle_drag_start = None
         obj = self.get_selected_object()
         if not obj:
             return
@@ -1781,6 +2566,107 @@ class TimelineEditorPanel(wx.Panel):
             base_x, base_y = float(key.x), float(key.y)
         key.x = float(base_x + dx_local)
         key.y = float(base_y + dy_local)
+        self.update_key_ui()
+        self.sync_preview()
+
+    def on_canvas_begin_drag_keyframe(self, object_id: str, key_id: str) -> None:
+        self.selected_object_id = object_id
+        self.selected_key_id = key_id
+        self._canvas_drag_start = None
+        self._canvas_key_handle_drag_start = None
+        obj = self.get_selected_object()
+        if not obj:
+            return
+        key = next((item for item in obj.keyframes if item.id == key_id), None)
+        if not key:
+            return
+        self._canvas_key_drag_start = (object_id, key_id, float(key.x), float(key.y))
+        self.refresh_track_rows()
+        self.update_object_ui()
+        self.update_key_ui()
+
+    def on_canvas_drag_keyframe(self, object_id: str, key_id: str, dx_local: float, dy_local: float) -> None:
+        if not self._canvas_key_drag_start or self._canvas_key_drag_start[0] != object_id or self._canvas_key_drag_start[1] != key_id:
+            self.on_canvas_begin_drag_keyframe(object_id, key_id)
+        if not self._canvas_key_drag_start:
+            return
+        _oid, drag_key_id, base_x, base_y = self._canvas_key_drag_start
+        obj = self.get_selected_object()
+        if not obj:
+            return
+        key = next((item for item in obj.keyframes if item.id == drag_key_id), None)
+        if not key:
+            return
+        key.x = float(base_x + dx_local)
+        key.y = float(base_y + dy_local)
+        self.update_key_ui()
+        self.sync_preview()
+
+    def on_canvas_begin_drag_key_handle(
+        self, object_id: str, key_id: str, handle_kind: str, start_x: float, start_y: float
+    ) -> None:
+        self.selected_object_id = object_id
+        self.selected_key_id = key_id
+        self._canvas_drag_start = None
+        self._canvas_key_drag_start = None
+        obj = self.get_selected_object()
+        if not obj:
+            return
+        if (obj.path_mode or "linear") != "spline":
+            return
+        key = next((item for item in obj.keyframes if item.id == key_id), None)
+        if not key:
+            return
+        if handle_kind not in ("in", "out"):
+            return
+        self._canvas_key_handle_drag_start = (
+            object_id,
+            key_id,
+            handle_kind,
+            float(start_x),
+            float(start_y),
+        )
+        self.refresh_track_rows()
+        self.update_object_ui()
+        self.update_key_ui()
+
+    def on_canvas_drag_key_handle(
+        self, object_id: str, key_id: str, handle_kind: str, dx_local: float, dy_local: float
+    ) -> None:
+        if handle_kind not in ("in", "out"):
+            return
+        obj = self.get_selected_object()
+        if not obj:
+            return
+        if (obj.path_mode or "linear") != "spline":
+            return
+        if (
+            not self._canvas_key_handle_drag_start
+            or self._canvas_key_handle_drag_start[0] != object_id
+            or self._canvas_key_handle_drag_start[1] != key_id
+            or self._canvas_key_handle_drag_start[2] != handle_kind
+        ):
+            key = self.get_selected_key()
+            if key is None:
+                return
+            fallback = key.path_in if handle_kind == "in" else key.path_out
+            if fallback is None:
+                fallback = (float(key.x), float(key.y))
+            self.on_canvas_begin_drag_key_handle(
+                object_id, key_id, handle_kind, float(fallback[0]), float(fallback[1])
+            )
+        if not self._canvas_key_handle_drag_start:
+            return
+        _oid, drag_key_id, drag_kind, base_x, base_y = self._canvas_key_handle_drag_start
+        key = next((item for item in obj.keyframes if item.id == drag_key_id), None)
+        if not key:
+            return
+        target = (float(base_x + dx_local), float(base_y + dy_local))
+        is_default = abs(target[0] - float(key.x)) <= 1e-6 and abs(target[1] - float(key.y)) <= 1e-6
+        if drag_kind == "in":
+            key.path_in = None if is_default else target
+        else:
+            key.path_out = None if is_default else target
         self.update_key_ui()
         self.sync_preview()
 
@@ -1955,11 +2841,21 @@ class TimelineEditorPanel(wx.Panel):
                 obj.source_type = source_type
                 self.refresh_source_choices()
             obj.source_id = self._selected_source_id()
-            obj.parent_id = self._selected_parent_id()
-            if obj.parent_id == obj.id:
-                obj.parent_id = None
+            old_parent_id = obj.parent_id
+            new_parent_id = self._selected_parent_id()
+            if new_parent_id == obj.id:
+                new_parent_id = None
+            if scene and self._would_create_parent_cycle(scene, obj.id, new_parent_id):
+                new_parent_id = old_parent_id
+            if scene and new_parent_id != old_parent_id:
+                self._reparent_object_preserve_world(scene, obj, new_parent_id)
+            else:
+                obj.parent_id = new_parent_id
             obj.draw_order = self.draw_order_spin.GetValue()
             obj.playback_mode = self.playback_mode_choice.GetStringSelection() or "loop"
+            obj.path_mode = self.path_mode_choice.GetStringSelection() or "linear"
+            if obj.path_mode not in TIMELINE_PATH_MODES:
+                obj.path_mode = "linear"
             obj.playback_speed = float(self.playback_speed.GetValue())
             obj.playback_offset = float(self.playback_offset.GetValue())
             obj.use_source_root_motion = self.chk_source_root.GetValue()
@@ -1985,8 +2881,7 @@ class TimelineEditorPanel(wx.Panel):
         self.current_time = float(self.current_time_spin.GetValue())
         if scene:
             self.current_time = max(0.0, min(self._apply_snap(self.current_time, scene), float(scene.duration_seconds)))
-        self.refresh_scenes(select_id=self.selected_scene_id)
-        self.refresh_track_rows()
+            self._update_selected_scene_label()
         self.update_object_ui()
         self.update_key_ui()
         self.sync_preview()

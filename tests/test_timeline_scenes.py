@@ -1,0 +1,189 @@
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from models import AFrame, Animation, Frame, FModule, Project, TimelineKeyframe
+
+
+class TestTimelineScenes(unittest.TestCase):
+    def test_timeline_scene_serialization_round_trip(self):
+        project = Project(name="Timeline Test")
+        image = project.create_image("/tmp/test.png", 32, 32)
+        module = project.create_module("Body", image.id, (0, 0, 32, 32), (16, 16))
+        frame = project.create_frame("Idle")
+        frame.fmodules.append(
+            FModule(
+                id="fmod_a",
+                ref_type="module",
+                ref_id=module.id,
+                position=(16, 16),
+            )
+        )
+        anim = project.create_animation("Run")
+        anim.aframes.append(AFrame(frame_id=frame.id, duration_frames=2))
+
+        scene = project.create_timeline_scene("Cutscene")
+        obj = scene.create_object("Hero", source_type="animation", source_id=anim.id)
+        obj.keyframes = [
+            TimelineKeyframe(id="k0", time=0.0, x=0.0, y=0.0, easing="linear"),
+            TimelineKeyframe(
+                id="k1",
+                time=1.0,
+                x=32.0,
+                y=8.0,
+                easing="back_out",
+                path_out=(12.0, 0.0),
+            ),
+        ]
+
+        payload = project.to_dict()
+        self.assertIn("timeline_scenes", payload)
+        self.assertEqual(payload["timeline_scenes"][0]["name"], "Cutscene")
+
+        loaded = Project.from_dict(payload)
+        self.assertEqual(len(loaded.timeline_scenes), 1)
+        loaded_scene = loaded.timeline_scenes[0]
+        self.assertEqual(loaded_scene.name, "Cutscene")
+        self.assertEqual(len(loaded_scene.objects), 1)
+        self.assertEqual(loaded_scene.objects[0].source_type, "animation")
+        self.assertEqual(loaded_scene.objects[0].path_mode, "linear")
+        self.assertEqual(len(loaded_scene.objects[0].keyframes), 2)
+        self.assertEqual(loaded_scene.objects[0].keyframes[1].path_out, (12.0, 0.0))
+        self.assertAlmostEqual(loaded_scene.duration_seconds, 10.0)
+
+    def test_scene_sampling_interpolates_and_resolves_animation_source(self):
+        project = Project(name="Timeline Test")
+        frame_a = Frame(id="frm_a", name="A")
+        frame_b = Frame(id="frm_b", name="B")
+        project.frames.extend([frame_a, frame_b])
+        anim = Animation(
+            id="anim_run",
+            name="Run",
+            aframes=[
+                AFrame(frame_id="frm_a", duration_frames=2),
+                AFrame(frame_id="frm_b", duration_frames=3),
+            ],
+        )
+        project.animations.append(anim)
+
+        scene = project.create_timeline_scene("Boss")
+        obj = scene.create_object("Runner", source_type="animation", source_id=anim.id)
+        obj.keyframes = [
+            TimelineKeyframe(id="k0", time=0.0, x=0.0, y=0.0),
+            TimelineKeyframe(id="k1", time=1.0, x=20.0, y=10.0, easing="quad_out"),
+        ]
+
+        state = scene.evaluate_object_state(project, obj.id, 0.3)
+        self.assertIsNotNone(state)
+        assert state is not None
+        self.assertGreater(state["x"], 10.0)
+        self.assertGreater(state["y"], 5.0)
+        self.assertEqual(state["frame_id"], "frm_b")
+
+    def test_scene_sampling_supports_linear_and_spline_path_modes(self):
+        project = Project(name="Timeline Path Modes")
+        scene = project.create_timeline_scene("Path Scene")
+        linear_obj = scene.create_object("Linear", source_type="none", source_id=None)
+        spline_obj = scene.create_object("Spline", source_type="none", source_id=None)
+        spline_obj.path_mode = "spline"
+        keys = [
+            TimelineKeyframe(id="k0", time=0.0, x=0.0, y=0.0, easing="linear"),
+            TimelineKeyframe(id="k1", time=1.0, x=10.0, y=10.0, easing="linear"),
+            TimelineKeyframe(id="k2", time=2.0, x=20.0, y=0.0, easing="linear"),
+        ]
+        linear_obj.keyframes = [TimelineKeyframe.from_dict(k.to_dict()) for k in keys]
+        spline_obj.keyframes = [TimelineKeyframe.from_dict(k.to_dict()) for k in keys]
+
+        linear_state = scene.evaluate_object_state(project, linear_obj.id, 0.5)
+        spline_state = scene.evaluate_object_state(project, spline_obj.id, 0.5)
+        self.assertIsNotNone(linear_state)
+        self.assertIsNotNone(spline_state)
+        assert linear_state is not None and spline_state is not None
+        self.assertAlmostEqual(linear_state["y"], 5.0, places=6)
+        self.assertGreater(spline_state["y"], linear_state["y"])
+
+    def test_linear_mode_ignores_explicit_path_handles(self):
+        project = Project(name="Timeline Path Handles")
+        scene = project.create_timeline_scene("Handle Scene")
+        linear_obj = scene.create_object("Linear", source_type="none", source_id=None)
+        spline_obj = scene.create_object("Spline", source_type="none", source_id=None)
+        spline_obj.path_mode = "spline"
+        keys = [
+            TimelineKeyframe(
+                id="k0",
+                time=0.0,
+                x=0.0,
+                y=0.0,
+                easing="linear",
+                path_out=(0.0, 20.0),
+            ),
+            TimelineKeyframe(
+                id="k1",
+                time=1.0,
+                x=20.0,
+                y=0.0,
+                easing="linear",
+                path_in=(20.0, 20.0),
+            ),
+        ]
+        linear_obj.keyframes = [TimelineKeyframe.from_dict(k.to_dict()) for k in keys]
+        spline_obj.keyframes = [TimelineKeyframe.from_dict(k.to_dict()) for k in keys]
+
+        linear_state = scene.evaluate_object_state(project, linear_obj.id, 0.5)
+        spline_state = scene.evaluate_object_state(project, spline_obj.id, 0.5)
+        self.assertIsNotNone(linear_state)
+        self.assertIsNotNone(spline_state)
+        assert linear_state is not None and spline_state is not None
+        self.assertAlmostEqual(linear_state["x"], 10.0, places=6)
+        self.assertAlmostEqual(linear_state["y"], 0.0, places=6)
+        self.assertGreater(spline_state["y"], 0.0)
+
+    def test_project_json_round_trip_keeps_timeline_scenes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image_path = os.path.join(tmpdir, "dummy.png")
+            with open(image_path, "wb") as handle:
+                handle.write(b"\x89PNG\r\n\x1a\n")
+
+            project = Project(name="Timeline File")
+            project.create_image(image_path, 16, 16)
+            scene = project.create_timeline_scene("Title")
+            scene.create_object("Logo", source_type="none", source_id=None)
+
+            json_path = os.path.join(tmpdir, "timeline.json")
+            project.to_json(json_path)
+            loaded = Project.from_json(json_path)
+
+            self.assertEqual(len(loaded.timeline_scenes), 1)
+            self.assertEqual(loaded.timeline_scenes[0].name, "Title")
+
+    def test_legacy_duration_frames_scene_loads_as_seconds(self):
+        payload = {
+            "id": "scene_legacy",
+            "name": "Legacy",
+            "fps": 25,
+            "duration_frames": 50,
+            "loop": True,
+            "background_color": [32, 32, 32],
+            "objects": [
+                {
+                    "id": "obj_1",
+                    "name": "Legacy Object",
+                    "source_type": "none",
+                    "playback_offset": 10.0,
+                    "keyframes": [{"id": "k0", "time": 25.0}],
+                }
+            ],
+        }
+
+        scene = Project.from_dict({"name": "Legacy Test", "timeline_scenes": [payload]}).timeline_scenes[0]
+        self.assertAlmostEqual(scene.duration_seconds, 2.0)
+        self.assertEqual(scene.duration_in_frames(), 50)
+        self.assertAlmostEqual(scene.objects[0].playback_offset, 0.4)
+        self.assertAlmostEqual(scene.objects[0].keyframes[0].time, 1.0)
+
+
+if __name__ == "__main__":
+    unittest.main()
