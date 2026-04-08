@@ -619,6 +619,7 @@ class TimelineKeyframe:
     path_out: Optional[Tuple[float, float]] = None
     source_type: Optional[str] = None
     source_id: Optional[str] = None
+    source_offset: Tuple[float, float] = (0.0, 0.0)
 
     def to_dict(self) -> Dict:
         return {
@@ -638,6 +639,7 @@ class TimelineKeyframe:
             "path_out": list(self.path_out) if self.path_out is not None else None,
             "source_type": self.source_type,
             "source_id": self.source_id,
+            "source_offset": [float(self.source_offset[0]), float(self.source_offset[1])],
         }
 
     @staticmethod
@@ -647,6 +649,10 @@ class TimelineKeyframe:
             source_type = None
         path_in = data.get("path_in")
         path_out = data.get("path_out")
+        source_offset = data.get("source_offset", (0.0, 0.0))
+        source_offset_values = tuple(float(v) for v in source_offset) if source_offset is not None else (0.0, 0.0)
+        if len(source_offset_values) < 2:
+            source_offset_values = (0.0, 0.0)
         easing = str(data.get("easing", "linear") or "linear").strip().lower()
         if easing not in TIMELINE_EASINGS:
             easing = "linear"
@@ -667,6 +673,7 @@ class TimelineKeyframe:
             path_out=tuple(float(v) for v in path_out) if path_out is not None else None,  # type: ignore[arg-type]
             source_type=source_type,
             source_id=str(data.get("source_id")) if data.get("source_id") is not None else None,
+            source_offset=(float(source_offset_values[0]), float(source_offset_values[1])),
         )
 
 
@@ -867,6 +874,40 @@ class TimelineScene:
             result["source_rotation"] = float(getattr(af, "rotation_degrees", 0.0))
         return result
 
+    def _resolve_source_at_time(
+        self, obj: TimelineObject, keyframes: List[TimelineKeyframe], time: float
+    ) -> Tuple[str, Optional[str]]:
+        resolved_type = obj.source_type if obj.source_type in TIMELINE_SOURCE_TYPES else "none"
+        resolved_id = obj.source_id
+        if keyframes and float(time) <= float(keyframes[0].time):
+            first = keyframes[0]
+            if first.source_type is not None:
+                next_type = first.source_type if first.source_type in TIMELINE_SOURCE_TYPES else resolved_type
+                resolved_type = next_type
+                if resolved_type == "none":
+                    resolved_id = None
+                elif first.source_id is not None:
+                    resolved_id = first.source_id
+            elif first.source_id is not None:
+                resolved_id = first.source_id
+            return (resolved_type, resolved_id)
+        for key in keyframes:
+            if float(key.time) > float(time):
+                break
+            if key.source_type is not None:
+                next_type = key.source_type if key.source_type in TIMELINE_SOURCE_TYPES else resolved_type
+                type_changed = next_type != resolved_type
+                resolved_type = next_type
+                if resolved_type == "none":
+                    resolved_id = None
+                elif key.source_id is not None:
+                    resolved_id = key.source_id
+                elif type_changed:
+                    resolved_id = None
+            elif key.source_id is not None:
+                resolved_id = key.source_id
+        return (resolved_type, resolved_id)
+
     def evaluate_object_state(self, project: "Project", object_id: str, time: float) -> Optional[Dict[str, Any]]:
         obj = self.get_object(object_id)
         if not obj:
@@ -876,7 +917,13 @@ class TimelineScene:
             return None
         if len(keyframes) == 1 or time <= keyframes[0].time:
             first = keyframes[0]
-            sampled_source = self._sample_source(project, obj, time, first.source_type or obj.source_type, first.source_id)
+            resolved_source_type, resolved_source_id = self._resolve_source_at_time(obj, keyframes, time)
+            sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id)
+            key_source_offset = (float(first.source_offset[0]), float(first.source_offset[1]))
+            sampled_source["source_offset"] = (
+                float(sampled_source["source_offset"][0]) + key_source_offset[0],
+                float(sampled_source["source_offset"][1]) + key_source_offset[1],
+            )
             return {
                 "object_id": obj.id,
                 "name": obj.name,
@@ -891,6 +938,7 @@ class TimelineScene:
                 "flip_y": bool(first.flip_y),
                 "visible": bool(first.visible),
                 "opacity": _timeline_clamp01(first.opacity),
+                "source_key_offset": key_source_offset,
                 **sampled_source,
             }
 
@@ -912,7 +960,13 @@ class TimelineScene:
                 prev_idx = idx + 1
         if time >= keyframes[-1].time:
             last = keyframes[-1]
-            sampled_source = self._sample_source(project, obj, time, last.source_type or obj.source_type, last.source_id)
+            resolved_source_type, resolved_source_id = self._resolve_source_at_time(obj, keyframes, time)
+            sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id)
+            key_source_offset = (float(last.source_offset[0]), float(last.source_offset[1]))
+            sampled_source["source_offset"] = (
+                float(sampled_source["source_offset"][0]) + key_source_offset[0],
+                float(sampled_source["source_offset"][1]) + key_source_offset[1],
+            )
             return {
                 "object_id": obj.id,
                 "name": obj.name,
@@ -927,6 +981,7 @@ class TimelineScene:
                 "flip_y": bool(last.flip_y),
                 "visible": bool(last.visible),
                 "opacity": _timeline_clamp01(last.opacity),
+                "source_key_offset": key_source_offset,
                 **sampled_source,
             }
 
@@ -953,9 +1008,13 @@ class TimelineScene:
         else:
             pos_x = _timeline_lerp(prev_key.x, next_key.x, eased_t)
             pos_y = _timeline_lerp(prev_key.y, next_key.y, eased_t)
-        resolved_source_type = next_key.source_type if next_key.source_type is not None else prev_key.source_type
-        resolved_source_id = next_key.source_id if next_key.source_id is not None else prev_key.source_id
-        sampled_source = self._sample_source(project, obj, time, resolved_source_type or obj.source_type, resolved_source_id)
+        resolved_source_type, resolved_source_id = self._resolve_source_at_time(obj, keyframes, time)
+        sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id)
+        key_source_offset = (float(prev_key.source_offset[0]), float(prev_key.source_offset[1]))
+        sampled_source["source_offset"] = (
+            float(sampled_source["source_offset"][0]) + key_source_offset[0],
+            float(sampled_source["source_offset"][1]) + key_source_offset[1],
+        )
         return {
             "object_id": obj.id,
             "name": obj.name,
@@ -970,6 +1029,7 @@ class TimelineScene:
             "flip_y": next_key.flip_y if eased_t >= 0.5 else prev_key.flip_y,
             "visible": next_key.visible if eased_t >= 0.5 else prev_key.visible,
             "opacity": _timeline_clamp01(_timeline_lerp(prev_key.opacity, next_key.opacity, eased_t)),
+            "source_key_offset": key_source_offset,
             **sampled_source,
         }
 

@@ -52,6 +52,7 @@ class TestTimelineScenes(unittest.TestCase):
         self.assertEqual(loaded_scene.objects[0].path_mode, "linear")
         self.assertEqual(len(loaded_scene.objects[0].keyframes), 2)
         self.assertEqual(loaded_scene.objects[0].keyframes[1].path_out, (12.0, 0.0))
+        self.assertEqual(loaded_scene.objects[0].keyframes[0].source_offset, (0.0, 0.0))
         self.assertAlmostEqual(loaded_scene.duration_seconds, 10.0)
 
     def test_scene_sampling_interpolates_and_resolves_animation_source(self):
@@ -158,6 +159,58 @@ class TestTimelineScenes(unittest.TestCase):
 
             self.assertEqual(len(loaded.timeline_scenes), 1)
             self.assertEqual(loaded.timeline_scenes[0].name, "Title")
+
+    def test_scene_sampling_holds_key_source_until_next_override(self):
+        project = Project(name="Timeline Source Hold")
+        frame_a = Frame(id="frm_a", name="A")
+        frame_b = Frame(id="frm_b", name="B")
+        frame_c = Frame(id="frm_c", name="C")
+        project.frames.extend([frame_a, frame_b, frame_c])
+
+        scene = project.create_timeline_scene("Source Hold")
+        obj = scene.create_object("Actor", source_type="frame", source_id="frm_a")
+        obj.keyframes = [
+            TimelineKeyframe(id="k0", time=0.0, x=0.0, y=0.0),
+            TimelineKeyframe(id="k1", time=1.0, x=10.0, y=0.0, source_type="frame", source_id="frm_b"),
+            TimelineKeyframe(id="k2", time=2.0, x=20.0, y=0.0),
+            TimelineKeyframe(id="k3", time=3.0, x=30.0, y=0.0, source_type="frame", source_id="frm_c"),
+        ]
+
+        state_0_5 = scene.evaluate_object_state(project, obj.id, 0.5)
+        state_1_5 = scene.evaluate_object_state(project, obj.id, 1.5)
+        state_2_5 = scene.evaluate_object_state(project, obj.id, 2.5)
+        state_3_2 = scene.evaluate_object_state(project, obj.id, 3.2)
+        self.assertIsNotNone(state_0_5)
+        self.assertIsNotNone(state_1_5)
+        self.assertIsNotNone(state_2_5)
+        self.assertIsNotNone(state_3_2)
+        assert state_0_5 is not None and state_1_5 is not None and state_2_5 is not None and state_3_2 is not None
+        self.assertEqual(state_0_5["frame_id"], "frm_a")
+        self.assertEqual(state_1_5["frame_id"], "frm_b")
+        self.assertEqual(state_2_5["frame_id"], "frm_b")
+        self.assertEqual(state_3_2["frame_id"], "frm_c")
+
+    def test_scene_sampling_applies_step_key_source_offset(self):
+        project = Project(name="Timeline Source Offset")
+        scene = project.create_timeline_scene("Source Offset")
+        obj = scene.create_object("Actor", source_type="none", source_id=None)
+        obj.keyframes = [
+            TimelineKeyframe(id="k0", time=0.0, x=0.0, y=0.0, source_offset=(0.0, 0.0)),
+            TimelineKeyframe(id="k1", time=1.0, x=10.0, y=0.0, source_offset=(5.0, 1.0)),
+            TimelineKeyframe(id="k2", time=2.0, x=20.0, y=0.0, source_offset=(-2.0, 3.0)),
+        ]
+
+        state_0_5 = scene.evaluate_object_state(project, obj.id, 0.5)
+        state_1_5 = scene.evaluate_object_state(project, obj.id, 1.5)
+        state_2_5 = scene.evaluate_object_state(project, obj.id, 2.5)
+        self.assertIsNotNone(state_0_5)
+        self.assertIsNotNone(state_1_5)
+        self.assertIsNotNone(state_2_5)
+        assert state_0_5 is not None and state_1_5 is not None and state_2_5 is not None
+        self.assertEqual(tuple(state_0_5["source_offset"]), (0.0, 0.0))
+        self.assertEqual(tuple(state_1_5["source_offset"]), (5.0, 1.0))
+        self.assertEqual(tuple(state_2_5["source_offset"]), (-2.0, 3.0))
+        self.assertEqual(tuple(state_1_5["source_key_offset"]), (5.0, 1.0))
 
     def test_legacy_duration_frames_scene_loads_as_seconds(self):
         payload = {

@@ -31,6 +31,7 @@ SNAP_FREE = "Free"
 SNAP_FRAMES = "Frames"
 SNAP_TENTHS = "0.1s"
 SNAP_CUSTOM = "Custom"
+KEY_SOURCE_NO_CHANGE = "<no change>"
 
 
 class AnimationPalette(wx.ListCtrl):
@@ -1659,6 +1660,7 @@ class TimelineEditorPanel(wx.Panel):
         self._canvas_key_handle_drag_start: Optional[Tuple[str, str, str, float, float]] = None
         self.timer = wx.Timer(self)
         self._source_choice_ids: List[Optional[str]] = []
+        self._key_source_choice_ids: List[Optional[str]] = []
         self._parent_choice_ids: List[Optional[str]] = []
         self.collapsed_object_ids: set[str] = set()
 
@@ -1722,6 +1724,12 @@ class TimelineEditorPanel(wx.Panel):
         self.key_rot = wx.SpinCtrlDouble(props_box, min=-3600.0, max=3600.0, initial=0.0, inc=90.0)
         self.key_scale_x = wx.SpinCtrlDouble(props_box, min=-16.0, max=16.0, initial=1.0, inc=0.05)
         self.key_scale_y = wx.SpinCtrlDouble(props_box, min=-16.0, max=16.0, initial=1.0, inc=0.05)
+        self.key_source_type_choice = wx.Choice(
+            props_box, choices=[KEY_SOURCE_NO_CHANGE, "none", "module", "frame", "animation"]
+        )
+        self.key_source_choice = wx.Choice(props_box)
+        self.key_source_offset_x = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_source_offset_y = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
         self.key_easing = wx.Choice(props_box, choices=list(TIMELINE_EASINGS))
         self.key_path_in_x = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
         self.key_path_in_y = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
@@ -1751,6 +1759,10 @@ class TimelineEditorPanel(wx.Panel):
             ("Rotation", self.key_rot),
             ("Scale X", self.key_scale_x),
             ("Scale Y", self.key_scale_y),
+            ("Key Source", self.key_source_type_choice),
+            ("Key Asset", self.key_source_choice),
+            ("Source Off X", self.key_source_offset_x),
+            ("Source Off Y", self.key_source_offset_y),
             ("Easing", self.key_easing),
             ("Path In X", self.key_path_in_x),
             ("Path In Y", self.key_path_in_y),
@@ -1900,6 +1912,10 @@ class TimelineEditorPanel(wx.Panel):
             self.key_rot,
             self.key_scale_x,
             self.key_scale_y,
+            self.key_source_type_choice,
+            self.key_source_choice,
+            self.key_source_offset_x,
+            self.key_source_offset_y,
             self.key_easing,
             self.key_path_in_x,
             self.key_path_in_y,
@@ -2173,6 +2189,31 @@ class TimelineEditorPanel(wx.Panel):
             flip_y=bool(state["flip_y"]) if state else False,
             visible=bool(state["visible"]) if state else True,
             easing="linear",
+            source_type=(
+                str(state["source_type"])
+                if state
+                and state.get("source_type") in TIMELINE_SOURCE_TYPES
+                and (
+                    str(state.get("source_type")) != str(obj.source_type)
+                    or (state.get("source_id") or None) != (obj.source_id or None)
+                )
+                else None
+            ),
+            source_id=(
+                str(state["source_id"])
+                if state
+                and state.get("source_id") is not None
+                and (
+                    str(state.get("source_type")) != str(obj.source_type)
+                    or (state.get("source_id") or None) != (obj.source_id or None)
+                )
+                else None
+            ),
+            source_offset=(
+                tuple(float(v) for v in state.get("source_key_offset", (0.0, 0.0)))
+                if state
+                else (0.0, 0.0)
+            ),
         )
         obj.keyframes.append(key)
         obj.keyframes.sort(key=lambda item: (item.time, item.id))
@@ -2281,6 +2322,40 @@ class TimelineEditorPanel(wx.Panel):
                 self._source_choice_ids.append(anim.id)
                 self.source_choice.Append(anim.name)
 
+    def refresh_key_source_choices(self, preferred_id: Optional[str] = None) -> None:
+        selected_type = self.key_source_type_choice.GetStringSelection() or KEY_SOURCE_NO_CHANGE
+        if preferred_id is None:
+            preferred_id = self._selected_key_source_id()
+        self.key_source_choice.Clear()
+        self._key_source_choice_ids = [None]
+        if selected_type == KEY_SOURCE_NO_CHANGE:
+            self.key_source_choice.Append(KEY_SOURCE_NO_CHANGE)
+            self.key_source_choice.SetSelection(0)
+            self.key_source_choice.Enable(False)
+            return
+
+        self.key_source_choice.Enable(selected_type in ("module", "frame", "animation"))
+        self.key_source_choice.Append("<none>")
+        if selected_type == "module":
+            for mod in self.project.modules:
+                self._key_source_choice_ids.append(mod.id)
+                self.key_source_choice.Append(mod.name)
+        elif selected_type == "frame":
+            for frame in self.project.frames:
+                self._key_source_choice_ids.append(frame.id)
+                self.key_source_choice.Append(frame.name)
+        elif selected_type == "animation":
+            for anim in self.project.animations:
+                self._key_source_choice_ids.append(anim.id)
+                self.key_source_choice.Append(anim.name)
+
+        selected_index = 0
+        for idx, candidate in enumerate(self._key_source_choice_ids):
+            if candidate == preferred_id:
+                selected_index = idx
+                break
+        self.key_source_choice.SetSelection(selected_index)
+
     def update_scene_ui(self) -> None:
         scene = self.get_selected_scene()
         self.ui_updating = True
@@ -2358,6 +2433,10 @@ class TimelineEditorPanel(wx.Panel):
                 self.key_rot.SetValue(0.0)
                 self.key_scale_x.SetValue(1.0)
                 self.key_scale_y.SetValue(1.0)
+                self.key_source_type_choice.SetStringSelection(KEY_SOURCE_NO_CHANGE)
+                self.refresh_key_source_choices(preferred_id=None)
+                self.key_source_offset_x.SetValue(0.0)
+                self.key_source_offset_y.SetValue(0.0)
                 self.key_easing.SetStringSelection("linear")
                 self.key_path_in_x.SetValue(0.0)
                 self.key_path_in_y.SetValue(0.0)
@@ -2373,6 +2452,11 @@ class TimelineEditorPanel(wx.Panel):
             self.key_rot.SetValue(key.rotation_degrees)
             self.key_scale_x.SetValue(key.scale_x)
             self.key_scale_y.SetValue(key.scale_y)
+            key_source_type = key.source_type if key.source_type in TIMELINE_SOURCE_TYPES else KEY_SOURCE_NO_CHANGE
+            self.key_source_type_choice.SetStringSelection(key_source_type)
+            self.refresh_key_source_choices(preferred_id=key.source_id)
+            self.key_source_offset_x.SetValue(float(key.source_offset[0]))
+            self.key_source_offset_y.SetValue(float(key.source_offset[1]))
             self.key_easing.SetStringSelection(key.easing)
             self.key_path_in_x.SetValue(key.path_in[0] if key.path_in else key.x)
             self.key_path_in_y.SetValue(key.path_in[1] if key.path_in else key.y)
@@ -2783,6 +2867,31 @@ class TimelineEditorPanel(wx.Panel):
             flip_y=bool(state["flip_y"]) if state else False,
             visible=bool(state["visible"]) if state else True,
             easing="linear",
+            source_type=(
+                str(state["source_type"])
+                if state
+                and state.get("source_type") in TIMELINE_SOURCE_TYPES
+                and (
+                    str(state.get("source_type")) != str(obj.source_type)
+                    or (state.get("source_id") or None) != (obj.source_id or None)
+                )
+                else None
+            ),
+            source_id=(
+                str(state["source_id"])
+                if state
+                and state.get("source_id") is not None
+                and (
+                    str(state.get("source_type")) != str(obj.source_type)
+                    or (state.get("source_id") or None) != (obj.source_id or None)
+                )
+                else None
+            ),
+            source_offset=(
+                tuple(float(v) for v in state.get("source_key_offset", (0.0, 0.0)))
+                if state
+                else (0.0, 0.0)
+            ),
         )
         obj.keyframes.append(key)
         obj.keyframes.sort(key=lambda item: (item.time, item.id))
@@ -2810,6 +2919,12 @@ class TimelineEditorPanel(wx.Panel):
         if idx < 0 or idx >= len(self._source_choice_ids):
             return None
         return self._source_choice_ids[idx]
+
+    def _selected_key_source_id(self) -> Optional[str]:
+        idx = self.key_source_choice.GetSelection()
+        if idx < 0 or idx >= len(self._key_source_choice_ids):
+            return None
+        return self._key_source_choice_ids[idx]
 
     def on_any_property_changed(self, event: wx.Event) -> None:
         if self.ui_updating:
@@ -2861,6 +2976,8 @@ class TimelineEditorPanel(wx.Panel):
             obj.use_source_root_motion = self.chk_source_root.GetValue()
 
         if key:
+            if event.GetEventObject() is self.key_source_type_choice:
+                self.refresh_key_source_choices(preferred_id=None)
             key.time = self._apply_snap(float(self.key_time.GetValue()), scene)
             key.x = float(self.key_x.GetValue())
             key.y = float(self.key_y.GetValue())
@@ -2870,6 +2987,19 @@ class TimelineEditorPanel(wx.Panel):
             key.flip_x = self.chk_key_flip_x.GetValue()
             key.flip_y = self.chk_key_flip_y.GetValue()
             key.visible = self.chk_key_visible.GetValue()
+            key_source_type = self.key_source_type_choice.GetStringSelection() or KEY_SOURCE_NO_CHANGE
+            if key_source_type == KEY_SOURCE_NO_CHANGE:
+                key.source_type = None
+                key.source_id = None
+            else:
+                if key_source_type not in TIMELINE_SOURCE_TYPES:
+                    key_source_type = "none"
+                key.source_type = key_source_type
+                key.source_id = self._selected_key_source_id()
+            key.source_offset = (
+                float(self.key_source_offset_x.GetValue()),
+                float(self.key_source_offset_y.GetValue()),
+            )
             key.easing = self.key_easing.GetStringSelection() or "linear"
             path_in = (float(self.key_path_in_x.GetValue()), float(self.key_path_in_y.GetValue()))
             path_out = (float(self.key_path_out_x.GetValue()), float(self.key_path_out_y.GetValue()))
