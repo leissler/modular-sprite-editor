@@ -57,3 +57,9 @@ Binpack/
 .tmp_*/
 test_output_dbg*/
 safe_debug.txt
+
+# SGDK example build artifacts
+examples/sgdk/sgdk_demo/out/
+examples/sgdk/sgdk_demo/third_party/sgdk/.git/
+examples/sgdk/sgdk_demo/third_party/sgdk/out/
+examples/sgdk/sgdk_demo/third_party/sgdk/sample/**/out/
