@@ -6,6 +6,14 @@ This folder contains a complete SGDK-oriented example pipeline for modular sprit
 - **Bake step**: Python exporter converts JSON data into SGDK-friendly resources and a compact binary blob
 - **Runtime**: SGDK/C library that can render a **module**, **frame**, **animation**, and **timeline scene**
 
+## Current State
+
+- The SGDK example uses a **binary data blob** (`modsprite_blob.bin`) instead of giant generated C data tables.
+- The blob is included in the ROM via `res/resources.res` as:
+  - `BIN MS_BLOB "gen/modsprite_blob.bin" ...`
+- Runtime data access is loaded from `MS_BLOB` in `src/modsprite_data.c`.
+- Selector UI includes unit selection (module/frame/animation/scene), mapping selection, ID jump, and live profiling.
+
 ## Why this is baked (not runtime JSON)
 
 Mega Drive runtime code should avoid JSON parsing and expensive per-frame transform work. The exporter bakes data into:
@@ -69,6 +77,8 @@ make debug CONVSYM=true
 
 This produces `out/debug/rom.bin`.
 
+For convenience you can also run `out/rom.bin` if present.
+
 ## Runtime API summary (`inc/modsprite.h`)
 
 - `ms_draw_module(index, x, y)`
@@ -106,3 +116,11 @@ ID jump editor:
 - `B`: cancel
 - `X`: clear input
 - `Y`: backspace
+
+## Troubleshooting
+
+- If you see `Error: blob load failed` in the demo UI:
+  1. Regenerate data with the exporter command above.
+  2. Rebuild the ROM (`make debug CONVSYM=true`).
+  3. Make sure you run the freshly rebuilt ROM from `out/debug/rom.bin` (or a copied fresh `out/rom.bin`).
+- If `make release` fails with LTO mismatch, use `make debug` as described above.

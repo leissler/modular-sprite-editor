@@ -10,6 +10,14 @@ Construct complex character animations from individual body parts (modules). Def
 
 ---
 
+## ⚠️ Project Status
+
+- The **Modules / Frames / Animations / Mappings** workflow is actively used and is the most complete part of the tool.
+- The **Timeline Editor is experimental** and still in active development. Behavior, data shape, and UX are not final yet.
+- SGDK export and demo content lives in [`examples/sgdk`](examples/sgdk/README.md), including a blob-based runtime data path for Mega Drive tests.
+
+---
+
 ## ✨ Key Features
 
 ### 🛠️ Module Editor
@@ -30,6 +38,11 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Global Mirroring**: Instantly preview how animations look flipped horizontally/vertically.
 *   **GIF Export**: Export your creations directly to animated GIFs.
 
+### 🧪 Timeline Editor (Experimental)
+*   **Scene Composition**: Build timeline scenes from modules, frames, and animations.
+*   **Hierarchy & Draw Order**: Parent objects and control render order per scene object.
+*   **In Development**: Expect iterative changes and incomplete tooling while this editor is being finalized.
+
 ### 🎯 Mapping Editor
 *   **Module Variants**: Create alternate versions of your sprite by remapping specific modules (e.g., swap "Clean Armor" for "Damaged Armor").
 *   **Visual States**: Define complex state changes like Invisibility (hiding body parts) or Shadow Forms (swapping palettes/modules) without modifying the original frames.
@@ -46,8 +59,8 @@ Construct complex character animations from individual body parts (modules). Def
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/ModularSpriteEditor.git
-    cd ModularSpriteEditor
+    git clone https://github.com/leissler/modular-sprite-editor.git
+    cd modular-sprite-editor
     ```
 
 2.  **Create a Virtual Environment**
