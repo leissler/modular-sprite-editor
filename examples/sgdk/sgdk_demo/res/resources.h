@@ -3,6 +3,7 @@
 #ifndef _RES_RESOURCES_H_
 #define _RES_RESOURCES_H_
 
+extern const u8 MS_BLOB[110666];
 extern const SpriteDefinition MS_VAR_0000;
 extern const SpriteDefinition MS_VAR_0001;
 extern const SpriteDefinition MS_VAR_0002;

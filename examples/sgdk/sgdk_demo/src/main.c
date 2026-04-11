@@ -19,7 +19,7 @@ enum
 #define SPRITE_DRAW_Y 168
 #define HUD_TOGGLE_BUTTONS (BUTTON_MODE | BUTTON_Z)
 
-static u16 g_unit = DEMO_UNIT_MODULE;
+static u16 g_unit = DEMO_UNIT_ANIMATION;
 static u16 g_mapping_index = 0;
 static u8 g_bg_luma = 96;
 static u16 g_index_module = 0;
@@ -100,12 +100,12 @@ static u16 *demo_unit_index_ptr(u16 unit)
 static const char *demo_unit_id(u16 unit, u16 index)
 {
     if (unit == DEMO_UNIT_MODULE)
-        return (index < MS_MODULE_COUNT) ? ms_module_ids[index] : "";
+        return ms_module_id(index);
     if (unit == DEMO_UNIT_FRAME)
-        return (index < MS_FRAME_COUNT) ? ms_frame_ids[index] : "";
+        return ms_frame_id(index);
     if (unit == DEMO_UNIT_ANIMATION)
-        return (index < MS_ANIMATION_COUNT) ? ms_animation_ids[index] : "";
-    return (index < MS_SCENE_COUNT) ? ms_scene_ids[index] : "";
+        return ms_animation_id(index);
+    return ms_scene_id(index);
 }
 
 static const char *demo_unit_name(u16 unit, u16 index)
@@ -218,9 +218,7 @@ static u16 demo_mapping_count(void)
 
 static const char *demo_mapping_id(u16 mapping_index)
 {
-    if ((MS_MAPPING_COUNT == 0) || (mapping_index >= MS_MAPPING_COUNT))
-        return "";
-    return ms_mapping_ids[mapping_index];
+    return ms_mapping_id(mapping_index);
 }
 
 static const char *demo_mapping_name(u16 mapping_index)
@@ -510,7 +508,10 @@ int main(void)
     JOY_setSupport(PORT_2, JOY_SUPPORT_OFF);
     ms_init();
     demo_sync_players();
-    demo_set_status("Ready with mapping <none>");
+    if (!ms_data_is_ready())
+        demo_set_status("Error: blob load failed");
+    else
+        demo_set_status("Ready with mapping <none>");
 
     while (1)
     {

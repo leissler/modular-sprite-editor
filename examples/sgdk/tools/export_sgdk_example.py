@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake editor JSON into an SGDK example project (resources + C data tables)."""
+"""Bake editor JSON into an SGDK example project (resources + binary data blob)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import math
 import shutil
+import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -86,6 +87,7 @@ class SGDKBakeContext:
 
         self.scene_samples: List[int] = []
         self.scene_records: List[SceneRecord] = []
+        self.blob_size_bytes: int = 0
 
         self.mapping_ids: List[str] = [m.id if m else "" for m in self.mappings]
         self.mapping_names: List[str] = [m.name if m else "<none>" for m in self.mappings]
@@ -123,7 +125,7 @@ class SGDKBakeContext:
     def _prepare_output_dirs(self) -> None:
         self.output_gen_dir.mkdir(parents=True, exist_ok=True)
         for child in self.output_gen_dir.iterdir():
-            if child.is_file() and child.suffix.lower() == ".png":
+            if child.is_file() and child.suffix.lower() in (".png", ".bin"):
                 child.unlink()
 
     def _set_current_mapping(self, mapping: Optional[ModuleMapping]) -> None:
@@ -853,88 +855,280 @@ class SGDKBakeContext:
                     )
                 )
 
+    @staticmethod
+    def _be16(value: int) -> bytes:
+        return struct.pack(">H", int(value) & 0xFFFF)
+
+    @staticmethod
+    def _be32(value: int) -> bytes:
+        return struct.pack(">I", int(value) & 0xFFFFFFFF)
+
+    @staticmethod
+    def _append_align(buf: bytearray, align: int) -> None:
+        if align <= 1:
+            return
+        while len(buf) % align:
+            buf.append(0)
+
+    def _emit_blob(self, path: Path) -> None:
+        section_offsets: Dict[str, int] = {}
+        section_names = [
+            "parts",
+            "render_frames",
+            "module_render_frames",
+            "frame_render_frames",
+            "anim_steps",
+            "animations",
+            "scene_samples",
+            "scenes",
+            "mapping_ids",
+            "mapping_names",
+            "module_ids",
+            "module_names",
+            "frame_ids",
+            "frame_names",
+            "animation_ids",
+            "animation_names",
+            "scene_ids",
+            "scene_names",
+            "strings",
+        ]
+
+        strings_blob = bytearray()
+
+        def append_string_list(values: Sequence[str]) -> List[int]:
+            rel_offsets: List[int] = []
+            for value in values:
+                rel_offsets.append(len(strings_blob))
+                encoded = str(value if value is not None else "").encode("utf-8")
+                strings_blob.extend(encoded)
+                strings_blob.append(0)
+            return rel_offsets
+
+        mapping_ids_rel = append_string_list(self.mapping_ids)
+        mapping_names_rel = append_string_list(self.mapping_names)
+        module_ids_rel = append_string_list([mod.id for mod in self.project.modules])
+        module_names_rel = append_string_list([mod.name for mod in self.project.modules])
+        frame_ids_rel = append_string_list([frm.id for frm in self.project.frames])
+        frame_names_rel = append_string_list([frm.name for frm in self.project.frames])
+        anim_ids_rel = append_string_list([anim.id for anim in self.project.animations])
+        anim_names_rel = append_string_list([anim.name for anim in self.project.animations])
+        scene_ids_rel = append_string_list([scene.id for scene in self.project.timeline_scenes])
+        scene_names_rel = append_string_list([scene.name for scene in self.project.timeline_scenes])
+
+        parts_raw = bytearray()
+        for variant_index, px, py, hflip, vflip in self.parts:
+            parts_raw.extend(struct.pack(">HhhBB", int(variant_index), int(px), int(py), int(hflip), int(vflip)))
+
+        render_frames_raw = bytearray()
+        for rf in self.render_frames:
+            render_frames_raw.extend(struct.pack(">IH", int(rf.first_part), int(rf.part_count)))
+
+        module_render_raw = bytearray()
+        for idx in self.module_render_frames:
+            module_render_raw.extend(self._be16(int(idx)))
+
+        frame_render_raw = bytearray()
+        for idx in self.frame_render_frames:
+            frame_render_raw.extend(self._be16(int(idx)))
+
+        anim_steps_raw = bytearray()
+        for frame_index, duration_ticks in self.anim_steps:
+            anim_steps_raw.extend(struct.pack(">HH", int(frame_index), int(duration_ticks)))
+
+        animations_raw = bytearray()
+        for rec in self.anim_records:
+            animations_raw.extend(
+                struct.pack(">IHHBB", int(rec.first_step), int(rec.step_count), int(rec.fps), int(rec.playback), 0)
+            )
+
+        scene_samples_raw = bytearray()
+        for idx in self.scene_samples:
+            scene_samples_raw.extend(self._be16(int(idx)))
+
+        scenes_raw = bytearray()
+        for rec in self.scene_records:
+            scenes_raw.extend(
+                struct.pack(
+                    ">IHHHBBBB",
+                    int(rec.first_sample),
+                    int(rec.sample_count),
+                    int(rec.fps),
+                    int(rec.duration_ticks),
+                    int(rec.loop),
+                    0,
+                    0,
+                    0,
+                )
+            )
+
+        blob = bytearray()
+        header_size = 114
+        blob.extend(b"\0" * header_size)
+
+        def append_section(name: str, data: bytes, align: int = 2) -> None:
+            self._append_align(blob, align)
+            section_offsets[name] = len(blob)
+            blob.extend(data)
+
+        append_section("parts", bytes(parts_raw))
+        append_section("render_frames", bytes(render_frames_raw))
+        append_section("module_render_frames", bytes(module_render_raw))
+        append_section("frame_render_frames", bytes(frame_render_raw))
+        append_section("anim_steps", bytes(anim_steps_raw))
+        append_section("animations", bytes(animations_raw))
+        append_section("scene_samples", bytes(scene_samples_raw))
+        append_section("scenes", bytes(scenes_raw))
+        append_section("strings", bytes(strings_blob), align=1)
+
+        strings_base = section_offsets["strings"]
+
+        def build_string_offset_section(rel_offsets: Sequence[int]) -> bytes:
+            out = bytearray()
+            for rel in rel_offsets:
+                out.extend(self._be32(strings_base + int(rel)))
+            return bytes(out)
+
+        append_section("mapping_ids", build_string_offset_section(mapping_ids_rel))
+        append_section("mapping_names", build_string_offset_section(mapping_names_rel))
+        append_section("module_ids", build_string_offset_section(module_ids_rel))
+        append_section("module_names", build_string_offset_section(module_names_rel))
+        append_section("frame_ids", build_string_offset_section(frame_ids_rel))
+        append_section("frame_names", build_string_offset_section(frame_names_rel))
+        append_section("animation_ids", build_string_offset_section(anim_ids_rel))
+        append_section("animation_names", build_string_offset_section(anim_names_rel))
+        append_section("scene_ids", build_string_offset_section(scene_ids_rel))
+        append_section("scene_names", build_string_offset_section(scene_names_rel))
+
+        header = bytearray()
+        header.extend(b"MSB1")
+        header.extend(self._be16(1))
+        header.extend(self._be16(0))
+        header.extend(self._be16(len(self.variants)))
+        header.extend(self._be16(len(self.project.modules)))
+        header.extend(self._be16(len(self.project.frames)))
+        header.extend(self._be16(len(self.project.animations)))
+        header.extend(self._be16(len(self.project.timeline_scenes)))
+        header.extend(self._be16(len(self.mappings)))
+        header.extend(self._be16(len(self.render_frames)))
+        header.extend(self._be16(len(self.anim_steps)))
+        header.extend(self._be16(len(self.scene_samples)))
+        header.extend(self._be16(len(self.anim_records)))
+        header.extend(self._be16(len(self.scene_records)))
+        header.extend(self._be32(len(self.parts)))
+
+        for section in section_names:
+            header.extend(self._be32(section_offsets.get(section, 0)))
+
+        header.extend(self._be32(len(strings_blob)))
+
+        if len(header) != header_size:
+            raise RuntimeError(f"Internal SGDK blob header size mismatch: {len(header)} != {header_size}")
+
+        blob[0:header_size] = header
+        self.blob_size_bytes = len(blob)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(bytes(blob))
+
     def _emit_header(self, path: Path) -> None:
-        text = f"""#ifndef MODSPRITE_DATA_H
+        text = """#ifndef MODSPRITE_DATA_H
 #define MODSPRITE_DATA_H
 
 #include <genesis.h>
 
-typedef struct
-{{
+typedef struct __attribute__((packed))
+{
     u16 variant_index;
     s16 x;
     s16 y;
     u8 hflip;
     u8 vflip;
-}} MS_Part;
+} MS_Part;
 
-typedef struct
-{{
+typedef struct __attribute__((packed))
+{
     u32 first_part;
     u16 part_count;
-}} MS_RenderFrame;
+} MS_RenderFrame;
 
-typedef struct
-{{
+typedef struct __attribute__((packed))
+{
     u16 frame_index;
     u16 duration_ticks;
-}} MS_AnimStep;
+} MS_AnimStep;
 
-typedef struct
-{{
+typedef struct __attribute__((packed))
+{
     u32 first_step;
     u16 step_count;
     u16 fps;
     u8 playback;
-}} MS_Animation;
+    u8 reserved0;
+} MS_Animation;
 
-typedef struct
-{{
+typedef struct __attribute__((packed))
+{
     u32 first_sample;
     u16 sample_count;
     u16 fps;
     u16 duration_ticks;
     u8 loop;
-}} MS_Scene;
+    u8 reserved0;
+    u8 reserved1;
+    u8 reserved2;
+} MS_Scene;
 
-#define MS_VARIANT_COUNT {len(self.variants)}U
-#define MS_PART_COUNT {len(self.parts)}U
-#define MS_RENDER_FRAME_COUNT {len(self.render_frames)}U
+extern u16 ms_variant_count;
+extern u32 ms_part_count;
+extern u16 ms_render_frame_count;
 
-#define MS_MODULE_COUNT {len(self.project.modules)}U
-#define MS_FRAME_COUNT {len(self.project.frames)}U
-#define MS_ANIMATION_COUNT {len(self.project.animations)}U
-#define MS_SCENE_COUNT {len(self.project.timeline_scenes)}U
-#define MS_MAPPING_COUNT {len(self.mappings)}U
+extern u16 ms_module_count;
+extern u16 ms_frame_count;
+extern u16 ms_animation_count;
+extern u16 ms_scene_count;
+extern u16 ms_mapping_count;
 
-#define MS_ANIM_STEP_COUNT {len(self.anim_steps)}U
-#define MS_SCENE_SAMPLE_COUNT {len(self.scene_samples)}U
-#define MS_ANIMATION_RECORD_COUNT {len(self.anim_records)}U
-#define MS_SCENE_RECORD_COUNT {len(self.scene_records)}U
+extern u16 ms_anim_step_count;
+extern u16 ms_scene_sample_count;
+extern u16 ms_animation_record_count;
+extern u16 ms_scene_record_count;
+
+#define MS_VARIANT_COUNT (ms_variant_count)
+#define MS_PART_COUNT (ms_part_count)
+#define MS_RENDER_FRAME_COUNT (ms_render_frame_count)
+#define MS_MODULE_COUNT (ms_module_count)
+#define MS_FRAME_COUNT (ms_frame_count)
+#define MS_ANIMATION_COUNT (ms_animation_count)
+#define MS_SCENE_COUNT (ms_scene_count)
+#define MS_MAPPING_COUNT (ms_mapping_count)
+#define MS_ANIM_STEP_COUNT (ms_anim_step_count)
+#define MS_SCENE_SAMPLE_COUNT (ms_scene_sample_count)
+#define MS_ANIMATION_RECORD_COUNT (ms_animation_record_count)
+#define MS_SCENE_RECORD_COUNT (ms_scene_record_count)
 
 extern const SpriteDefinition *const ms_variant_defs[];
-extern const MS_Part ms_parts[];
-extern const MS_RenderFrame ms_render_frames[];
+extern const MS_Part *ms_parts;
+extern const MS_RenderFrame *ms_render_frames;
+extern const u16 *ms_module_render_frames;
+extern const u16 *ms_frame_render_frames;
+extern const MS_AnimStep *ms_anim_steps;
+extern const MS_Animation *ms_animations;
+extern const u16 *ms_scene_samples;
+extern const MS_Scene *ms_scenes;
 
-extern const u16 ms_module_render_frames[];
-extern const char *const ms_mapping_ids[];
-extern const char *const ms_mapping_names[];
-extern const char *const ms_module_ids[];
-extern const char *const ms_module_names[];
+void ms_data_init(void);
+u8 ms_data_is_ready(void);
 
-extern const u16 ms_frame_render_frames[];
-extern const char *const ms_frame_ids[];
-extern const char *const ms_frame_names[];
-
-extern const MS_AnimStep ms_anim_steps[];
-extern const MS_Animation ms_animations[];
-extern const char *const ms_animation_ids[];
-extern const char *const ms_animation_names[];
-
-extern const u16 ms_scene_samples[];
-extern const MS_Scene ms_scenes[];
-extern const char *const ms_scene_ids[];
-extern const char *const ms_scene_names[];
+const char *ms_mapping_id(u16 index);
+const char *ms_mapping_name_data(u16 index);
+const char *ms_module_id(u16 index);
+const char *ms_module_name_data(u16 index);
+const char *ms_frame_id(u16 index);
+const char *ms_frame_name_data(u16 index);
+const char *ms_animation_id(u16 index);
+const char *ms_animation_name_data(u16 index);
+const char *ms_scene_id(u16 index);
+const char *ms_scene_name_data(u16 index);
 
 #endif
 """
@@ -947,87 +1141,292 @@ extern const char *const ms_scene_names[];
             lines.append(
                 f'SPRITE {variant.symbol} "gen/{variant.filename}" {variant.tile_w} {variant.tile_h} NONE'
             )
+        lines.append('BIN MS_BLOB "gen/modsprite_blob.bin" 2 2 0 NONE FALSE')
         lines.append("")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\n".join(lines), encoding="utf-8")
 
-    @staticmethod
-    def _emit_c_array(name: str, ctype: str, items: Sequence[str], empty_value: str) -> str:
-        if items:
-            body = "\n".join(f"    {item}," for item in items)
-        else:
-            body = f"    {empty_value},"
-        return f"const {ctype} {name}[] = {{\n{body}\n}};\n"
-
     def _emit_data_c(self, path: Path) -> None:
-        variant_ptrs = [f"&{v.symbol}" for v in self.variants]
-        part_rows = [f"{{ {p[0]}u, {p[1]}, {p[2]}, {p[3]}u, {p[4]}u }}" for p in self.parts]
-        render_rows = [f"{{ {rf.first_part}u, {rf.part_count}u }}" for rf in self.render_frames]
+        variant_ptrs = [f"    &{v.symbol}," for v in self.variants]
+        if not variant_ptrs:
+            variant_ptrs = ["    NULL,"]
+        variant_body = "\n".join(variant_ptrs)
 
-        mod_rf_rows = [f"{idx}u" for idx in self.module_render_frames]
-        map_id_rows = [self._c_string(value) for value in self.mapping_ids]
-        map_name_rows = [self._c_string(value) for value in self.mapping_names]
-        mod_id_rows = [self._c_string(mod.id) for mod in self.project.modules]
-        mod_name_rows = [self._c_string(mod.name) for mod in self.project.modules]
+        text = f"""#include <genesis.h>
+#include <string.h>
+#include "modsprite_data.h"
+#include "resources.h"
 
-        frm_rf_rows = [f"{idx}u" for idx in self.frame_render_frames]
-        frm_id_rows = [self._c_string(frm.id) for frm in self.project.frames]
-        frm_name_rows = [self._c_string(frm.name) for frm in self.project.frames]
+#define MS_BLOB_MAGIC 0x4D534231u
+#define MS_BLOB_VERSION 1u
+#define MS_BLOB_HEADER_SIZE 114u
+#define MS_VARIANT_DEF_COUNT {len(self.variants)}u
 
-        anim_step_rows = [f"{{ {step[0]}u, {step[1]}u }}" for step in self.anim_steps]
-        anim_rows = [
-            f"{{ {a.first_step}u, {a.step_count}u, {a.fps}u, {a.playback}u }}"
-            for a in self.anim_records
-        ]
-        anim_id_rows = [self._c_string(anim.id) for anim in self.project.animations]
-        anim_name_rows = [self._c_string(anim.name) for anim in self.project.animations]
+enum
+{{
+    MS_SEC_PARTS = 0,
+    MS_SEC_RENDER_FRAMES = 1,
+    MS_SEC_MODULE_RENDER_FRAMES = 2,
+    MS_SEC_FRAME_RENDER_FRAMES = 3,
+    MS_SEC_ANIM_STEPS = 4,
+    MS_SEC_ANIMATIONS = 5,
+    MS_SEC_SCENE_SAMPLES = 6,
+    MS_SEC_SCENES = 7,
+    MS_SEC_MAPPING_IDS = 8,
+    MS_SEC_MAPPING_NAMES = 9,
+    MS_SEC_MODULE_IDS = 10,
+    MS_SEC_MODULE_NAMES = 11,
+    MS_SEC_FRAME_IDS = 12,
+    MS_SEC_FRAME_NAMES = 13,
+    MS_SEC_ANIMATION_IDS = 14,
+    MS_SEC_ANIMATION_NAMES = 15,
+    MS_SEC_SCENE_IDS = 16,
+    MS_SEC_SCENE_NAMES = 17,
+    MS_SEC_STRINGS = 18,
+    MS_SEC_COUNT = 19
+}};
 
-        scene_sample_rows = [f"{idx}u" for idx in self.scene_samples]
-        scene_rows = [
-            f"{{ {s.first_sample}u, {s.sample_count}u, {s.fps}u, {s.duration_ticks}u, {s.loop}u }}"
-            for s in self.scene_records
-        ]
-        scene_id_rows = [self._c_string(scene.id) for scene in self.project.timeline_scenes]
-        scene_name_rows = [self._c_string(scene.name) for scene in self.project.timeline_scenes]
+const SpriteDefinition *const ms_variant_defs[] = {{
+{variant_body}
+}};
 
-        sections = [
-            "#include <genesis.h>",
-            "#include \"modsprite_data.h\"",
-            "#include \"resources.h\"",
-            "",
-            self._emit_c_array(
-                "ms_variant_defs",
-                "SpriteDefinition *const",
-                variant_ptrs,
-                "NULL",
-            ),
-            self._emit_c_array("ms_parts", "MS_Part", part_rows, "{ 0u, 0, 0, 0u, 0u }"),
-            self._emit_c_array("ms_render_frames", "MS_RenderFrame", render_rows, "{ 0u, 0u }"),
-            "",
-            self._emit_c_array("ms_module_render_frames", "u16", mod_rf_rows, "0u"),
-            self._emit_c_array("ms_mapping_ids", "char *const", map_id_rows, "\"\""),
-            self._emit_c_array("ms_mapping_names", "char *const", map_name_rows, "\"\""),
-            self._emit_c_array("ms_module_ids", "char *const", mod_id_rows, "\"\""),
-            self._emit_c_array("ms_module_names", "char *const", mod_name_rows, "\"\""),
-            "",
-            self._emit_c_array("ms_frame_render_frames", "u16", frm_rf_rows, "0u"),
-            self._emit_c_array("ms_frame_ids", "char *const", frm_id_rows, "\"\""),
-            self._emit_c_array("ms_frame_names", "char *const", frm_name_rows, "\"\""),
-            "",
-            self._emit_c_array("ms_anim_steps", "MS_AnimStep", anim_step_rows, "{ 0u, 1u }"),
-            self._emit_c_array("ms_animations", "MS_Animation", anim_rows, "{ 0u, 1u, 10u, 0u }"),
-            self._emit_c_array("ms_animation_ids", "char *const", anim_id_rows, "\"\""),
-            self._emit_c_array("ms_animation_names", "char *const", anim_name_rows, "\"\""),
-            "",
-            self._emit_c_array("ms_scene_samples", "u16", scene_sample_rows, "0u"),
-            self._emit_c_array("ms_scenes", "MS_Scene", scene_rows, "{ 0u, 1u, 60u, 1u, 1u }"),
-            self._emit_c_array("ms_scene_ids", "char *const", scene_id_rows, "\"\""),
-            self._emit_c_array("ms_scene_names", "char *const", scene_name_rows, "\"\""),
-            "",
-        ]
+u16 ms_variant_count = 0;
+u32 ms_part_count = 0;
+u16 ms_render_frame_count = 0;
+u16 ms_module_count = 0;
+u16 ms_frame_count = 0;
+u16 ms_animation_count = 0;
+u16 ms_scene_count = 0;
+u16 ms_mapping_count = 0;
+u16 ms_anim_step_count = 0;
+u16 ms_scene_sample_count = 0;
+u16 ms_animation_record_count = 0;
+u16 ms_scene_record_count = 0;
 
+const MS_Part *ms_parts = NULL;
+const MS_RenderFrame *ms_render_frames = NULL;
+const u16 *ms_module_render_frames = NULL;
+const u16 *ms_frame_render_frames = NULL;
+const MS_AnimStep *ms_anim_steps = NULL;
+const MS_Animation *ms_animations = NULL;
+const u16 *ms_scene_samples = NULL;
+const MS_Scene *ms_scenes = NULL;
+
+static const u8 *g_blob = NULL;
+static u32 g_blob_size = 0;
+static u8 g_data_ready = FALSE;
+static u8 g_data_attempted = FALSE;
+static u32 g_section_offsets[MS_SEC_COUNT];
+static u32 g_strings_base = 0;
+static u32 g_strings_size = 0;
+static const u8 *g_mapping_id_offsets = NULL;
+static const u8 *g_mapping_name_offsets = NULL;
+static const u8 *g_module_id_offsets = NULL;
+static const u8 *g_module_name_offsets = NULL;
+static const u8 *g_frame_id_offsets = NULL;
+static const u8 *g_frame_name_offsets = NULL;
+static const u8 *g_animation_id_offsets = NULL;
+static const u8 *g_animation_name_offsets = NULL;
+static const u8 *g_scene_id_offsets = NULL;
+static const u8 *g_scene_name_offsets = NULL;
+
+static u16 ms_read_be16(const u8 *ptr)
+{{
+    return (u16)(((u16)ptr[0] << 8) | (u16)ptr[1]);
+}}
+
+static u32 ms_read_be32(const u8 *ptr)
+{{
+    return ((u32)ptr[0] << 24) | ((u32)ptr[1] << 16) | ((u32)ptr[2] << 8) | (u32)ptr[3];
+}}
+
+static void ms_reset_data(void)
+{{
+    ms_variant_count = 0;
+    ms_part_count = 0;
+    ms_render_frame_count = 0;
+    ms_module_count = 0;
+    ms_frame_count = 0;
+    ms_animation_count = 0;
+    ms_scene_count = 0;
+    ms_mapping_count = 0;
+    ms_anim_step_count = 0;
+    ms_scene_sample_count = 0;
+    ms_animation_record_count = 0;
+    ms_scene_record_count = 0;
+
+    ms_parts = NULL;
+    ms_render_frames = NULL;
+    ms_module_render_frames = NULL;
+    ms_frame_render_frames = NULL;
+    ms_anim_steps = NULL;
+    ms_animations = NULL;
+    ms_scene_samples = NULL;
+    ms_scenes = NULL;
+
+    g_mapping_id_offsets = NULL;
+    g_mapping_name_offsets = NULL;
+    g_module_id_offsets = NULL;
+    g_module_name_offsets = NULL;
+    g_frame_id_offsets = NULL;
+    g_frame_name_offsets = NULL;
+    g_animation_id_offsets = NULL;
+    g_animation_name_offsets = NULL;
+    g_scene_id_offsets = NULL;
+    g_scene_name_offsets = NULL;
+    g_strings_base = 0;
+    g_strings_size = 0;
+    g_data_ready = FALSE;
+}}
+
+static u8 ms_safe_mul_u32(u32 a, u32 b, u32 *out)
+{{
+    if (!out)
+        return FALSE;
+    if (a == 0 || b == 0)
+    {{
+        *out = 0;
+        return TRUE;
+    }}
+    if (a > (0xFFFFFFFFu / b))
+        return FALSE;
+    *out = a * b;
+    return TRUE;
+}}
+
+static u8 ms_blob_range_ok(u32 offset, u32 size)
+{{
+    if (offset > g_blob_size)
+        return FALSE;
+    if (size > (g_blob_size - offset))
+        return FALSE;
+    return TRUE;
+}}
+
+static u8 ms_validate_string_offsets(const u8 *offsets, u16 count)
+{{
+    u16 i;
+    u32 end;
+
+    if (count == 0)
+        return TRUE;
+    if (!offsets)
+        return FALSE;
+    if (g_strings_size == 0)
+        return FALSE;
+
+    end = g_strings_base + g_strings_size;
+    for (i = 0; i < count; i++)
+    {{
+        u32 off = ms_read_be32(offsets + ((u32)i * 4u));
+        if (off < g_strings_base || off >= end)
+            return FALSE;
+    }}
+    return TRUE;
+}}
+
+u8 ms_data_is_ready(void)
+{{
+    return g_data_ready;
+}}
+
+void ms_data_init(void)
+{{
+    const u8 *ptr;
+    u16 i;
+
+    if (g_data_attempted)
+        return;
+
+    g_data_attempted = TRUE;
+    ms_reset_data();
+
+    g_blob = MS_BLOB;
+    g_blob_size = (u32)sizeof(MS_BLOB);
+    if (g_blob_size < MS_BLOB_HEADER_SIZE)
+        return;
+
+    ptr = g_blob;
+    if (ms_read_be32(ptr) != MS_BLOB_MAGIC)
+        return;
+    ptr += 4;
+    if (ms_read_be16(ptr) != MS_BLOB_VERSION)
+        return;
+    ptr += 2;
+    ptr += 2; /* reserved */
+
+    ms_variant_count = ms_read_be16(ptr); ptr += 2;
+    ms_module_count = ms_read_be16(ptr); ptr += 2;
+    ms_frame_count = ms_read_be16(ptr); ptr += 2;
+    ms_animation_count = ms_read_be16(ptr); ptr += 2;
+    ms_scene_count = ms_read_be16(ptr); ptr += 2;
+    ms_mapping_count = ms_read_be16(ptr); ptr += 2;
+    ms_render_frame_count = ms_read_be16(ptr); ptr += 2;
+    ms_anim_step_count = ms_read_be16(ptr); ptr += 2;
+    ms_scene_sample_count = ms_read_be16(ptr); ptr += 2;
+    ms_animation_record_count = ms_read_be16(ptr); ptr += 2;
+    ms_scene_record_count = ms_read_be16(ptr); ptr += 2;
+    ms_part_count = ms_read_be32(ptr); ptr += 4;
+
+    for (i = 0; i < MS_SEC_COUNT; i++)
+    {{
+        g_section_offsets[i] = ms_read_be32(ptr);
+        ptr += 4;
+    }}
+    g_strings_size = ms_read_be32(ptr);
+
+    if (ms_variant_count > MS_VARIANT_DEF_COUNT)
+        ms_variant_count = MS_VARIANT_DEF_COUNT;
+
+    ms_parts = (const MS_Part *)(g_blob + g_section_offsets[MS_SEC_PARTS]);
+    ms_render_frames = (const MS_RenderFrame *)(g_blob + g_section_offsets[MS_SEC_RENDER_FRAMES]);
+    ms_module_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_MODULE_RENDER_FRAMES]);
+    ms_frame_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_FRAME_RENDER_FRAMES]);
+    ms_anim_steps = (const MS_AnimStep *)(g_blob + g_section_offsets[MS_SEC_ANIM_STEPS]);
+    ms_animations = (const MS_Animation *)(g_blob + g_section_offsets[MS_SEC_ANIMATIONS]);
+    ms_scene_samples = (const u16 *)(g_blob + g_section_offsets[MS_SEC_SCENE_SAMPLES]);
+    ms_scenes = (const MS_Scene *)(g_blob + g_section_offsets[MS_SEC_SCENES]);
+    g_mapping_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_MAPPING_IDS]);
+    g_mapping_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_MAPPING_NAMES]);
+    g_module_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_MODULE_IDS]);
+    g_module_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_MODULE_NAMES]);
+    g_frame_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_FRAME_IDS]);
+    g_frame_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_FRAME_NAMES]);
+    g_animation_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ANIMATION_IDS]);
+    g_animation_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ANIMATION_NAMES]);
+    g_scene_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_IDS]);
+    g_scene_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_NAMES]);
+
+    g_strings_base = g_section_offsets[MS_SEC_STRINGS];
+
+    g_data_ready = TRUE;
+}}
+
+static const char *ms_lookup_string(const u8 *offsets, u16 count, u16 index)
+{{
+    u32 off;
+
+    if (!g_data_ready || !offsets || index >= count)
+        return "";
+    off = ms_read_be32(offsets + ((u32)index * 4u));
+    if (!ms_blob_range_ok(off, 1u))
+        return "";
+    return (const char *)(g_blob + off);
+}}
+
+const char *ms_mapping_id(u16 index) {{ return ms_lookup_string(g_mapping_id_offsets, ms_mapping_count, index); }}
+const char *ms_mapping_name_data(u16 index) {{ return ms_lookup_string(g_mapping_name_offsets, ms_mapping_count, index); }}
+const char *ms_module_id(u16 index) {{ return ms_lookup_string(g_module_id_offsets, ms_module_count, index); }}
+const char *ms_module_name_data(u16 index) {{ return ms_lookup_string(g_module_name_offsets, ms_module_count, index); }}
+const char *ms_frame_id(u16 index) {{ return ms_lookup_string(g_frame_id_offsets, ms_frame_count, index); }}
+const char *ms_frame_name_data(u16 index) {{ return ms_lookup_string(g_frame_name_offsets, ms_frame_count, index); }}
+const char *ms_animation_id(u16 index) {{ return ms_lookup_string(g_animation_id_offsets, ms_animation_count, index); }}
+const char *ms_animation_name_data(u16 index) {{ return ms_lookup_string(g_animation_name_offsets, ms_animation_count, index); }}
+const char *ms_scene_id(u16 index) {{ return ms_lookup_string(g_scene_id_offsets, ms_scene_count, index); }}
+const char *ms_scene_name_data(u16 index) {{ return ms_lookup_string(g_scene_name_offsets, ms_scene_count, index); }}
+"""
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(sections), encoding="utf-8")
+        path.write_text(text, encoding="utf-8")
 
 
 def _resolve_mappings(project: Project, mapping_selector: str) -> List[Optional[ModuleMapping]]:
@@ -1090,6 +1489,7 @@ def main() -> int:
     bake = SGDKBakeContext(project=project, mappings=mappings, output_demo_dir=output_demo_dir)
     bake.bake()
 
+    bake._emit_blob(output_demo_dir / "res" / "gen" / "modsprite_blob.bin")
     bake._emit_header(output_demo_dir / "inc" / "modsprite_data.h")
     bake._emit_data_c(output_demo_dir / "src" / "modsprite_data.c")
     bake._emit_resources(output_demo_dir / "res" / "resources.res")
@@ -1113,6 +1513,7 @@ def main() -> int:
         "scenes": len(project.timeline_scenes),
         "anim_steps": len(bake.anim_steps),
         "scene_samples": len(bake.scene_samples),
+        "blob_size_bytes": bake.blob_size_bytes,
     }
 
     for key, value in summary.items():

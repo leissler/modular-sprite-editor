@@ -11,6 +11,8 @@ static Sprite *g_runtime_sprites[MS_RUNTIME_SPRITE_LIMIT];
 static u16 g_runtime_capacity = 0;
 static u16 g_runtime_used = 0;
 static u16 g_runtime_prev_used = 0;
+static u16 g_runtime_attr = TILE_ATTR(PAL1, FALSE, FALSE, FALSE);
+static u16 g_runtime_flags = SPR_FLAG_AUTO_VRAM_ALLOC | SPR_FLAG_AUTO_TILE_UPLOAD;
 
 static u16 ms_sat_add_u16(u16 value, u16 add)
 {
@@ -56,13 +58,40 @@ static u16 ms_max_render_part_count(void)
     return max_parts;
 }
 
+static const SpriteDefinition *ms_seed_definition(void)
+{
+    const SpriteDefinition *best = NULL;
+    u16 i;
+
+    for (i = 0; i < MS_VARIANT_COUNT; i++)
+    {
+        const SpriteDefinition *def = ms_variant_defs[i];
+        if (!def)
+            continue;
+        if (!best)
+        {
+            best = def;
+            continue;
+        }
+        if (def->maxNumTile > best->maxNumTile)
+        {
+            best = def;
+            continue;
+        }
+        if ((def->maxNumTile == best->maxNumTile) && (def->maxNumSprite > best->maxNumSprite))
+            best = def;
+    }
+
+    return best;
+}
+
 static void ms_init_runtime_sprites(void)
 {
     const SpriteDefinition *seed_def;
     u16 target;
     u16 i;
 
-    seed_def = (MS_VARIANT_COUNT > 0) ? ms_variant_defs[0] : NULL;
+    seed_def = ms_seed_definition();
     if (!seed_def)
         return;
 
@@ -73,8 +102,8 @@ static void ms_init_runtime_sprites(void)
             seed_def,
             -128,
             -128,
-            TILE_ATTR(PAL1, FALSE, FALSE, FALSE),
-            SPR_FLAG_AUTO_VRAM_ALLOC | SPR_FLAG_AUTO_TILE_UPLOAD
+            g_runtime_attr,
+            g_runtime_flags
         );
         if (!sprite)
             break;
@@ -140,18 +169,46 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
 
         if (g_runtime_used >= g_runtime_capacity)
         {
-            g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
-            continue;
+            if (g_runtime_capacity >= MS_RUNTIME_SPRITE_LIMIT)
+            {
+                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
+                continue;
+            }
+            sprite = SPR_addSpriteExSafe(def, -128, -128, g_runtime_attr, g_runtime_flags);
+            if (!sprite)
+            {
+                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
+                continue;
+            }
+            SPR_setVisibility(sprite, HIDDEN);
+            g_runtime_sprites[g_runtime_capacity++] = sprite;
         }
 
         sprite = g_runtime_sprites[g_runtime_used++];
+        if (!sprite)
+        {
+            sprite = SPR_addSpriteExSafe(def, -128, -128, g_runtime_attr, g_runtime_flags);
+            if (!sprite)
+            {
+                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
+                continue;
+            }
+            SPR_setVisibility(sprite, HIDDEN);
+            g_runtime_sprites[g_runtime_used - 1] = sprite;
+        }
         if (sprite->definition != def)
         {
             if (!SPR_setDefinition(sprite, def))
             {
-                SPR_setVisibility(sprite, HIDDEN);
-                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
-                continue;
+                SPR_releaseSprite(sprite);
+                sprite = SPR_addSpriteExSafe(def, -128, -128, g_runtime_attr, g_runtime_flags);
+                if (!sprite)
+                {
+                    g_runtime_sprites[g_runtime_used - 1] = NULL;
+                    g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
+                    continue;
+                }
+                g_runtime_sprites[g_runtime_used - 1] = sprite;
             }
         }
 
@@ -194,6 +251,7 @@ void ms_init(void)
     if (g_initialized)
         return;
 
+    ms_data_init();
     SPR_init();
 
     if (MS_VARIANT_COUNT > 0 && ms_variant_defs[0] && ms_variant_defs[0]->palette)
@@ -223,7 +281,10 @@ void ms_end_frame(void)
     if (g_runtime_used < g_runtime_prev_used)
     {
         for (i = g_runtime_used; i < g_runtime_prev_used; i++)
-            SPR_setVisibility(g_runtime_sprites[i], HIDDEN);
+        {
+            if (g_runtime_sprites[i])
+                SPR_setVisibility(g_runtime_sprites[i], HIDDEN);
+        }
     }
     g_runtime_prev_used = g_runtime_used;
     SPR_update();
@@ -447,37 +508,27 @@ void ms_draw_scene_player(const MS_ScenePlayer *player, s16 x, s16 y)
 
 const char *ms_module_name(u16 module_index)
 {
-    if (module_index >= MS_MODULE_COUNT)
-        return "";
-    return ms_module_names[module_index];
+    return ms_module_name_data(module_index);
 }
 
 const char *ms_frame_name(u16 frame_index)
 {
-    if (frame_index >= MS_FRAME_COUNT)
-        return "";
-    return ms_frame_names[frame_index];
+    return ms_frame_name_data(frame_index);
 }
 
 const char *ms_animation_name(u16 animation_index)
 {
-    if (animation_index >= MS_ANIMATION_COUNT)
-        return "";
-    return ms_animation_names[animation_index];
+    return ms_animation_name_data(animation_index);
 }
 
 const char *ms_scene_name(u16 scene_index)
 {
-    if (scene_index >= MS_SCENE_COUNT)
-        return "";
-    return ms_scene_names[scene_index];
+    return ms_scene_name_data(scene_index);
 }
 
 const char *ms_mapping_name(u16 mapping_index)
 {
-    if (mapping_index >= MS_MAPPING_COUNT)
-        return "";
-    return ms_mapping_names[mapping_index];
+    return ms_mapping_name_data(mapping_index);
 }
 
 void ms_set_mapping(u16 mapping_index)
@@ -501,7 +552,7 @@ s16 ms_find_module_index_by_id(const char *id)
 
     for (i = 0; i < MS_MODULE_COUNT; i++)
     {
-        if (strcmp(ms_module_ids[i], id) == 0)
+        if (strcmp(ms_module_id(i), id) == 0)
             return (s16)i;
     }
     return -1;
@@ -516,7 +567,7 @@ s16 ms_find_frame_index_by_id(const char *id)
 
     for (i = 0; i < MS_FRAME_COUNT; i++)
     {
-        if (strcmp(ms_frame_ids[i], id) == 0)
+        if (strcmp(ms_frame_id(i), id) == 0)
             return (s16)i;
     }
     return -1;
@@ -531,7 +582,7 @@ s16 ms_find_animation_index_by_id(const char *id)
 
     for (i = 0; i < MS_ANIMATION_COUNT; i++)
     {
-        if (strcmp(ms_animation_ids[i], id) == 0)
+        if (strcmp(ms_animation_id(i), id) == 0)
             return (s16)i;
     }
     return -1;
@@ -546,7 +597,7 @@ s16 ms_find_scene_index_by_id(const char *id)
 
     for (i = 0; i < MS_SCENE_COUNT; i++)
     {
-        if (strcmp(ms_scene_ids[i], id) == 0)
+        if (strcmp(ms_scene_id(i), id) == 0)
             return (s16)i;
     }
     return -1;
@@ -561,7 +612,7 @@ s16 ms_find_mapping_index_by_id(const char *id)
 
     for (i = 0; i < MS_MAPPING_COUNT; i++)
     {
-        if (strcmp(ms_mapping_ids[i], id) == 0)
+        if (strcmp(ms_mapping_id(i), id) == 0)
             return (s16)i;
     }
     return -1;

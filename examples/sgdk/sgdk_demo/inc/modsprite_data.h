@@ -3,7 +3,7 @@
 
 #include <genesis.h>
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     u16 variant_index;
     s16 x;
@@ -12,72 +12,89 @@ typedef struct
     u8 vflip;
 } MS_Part;
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     u32 first_part;
     u16 part_count;
 } MS_RenderFrame;
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     u16 frame_index;
     u16 duration_ticks;
 } MS_AnimStep;
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     u32 first_step;
     u16 step_count;
     u16 fps;
     u8 playback;
+    u8 reserved0;
 } MS_Animation;
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     u32 first_sample;
     u16 sample_count;
     u16 fps;
     u16 duration_ticks;
     u8 loop;
+    u8 reserved0;
+    u8 reserved1;
+    u8 reserved2;
 } MS_Scene;
 
-#define MS_VARIANT_COUNT 164U
-#define MS_PART_COUNT 10220U
-#define MS_RENDER_FRAME_COUNT 1226U
+extern u16 ms_variant_count;
+extern u32 ms_part_count;
+extern u16 ms_render_frame_count;
 
-#define MS_MODULE_COUNT 165U
-#define MS_FRAME_COUNT 207U
-#define MS_ANIMATION_COUNT 68U
-#define MS_SCENE_COUNT 1U
-#define MS_MAPPING_COUNT 3U
+extern u16 ms_module_count;
+extern u16 ms_frame_count;
+extern u16 ms_animation_count;
+extern u16 ms_scene_count;
+extern u16 ms_mapping_count;
 
-#define MS_ANIM_STEP_COUNT 1044U
-#define MS_SCENE_SAMPLE_COUNT 360U
-#define MS_ANIMATION_RECORD_COUNT 204U
-#define MS_SCENE_RECORD_COUNT 3U
+extern u16 ms_anim_step_count;
+extern u16 ms_scene_sample_count;
+extern u16 ms_animation_record_count;
+extern u16 ms_scene_record_count;
+
+#define MS_VARIANT_COUNT (ms_variant_count)
+#define MS_PART_COUNT (ms_part_count)
+#define MS_RENDER_FRAME_COUNT (ms_render_frame_count)
+#define MS_MODULE_COUNT (ms_module_count)
+#define MS_FRAME_COUNT (ms_frame_count)
+#define MS_ANIMATION_COUNT (ms_animation_count)
+#define MS_SCENE_COUNT (ms_scene_count)
+#define MS_MAPPING_COUNT (ms_mapping_count)
+#define MS_ANIM_STEP_COUNT (ms_anim_step_count)
+#define MS_SCENE_SAMPLE_COUNT (ms_scene_sample_count)
+#define MS_ANIMATION_RECORD_COUNT (ms_animation_record_count)
+#define MS_SCENE_RECORD_COUNT (ms_scene_record_count)
 
 extern const SpriteDefinition *const ms_variant_defs[];
-extern const MS_Part ms_parts[];
-extern const MS_RenderFrame ms_render_frames[];
+extern const MS_Part *ms_parts;
+extern const MS_RenderFrame *ms_render_frames;
+extern const u16 *ms_module_render_frames;
+extern const u16 *ms_frame_render_frames;
+extern const MS_AnimStep *ms_anim_steps;
+extern const MS_Animation *ms_animations;
+extern const u16 *ms_scene_samples;
+extern const MS_Scene *ms_scenes;
 
-extern const u16 ms_module_render_frames[];
-extern const char *const ms_mapping_ids[];
-extern const char *const ms_mapping_names[];
-extern const char *const ms_module_ids[];
-extern const char *const ms_module_names[];
+void ms_data_init(void);
+u8 ms_data_is_ready(void);
 
-extern const u16 ms_frame_render_frames[];
-extern const char *const ms_frame_ids[];
-extern const char *const ms_frame_names[];
-
-extern const MS_AnimStep ms_anim_steps[];
-extern const MS_Animation ms_animations[];
-extern const char *const ms_animation_ids[];
-extern const char *const ms_animation_names[];
-
-extern const u16 ms_scene_samples[];
-extern const MS_Scene ms_scenes[];
-extern const char *const ms_scene_ids[];
-extern const char *const ms_scene_names[];
+const char *ms_mapping_id(u16 index);
+const char *ms_mapping_name_data(u16 index);
+const char *ms_module_id(u16 index);
+const char *ms_module_name_data(u16 index);
+const char *ms_frame_id(u16 index);
+const char *ms_frame_name_data(u16 index);
+const char *ms_animation_id(u16 index);
+const char *ms_animation_name_data(u16 index);
+const char *ms_scene_id(u16 index);
+const char *ms_scene_name_data(u16 index);
 
 #endif

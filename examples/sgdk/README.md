@@ -3,7 +3,7 @@
 This folder contains a complete SGDK-oriented example pipeline for modular sprite rendering from your editor JSON:
 
 - **Input assets**: `PoP_WW.json` + `modules_POP.bmp`
-- **Bake step**: Python exporter converts JSON data into SGDK-friendly resources and C tables
+- **Bake step**: Python exporter converts JSON data into SGDK-friendly resources and a compact binary blob
 - **Runtime**: SGDK/C library that can render a **module**, **frame**, **animation**, and **timeline scene**
 
 ## Why this is baked (not runtime JSON)
@@ -12,7 +12,7 @@ Mega Drive runtime code should avoid JSON parsing and expensive per-frame transf
 
 - `res/gen/*.png` sprite resources (including baked transforms for unsupported hardware rotation cases)
 - `res/resources.res` resource declarations
-- `inc/modsprite_data.h` and `src/modsprite_data.c` static data tables
+- `res/gen/modsprite_blob.bin` data blob loaded by `inc/modsprite_data.h` and `src/modsprite_data.c`
 
 This keeps the SGDK runtime simple and deterministic.
 
@@ -23,11 +23,11 @@ Note: pure X/Y flips are now emitted as per-part hardware H/V flip flags; rotati
 - `tools/export_sgdk_example.py` - bake exporter
 - `sgdk_demo/` - self-contained SGDK project scaffold
   - `inc/modsprite.h` - reusable runtime API
-  - `inc/modsprite_data.h` - generated data declarations
+  - `inc/modsprite_data.h` - generated data declarations + loader API
   - `src/modsprite.c` - renderer/player implementation
-  - `src/modsprite_data.c` - generated data definitions
+  - `src/modsprite_data.c` - generated blob parser + accessors
   - `src/main.c` - demo app cycling module/frame/animation/scene rendering
-  - `res/resources.res` + `res/gen/*.png` - generated SGDK resources
+  - `res/resources.res` + `res/gen/*.png` + `res/gen/modsprite_blob.bin` - generated SGDK resources
 
 ## Regenerate SGDK data
 
@@ -76,7 +76,7 @@ This produces `out/debug/rom.bin`.
 - `ms_anim_player_*()` for animation playback/render
 - `ms_scene_player_*()` for scene playback/render
 
-The generated tables include all modules/frames/animations/scenes from the input JSON for each baked mapping.
+The generated blob includes all modules/frames/animations/scenes from the input JSON for each baked mapping.
 
 ## Selector UI controls
 

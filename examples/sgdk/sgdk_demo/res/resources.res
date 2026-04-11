@@ -162,3 +162,4 @@ SPRITE MS_VAR_0160 "gen/var_0160.png" 1 1 NONE
 SPRITE MS_VAR_0161 "gen/var_0161.png" 1 1 NONE
 SPRITE MS_VAR_0162 "gen/var_0162.png" 2 1 NONE
 SPRITE MS_VAR_0163 "gen/var_0163.png" 2 1 NONE
+BIN MS_BLOB "gen/modsprite_blob.bin" 2 2 0 NONE FALSE
