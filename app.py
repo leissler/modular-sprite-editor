@@ -15,6 +15,7 @@ from ui.animation_editor import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.module_editor import ModuleEditorPanel
 from ui.mapping_editor import MappingEditorPanel
+from ui.timeline_editor import TimelineEditorPanel
 import wx.lib.agw.flatnotebook as fnb
 
 APP_NAME = "Modular Sprite Editor"
@@ -78,7 +79,7 @@ import functools
 
 class MainFrame(wx.Frame):
     def __init__(self, parent=None, title="Modular Sprite Editor"):
-        super(MainFrame, self).__init__(parent, title=title, size=(1200, 800))
+        super(MainFrame, self).__init__(parent, title=title, size=(1500, 980))
         
         self.project = Project()
         self.current_path = None
@@ -108,6 +109,7 @@ class MainFrame(wx.Frame):
         self.module_editor = ModuleEditorPanel(self.book, self.project)
         self.frame_editor = FrameEditorPanel(self.book, self.project)
         self.animation_editor = AnimationEditorPanel(self.book, self.project)
+        self.timeline_editor = TimelineEditorPanel(self.book, self.project)
         self.mapping_editor = MappingEditorPanel(self.book, self.project)
         
         if sys.platform == "win32": 
@@ -118,6 +120,7 @@ class MainFrame(wx.Frame):
         self.book.AddPage(self.module_editor, f"{pad}Modules{pad}", select=True)
         self.book.AddPage(self.frame_editor, f"{pad}Frames{pad}", select=False)
         self.book.AddPage(self.animation_editor, f"{pad}Animations{pad}", select=False)
+        self.book.AddPage(self.timeline_editor, f"{pad}Timeline{pad}", select=False)
         self.book.AddPage(self.mapping_editor, f"{pad}Mappings{pad}", select=False)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -154,6 +157,10 @@ class MainFrame(wx.Frame):
             self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
             mode_name = "Animations"
         elif page_idx == 3:
+            self.timeline_editor.refresh_choices()
+            self.timeline_editor.refresh_scenes(self.timeline_editor.selected_scene_id)
+            mode_name = "Timeline"
+        elif page_idx == 4:
             self.mapping_editor.refresh_list()
             self.mapping_editor.visualizer.update_virtual_size()
             mode_name = "Mappings"
@@ -176,7 +183,8 @@ class MainFrame(wx.Frame):
         if page_idx == 0: mode_name = "Modules"
         elif page_idx == 1: mode_name = "Frames"
         elif page_idx == 2: mode_name = "Animations"
-        elif page_idx == 3: mode_name = "Mappings"
+        elif page_idx == 3: mode_name = "Timeline"
+        elif page_idx == 4: mode_name = "Mappings"
             
         self.SetTitle(f"{APP_NAME} - {fname} - [{mode_name}]")
         
@@ -578,6 +586,7 @@ class MainFrame(wx.Frame):
         self.module_editor.set_project(self.project)
         self.frame_editor.set_project(self.project)
         self.animation_editor.set_project(self.project)
+        self.timeline_editor.set_project(self.project)
         self.mapping_editor.set_project(self.project)
         self._update_title()
 

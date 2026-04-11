@@ -2157,28 +2157,8 @@ class RetroAnimatorExporter:
         if w <= 0 or h <= 0:
             return None
 
-        rot_norm = float(rotation_degrees) % 360.0
-        rot_int = int(round(rot_norm)) % 360
-        orthogonal = abs(rot_norm - float(rot_int)) < 1e-5 and rot_int in (0, 90, 180, 270)
-        if orthogonal:
-            transformed = base
-            if flip_x:
-                transformed = transformed.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
-            if flip_y:
-                transformed = transformed.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
-            if rot_int == 90:
-                transformed = transformed.transpose(PILImage.Transpose.ROTATE_270)  # clockwise
-            elif rot_int == 180:
-                transformed = transformed.transpose(PILImage.Transpose.ROTATE_180)
-            elif rot_int == 270:
-                transformed = transformed.transpose(PILImage.Transpose.ROTATE_90)   # counter-clockwise
-
-            handle_x, handle_y = RetroAnimatorExporter._module_handle_for_rotation(
-                mod, anchor=b_vec, rotation_degrees=float(rot_int)
-            )
-            if not transformed.getbbox():
-                return None
-            return transformed, handle_x, handle_y
+        # Keep all transforms on the same affine path so handle placement remains
+        # consistent for mirrored + orthogonal rotations.
 
         piv = (float(mod.pivot[0]), float(mod.pivot[1]))
         ap = RetroAnimatorExporter._mat_vec_mul(a_mat, piv)

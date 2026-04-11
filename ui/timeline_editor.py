@@ -1002,10 +1002,13 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.left_w = 260
         self.min_left_w = 160
         self.row_h = 24
-        self.frame_w = 18
+        self.frame_w = 18.0
+        self.min_frame_w = 6.0
+        self.max_frame_w = 80.0
         self.header_h = 24
         self.scene_fps = 12
         self.duration_seconds = 10.0
+        self.content_duration_seconds = 10.0
         self.ruler_mode = RULER_MODE_FRAMES
         self.snap_mode = SNAP_FRAMES
         self.custom_snap_step = 0.25
@@ -1041,6 +1044,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.selected_key_id = None
         self.scene_fps = scene.fps if scene else 12
         self.duration_seconds = scene.duration_seconds if scene else 10.0
+        self._update_content_duration_seconds()
         self._update_virtual_size()
         self.Refresh(False)
 
@@ -1048,6 +1052,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.rows = list(rows)
         self.duration_seconds = max(1.0 / float(max(1, scene_fps)), float(duration_seconds))
         self.scene_fps = max(1, int(scene_fps))
+        self._update_content_duration_seconds()
         self._update_virtual_size()
         self.Refresh(False)
 
@@ -1073,12 +1078,22 @@ class TimelineDopesheet(wx.ScrolledWindow):
     def _frame_duration(self) -> float:
         return 1.0 / float(max(1, self.scene_fps))
 
+    def _update_content_duration_seconds(self) -> None:
+        max_time = float(self.duration_seconds)
+        for obj, _depth, _has_children in self.rows:
+            for key in obj.keyframes:
+                max_time = max(max_time, float(key.time))
+        self.content_duration_seconds = max(
+            float(self.duration_seconds),
+            max_time + self._frame_duration(),
+        )
+
     def _duration_frames(self) -> int:
-        return max(1, int(round(float(self.duration_seconds) * float(max(1, self.scene_fps)))))
+        return max(1, int(round(float(self.content_duration_seconds) * float(max(1, self.scene_fps)))))
 
     def _update_virtual_size(self) -> None:
         rows = len(self.rows)
-        width = self.left_w + self._duration_frames() * self.frame_w + 80
+        width = self.left_w + int(round(self._duration_frames() * self.frame_w)) + 80
         height = self.header_h + rows * self.row_h + 20
         self.SetVirtualSize((width, height))
 
@@ -1108,7 +1123,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         return self._snap_time(raw_time)
 
     def _content_width(self) -> int:
-        return self._duration_frames() * self.frame_w + 80
+        return int(round(self._duration_frames() * self.frame_w + 80))
 
     def _max_scroll_x(self) -> float:
         viewport_w = max(1, self.GetClientSize().width - self.left_w)
@@ -1231,8 +1246,22 @@ class TimelineDopesheet(wx.ScrolledWindow):
         return (obj.id, None, self._time_from_x(x))
 
     def on_mousewheel(self, event: wx.MouseEvent) -> None:
+        wheel_steps = float(event.GetWheelRotation()) / 120.0
+        if event.ControlDown():
+            if abs(wheel_steps) > 1e-6:
+                anchor_x = int(event.GetPosition().x)
+                anchor_frames = (float(anchor_x) - float(self.left_w) + self.scroll_x) / max(1e-6, float(self.frame_w))
+                factor = math.pow(1.12, wheel_steps)
+                next_frame_w = max(self.min_frame_w, min(self.max_frame_w, float(self.frame_w) * factor))
+                if abs(next_frame_w - float(self.frame_w)) > 1e-6:
+                    self.frame_w = float(next_frame_w)
+                    self._update_virtual_size()
+                    self.scroll_x = anchor_frames * float(self.frame_w) - (float(anchor_x) - float(self.left_w))
+                    self._clamp_scroll_x()
+                    self.Refresh(False)
+            return
         if event.ShiftDown():
-            self.scroll_x -= (event.GetWheelRotation() / 120.0) * 72.0
+            self.scroll_x -= wheel_steps * max(72.0, float(self.frame_w) * 3.0)
             self._clamp_scroll_x()
             self.Refresh(False)
             return
@@ -1399,7 +1428,14 @@ class TimelineDopesheet(wx.ScrolledWindow):
         header_y = visible.y
         header_bottom = header_y + self.header_h
 
-        for frame_idx in range(0, self._duration_frames() + 1):
+        visible_track_w = max(1, _client_w - self.left_w)
+        start_frame_idx = max(0, int(math.floor(self.scroll_x / max(1e-6, float(self.frame_w)))) - 2)
+        end_frame_idx = min(
+            self._duration_frames(),
+            int(math.ceil((self.scroll_x + visible_track_w) / max(1e-6, float(self.frame_w)))) + 2,
+        )
+
+        for frame_idx in range(start_frame_idx, end_frame_idx + 1):
             x = int(round(self.left_w + self._frame_index_x(frame_idx) - self.scroll_x))
             if x < self.left_w - self.frame_w or x > total_w + self.frame_w:
                 continue
@@ -1495,7 +1531,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         dc.SetTextForeground(wx.Colour(180, 180, 180))
         dc.DrawText("Tracks", 8, header_y + 4)
 
-        for frame_idx in range(0, self._duration_frames() + 1):
+        for frame_idx in range(start_frame_idx, end_frame_idx + 1):
             x = int(round(self.left_w + self._frame_index_x(frame_idx) - self.scroll_x))
             if x < self.left_w - self.frame_w or x > total_w + self.frame_w:
                 continue
@@ -1699,11 +1735,20 @@ class TimelineEditorPanel(wx.Panel):
 
         self.right_panel = wx.Panel(self.main_splitter)
         right_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.right_splitter = wx.SplitterWindow(self.right_panel, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
 
-        self.top_splitter = wx.SplitterWindow(self.right_panel, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
+        self.preview_panel = wx.Panel(self.right_splitter)
+        preview_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.top_splitter = wx.SplitterWindow(self.preview_panel, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         self.canvas = TimelineCanvas(self.top_splitter, self.project)
         self.canvas.SetDropTarget(TimelineCanvasDropTarget(self))
-        self.inspector_panel = wx.Panel(self.top_splitter)
+        self.inspector_panel = wx.ScrolledWindow(
+            self.top_splitter,
+            style=wx.VSCROLL | wx.TAB_TRAVERSAL,
+        )
+        self.inspector_panel.SetScrollRate(0, 16)
+        self.inspector_panel.Bind(wx.EVT_SIZE, self.on_inspector_size)
         inspector_sizer = wx.BoxSizer(wx.VERTICAL)
 
         props_box = wx.StaticBox(self.inspector_panel, label="Object & Key")
@@ -1786,11 +1831,18 @@ class TimelineEditorPanel(wx.Panel):
 
         inspector_sizer.Add(props_sizer, 1, wx.EXPAND | wx.ALL, 4)
         self.inspector_panel.SetSizer(inspector_sizer)
+        self.inspector_panel.FitInside()
 
         self.top_splitter.SplitVertically(self.canvas, self.inspector_panel, 760)
         self.top_splitter.SetMinimumPaneSize(220)
+        preview_sizer.Add(self.top_splitter, 1, wx.EXPAND | wx.ALL, 4)
+        self.canvas_controls = CanvasDisplayControls(self.preview_panel, self.canvas, show_transparency=True)
+        preview_sizer.Add(self.canvas_controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        self.preview_panel.SetSizer(preview_sizer)
 
-        bottom_box = wx.StaticBox(self.right_panel, label="Timeline")
+        self.timeline_panel = wx.Panel(self.right_splitter)
+        timeline_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        bottom_box = wx.StaticBox(self.timeline_panel, label="Timeline")
         bottom_sizer = wx.StaticBoxSizer(bottom_box, wx.VERTICAL)
         self.dopesheet = TimelineDopesheet(bottom_box)
         transport = wx.BoxSizer(wx.VERTICAL)
@@ -1847,11 +1899,13 @@ class TimelineEditorPanel(wx.Panel):
 
         bottom_sizer.Add(self.dopesheet, 1, wx.EXPAND | wx.ALL, 4)
         bottom_sizer.Add(transport, 0, wx.EXPAND | wx.ALL, 4)
+        timeline_panel_sizer.Add(bottom_sizer, 1, wx.EXPAND | wx.ALL, 4)
+        self.timeline_panel.SetSizer(timeline_panel_sizer)
 
-        right_sizer.Add(self.top_splitter, 1, wx.EXPAND | wx.ALL, 4)
-        self.canvas_controls = CanvasDisplayControls(self.right_panel, self.canvas, show_transparency=True)
-        right_sizer.Add(self.canvas_controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        right_sizer.Add(bottom_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        self.right_splitter.SplitHorizontally(self.preview_panel, self.timeline_panel, 560)
+        self.right_splitter.SetMinimumPaneSize(180)
+        self.right_splitter.SetSashGravity(0.7)
+        right_sizer.Add(self.right_splitter, 1, wx.EXPAND)
         self.right_panel.SetSizer(right_sizer)
 
         self.main_splitter.SplitVertically(self.left_panel, self.right_panel, 340)
@@ -1968,6 +2022,10 @@ class TimelineEditorPanel(wx.Panel):
         width = self.scene_list.GetClientSize().width
         if width > 0:
             self.scene_list.SetColumnWidth(0, width)
+        event.Skip()
+
+    def on_inspector_size(self, event: wx.SizeEvent) -> None:
+        self.inspector_panel.FitInside()
         event.Skip()
 
     def _scene_frame_step(self, scene: Optional[TimelineScene] = None) -> float:
