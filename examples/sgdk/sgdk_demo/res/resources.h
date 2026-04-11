@@ -167,6 +167,5 @@ extern const SpriteDefinition MS_VAR_0160;
 extern const SpriteDefinition MS_VAR_0161;
 extern const SpriteDefinition MS_VAR_0162;
 extern const SpriteDefinition MS_VAR_0163;
-extern const SpriteDefinition MS_VAR_0164;
 
 #endif // _RES_RESOURCES_H_

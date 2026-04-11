@@ -130,8 +130,17 @@ class SGDKBakeContext:
         self.mapping = mapping
         self.mapping_key = mapping.id if mapping else "none"
 
+    @staticmethod
+    def _is_hidden_module(mod: Optional[Module]) -> bool:
+        if mod is None:
+            return True
+        return int(mod.rect[2]) <= 0 or int(mod.rect[3]) <= 0
+
     def _resolve_module(self, module_id: str) -> Optional[Module]:
-        return RetroAnimatorExporter._resolve_module(self.project, module_id, self.mapping)
+        mod = RetroAnimatorExporter._resolve_module(self.project, module_id, self.mapping)
+        if self._is_hidden_module(mod):
+            return None
+        return mod
 
     def _ensure_variant(self, image: Image.Image) -> int:
         rgba = image.convert("RGBA")

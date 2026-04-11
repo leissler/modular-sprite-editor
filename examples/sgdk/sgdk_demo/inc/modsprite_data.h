@@ -41,9 +41,9 @@ typedef struct
     u8 loop;
 } MS_Scene;
 
-#define MS_VARIANT_COUNT 165U
-#define MS_PART_COUNT 14307U
-#define MS_RENDER_FRAME_COUNT 1363U
+#define MS_VARIANT_COUNT 164U
+#define MS_PART_COUNT 10220U
+#define MS_RENDER_FRAME_COUNT 1226U
 
 #define MS_MODULE_COUNT 165U
 #define MS_FRAME_COUNT 207U
