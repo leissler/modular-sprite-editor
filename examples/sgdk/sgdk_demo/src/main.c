@@ -15,6 +15,9 @@ enum
 #define UI_TEXT_WIDTH 39
 #define UI_TEXT_LINES 14
 #define PROFILE_UI_PERIOD 4
+#define SPRITE_DRAW_X 160
+#define SPRITE_DRAW_Y 168
+#define HUD_TOGGLE_BUTTONS (BUTTON_MODE | BUTTON_Z)
 
 static u16 g_unit = DEMO_UNIT_MODULE;
 static u16 g_mapping_index = 0;
@@ -25,6 +28,7 @@ static u16 g_index_animation = 0;
 static u16 g_index_scene = 0;
 static u16 g_prev_pad = 0;
 static u8 g_pause = FALSE;
+static u8 g_minimal_hud = FALSE;
 static u8 g_id_edit_mode = FALSE;
 static u16 g_id_cursor = 0;
 static char g_id_edit[ID_EDIT_MAX + 1];
@@ -38,10 +42,14 @@ static MS_FrameProfile g_frame_profile;
 static MS_FrameProfile g_disp_frame_profile;
 static u32 g_render_subticks = 0;
 static u32 g_render_us = 0;
+static u32 g_update_subticks = 0;
+static u32 g_update_us = 0;
 static u32 g_fps = 0;
 static u16 g_cpu_load = 0;
 static u32 g_disp_render_subticks = 0;
 static u32 g_disp_render_us = 0;
+static u32 g_disp_update_subticks = 0;
+static u32 g_disp_update_us = 0;
 static u32 g_disp_fps = 0;
 static u16 g_disp_cpu_load = 0;
 
@@ -397,6 +405,16 @@ static void draw_ui(void)
 
     for (row = 0; row < UI_TEXT_LINES; row++)
         lines[row][0] = '\0';
+
+    if (g_minimal_hud)
+    {
+        sprintf(line, "FPS:%lu CPU:%u%%", g_disp_fps, g_disp_cpu_load);
+        strcpy(lines[0], line);
+        demo_ui_present(lines);
+        g_ui_dirty = FALSE;
+        return;
+    }
+
     strcpy(lines[0], "Modular Sprite SGDK Selector");
 
     if (!g_id_edit_mode)
@@ -412,7 +430,7 @@ static void draw_ui(void)
         sprintf(line2, "Name: %s", name ? name : "");
         strcpy(lines[5], line2);
 
-        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
+        sprintf(line, "CPU:%u%% FPS:%lu Draw:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
         strcpy(lines[6], line);
         sprintf(
             line2,
@@ -423,10 +441,13 @@ static void draw_ui(void)
             g_disp_frame_profile.add_failures
         );
         strcpy(lines[7], line2);
+        sprintf(line, "FrameEnd:%lust/%luus", g_disp_update_subticks, g_disp_update_us);
+        strcpy(lines[8], line);
 
-        strcpy(lines[8], "UP/DOWN unit  LEFT/RIGHT +/-1");
-        strcpy(lines[9], "X/Y +/-10     A pause   B reset");
-        strcpy(lines[10], "START map  START+UP/DN bg  C jump");
+        strcpy(lines[9], "UP/DOWN unit  LEFT/RIGHT +/-1");
+        strcpy(lines[10], "X/Y +/-10     A pause   B reset");
+        strcpy(lines[11], "START map  START+UP/DN bg  C jump");
+        strcpy(lines[12], "MODE/Z minimal HUD");
     }
     else
     {
@@ -443,7 +464,7 @@ static void draw_ui(void)
             line[g_id_cursor + 4] = '^';
         strcpy(lines[4], line);
 
-        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
+        sprintf(line, "CPU:%u%% FPS:%lu Draw:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
         strcpy(lines[5], line);
         sprintf(
             line2,
@@ -454,12 +475,14 @@ static void draw_ui(void)
             g_disp_frame_profile.add_failures
         );
         strcpy(lines[6], line2);
+        sprintf(line, "FrameEnd:%lust/%luus", g_disp_update_subticks, g_disp_update_us);
+        strcpy(lines[7], line);
 
-        strcpy(lines[8], "UP/DOWN char  LEFT/RIGHT cursor");
-        strcpy(lines[9], "A apply  B cancel  X clear  Y bksp");
+        strcpy(lines[9], "UP/DOWN char  LEFT/RIGHT cursor");
+        strcpy(lines[10], "A apply  B cancel  X clear  Y bksp");
     }
 
-    strcpy(lines[12], g_status_line);
+    strcpy(lines[13], g_status_line);
     demo_ui_present(lines);
     g_ui_dirty = FALSE;
 }
@@ -472,6 +495,8 @@ int main(void)
     VDP_setScreenWidth320();
     demo_apply_bg_color();
     JOY_init();
+    JOY_setSupport(PORT_1, JOY_SUPPORT_6BTN);
+    JOY_setSupport(PORT_2, JOY_SUPPORT_OFF);
     ms_init();
     demo_sync_players();
     demo_set_status("Ready with mapping <none>");
@@ -554,6 +579,13 @@ int main(void)
                 demo_prefill_id_editor();
                 demo_set_status("Edit ID then press A");
             }
+            if (press & HUD_TOGGLE_BUTTONS)
+            {
+                g_minimal_hud = !g_minimal_hud;
+                g_id_edit_mode = FALSE;
+                g_ui_dirty = TRUE;
+                demo_set_status(g_minimal_hud ? "HUD: minimal" : "HUD: full");
+            }
         }
         else
         {
@@ -591,6 +623,13 @@ int main(void)
                 g_id_edit_mode = FALSE;
                 demo_apply_id_jump();
             }
+            if (press & HUD_TOGGLE_BUTTONS)
+            {
+                g_minimal_hud = !g_minimal_hud;
+                g_id_edit_mode = FALSE;
+                g_ui_dirty = TRUE;
+                demo_set_status(g_minimal_hud ? "HUD: minimal" : "HUD: full");
+            }
         }
 
         ms_begin_frame();
@@ -599,12 +638,12 @@ int main(void)
         if (g_unit == DEMO_UNIT_MODULE)
         {
             if (MS_MODULE_COUNT > 0)
-                ms_draw_module(g_index_module, 160, 120);
+                ms_draw_module(g_index_module, SPRITE_DRAW_X, SPRITE_DRAW_Y);
         }
         else if (g_unit == DEMO_UNIT_FRAME)
         {
             if (MS_FRAME_COUNT > 0)
-                ms_draw_frame(g_index_frame, 160, 120);
+                ms_draw_frame(g_index_frame, SPRITE_DRAW_X, SPRITE_DRAW_Y);
         }
         else if (g_unit == DEMO_UNIT_ANIMATION)
         {
@@ -612,7 +651,7 @@ int main(void)
             {
                 if (!g_pause)
                     ms_anim_player_tick(&g_anim_player);
-                ms_draw_anim_player(&g_anim_player, 160, 120);
+                ms_draw_anim_player(&g_anim_player, SPRITE_DRAW_X, SPRITE_DRAW_Y);
             }
         }
         else
@@ -621,7 +660,7 @@ int main(void)
             {
                 if (!g_pause)
                     ms_scene_player_tick(&g_scene_player);
-                ms_draw_scene_player(&g_scene_player, 160, 120);
+                ms_draw_scene_player(&g_scene_player, SPRITE_DRAW_X, SPRITE_DRAW_Y);
             }
         }
         g_render_subticks = getSubTick() - g_render_subticks;
@@ -629,6 +668,12 @@ int main(void)
         ms_get_frame_profile(&g_frame_profile);
         g_fps = SYS_getFPS();
         g_cpu_load = SYS_getCPULoad();
+        draw_ui();
+        g_update_subticks = getSubTick();
+        ms_end_frame();
+        SYS_doVBlankProcess();
+        g_update_subticks = getSubTick() - g_update_subticks;
+        g_update_us = demo_subticks_to_us(g_update_subticks);
         g_profile_ui_counter++;
         if (g_profile_ui_counter >= PROFILE_UI_PERIOD)
         {
@@ -637,13 +682,11 @@ int main(void)
             g_disp_cpu_load = g_cpu_load;
             g_disp_render_subticks = g_render_subticks;
             g_disp_render_us = g_render_us;
+            g_disp_update_subticks = g_update_subticks;
+            g_disp_update_us = g_update_us;
             g_disp_frame_profile = g_frame_profile;
             g_ui_dirty = TRUE;
         }
-
-        draw_ui();
-        ms_end_frame();
-        SYS_doVBlankProcess();
     }
 
     return 0;

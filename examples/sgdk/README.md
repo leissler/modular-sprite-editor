@@ -89,6 +89,7 @@ In `sgdk_demo/src/main.c` the demo now uses an interactive selector UI:
 - `A`: pause/resume playback for animation/scene
 - `B`: reset animation/scene player
 - `C`: open ID jump editor
+- `MODE` / `Z`: toggle minimal HUD (CPU/FPS only) for performance measurement
 
 Live profiling overlay (shown in the selector UI):
 
