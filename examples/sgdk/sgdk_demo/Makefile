@@ -13,3 +13,8 @@ include $(SGDK)/makefile.gen
 ifeq ($(shell command -v convsym >/dev/null 2>&1; echo $$?),1)
 CONVSYM := true
 endif
+
+ifeq ($(BUILD_TYPE),debug)
+CFLAGS := $(subst -O1,-O3,$(CFLAGS))
+AFLAGS := $(subst -O1,-O3,$(AFLAGS))
+endif

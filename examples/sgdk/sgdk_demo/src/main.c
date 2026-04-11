@@ -66,6 +66,15 @@ static const char *const g_unit_names[] = {
 static const char g_id_chars[] =
     "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-x";
 
+static u8 demo_is_hud_toggle_pressed(u16 pad, u16 press)
+{
+    if (press & HUD_TOGGLE_BUTTONS)
+        return TRUE;
+    if ((pad & BUTTON_START) && (press & BUTTON_C))
+        return TRUE;
+    return FALSE;
+}
+
 static u16 demo_unit_count(u16 unit)
 {
     if (unit == DEMO_UNIT_MODULE)
@@ -410,6 +419,8 @@ static void draw_ui(void)
     {
         sprintf(line, "FPS:%lu CPU:%u%%", g_disp_fps, g_disp_cpu_load);
         strcpy(lines[0], line);
+        sprintf(line, "Draw:%luus End:%luus", g_disp_render_us, g_disp_update_us);
+        strcpy(lines[1], line);
         demo_ui_present(lines);
         g_ui_dirty = FALSE;
         return;
@@ -447,7 +458,7 @@ static void draw_ui(void)
         strcpy(lines[9], "UP/DOWN unit  LEFT/RIGHT +/-1");
         strcpy(lines[10], "X/Y +/-10     A pause   B reset");
         strcpy(lines[11], "START map  START+UP/DN bg  C jump");
-        strcpy(lines[12], "MODE/Z minimal HUD");
+        strcpy(lines[12], "MODE/Z or START+C minimal HUD");
     }
     else
     {
@@ -503,10 +514,13 @@ int main(void)
 
     while (1)
     {
+        u8 toggle_hud;
+
         JOY_update();
         pad = JOY_readJoypad(JOY_1);
         press = pad & ~g_prev_pad;
         g_prev_pad = pad;
+        toggle_hud = demo_is_hud_toggle_pressed(pad, press);
 
         if (!g_id_edit_mode)
         {
@@ -550,7 +564,7 @@ int main(void)
                 demo_change_index(-10);
             if (press & BUTTON_Y)
                 demo_change_index(10);
-            if (press & BUTTON_START)
+            if ((press & BUTTON_START) && !toggle_hud)
             {
                 char msg[40];
                 if (!(press & BUTTON_UP) && !(press & BUTTON_DOWN))
@@ -572,14 +586,14 @@ int main(void)
                 demo_sync_players();
                 demo_set_status("Playback reset");
             }
-            if (press & BUTTON_C)
+            if ((press & BUTTON_C) && !toggle_hud)
             {
                 g_id_edit_mode = TRUE;
                 g_ui_dirty = TRUE;
                 demo_prefill_id_editor();
                 demo_set_status("Edit ID then press A");
             }
-            if (press & HUD_TOGGLE_BUTTONS)
+            if (toggle_hud)
             {
                 g_minimal_hud = !g_minimal_hud;
                 g_id_edit_mode = FALSE;
@@ -623,7 +637,7 @@ int main(void)
                 g_id_edit_mode = FALSE;
                 demo_apply_id_jump();
             }
-            if (press & HUD_TOGGLE_BUTTONS)
+            if (toggle_hud)
             {
                 g_minimal_hud = !g_minimal_hud;
                 g_id_edit_mode = FALSE;

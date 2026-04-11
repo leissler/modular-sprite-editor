@@ -2,9 +2,15 @@
 #include <string.h>
 #include "modsprite.h"
 
+#define MS_RUNTIME_SPRITE_LIMIT 80u
+
 static u8 g_initialized = FALSE;
 static u16 g_active_mapping = 0;
 static MS_FrameProfile g_frame_profile = { 0, 0, 0, 0 };
+static Sprite *g_runtime_sprites[MS_RUNTIME_SPRITE_LIMIT];
+static u16 g_runtime_capacity = 0;
+static u16 g_runtime_used = 0;
+static u16 g_runtime_prev_used = 0;
 
 static u16 ms_sat_add_u16(u16 value, u16 add)
 {
@@ -32,6 +38,49 @@ static u32 ms_mapping_animation_base(void)
 static u32 ms_mapping_scene_base(void)
 {
     return ((u32)g_active_mapping) * ((u32)MS_SCENE_COUNT);
+}
+
+static u16 ms_max_render_part_count(void)
+{
+    u16 i;
+    u16 max_parts = 0;
+
+    for (i = 0; i < MS_RENDER_FRAME_COUNT; i++)
+    {
+        if (ms_render_frames[i].part_count > max_parts)
+            max_parts = ms_render_frames[i].part_count;
+    }
+
+    if (max_parts > MS_RUNTIME_SPRITE_LIMIT)
+        max_parts = MS_RUNTIME_SPRITE_LIMIT;
+    return max_parts;
+}
+
+static void ms_init_runtime_sprites(void)
+{
+    const SpriteDefinition *seed_def;
+    u16 target;
+    u16 i;
+
+    seed_def = (MS_VARIANT_COUNT > 0) ? ms_variant_defs[0] : NULL;
+    if (!seed_def)
+        return;
+
+    target = ms_max_render_part_count();
+    for (i = 0; i < target; i++)
+    {
+        Sprite *sprite = SPR_addSpriteExSafe(
+            seed_def,
+            -128,
+            -128,
+            TILE_ATTR(PAL1, FALSE, FALSE, FALSE),
+            SPR_FLAG_AUTO_VRAM_ALLOC | SPR_FLAG_AUTO_TILE_UPLOAD
+        );
+        if (!sprite)
+            break;
+        SPR_setVisibility(sprite, HIDDEN);
+        g_runtime_sprites[g_runtime_capacity++] = sprite;
+    }
 }
 
 static const MS_Animation *ms_current_animation(u16 animation_index)
@@ -89,14 +138,27 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
         g_frame_profile.parts_submitted = ms_sat_add_u16(g_frame_profile.parts_submitted, 1u);
         g_frame_profile.hw_sprites_estimated = ms_sat_add_u16(g_frame_profile.hw_sprites_estimated, def->maxNumSprite);
 
-        sprite = SPR_addSprite(
-            def,
-            ox + part->x,
-            oy + part->y,
-            TILE_ATTR(PAL1, FALSE, part->vflip ? TRUE : FALSE, part->hflip ? TRUE : FALSE)
-        );
-        if (!sprite)
+        if (g_runtime_used >= g_runtime_capacity)
+        {
             g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
+            continue;
+        }
+
+        sprite = g_runtime_sprites[g_runtime_used++];
+        if (sprite->definition != def)
+        {
+            if (!SPR_setDefinition(sprite, def))
+            {
+                SPR_setVisibility(sprite, HIDDEN);
+                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
+                continue;
+            }
+        }
+
+        SPR_setPosition(sprite, ox + part->x, oy + part->y);
+        SPR_setHFlip(sprite, part->hflip ? TRUE : FALSE);
+        SPR_setVFlip(sprite, part->vflip ? TRUE : FALSE);
+        SPR_setVisibility(sprite, VISIBLE);
     }
 }
 
@@ -138,6 +200,7 @@ void ms_init(void)
         PAL_setPalette(PAL1, ms_variant_defs[0]->palette->data, DMA);
 
     ms_set_mapping(0);
+    ms_init_runtime_sprites();
     g_initialized = TRUE;
 }
 
@@ -150,11 +213,19 @@ void ms_begin_frame(void)
     g_frame_profile.parts_submitted = 0;
     g_frame_profile.hw_sprites_estimated = 0;
     g_frame_profile.add_failures = 0;
-    SPR_reset();
+    g_runtime_used = 0;
 }
 
 void ms_end_frame(void)
 {
+    u16 i;
+
+    if (g_runtime_used < g_runtime_prev_used)
+    {
+        for (i = g_runtime_used; i < g_runtime_prev_used; i++)
+            SPR_setVisibility(g_runtime_sprites[i], HIDDEN);
+    }
+    g_runtime_prev_used = g_runtime_used;
     SPR_update();
 }
 

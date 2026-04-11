@@ -58,6 +58,7 @@ make
 
 On some macOS/Linux toolchains, `make release` can fail with an SGDK `libmd.a` LTO-version mismatch.
 In that case use `make debug` (works with the bundled `libmd_debug.a`).
+The demo `Makefile` forces `-O3` for `debug` builds so runtime profiling remains representative.
 
 If your local SGDK toolchain has no `convsym` on PATH (common on non-Windows setups), use:
 
@@ -89,7 +90,7 @@ In `sgdk_demo/src/main.c` the demo now uses an interactive selector UI:
 - `A`: pause/resume playback for animation/scene
 - `B`: reset animation/scene player
 - `C`: open ID jump editor
-- `MODE` / `Z`: toggle minimal HUD (CPU/FPS only) for performance measurement
+- `MODE` / `Z` / `START + C`: toggle minimal HUD (CPU/FPS only) for performance measurement
 
 Live profiling overlay (shown in the selector UI):
 
