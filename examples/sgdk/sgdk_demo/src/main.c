@@ -14,6 +14,7 @@ enum
 #define UI_TEXT_COL 1
 #define UI_TEXT_WIDTH 39
 #define UI_TEXT_LINES 14
+#define PROFILE_UI_PERIOD 4
 
 static u16 g_unit = DEMO_UNIT_MODULE;
 static u16 g_mapping_index = 0;
@@ -30,11 +31,19 @@ static char g_id_edit[ID_EDIT_MAX + 1];
 static char g_status_line[40];
 static char g_ui_cache[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];
 static u8 g_ui_cache_valid = FALSE;
+static u8 g_ui_dirty = TRUE;
+static u16 g_profile_ui_counter = 0;
 
 static MS_FrameProfile g_frame_profile;
+static MS_FrameProfile g_disp_frame_profile;
 static u32 g_render_subticks = 0;
 static u32 g_render_us = 0;
 static u32 g_fps = 0;
+static u16 g_cpu_load = 0;
+static u32 g_disp_render_subticks = 0;
+static u32 g_disp_render_us = 0;
+static u32 g_disp_fps = 0;
+static u16 g_disp_cpu_load = 0;
 
 static MS_AnimPlayer g_anim_player;
 static MS_ScenePlayer g_scene_player;
@@ -108,6 +117,7 @@ static void demo_set_status(const char *text)
 {
     strncpy(g_status_line, text ? text : "", sizeof(g_status_line) - 1);
     g_status_line[sizeof(g_status_line) - 1] = '\0';
+    g_ui_dirty = TRUE;
 }
 
 static void demo_ui_format_padded(char *dst, const char *src)
@@ -157,7 +167,7 @@ static void demo_ui_present(char lines[UI_TEXT_LINES][UI_TEXT_WIDTH + 1])
 
 static u32 demo_subticks_to_us(u32 subticks)
 {
-    return (u32)((((unsigned long long)subticks) * 1000000ULL + (SUBTICKPERSECOND / 2)) / SUBTICKPERSECOND);
+    return (u32)(((subticks * 625u) + 24u) / 48u);
 }
 
 static void demo_apply_bg_color(void)
@@ -219,6 +229,7 @@ static void demo_cycle_mapping(s16 delta)
         next -= count;
 
     g_mapping_index = (u16)next;
+    g_ui_dirty = TRUE;
 }
 
 static void demo_sync_players(void)
@@ -238,6 +249,7 @@ static void demo_prefill_id_editor(void)
     g_id_cursor = (u16)strlen(g_id_edit);
     if (g_id_cursor > ID_EDIT_MAX)
         g_id_cursor = ID_EDIT_MAX;
+    g_ui_dirty = TRUE;
 }
 
 static void demo_change_index(s16 delta)
@@ -265,6 +277,7 @@ static void demo_change_index(s16 delta)
         ms_anim_player_init(&g_anim_player, *index_ptr);
     else if (g_unit == DEMO_UNIT_SCENE)
         ms_scene_player_init(&g_scene_player, *index_ptr);
+    g_ui_dirty = TRUE;
 }
 
 static u16 demo_char_index(char ch)
@@ -306,6 +319,7 @@ static void demo_cycle_id_char(s16 delta)
     while (next >= (s16)max_chars)
         next -= (s16)max_chars;
     g_id_edit[g_id_cursor] = g_id_chars[next];
+    g_ui_dirty = TRUE;
 }
 
 static void demo_backspace_id_char(void)
@@ -321,10 +335,12 @@ static void demo_backspace_id_char(void)
     if (g_id_cursor >= len)
     {
         g_id_edit[len - 1] = '\0';
+        g_ui_dirty = TRUE;
         return;
     }
     for (i = g_id_cursor; i < len; i++)
         g_id_edit[i] = g_id_edit[i + 1];
+    g_ui_dirty = TRUE;
 }
 
 static void demo_apply_id_jump(void)
@@ -368,6 +384,9 @@ static void draw_ui(void)
     u16 i;
     u16 row;
 
+    if (!g_ui_dirty)
+        return;
+
     count = demo_unit_count(g_unit);
     index = *demo_unit_index_ptr(g_unit);
     id = demo_unit_id(g_unit, index);
@@ -393,15 +412,15 @@ static void draw_ui(void)
         sprintf(line2, "Name: %s", name ? name : "");
         strcpy(lines[5], line2);
 
-        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", SYS_getCPULoad(), g_fps, g_render_subticks, g_render_us);
+        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
         strcpy(lines[6], line);
         sprintf(
             line2,
             "Calls:%u Parts:%u HW:%u Fail:%u",
-            g_frame_profile.render_calls,
-            g_frame_profile.parts_submitted,
-            g_frame_profile.hw_sprites_estimated,
-            g_frame_profile.add_failures
+            g_disp_frame_profile.render_calls,
+            g_disp_frame_profile.parts_submitted,
+            g_disp_frame_profile.hw_sprites_estimated,
+            g_disp_frame_profile.add_failures
         );
         strcpy(lines[7], line2);
 
@@ -424,15 +443,15 @@ static void draw_ui(void)
             line[g_id_cursor + 4] = '^';
         strcpy(lines[4], line);
 
-        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", SYS_getCPULoad(), g_fps, g_render_subticks, g_render_us);
+        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
         strcpy(lines[5], line);
         sprintf(
             line2,
             "Calls:%u Parts:%u HW:%u Fail:%u",
-            g_frame_profile.render_calls,
-            g_frame_profile.parts_submitted,
-            g_frame_profile.hw_sprites_estimated,
-            g_frame_profile.add_failures
+            g_disp_frame_profile.render_calls,
+            g_disp_frame_profile.parts_submitted,
+            g_disp_frame_profile.hw_sprites_estimated,
+            g_disp_frame_profile.add_failures
         );
         strcpy(lines[6], line2);
 
@@ -442,6 +461,7 @@ static void draw_ui(void)
 
     strcpy(lines[12], g_status_line);
     demo_ui_present(lines);
+    g_ui_dirty = FALSE;
 }
 
 int main(void)
@@ -488,11 +508,13 @@ int main(void)
             if ((press & BUTTON_UP) && !consumed_up)
             {
                 g_unit = (u16)((g_unit + 3) & 3);
+                g_ui_dirty = TRUE;
                 demo_set_status("Changed unit");
             }
             if ((press & BUTTON_DOWN) && !consumed_down)
             {
                 g_unit = (u16)((g_unit + 1) & 3);
+                g_ui_dirty = TRUE;
                 demo_set_status("Changed unit");
             }
             if (press & BUTTON_LEFT)
@@ -528,6 +550,7 @@ int main(void)
             if (press & BUTTON_C)
             {
                 g_id_edit_mode = TRUE;
+                g_ui_dirty = TRUE;
                 demo_prefill_id_editor();
                 demo_set_status("Edit ID then press A");
             }
@@ -538,11 +561,13 @@ int main(void)
             {
                 if (g_id_cursor > 0)
                     g_id_cursor--;
+                g_ui_dirty = TRUE;
             }
             if (press & BUTTON_RIGHT)
             {
                 if (g_id_cursor < ID_EDIT_MAX)
                     g_id_cursor++;
+                g_ui_dirty = TRUE;
             }
             if (press & BUTTON_UP)
                 demo_cycle_id_char(1);
@@ -554,6 +579,7 @@ int main(void)
             {
                 g_id_edit[0] = '\0';
                 g_id_cursor = 0;
+                g_ui_dirty = TRUE;
             }
             if (press & BUTTON_B)
             {
@@ -602,6 +628,18 @@ int main(void)
         g_render_us = demo_subticks_to_us(g_render_subticks);
         ms_get_frame_profile(&g_frame_profile);
         g_fps = SYS_getFPS();
+        g_cpu_load = SYS_getCPULoad();
+        g_profile_ui_counter++;
+        if (g_profile_ui_counter >= PROFILE_UI_PERIOD)
+        {
+            g_profile_ui_counter = 0;
+            g_disp_fps = g_fps;
+            g_disp_cpu_load = g_cpu_load;
+            g_disp_render_subticks = g_render_subticks;
+            g_disp_render_us = g_render_us;
+            g_disp_frame_profile = g_frame_profile;
+            g_ui_dirty = TRUE;
+        }
 
         draw_ui();
         ms_end_frame();
