@@ -27,6 +27,14 @@ typedef struct
     u32 tick;
 } MS_ScenePlayer;
 
+typedef struct
+{
+    u16 render_calls;
+    u16 parts_submitted;
+    u16 hw_sprites_estimated;
+    u16 add_failures;
+} MS_FrameProfile;
+
 void ms_init(void);
 void ms_begin_frame(void);
 void ms_end_frame(void);
@@ -56,5 +64,7 @@ s16 ms_find_frame_index_by_id(const char *id);
 s16 ms_find_animation_index_by_id(const char *id);
 s16 ms_find_scene_index_by_id(const char *id);
 s16 ms_find_mapping_index_by_id(const char *id);
+
+void ms_get_frame_profile(MS_FrameProfile *out_profile);
 
 #endif

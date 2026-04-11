@@ -4,6 +4,15 @@
 
 static u8 g_initialized = FALSE;
 static u16 g_active_mapping = 0;
+static MS_FrameProfile g_frame_profile = { 0, 0, 0, 0 };
+
+static u16 ms_sat_add_u16(u16 value, u16 add)
+{
+    u32 sum = (u32)value + (u32)add;
+    if (sum > 0xFFFFu)
+        return 0xFFFFu;
+    return (u16)sum;
+}
 
 static u32 ms_mapping_module_base(void)
 {
@@ -58,6 +67,8 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
     if (render_index >= MS_RENDER_FRAME_COUNT)
         return;
 
+    g_frame_profile.render_calls = ms_sat_add_u16(g_frame_profile.render_calls, 1u);
+
     first = ms_render_frames[render_index].first_part;
     end = first + ms_render_frames[render_index].part_count;
 
@@ -65,6 +76,7 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
     {
         const MS_Part *part;
         const SpriteDefinition *def;
+        Sprite *sprite;
 
         part = &ms_parts[(u32)i];
         if (part->variant_index >= MS_VARIANT_COUNT)
@@ -74,12 +86,17 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
         if (!def)
             continue;
 
-        SPR_addSprite(
+        g_frame_profile.parts_submitted = ms_sat_add_u16(g_frame_profile.parts_submitted, 1u);
+        g_frame_profile.hw_sprites_estimated = ms_sat_add_u16(g_frame_profile.hw_sprites_estimated, def->maxNumSprite);
+
+        sprite = SPR_addSprite(
             def,
             ox + part->x,
             oy + part->y,
             TILE_ATTR(PAL1, FALSE, part->vflip ? TRUE : FALSE, part->hflip ? TRUE : FALSE)
         );
+        if (!sprite)
+            g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
     }
 }
 
@@ -129,6 +146,10 @@ void ms_begin_frame(void)
     if (!g_initialized)
         ms_init();
 
+    g_frame_profile.render_calls = 0;
+    g_frame_profile.parts_submitted = 0;
+    g_frame_profile.hw_sprites_estimated = 0;
+    g_frame_profile.add_failures = 0;
     SPR_reset();
 }
 
@@ -473,4 +494,12 @@ s16 ms_find_mapping_index_by_id(const char *id)
             return (s16)i;
     }
     return -1;
+}
+
+void ms_get_frame_profile(MS_FrameProfile *out_profile)
+{
+    if (!out_profile)
+        return;
+
+    *out_profile = g_frame_profile;
 }

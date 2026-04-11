@@ -90,6 +90,12 @@ In `sgdk_demo/src/main.c` the demo now uses an interactive selector UI:
 - `B`: reset animation/scene player
 - `C`: open ID jump editor
 
+Live profiling overlay (shown in the selector UI):
+
+- `CPU%` + `FPS` from SGDK runtime
+- per-frame modular render cost in `subticks` and `microseconds`
+- render stats: render calls, submitted parts, estimated hardware sprites, and sprite add failures
+
 ID jump editor:
 
 - `UP / DOWN`: change character at cursor

@@ -11,6 +11,9 @@ enum
 };
 
 #define ID_EDIT_MAX 31
+#define UI_TEXT_COL 1
+#define UI_TEXT_WIDTH 39
+#define UI_TEXT_LINES 14
 
 static u16 g_unit = DEMO_UNIT_MODULE;
 static u16 g_mapping_index = 0;
@@ -25,6 +28,13 @@ static u8 g_id_edit_mode = FALSE;
 static u16 g_id_cursor = 0;
 static char g_id_edit[ID_EDIT_MAX + 1];
 static char g_status_line[40];
+static char g_ui_cache[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];
+static u8 g_ui_cache_valid = FALSE;
+
+static MS_FrameProfile g_frame_profile;
+static u32 g_render_subticks = 0;
+static u32 g_render_us = 0;
+static u32 g_fps = 0;
 
 static MS_AnimPlayer g_anim_player;
 static MS_ScenePlayer g_scene_player;
@@ -98,6 +108,56 @@ static void demo_set_status(const char *text)
 {
     strncpy(g_status_line, text ? text : "", sizeof(g_status_line) - 1);
     g_status_line[sizeof(g_status_line) - 1] = '\0';
+}
+
+static void demo_ui_format_padded(char *dst, const char *src)
+{
+    u16 i = 0;
+
+    if (src)
+    {
+        while (i < UI_TEXT_WIDTH && src[i])
+        {
+            dst[i] = src[i];
+            i++;
+        }
+    }
+
+    while (i < UI_TEXT_WIDTH)
+    {
+        dst[i] = ' ';
+        i++;
+    }
+    dst[UI_TEXT_WIDTH] = '\0';
+}
+
+static void demo_ui_draw_line(u16 row, const char *src)
+{
+    char padded[UI_TEXT_WIDTH + 1];
+
+    if (row >= UI_TEXT_LINES)
+        return;
+
+    demo_ui_format_padded(padded, src);
+    if (!g_ui_cache_valid || strcmp(g_ui_cache[row], padded) != 0)
+    {
+        VDP_drawText(padded, UI_TEXT_COL, row);
+        strcpy(g_ui_cache[row], padded);
+    }
+}
+
+static void demo_ui_present(char lines[UI_TEXT_LINES][UI_TEXT_WIDTH + 1])
+{
+    u16 row;
+
+    for (row = 0; row < UI_TEXT_LINES; row++)
+        demo_ui_draw_line(row, lines[row]);
+    g_ui_cache_valid = TRUE;
+}
+
+static u32 demo_subticks_to_us(u32 subticks)
+{
+    return (u32)((((unsigned long long)subticks) * 1000000ULL + (SUBTICKPERSECOND / 2)) / SUBTICKPERSECOND);
 }
 
 static void demo_apply_bg_color(void)
@@ -295,6 +355,7 @@ static void demo_apply_id_jump(void)
 
 static void draw_ui(void)
 {
+    char lines[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];
     char line[40];
     char line2[40];
     const char *id;
@@ -305,6 +366,7 @@ static void draw_ui(void)
     u16 index;
     u16 mapping_count;
     u16 i;
+    u16 row;
 
     count = demo_unit_count(g_unit);
     index = *demo_unit_index_ptr(g_unit);
@@ -314,46 +376,72 @@ static void draw_ui(void)
     mapping_id = demo_mapping_id(g_mapping_index);
     mapping_name = demo_mapping_name(g_mapping_index);
 
-    VDP_clearTextArea(0, 0, 40, 10);
-    VDP_drawText("Modular Sprite SGDK Selector", 1, 0);
+    for (row = 0; row < UI_TEXT_LINES; row++)
+        lines[row][0] = '\0';
+    strcpy(lines[0], "Modular Sprite SGDK Selector");
 
     if (!g_id_edit_mode)
     {
         sprintf(line, "Unit:%s  Index:%u/%u", g_unit_names[g_unit], (u16)(index + 1), count);
-        VDP_drawText(line, 1, 1);
+        strcpy(lines[1], line);
         sprintf(line, "Map:%u/%u  ID:%s", (u16)(g_mapping_index + 1), mapping_count, mapping_id ? mapping_id : "");
-        VDP_drawText(line, 1, 2);
+        strcpy(lines[2], line);
         sprintf(line2, "MapName: %s", mapping_name ? mapping_name : "");
-        VDP_drawText(line2, 1, 3);
+        strcpy(lines[3], line2);
         sprintf(line, "ID: %s", id ? id : "");
-        VDP_drawText(line, 1, 4);
+        strcpy(lines[4], line);
         sprintf(line2, "Name: %s", name ? name : "");
-        VDP_drawText(line2, 1, 5);
+        strcpy(lines[5], line2);
 
-        VDP_drawText("UP/DOWN unit  LEFT/RIGHT +/-1", 1, 6);
-        VDP_drawText("X/Y +/-10     A pause   B reset", 1, 7);
-        VDP_drawText("START map  START+UP/DN bg  C jump", 1, 8);
+        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", SYS_getCPULoad(), g_fps, g_render_subticks, g_render_us);
+        strcpy(lines[6], line);
+        sprintf(
+            line2,
+            "Calls:%u Parts:%u HW:%u Fail:%u",
+            g_frame_profile.render_calls,
+            g_frame_profile.parts_submitted,
+            g_frame_profile.hw_sprites_estimated,
+            g_frame_profile.add_failures
+        );
+        strcpy(lines[7], line2);
+
+        strcpy(lines[8], "UP/DOWN unit  LEFT/RIGHT +/-1");
+        strcpy(lines[9], "X/Y +/-10     A pause   B reset");
+        strcpy(lines[10], "START map  START+UP/DN bg  C jump");
     }
     else
     {
-        VDP_drawText("ID Jump Editor", 1, 1);
+        strcpy(lines[1], "ID Jump Editor");
         sprintf(line, "Target Unit: %s", g_unit_names[g_unit]);
-        VDP_drawText(line, 1, 2);
+        strcpy(lines[2], line);
         sprintf(line, "ID: %s", g_id_edit);
-        VDP_drawText(line, 1, 3);
+        strcpy(lines[3], line);
 
         for (i = 0; i < 39; i++)
             line[i] = ' ';
         line[39] = '\0';
         if ((g_id_cursor + 4) < 39)
             line[g_id_cursor + 4] = '^';
-        VDP_drawText(line, 1, 4);
+        strcpy(lines[4], line);
 
-        VDP_drawText("UP/DOWN char  LEFT/RIGHT cursor", 1, 5);
-        VDP_drawText("A apply  B cancel  X clear  Y bksp", 1, 6);
+        sprintf(line, "CPU:%u%% FPS:%lu Cost:%lust/%luus", SYS_getCPULoad(), g_fps, g_render_subticks, g_render_us);
+        strcpy(lines[5], line);
+        sprintf(
+            line2,
+            "Calls:%u Parts:%u HW:%u Fail:%u",
+            g_frame_profile.render_calls,
+            g_frame_profile.parts_submitted,
+            g_frame_profile.hw_sprites_estimated,
+            g_frame_profile.add_failures
+        );
+        strcpy(lines[6], line2);
+
+        strcpy(lines[8], "UP/DOWN char  LEFT/RIGHT cursor");
+        strcpy(lines[9], "A apply  B cancel  X clear  Y bksp");
     }
 
-    VDP_drawText(g_status_line, 1, 9);
+    strcpy(lines[12], g_status_line);
+    demo_ui_present(lines);
 }
 
 int main(void)
@@ -481,6 +569,7 @@ int main(void)
 
         ms_begin_frame();
 
+        g_render_subticks = getSubTick();
         if (g_unit == DEMO_UNIT_MODULE)
         {
             if (MS_MODULE_COUNT > 0)
@@ -509,6 +598,10 @@ int main(void)
                 ms_draw_scene_player(&g_scene_player, 160, 120);
             }
         }
+        g_render_subticks = getSubTick() - g_render_subticks;
+        g_render_us = demo_subticks_to_us(g_render_subticks);
+        ms_get_frame_profile(&g_frame_profile);
+        g_fps = SYS_getFPS();
 
         draw_ui();
         ms_end_frame();
