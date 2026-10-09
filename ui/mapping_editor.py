@@ -231,15 +231,6 @@ class MappingVisualizer(wx.ScrolledWindow):
         return -1
 
     def on_left_down(self, event):
-        # Start dragging from Source
-        idx = self._hit_test_source(event.GetPosition())
-        if idx != -1:
-            mod = self.project.modules[idx]
-            self._drag_source_module_id = mod.id
-            self.CaptureMouse()
-        event.Skip()
-
-    def on_left_down(self, event):
         # Start dragging from Source OR Bottom (Re-map)
         pt = event.GetPosition()
         
@@ -600,7 +591,6 @@ class MappingEditorPanel(wx.Panel):
         right_sizer.Add(self.right_panel_top, 0, wx.EXPAND | wx.ALL, 4)
         
         # Right Splitter (Visualizer / Preview)
-        # Right Splitter (Visualizer / Preview)
         self.right_splitter = wx.SplitterWindow(self.right_panel, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
         self.visualizer = MappingVisualizer(self.right_splitter, self.project)
@@ -655,7 +645,6 @@ class MappingEditorPanel(wx.Panel):
     def on_list_resize(self, event):
         width = self.list_ctrl.GetClientSize().width
         self.list_ctrl.SetColumnWidth(0, width)
-        self.list_ctrl.SetColumnWidth(0, width)
         event.Skip()
 
     def on_mapping_changed(self):
@@ -668,16 +657,6 @@ class MappingEditorPanel(wx.Panel):
         # So we must force Preview to clear its cache.
         self.preview._cached_scale = 0.0
         self.preview.Refresh()
-
-    def set_project(self, project: Project):
-        self.project = project
-        self.visualizer.project = project
-        self.preview.project = project
-        self.current_mapping = None
-        self.visualizer.set_mapping(None)
-        self.preview.set_mapping(None)
-        self.project.active_mapping = None # Sync global
-        self.refresh_list()
 
     def refresh_list(self):
         self.list_ctrl.DeleteAllItems()

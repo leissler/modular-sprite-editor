@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
-import wx
-import wx.lib.newevent
-
-import wx
-import wx.lib.newevent
 from typing import Optional, Tuple
+
+import wx
 
 from models import AFrame, Animation, Project, generate_id
 from ui.canvas import AnimationCanvas
@@ -46,7 +41,6 @@ class AnimationEditorPanel(wx.Panel):
         # List of Animations (Editable Labels for renaming)
         self.anim_list = wx.ListCtrl(anim_box, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
         self.anim_list.InsertColumn(0, "Name", width=200)
-        self.anim_list.Bind(wx.EVT_SIZE, self.on_anim_list_size)
         self.anim_list.Bind(wx.EVT_SIZE, self.on_anim_list_size)
         
         anim_btns = wx.BoxSizer(wx.HORIZONTAL)
@@ -209,13 +203,10 @@ class AnimationEditorPanel(wx.Panel):
         self.chk_flip_y.Bind(wx.EVT_CHECKBOX, self.on_change_aframe_props)
         
         self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
-        self.chk_trajectory.Bind(wx.EVT_CHECKBOX, self.on_toggle_trajectory)
         self.chk_mirror_x.Bind(wx.EVT_CHECKBOX, self.on_toggle_global_flip)
         self.chk_mirror_y.Bind(wx.EVT_CHECKBOX, self.on_toggle_global_flip)
         self.chk_vis_col.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_col)
         self.chk_vis_pts.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_pts)
-        
-        self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
         
         self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
 
@@ -382,7 +373,6 @@ class AnimationEditorPanel(wx.Panel):
         self.current_index = 0
         self.canvas.set_current_index(0)
         self.timeline.set_current_index(0)
-        self.timeline.set_current_index(0)
         self.update_aframe_ui()
 
     def refresh_animations(self, select_id: Optional[str] = None) -> None:
@@ -432,7 +422,6 @@ class AnimationEditorPanel(wx.Panel):
 
         self.current_index = 0
         self.canvas.set_current_index(0)
-        self.timeline.set_current_index(0)
         self.timeline.set_current_index(0)
         self.update_aframe_ui()
 
@@ -498,19 +487,6 @@ class AnimationEditorPanel(wx.Panel):
         self.jump_to_last()
         self.snapshot()
 
-    def on_remove_aframe(self, event) -> None:
-        anim = self.get_selected_anim()
-        if not anim or not anim.aframes: return
-        
-        self.snapshot()
-        
-        if 0 <= self.current_index < len(anim.aframes):
-            anim.aframes.pop(self.current_index)
-            self.current_index = max(0, min(self.current_index, len(anim.aframes) - 1))
-            self.update_aframe_ui()
-            self.timeline.Refresh(False)
-            self.canvas.Refresh(False)
-            self.snapshot()
 
     def on_change_playback(self, event) -> None:
         anim = self.get_selected_anim()
@@ -711,7 +687,7 @@ class AnimationEditorPanel(wx.Panel):
         try:
             from PIL import Image as PilImage
         except ImportError:
-            wx.MessageBox("Pillow library is required for GIF export.\\nPlease install it: pip install Pillow", "Export GIF", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox("Pillow library is required for GIF export.\nPlease install it: pip install Pillow", "Export GIF", wx.OK | wx.ICON_ERROR)
             return
 
         default_name = f"{anim.name}.gif"
@@ -956,7 +932,7 @@ class AnimationEditorPanel(wx.Panel):
                 loop=loop_count, 
                 disposal=2 # Restore to background (clears previous frame)
             )
-            wx.MessageBox(f"Successfully exported {len(pil_images)} frames to:\\n{path}", "Export Success", wx.OK)
+            wx.MessageBox(f"Successfully exported {len(pil_images)} frames to:\n{path}", "Export Success", wx.OK)
 
     def on_spin_enter_press(self, event) -> None:
         # Explicit Enter Press handler (CommandEvent)

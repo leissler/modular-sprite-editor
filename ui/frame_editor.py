@@ -930,7 +930,6 @@ class FrameEditorPanel(wx.Panel):
              # 2. Apply Flip (Rotation Aware)
              # Use round() to avoid floating point truncation errors
              raw_rot = fm.rotation_degrees
-             raw_rot = fm.rotation_degrees
              rot = int(round(raw_rot)) % 180
              effective_axis = axis
              
@@ -941,11 +940,6 @@ class FrameEditorPanel(wx.Panel):
                  fm.flip_x = not fm.flip_x
              elif effective_axis == "y":
                  fm.flip_y = not fm.flip_y
-
-             try:
-                 with open("safe_debug.txt", "a") as f:
-                     f.write(f"  EffectiveAxis={effective_axis} FinalFlipX={fm.flip_x} FinalFlipY={fm.flip_y}\n")
-             except: pass
 
              # 3. New Center (Pre-Move)
              new_bounds = self.canvas._fmodule_bounds(fm)
@@ -978,12 +972,7 @@ class FrameEditorPanel(wx.Panel):
              # Delta to move from Current Center (old_cx) to Target Center
              move_dx = target_cx - old_cx
              move_dy = target_cy - old_cy
-             
-             try:
-                 with open("safe_debug.txt", "a") as f:
-                     f.write(f"  GroupCX={group_cx} OldCenter=({old_cx},{old_cy}) MoveDX={move_dx}\n")
-             except: pass
-             
+
              fm.position = (int(fm.position[0] + move_dx), int(fm.position[1] + move_dy))
              
              changed = True
@@ -1066,7 +1055,6 @@ class FrameEditorPanel(wx.Panel):
              fmodules[0:0] = selected_items
              
         self.canvas.Refresh()
-        self.snapshot()
         self.snapshot()
 
     def _delete_selected_modules(self):
@@ -1192,27 +1180,6 @@ class FrameEditorPanel(wx.Panel):
             self.frame_list.Select(target_idx)
             self.frame_list.EnsureVisible(target_idx)
             
-    def on_frame_list_context_menu(self, event):
-        sel = self.frame_list.GetFirstSelected()
-        if sel == wx.NOT_FOUND:
-            return
-            
-        # Assuming list order == project order
-        fid = self.project.frames[sel].id
-        
-        menu = wx.Menu()
-        dup_item = menu.Append(wx.ID_ANY, "Duplicate Frame")
-        menu.AppendSeparator()
-        flip_h_item = menu.Append(wx.ID_ANY, "Flip Horizontal (X)")
-        flip_v_item = menu.Append(wx.ID_ANY, "Flip Vertical (Y)")
-        
-        self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), id=dup_item.GetId())
-        self.Bind(wx.EVT_MENU, lambda e: self._flip_frame(fid, "x"), id=flip_h_item.GetId())
-        self.Bind(wx.EVT_MENU, lambda e: self._flip_frame(fid, "y"), id=flip_v_item.GetId())
-        
-        self.PopupMenu(menu)
-        menu.Destroy()
-        
     def _duplicate_frame(self, fid: str):
         frame = self.project.get_frame(fid)
         if not frame: return
@@ -1257,13 +1224,6 @@ class FrameEditorPanel(wx.Panel):
                 
         self.canvas.Refresh()
 
-    def _flip_frame(self, fid: str, axis: str):
-        frame = self.project.get_frame(fid)
-        if not frame: return
-        
-        self._perform_group_flip(frame, axis, targets=None)
-        self.canvas.Refresh()
-            
     def refresh_choices(self):
         """Called by app.py when switching tools."""
         self.palette.refresh_modules()
@@ -1643,10 +1603,6 @@ class FrameEditorPanel(wx.Panel):
             if self.canvas._pt_drag_id not in valid_ids:
                 self.canvas._pt_drag_mode = "none"
                 self.canvas._pt_drag_id = None
-        self.canvas.Refresh()
-
-    def on_toggle_show_col(self, event):
-        self.canvas.show_collision = self.chk_show_col.GetValue()
         self.canvas.Refresh()
 
     def on_add_frame(self, _):

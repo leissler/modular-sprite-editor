@@ -56,8 +56,6 @@ class ModuleCanvas(BaseCanvas):
         
         self.transparent_view: bool = True
         self.selection_style: str = "active"
-        self.transparent_view: bool = True
-        self.selection_style: str = "active"
         # Tuple: (rect, is_sel, id, [type, color, params])
         self.module_overlays: list = [] 
         self.active_shape_config: Optional[Tuple[str, Tuple[int, int, int], list]] = None
@@ -926,7 +924,6 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas.on_selection_changed = self._on_canvas_selection
         self.canvas.on_pivot_changed = self._on_canvas_pivot
         self.canvas.on_pick_color = self.on_canvas_pick_color
-        self.canvas.on_pick_color = self.on_canvas_pick_color
         self.canvas.on_module_clicked = lambda mid: self.select_module(mid, center_view=False)
         self.canvas.on_deselect = self.on_canvas_deselect
         self.canvas.on_edit_end = self._autosave_current_module
@@ -1072,21 +1069,6 @@ class ModuleEditorPanel(wx.Panel):
         self.refresh_images()
         self.refresh_modules()
         self.canvas.set_bitmap(None, (0, 0))
-
-    def refresh_images(self, select_id: Optional[str] = None) -> None:
-        self.image_list.Clear()
-        for img in self.project.images:
-            label = f"{os.path.basename(img.file_path)} ({img.width}x{img.height})"
-            self.image_list.Append(label, clientData=img.id)
-        if select_id:
-            for idx in range(self.image_list.GetCount()):
-                if self.image_list.GetClientData(idx) == select_id:
-                    self.image_list.SetSelection(idx)
-                    self.select_image(select_id)
-                    break
-        elif self.image_list.GetCount() > 0:
-            self.image_list.SetSelection(0)
-            self.select_image(self.image_list.GetClientData(0))
 
     def select_image(self, image_id: str) -> None:
         # Save current view state
@@ -1825,11 +1807,6 @@ class ModuleEditorPanel(wx.Panel):
         if not self.selected_image_id and not self.project.modules:
              wx.MessageBox("No images or modules to optimize.", "Info")
              return
-             
-    def show_optimization_dialog(self, output_dir: str = None, name_hint: str = None) -> None:
-        if not self.selected_image_id and not self.project.modules:
-             wx.MessageBox("No images or modules to optimize.", "Info")
-             return
 
         from ui.optimize_dialog import OptimizeDialog
         from optimization import optimize_modules
@@ -1937,13 +1914,6 @@ class ModuleEditorPanel(wx.Panel):
 
 
 
-    def on_toggle_grid(self, event: wx.CommandEvent) -> None:
-        self.canvas.set_show_grid(event.IsChecked())
-
-    def on_change_grid_spacing(self, _: wx.CommandEvent) -> None:
-        spacing = (max(4, self.grid_w.GetValue()), max(4, self.grid_h.GetValue()))
-        self.canvas.set_grid_spacing(spacing)
-
     def set_project(self, project: Project) -> None:
         self.project = project
         self.selected_image_id = None
@@ -2001,26 +1971,6 @@ class ModuleEditorPanel(wx.Panel):
         self.trans_swatch.Refresh()
         self.canvas_controls.set_transparency_value(self.transparent_view)
 
-    def on_pick_transparent_color(self, _: wx.CommandEvent) -> None:
-        if not self.selected_image_id:
-            return
-        with wx.ColourDialog(self) as dlg:
-            if dlg.ShowModal() != wx.ID_OK:
-                return
-            c = dlg.GetColourData().GetColour()
-            color = (c.Red(), c.Green(), c.Blue())
-            asset = self.project.get_image(self.selected_image_id)
-            if asset:
-                asset.transparent_color = color
-                self._bitmap_cache_transparent = {
-                    k: v for k, v in self._bitmap_cache_transparent.items() if not k.startswith(f"{asset.id}_")
-                }
-                self._update_transparency_controls(asset)
-                bmp = self._bitmap_cache.get(asset.id)
-                display_bmp = self._get_display_bitmap(asset, bmp)
-                self.canvas.set_bitmap(display_bmp, (asset.width, asset.height), reset_state=False)
-                self.canvas.set_transparent_view(self.transparent_view)
-
     def _on_canvas_transparency_changed(self, enabled: bool) -> None:
         self._apply_transparency_toggle(enabled, sync_controls=False)
 
@@ -2039,9 +1989,6 @@ class ModuleEditorPanel(wx.Panel):
             self.canvas.set_bitmap(disp, (asset.width, asset.height), reset_state=False)
             self._rebuild_overlays()
             self.canvas.Refresh(False)
-
-    def on_toggle_trans_view(self, event: wx.CommandEvent) -> None:
-        self._apply_transparency_toggle(event.IsChecked())
 
     def on_pick_from_image(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:
@@ -2079,20 +2026,6 @@ class ModuleEditorPanel(wx.Panel):
         self._picking_transparent = False
         self.canvas.pick_mode = False
         self.canvas.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
-
-    def on_canvas_module_clicked(self, module_id: str) -> None:
-        if self._suppress_module_events:
-            return
-        # Find module in current view and select it
-        for idx, m in enumerate(self._modules_view):
-            if m.id == module_id:
-                self._suppress_module_events = True
-                self._unselect_all_modules()
-                self.module_list.SetItemState(idx, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
-                self.module_list.EnsureVisible(idx)
-                self._suppress_module_events = False
-                self.select_module(module_id)
-                break
 
     def on_canvas_deselect(self) -> None:
         self._unselect_all_modules()

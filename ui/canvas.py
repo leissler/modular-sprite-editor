@@ -265,82 +265,6 @@ class FrameCanvas(BaseCanvas):
                          
                          gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
                      
-                     else:
-                         # Fallback for when bitmap scaling is not possible (e.g., zero width/height)
-                         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-                         gc.SetPen(wx.Pen(color, width=1))
-                         
-                         px, py = mod.pivot
-
-                         if mod.type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
-                             x, y, w, h = mod.rect
-                             # Draw at module rect offset, shifted by pivot
-                             # Usually module rect x,y is 0,0 for shapes created via editor?
-                             # Parser sets x,y=0,0.
-                             draw_x, draw_y = x - px, y - py
-                             
-                             if mod.type == "MD_MARKER":
-                                 # Draw X
-                                 gc.StrokeLine(draw_x, draw_y, draw_x + w, draw_y + h)
-                                 gc.StrokeLine(draw_x + w, draw_y, draw_x, draw_y + h)
-                             else:
-                                 gc.DrawRectangle(draw_x, draw_y, w, h)
-                                 
-                         elif mod.type in ("MD_ARC", "MD_FILL_ARC"):
-                             x, y, w, h = mod.rect
-                             draw_x, draw_y = x - px, y - py
-                             start, sweep = mod.params if len(mod.params) >= 2 else (0, 360)
-                             start_rad = math.radians(start)
-                             end_rad = math.radians(start + sweep)
-                             
-                             # DrawEllipticArc path (x, y, w, h, start, end)
-                             # wxGraphicsContext DrawEllipticArc uses start/end angles in radians
-                             # It strokes/fills based on current state.
-                             gc.DrawEllipticArc(draw_x, draw_y, w, h, start_rad, end_rad)
-                             
-                             if filled:
-                                 # DrawEllipticArc with brush fills the sector (pie)?
-                                 # Or chord? 
-                                 # On some backends it's just the arc.
-                                 # For simplicity, assume it works or just leave as is.
-                                 pass
-    
-                         elif mod.type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE"):
-                             # params: p2x, p2y, p3x, p3y. P1 is (0,0) relative to Module origin?
-                             # Wait, pivot applies to Module Origin.
-                             # If params defined relative to Module Origin (0,0):
-                             # P1 = (0,0).
-                             # But we must draw relative to Pivot.
-                             # Draw at (0-px, 0-py).
-                             draw_base_x = -px
-                             draw_base_y = -py
-                             if len(mod.params) >= 4:
-                                 p2x, p2y, p3x, p3y = mod.params
-                             else:
-                                 p2x, p2y = w, 0
-                                 p3x, p3y = 0, h
-                                 
-                             points = [
-                                 (draw_base_x, draw_base_y),
-                                 (draw_base_x + p2x, draw_base_y + p2y),
-                                 (draw_base_x + p3x, draw_base_y + p3y)
-                             ]
-                             # GC expects list of points for DrawLines or Path for Polygon
-                             path = gc.CreatePath()
-                             path.MoveToPoint(*points[0])
-                             path.AddLineToPoint(*points[1])
-                             path.AddLineToPoint(*points[2])
-                             path.CloseSubpath()
-                             gc.DrawPath(path)
-                             
-                         elif mod.type == "MD_LINE":
-                             if len(mod.params) >= 2:
-                                 endX, endY = mod.params
-                             else:
-                                 endX, endY = mod.rect[2], mod.rect[3]
-                             draw_base_x = -px
-                             draw_base_y = -py
-                             gc.StrokeLine(draw_base_x, draw_base_y, draw_base_x + endX, draw_base_y + endY)
         elif fm.ref_type == "frame":
              ref_frame = self.project.get_frame(fm.ref_id)
              if ref_frame:
@@ -1512,9 +1436,6 @@ class AnimationCanvas(FrameCanvas):
         self.current_aframe: Optional[AFrame] = None
         self.show_trajectory: bool = True
         
-        # Interaction State
-        self._drag_start_offset: Optional[Tuple[int, int]] = None
-        self.drag_start: Optional[Tuple[float, float]] = None
         # Interaction State
         self._drag_start_offset: Optional[Tuple[int, int]] = None
         self.drag_start: Optional[Tuple[float, float]] = None
