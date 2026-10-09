@@ -15,6 +15,7 @@ from ui.auto_modularize_dialog import AutoModularizeDialog
 from optimization import run_auto_modularization
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.utils import load_wx_image_safely, load_wx_bitmap_safely
+from ui import app_services
 
 
 from ui.base_canvas import BaseCanvas
@@ -49,6 +50,7 @@ class ModuleCanvas(BaseCanvas):
     def __init__(self, parent: wx.Window):
         super().__init__(parent)
         self.max_zoom = 16.0 # Cap zoom to prevent extreme lag on large bitmaps
+        self.min_zoom = 0.25 # Large sheets need to fit in the view
         self.bitmap: Optional[wx.Bitmap] = None
         self.image_size: Tuple[int, int] = (0, 0)
         self.selection: Optional[Tuple[int, int, int, int]] = None
@@ -110,6 +112,19 @@ class ModuleCanvas(BaseCanvas):
             self.pivot = None
         self.Refresh(False)
 
+    def get_content_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        if self.bitmap:
+            return (0.0, 0.0, float(self.image_size[0]), float(self.image_size[1]))
+        rects = [item[0] for item in self.module_overlays]
+        if not rects:
+            return None
+        return (
+            min(r[0] for r in rects),
+            min(r[1] for r in rects),
+            max(r[0] + r[2] for r in rects),
+            max(r[1] + r[3] for r in rects),
+        )
+
     def set_selection_style(self, style: str) -> None:
         self.selection_style = style
 
@@ -122,16 +137,15 @@ class ModuleCanvas(BaseCanvas):
         self.Refresh(False)
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
+        self.SetFocus()
         pos = event.GetPosition()
         world = self.screen_to_world(pos)
         if self.pick_mode and self.on_pick_color:
             self.on_pick_color(world)
             return
 
-        # Priority 1: Alt (Pan)
-        if event.AltDown():
-            self.on_pan_start(event)
-            self._panning_alt = True
+        # Priority 1: Space / Alt (Pan)
+        if self.begin_pan_if_requested(event):
             return
 
         # Priority 2: Shift (Pivot Move) - ONLY if a module is selected AND has size
@@ -199,7 +213,10 @@ class ModuleCanvas(BaseCanvas):
                 self.on_selection_changed(self.selection)
         self.CaptureMouse()
 
-    def on_left_up(self, _: wx.MouseEvent) -> None:
+    def on_left_up(self, event: wx.MouseEvent) -> None:
+        if self._panning:
+            self.on_pan_end(event)
+            return
         if self.HasCapture():
             self.ReleaseMouse()
 
@@ -240,15 +257,11 @@ class ModuleCanvas(BaseCanvas):
 
         self._selecting = False
         self._pivot_drag = False
-        self._panning_alt = False
-        self._panning = False
         self.Refresh(False)
 
     def on_right_down(self, event: wx.MouseEvent) -> None:
-        # Prevent right-click (Ctrl+Click on Mac) from moving pivot
-        # Pivot movement is now strictly Shift+Left Click (Priority 2 in on_left_down)
+        # Pivot movement is Shift+Left drag only (right-click / Ctrl+click does nothing here).
         pass
-        self._panning = False
 
     def on_mouse_move(self, event: wx.MouseEvent) -> None:
         pos = event.GetPosition()
@@ -274,12 +287,8 @@ class ModuleCanvas(BaseCanvas):
             else:
                 self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
-        if self._panning and event.Dragging():
-            dx = (pos.x - self._start.x) / self.zoom
-            dy = (pos.y - self._start.y) / self.zoom
-            self.pan = (self.pan[0] + dx, self.pan[1] + dy)
-            self._start = pos
-            self.Refresh(False)
+        if self.handle_pan_motion(event):
+            return
         elif self._selecting and self.selection and event.Dragging():
             x, y, _, _ = self.selection
             w = world[0] - x
@@ -678,6 +687,31 @@ class ModuleCanvas(BaseCanvas):
         return x <= world[0] <= x + w and y <= world[1] <= y + h
 
 
+class SliceOptionsDialog(wx.Dialog):
+    """Small numeric dialog used by the Slice menu (grid size / merge gap)."""
+
+    def __init__(self, parent: wx.Window, title: str, message: str, fields: list):
+        super().__init__(parent, title=title)
+        main = wx.BoxSizer(wx.VERTICAL)
+        main.Add(wx.StaticText(self, label=message), 0, wx.ALL, 10)
+        grid = wx.FlexGridSizer(0, 2, 6, 8)
+        self._spins = []
+        for label, value, min_value, max_value in fields:
+            grid.Add(wx.StaticText(self, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
+            spin = wx.SpinCtrl(self, min=min_value, max=max_value, initial=value)
+            grid.Add(spin, 1, wx.EXPAND)
+            self._spins.append(spin)
+        main.Add(grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        btns = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        if btns:
+            main.Add(btns, 0, wx.EXPAND | wx.ALL, 10)
+        self.SetSizerAndFit(main)
+        self.CenterOnParent()
+
+    def get_values(self) -> list:
+        return [spin.GetValue() for spin in self._spins]
+
+
 class ModuleEditorPanel(wx.Panel):
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent)
@@ -686,6 +720,9 @@ class ModuleEditorPanel(wx.Panel):
         self.selected_module_id: Optional[str] = None
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
         self._modules_view: list[Module] = []
+        self._geometry_ui_updating = False
+        self._slice_tile_size: Tuple[int, int] = (32, 32)
+        self._merge_gap = 1
 
         # Layout: Splitter
         self.splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
@@ -698,62 +735,119 @@ class ModuleEditorPanel(wx.Panel):
         self.right_panel = wx.Panel(self.splitter)
         canvas_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Images
+        # --- Images ---
         img_box = wx.StaticBox(self.left_panel, label="Images")
         img_sizer = wx.StaticBoxSizer(img_box, wx.VERTICAL)
-        self.image_list = wx.ListBox(img_box)
+        self.image_list = wx.ListBox(img_box, size=(-1, 72))
         img_btns = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_import = wx.Button(img_box, label="Import Image")
-        self.btn_import_folder = wx.Button(img_box, label="Import Folder")
+        self.btn_import = wx.Button(img_box, label="Add Image…")
+        self.btn_import_folder = wx.Button(img_box, label="Add Folder…")
         self.btn_remove_img = wx.Button(img_box, label="Remove")
         img_btns.Add(self.btn_import, 1, wx.RIGHT, 4)
         img_btns.Add(self.btn_import_folder, 1, wx.RIGHT, 4)
         img_btns.Add(self.btn_remove_img, 0)
-        img_sizer.Add(self.image_list, 1, wx.EXPAND | wx.ALL, 4)
+        img_sizer.Add(self.image_list, 0, wx.EXPAND | wx.ALL, 4)
         img_sizer.Add(img_btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        
-        # Transparency controls
+
         trans_row = wx.BoxSizer(wx.HORIZONTAL)
-        trans_lbl = wx.StaticText(img_box, label="Transparent color:")
+        trans_lbl = wx.StaticText(img_box, label="Transparent colour")
         self.trans_swatch = wx.Panel(img_box, size=(24, 18))
         self.trans_swatch.SetBackgroundColour(wx.Colour(0, 0, 0))
-        self.btn_pick_from_image = wx.Button(img_box, label="Pick from image")
-        trans_row.Add(trans_lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.btn_pick_from_image = wx.Button(img_box, label="Pick…")
+        self.btn_pick_from_image.SetToolTip("Click a pixel in the image to use its colour as transparent")
+        trans_row.Add(trans_lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         trans_row.Add(self.trans_swatch, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        trans_row.Add(self.btn_pick_from_image, 1, wx.ALIGN_CENTER_VERTICAL)
+        trans_row.Add(self.btn_pick_from_image, 0, wx.ALIGN_CENTER_VERTICAL)
         img_sizer.Add(trans_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
 
-        # Modules
+        # --- Modules list ---
         self.mod_box = wx.StaticBox(self.left_panel, label="Modules")
         mod_sizer = wx.StaticBoxSizer(self.mod_box, wx.VERTICAL)
+        self.module_filter = wx.SearchCtrl(self.mod_box, style=wx.TE_PROCESS_ENTER)
+        self.module_filter.SetDescriptiveText("Filter modules")
+        self.module_filter.ShowCancelButton(True)
         self.module_list = wx.ListCtrl(self.mod_box, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.module_list.InsertColumn(0, "Name", width=120)
-        self.module_list.InsertColumn(1, "Rect", width=120)
-        self.module_list.InsertColumn(2, "Pivot", width=90)
-        
-        # Row 0: Type & Color
-        shape_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.choice_type = wx.Choice(self.mod_box, choices=[
-            "MD_IMAGE", "MD_RECT", "MD_FILL_RECT", "MD_ARC", "MD_FILL_ARC", 
+        self.module_list.InsertColumn(0, "Name", width=118)
+        self.module_list.InsertColumn(1, "Rect", width=96)
+        self.module_list.InsertColumn(2, "Pivot", width=52)
+        list_btns = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_create_module = wx.Button(self.mod_box, label="Add Module")
+        self.btn_create_module.SetToolTip("Create a module from the rectangle drawn on the image")
+        self.btn_slice_menu = wx.Button(self.mod_box, label="Slice ▾")
+        self.btn_slice_menu.SetToolTip("Grid slice, auto detect or auto modularize the selected image")
+        self.btn_delete_module = wx.Button(self.mod_box, label="Delete")
+        list_btns.Add(self.btn_create_module, 1, wx.RIGHT, 4)
+        list_btns.Add(self.btn_slice_menu, 0, wx.RIGHT, 4)
+        list_btns.Add(self.btn_delete_module, 0)
+        mod_sizer.Add(self.module_filter, 0, wx.EXPAND | wx.ALL, 4)
+        mod_sizer.Add(self.module_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        mod_sizer.Add(list_btns, 0, wx.EXPAND | wx.ALL, 4)
+
+        # --- Module properties (selected module, or the pending selection) ---
+        self.props_box_outer = wx.StaticBox(self.left_panel, label="Module")
+        props_outer = wx.StaticBoxSizer(self.props_box_outer, wx.VERTICAL)
+        parent_box = self.props_box_outer
+        form = wx.FlexGridSizer(0, 2, 4, 6)
+        form.AddGrowableCol(1, 1)
+        self.module_name = wx.TextCtrl(parent_box, style=wx.TE_PROCESS_ENTER)
+        form.Add(wx.StaticText(parent_box, label="Name"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form.Add(self.module_name, 1, wx.EXPAND)
+
+        type_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.choice_type = wx.Choice(parent_box, choices=[
+            "MD_IMAGE", "MD_RECT", "MD_FILL_RECT", "MD_ARC", "MD_FILL_ARC",
             "MD_MARKER", "MD_TRIANGLE", "MD_FILL_TRIANGLE", "MD_LINE"
         ])
         self.choice_type.SetSelection(0)
-        self.clr_picker = wx.ColourPickerCtrl(self.mod_box, colour=wx.Colour(255, 255, 255))
+        self.choice_type.SetToolTip("Image region or vector shape. Fixed once the module exists.")
+        self.clr_picker = wx.ColourPickerCtrl(parent_box, colour=wx.Colour(255, 255, 255))
         self.clr_picker.Disable() # Default is Image, so disable color
-        
-        shape_sizer.Add(self.choice_type, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
-        shape_sizer.Add(self.clr_picker, 0, wx.ALIGN_CENTER_VERTICAL)
-        mod_sizer.Add(shape_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 4)
-        
+        type_row.Add(self.choice_type, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
+        type_row.Add(self.clr_picker, 0, wx.ALIGN_CENTER_VERTICAL)
+        form.Add(wx.StaticText(parent_box, label="Type"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form.Add(type_row, 1, wx.EXPAND)
+
+        def spin_row(labels):
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            spins = []
+            for idx, label in enumerate(labels):
+                if idx:
+                    row.AddSpacer(6)
+                row.Add(wx.StaticText(parent_box, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 3)
+                spin = wx.SpinCtrl(parent_box, min=-8192, max=8192, initial=0, size=(64, -1),
+                                   style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+                row.Add(spin, 1, wx.EXPAND)
+                spins.append(spin)
+            return row, spins
+
+        pos_row, (self.spin_rect_x, self.spin_rect_y) = spin_row(["X", "Y"])
+        size_row, (self.spin_rect_w, self.spin_rect_h) = spin_row(["W", "H"])
+        pivot_row, (self.spin_pivot_x, self.spin_pivot_y) = spin_row(["X", "Y"])
+        self.spin_rect_w.SetRange(0, 8192)
+        self.spin_rect_h.SetRange(0, 8192)
+        self.spin_pivot_x.SetToolTip("Pivot relative to the module's top-left corner (Shift+drag on the canvas)")
+        self.spin_pivot_y.SetToolTip("Pivot relative to the module's top-left corner (Shift+drag on the canvas)")
+        form.Add(wx.StaticText(parent_box, label="Position"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form.Add(pos_row, 1, wx.EXPAND)
+        form.Add(wx.StaticText(parent_box, label="Size"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form.Add(size_row, 1, wx.EXPAND)
+        form.Add(wx.StaticText(parent_box, label="Pivot"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form.Add(pivot_row, 1, wx.EXPAND)
+        props_outer.Add(form, 0, wx.EXPAND | wx.ALL, 4)
+        self._geometry_spins = [
+            self.spin_rect_x, self.spin_rect_y, self.spin_rect_w, self.spin_rect_h,
+            self.spin_pivot_x, self.spin_pivot_y,
+        ]
+
         self.Bind(wx.EVT_CHOICE, self.on_type_change, self.choice_type)
         self.Bind(wx.EVT_COLOURPICKER_CHANGED, self.on_color_change, self.clr_picker)
 
         # --- Shape Properties (Container) ---
         # Wrapper Panel to allow clean Show/Hide of the entire StaticBox group
-        self.props_container = wx.Panel(self.mod_box)
+        self.props_container = wx.Panel(parent_box)
         props_cont_sizer = wx.BoxSizer(wx.VERTICAL)
         
-        self.props_box = wx.StaticBox(self.props_container, label="Properties")
+        self.props_box = wx.StaticBox(self.props_container, label="Shape")
         self.props_sizer = wx.StaticBoxSizer(self.props_box, wx.VERTICAL)
         
         # Arc Params Panel
@@ -792,15 +886,10 @@ class ModuleEditorPanel(wx.Panel):
             row.Add(sy, 1, wx.EXPAND | wx.LEFT, 2)
             return row
 
-        # P1 (New for Triangle)
         self.row_p1 = create_coord_row(self.panel_tri, "P1%:", "lbl_p1", "spin_p1x", "spin_p1y")
         self.pts_sizer.Add(self.row_p1, 0, wx.EXPAND | wx.BOTTOM, 2)
-
-        # P2 / End
         self.row_p2 = create_coord_row(self.panel_tri, "P2%:", "lbl_p2", "spin_p2x", "spin_p2y")
         self.pts_sizer.Add(self.row_p2, 0, wx.EXPAND | wx.BOTTOM, 2)
-
-        # P3
         self.row_p3 = create_coord_row(self.panel_tri, "P3%:", "lbl_p3", "spin_p3x", "spin_p3y")
         self.pts_sizer.Add(self.row_p3, 0, wx.EXPAND)
         
@@ -809,11 +898,8 @@ class ModuleEditorPanel(wx.Panel):
         
         props_cont_sizer.Add(self.props_sizer, 1, wx.EXPAND | wx.ALL, 0)
         self.props_container.SetSizer(props_cont_sizer)
+        props_outer.Add(self.props_container, 0, wx.EXPAND | wx.ALL, 4)
         
-        mod_sizer.Add(self.props_container, 0, wx.EXPAND | wx.ALL, 4)
-        
-        # Bindings for Properties
-        # Bind all spin ctrls
         spins = [self.spin_start, self.spin_sweep, 
                  self.spin_p1x, self.spin_p1y,
                  self.spin_p2x, self.spin_p2y,
@@ -821,58 +907,13 @@ class ModuleEditorPanel(wx.Panel):
         for ctrl in spins:
             ctrl.Bind(wx.EVT_SPINCTRLDOUBLE, self.on_shape_param_change)
 
-        # Row 1: Create Module
-        mod_create_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_create_module = wx.Button(self.mod_box, label="Create from selection")
-        mod_create_sizer.Add(self.btn_create_module, 1, wx.EXPAND)
-        
-        # Row 2: Auto Detect + Gap
-        mod_auto_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_auto_detect = wx.Button(self.mod_box, label="Auto Detect")
-        mod_auto_sizer.Add(self.btn_auto_detect, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
-        
-        # Gap setting
-        gap_lbl = wx.StaticText(self.mod_box, label="Merge Gap:")
-        self.spin_gap = wx.SpinCtrl(self.mod_box, min=0, max=10, initial=1, size=(60, -1))
-        mod_auto_sizer.Add(gap_lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        mod_auto_sizer.Add(self.spin_gap, 0, wx.ALIGN_CENTER_VERTICAL)
-
-        mod_edit_btns = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_rename_module = wx.Button(self.mod_box, label="Rename")
-        self.btn_delete_module = wx.Button(self.mod_box, label="Delete")
-        mod_edit_btns.Add(self.btn_rename_module, 1, wx.RIGHT, 4)
-        mod_edit_btns.Add(self.btn_delete_module, 1)
-
-        mod_sizer.Add(self.module_list, 1, wx.EXPAND | wx.ALL, 4)
-        mod_sizer.Add(mod_create_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        mod_sizer.Add(mod_auto_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        mod_sizer.Add(mod_edit_btns, 0, wx.EXPAND | wx.ALL, 4)
+        sidebar.Add(img_sizer, 0, wx.EXPAND | wx.ALL, 4)
+        sidebar.Add(mod_sizer, 1, wx.EXPAND | wx.ALL, 4)
+        sidebar.Add(props_outer, 0, wx.EXPAND | wx.ALL, 4)
+        self.left_panel.SetSizer(sidebar)
 
         # Call initial update to hide properties for default MD_IMAGE
         self._update_property_panel("MD_IMAGE")
-        
-        # Grid slicing controls
-
-        slice_box = wx.StaticBox(self.left_panel, label="Grid Slice")
-        slice_sizer = wx.StaticBoxSizer(slice_box, wx.VERTICAL)
-        grid = wx.FlexGridSizer(rows=0, cols=2, vgap=4, hgap=4)
-        grid.Add(wx.StaticText(slice_box, label="Tile Width"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.tile_w = wx.SpinCtrl(slice_box, min=1, max=4096, initial=32)
-        grid.Add(self.tile_w, 1, wx.EXPAND)
-        grid.Add(wx.StaticText(slice_box, label="Tile Height"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.tile_h = wx.SpinCtrl(slice_box, min=1, max=4096, initial=32)
-        grid.Add(self.tile_h, 1, wx.EXPAND)
-        slice_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
-        self.btn_slice = wx.Button(slice_box, label="Slice Image")
-        slice_sizer.Add(self.btn_slice, 0, wx.EXPAND | wx.ALL, 4)
-        self.btn_auto_modularize = wx.Button(slice_box, label="Auto Modularize Sheet")
-        slice_sizer.Add(self.btn_auto_modularize, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-
-        sidebar.Add(img_sizer, 1, wx.EXPAND | wx.ALL, 4)
-        sidebar.Add(mod_sizer, 2, wx.EXPAND | wx.ALL, 4)
-        sidebar.Add(slice_sizer, 0, wx.EXPAND | wx.ALL, 4)
-        
-        self.left_panel.SetSizer(sidebar)
 
         # Canvas Pane
         self.canvas = ModuleCanvas(self.right_panel)
@@ -888,15 +929,7 @@ class ModuleEditorPanel(wx.Panel):
         self.grid_h = self.canvas_controls.grid_h
         self.chk_grid = self.canvas_controls.chk_grid
         self.chk_trans_view = self.canvas_controls.chk_transparency
-        canvas_sizer.Add(self.canvas_controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        
-        # Status labels
-        status_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.selection_label = wx.StaticText(self.right_panel, label="Selection: -", size=(300, -1))
-        self.pivot_label = wx.StaticText(self.right_panel, label="Pivot: -", size=(200, -1))
-        status_sizer.Add(self.selection_label, 0, wx.RIGHT, 15)
-        status_sizer.Add(self.pivot_label, 0)
-        canvas_sizer.Add(status_sizer, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        canvas_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         
         self.right_panel.SetSizer(canvas_sizer)
         
@@ -914,13 +947,19 @@ class ModuleEditorPanel(wx.Panel):
         self.btn_remove_img.Bind(wx.EVT_BUTTON, self.on_remove_image)
         self.image_list.Bind(wx.EVT_LISTBOX, self.on_select_image)
         self.btn_create_module.Bind(wx.EVT_BUTTON, self.on_create_module)
-        self.btn_auto_detect.Bind(wx.EVT_BUTTON, self.on_auto_detect)
+        self.btn_slice_menu.Bind(wx.EVT_BUTTON, self.on_slice_menu)
         self.btn_delete_module.Bind(wx.EVT_BUTTON, self.on_delete_module)
-        self.btn_rename_module.Bind(wx.EVT_BUTTON, self.on_rename_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_module)
         self.module_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_deselect_module)
-        self.btn_slice.Bind(wx.EVT_BUTTON, self.on_slice_grid)
-        self.btn_auto_modularize.Bind(wx.EVT_BUTTON, self.on_auto_modularize_sheet)
+        self.module_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, lambda e: (self.module_name.SetFocus(), self.module_name.SelectAll()))
+        self.module_list.Bind(wx.EVT_KEY_DOWN, self.on_module_list_key)
+        self.module_filter.Bind(wx.EVT_TEXT, lambda e: self.refresh_modules(select_id=self.selected_module_id))
+        self.module_filter.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: self.module_filter.SetValue(""))
+        self.module_name.Bind(wx.EVT_TEXT_ENTER, self.on_module_name_commit)
+        self.module_name.Bind(wx.EVT_KILL_FOCUS, self.on_module_name_commit)
+        for spin in self._geometry_spins:
+            spin.Bind(wx.EVT_SPINCTRL, self.on_geometry_spin)
+            spin.Bind(wx.EVT_TEXT_ENTER, self.on_geometry_spin)
         self.canvas.on_selection_changed = self._on_canvas_selection
         self.canvas.on_pivot_changed = self._on_canvas_pivot
         self.canvas.on_pick_color = self.on_canvas_pick_color
@@ -937,6 +976,174 @@ class ModuleEditorPanel(wx.Panel):
         self._modules_view: list[Module] = []
         self._last_canvas_selection: Optional[str] = None
         self.canvas_controls.set_transparency_value(self.transparent_view)
+        self._update_geometry_ui()
+
+    # --- Panel interface used by the main window ---
+    def get_active_canvas(self):
+        return self.canvas
+
+    def refresh_after_history(self) -> None:
+        """Re-sync views after undo/redo replaced the project data (ids stay stable)."""
+        image_id = self.selected_image_id if self.project.get_image(self.selected_image_id or "") else None
+        module_id = self.selected_module_id if self.project.get_module(self.selected_module_id or "") else None
+        # Drop the selection first so the canvas state is not autosaved over restored data.
+        self.selected_module_id = None
+        self.canvas.selection = None
+        self.canvas.pivot = None
+        self._bitmap_cache_transparent = {}
+        self.refresh_images(select_id=image_id)
+        if image_id:
+            self.select_image(image_id)
+        else:
+            self.refresh_modules()
+        if module_id:
+            self.refresh_modules(select_id=module_id)
+        self._update_geometry_ui()
+
+    def _module_usage(self, module_id: str) -> Tuple[int, int]:
+        """(part count, frame count) of frame parts that reference a module."""
+        parts = 0
+        frames = 0
+        for frame in self.project.frames:
+            hits = sum(1 for fm in frame.fmodules if fm.ref_type == "module" and fm.ref_id == module_id)
+            if hits:
+                parts += hits
+                frames += 1
+        return parts, frames
+
+    def _image_module_usage(self, image_id: str) -> Tuple[int, int, int]:
+        """(module count, referencing parts, referencing frames) for all modules of an image."""
+        module_ids = {m.id for m in self.project.modules if m.image_id == image_id}
+        parts = 0
+        frames = 0
+        for frame in self.project.frames:
+            hits = sum(1 for fm in frame.fmodules if fm.ref_type == "module" and fm.ref_id in module_ids)
+            if hits:
+                parts += hits
+                frames += 1
+        return len(module_ids), parts, frames
+
+    def _confirm_replace_image_modules(self, action: str) -> bool:
+        if not self.selected_image_id:
+            return False
+        count, parts, frames = self._image_module_usage(self.selected_image_id)
+        if count == 0:
+            return True
+        msg = f"{action} replaces the {count} existing module(s) of this image."
+        if parts:
+            msg += f"\n\n{parts} frame part(s) in {frames} frame(s) use these modules and will show as missing."
+        msg += "\n\nContinue? (You can undo with Ctrl/Cmd+Z.)"
+        return wx.MessageBox(msg, action, wx.YES_NO | wx.ICON_WARNING, self) == wx.YES
+
+    def on_slice_menu(self, _event: wx.CommandEvent) -> None:
+        menu = wx.Menu()
+        item_grid = menu.Append(wx.ID_ANY, "Grid Slice…")
+        item_detect = menu.Append(wx.ID_ANY, "Auto Detect Sprites…")
+        menu.AppendSeparator()
+        item_auto = menu.Append(wx.ID_ANY, "Auto Modularize Sheet…")
+        has_image = bool(self.selected_image_id)
+        for item in (item_grid, item_detect, item_auto):
+            item.Enable(has_image)
+        self.Bind(wx.EVT_MENU, self.on_slice_grid, item_grid)
+        self.Bind(wx.EVT_MENU, self.on_auto_detect, item_detect)
+        self.Bind(wx.EVT_MENU, self.on_auto_modularize_sheet, item_auto)
+        self.btn_slice_menu.PopupMenu(menu)
+        menu.Destroy()
+
+    def on_module_list_key(self, event: wx.KeyEvent) -> None:
+        if event.GetKeyCode() in (wx.WXK_DELETE, wx.WXK_BACK):
+            self.on_delete_module()
+            return
+        event.Skip()
+
+    def on_module_name_commit(self, event: wx.Event) -> None:
+        event.Skip()
+        mod = self.project.get_module(self.selected_module_id or "")
+        if not mod:
+            return
+        new_name = self.module_name.GetValue().strip()
+        if new_name and new_name != mod.name:
+            mod.name = new_name
+            self.refresh_modules(select_id=mod.id)
+            app_services.request_checkpoint()
+
+    def _current_geometry(self) -> Tuple[Optional[Tuple[int, int, int, int]], Optional[Tuple[int, int]]]:
+        """Rect and pivot (relative to the rect) of the selected module or pending selection."""
+        mod = self.project.get_module(self.selected_module_id or "")
+        if mod:
+            return tuple(mod.rect), tuple(mod.pivot)  # type: ignore[return-value]
+        sel = self.canvas.selection
+        if not sel:
+            return None, None
+        x, y, w, h = sel
+        if w < 0:
+            x, w = x + w, -w
+        if h < 0:
+            y, h = y + h, -h
+        pivot = None
+        if self.canvas.pivot:
+            pivot = (int(self.canvas.pivot[0] - x), int(self.canvas.pivot[1] - y))
+        return (int(x), int(y), int(w), int(h)), pivot
+
+    def _update_geometry_ui(self) -> None:
+        rect, pivot = self._current_geometry()
+        mod = self.project.get_module(self.selected_module_id or "")
+        self._geometry_ui_updating = True
+        try:
+            enabled = rect is not None
+            for spin in self._geometry_spins:
+                spin.Enable(enabled)
+            if rect:
+                self.spin_rect_x.SetValue(int(rect[0]))
+                self.spin_rect_y.SetValue(int(rect[1]))
+                self.spin_rect_w.SetValue(int(rect[2]))
+                self.spin_rect_h.SetValue(int(rect[3]))
+            if pivot:
+                self.spin_pivot_x.SetValue(int(pivot[0]))
+                self.spin_pivot_y.SetValue(int(pivot[1]))
+            self.module_name.Enable(mod is not None)
+            if not self.module_name.HasFocus():
+                self.module_name.ChangeValue(mod.name if mod else "")
+            if mod:
+                self.props_box_outer.SetLabel("Module")
+            elif rect:
+                self.props_box_outer.SetLabel("New Module (selection)")
+            else:
+                self.props_box_outer.SetLabel("Module")
+        finally:
+            self._geometry_ui_updating = False
+
+    def on_geometry_spin(self, event: wx.Event) -> None:
+        event.Skip()
+        if self._geometry_ui_updating:
+            return
+        rect = (
+            self.spin_rect_x.GetValue(),
+            self.spin_rect_y.GetValue(),
+            max(0, self.spin_rect_w.GetValue()),
+            max(0, self.spin_rect_h.GetValue()),
+        )
+        pivot = (self.spin_pivot_x.GetValue(), self.spin_pivot_y.GetValue())
+        mod = self.project.get_module(self.selected_module_id or "")
+        if mod:
+            mod.rect = rect
+            mod.pivot = pivot
+            self.canvas.selection = rect
+            if getattr(mod, "rotated", False):
+                self.canvas.pivot = (rect[0] + rect[2] - pivot[1], rect[1] + pivot[0])
+            else:
+                self.canvas.pivot = (rect[0] + pivot[0], rect[1] + pivot[1])
+            for i, m_view in enumerate(self._modules_view):
+                if m_view.id == mod.id:
+                    self.module_list.SetItem(i, 1, f"{rect[0]},{rect[1]} {rect[2]}x{rect[3]}")
+                    self.module_list.SetItem(i, 2, f"{pivot[0]},{pivot[1]}")
+                    break
+            self._rebuild_overlays()
+            app_services.request_checkpoint()
+        elif self.canvas.selection:
+            self.canvas.selection = rect
+            self.canvas.pivot = (rect[0] + pivot[0], rect[1] + pivot[1])
+        self.canvas.Refresh(False)
 
     # Image handling
     def _import_single_image_asset(self, path: str) -> Optional[ImageAsset]:
@@ -1061,6 +1268,15 @@ class ModuleEditorPanel(wx.Panel):
     def on_remove_image(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:
             return
+        count, parts, frames = self._image_module_usage(self.selected_image_id)
+        asset = self.project.get_image(self.selected_image_id)
+        name = os.path.basename(asset.file_path) if asset else "this image"
+        msg = f"Remove {name} from the project?"
+        if count:
+            msg += f"\n\nIts {count} module(s) are removed too"
+            msg += f", which breaks {parts} part(s) in {frames} frame(s)." if parts else "."
+        if wx.MessageBox(msg, "Remove Image", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            return
         self.project.images = [img for img in self.project.images if img.id != self.selected_image_id]
         self.project.modules = [m for m in self.project.modules if m.image_id != self.selected_image_id]
         self._bitmap_cache.pop(self.selected_image_id, None)
@@ -1069,6 +1285,7 @@ class ModuleEditorPanel(wx.Panel):
         self.refresh_images()
         self.refresh_modules()
         self.canvas.set_bitmap(None, (0, 0))
+        app_services.request_checkpoint()
 
     def select_image(self, image_id: str) -> None:
         # Save current view state
@@ -1105,7 +1322,7 @@ class ModuleEditorPanel(wx.Panel):
             pan, zoom = self._view_states[image_id]
             self.canvas.set_view_state(pan, zoom)
         else:
-            self.canvas.set_view_state((0.0, 0.0), 1.0)
+            self.canvas.fit_to_content()
         self.refresh_modules()
 
     def on_select_image(self, event: wx.CommandEvent) -> None:
@@ -1120,9 +1337,9 @@ class ModuleEditorPanel(wx.Panel):
         self.clr_picker.Enable(is_shape)
         
         if is_shape:
-            self.btn_create_module.SetLabel("Create Shape")
+            self.btn_create_module.SetLabel("Add Shape")
         else:
-            self.btn_create_module.SetLabel("Create from selection")
+            self.btn_create_module.SetLabel("Add Module")
             
         self._update_property_panel(sel)
         
@@ -1173,7 +1390,6 @@ class ModuleEditorPanel(wx.Panel):
         self.props_container.Show(show_arc or show_tri or show_line)
         
         # Layout propagation
-        self.mod_box.Layout()
         self.left_panel.Layout()
         self.Layout()
 
@@ -1266,11 +1482,18 @@ class ModuleEditorPanel(wx.Panel):
         else:
             mods = self.project.modules
 
+        total = len(mods)
+        query = self.module_filter.GetValue().strip().lower() if hasattr(self, "module_filter") else ""
+        if query:
+            mods = [m for m in mods if query in m.name.lower()]
         mods.sort(key=lambda m: m.name)
         self._modules_view = mods
         
         # Update title with count
-        self.mod_box.SetLabel(f"Modules ({len(mods)})")
+        if query:
+            self.mod_box.SetLabel(f"Modules ({len(mods)} of {total})")
+        else:
+            self.mod_box.SetLabel(f"Modules ({total})")
         
         if select_id is None and self.selected_module_id and self.selected_module_id not in [m.id for m in mods]:
             self.selected_module_id = None
@@ -1327,6 +1550,7 @@ class ModuleEditorPanel(wx.Panel):
         # Don't full refresh list (prevents "double highlight" on switch), just canvas
         self._rebuild_overlays()
         self.canvas.Refresh()
+        self._update_geometry_ui()
 
     def select_module(self, module_id: str, center_view: bool = False, from_list: bool = False) -> None:
         if module_id != self.selected_module_id:
@@ -1431,8 +1655,6 @@ class ModuleEditorPanel(wx.Panel):
             else:
                 self.canvas.pivot = (mod.rect[0] + p_x, mod.rect[1] + p_y)
 
-            self.selection_label.SetLabel(f"Selection: {mod.rect}")
-            self.pivot_label.SetLabel(f"Pivot (local): {mod.pivot}")
             self.canvas.set_selection_style("module")
             
             # Auto-center view on the selected module
@@ -1461,26 +1683,15 @@ class ModuleEditorPanel(wx.Panel):
             
             self.canvas.Refresh(False)
         self._rebuild_overlays()
+        self._update_geometry_ui()
 
     def _on_canvas_selection(self, rect: Optional[Tuple[int, int, int, int]]) -> None:
-        self.selection_label.SetLabel(f"Selection: {rect}" if rect else "Selection: -")
+        if not self.selected_module_id:
+            self._update_geometry_ui()
 
     def _on_canvas_pivot(self, pivot: Optional[Tuple[int, int]]) -> None:
-        if pivot and self.canvas.selection:
-            sel = self.canvas.selection
-            local = (pivot[0] - sel[0], pivot[1] - sel[1])
-            
-            if self.selected_module_id:
-                mod = self.project.get_module(self.selected_module_id)
-                if mod and getattr(mod, 'rotated', False):
-                     # Visual (vx, vy) -> Logical (px, py)
-                     # px = vy
-                     # py = RectW - vx
-                     local = (local[1], sel[2] - local[0])
-
-            self.pivot_label.SetLabel(f"Pivot (local): {local}")
-        else:
-            self.pivot_label.SetLabel("Pivot: -")
+        if not self.selected_module_id:
+            self._update_geometry_ui()
 
     def on_create_module(self, _: wx.CommandEvent) -> None:
         mod_type = self.choice_type.GetStringSelection()
@@ -1550,6 +1761,8 @@ class ModuleEditorPanel(wx.Panel):
         )
         self.project.modules.append(mod)
         self.refresh_modules(select_id=mod.id)
+        app_services.request_checkpoint()
+        app_services.show_status(f"Added module '{mod.name}'")
 
     def on_auto_detect(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:
@@ -1558,6 +1771,18 @@ class ModuleEditorPanel(wx.Panel):
         
         bmp = self._bitmap_cache.get(self.selected_image_id)
         if not bmp:
+            return
+
+        with SliceOptionsDialog(
+            self,
+            "Auto Detect Sprites",
+            "Create one module per connected opaque region.\nRegions closer than the merge gap are combined.",
+            [("Merge gap (px)", self._merge_gap, 0, 64)],
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            (self._merge_gap,) = dlg.get_values()
+        if not self._confirm_replace_image_modules("Auto Detect"):
             return
 
         img = bmp.ConvertToImage()
@@ -1619,7 +1844,7 @@ class ModuleEditorPanel(wx.Panel):
                         rects.append((min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
         
         # Merge overlapping rects
-        gap = self.spin_gap.GetValue()
+        gap = self._merge_gap
         merged = True
         while merged:
             merged = False
@@ -1669,25 +1894,30 @@ class ModuleEditorPanel(wx.Panel):
              count += 1
         
         self.refresh_modules()
-        wx.MessageBox(f"Detected {count} modules.", "Success")
+        app_services.request_checkpoint()
+        app_services.show_status(f"Auto Detect created {count} module(s).")
 
     def on_delete_module(self, _event: wx.CommandEvent = None) -> None:
         if not self.selected_module_id:
             return
+        mod = self.project.get_module(self.selected_module_id)
+        parts, frames = self._module_usage(self.selected_module_id)
+        if mod and parts:
+            msg = (
+                f"Module '{mod.name}' is used by {parts} part(s) in {frames} frame(s); "
+                "they will show as missing.\n\nDelete it anyway? (Undo with Ctrl/Cmd+Z.)"
+            )
+            if wx.MessageBox(msg, "Delete Module", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+                return
         self.project.modules = [m for m in self.project.modules if m.id != self.selected_module_id]
         self.selected_module_id = None
+        self.canvas.selection = None
+        self.canvas.pivot = None
         self.refresh_modules()
-
-    def on_rename_module(self, _: wx.CommandEvent) -> None:
-        if not self.selected_module_id:
-            return
-        mod = self.project.get_module(self.selected_module_id)
-        if not mod:
-            return
-        with wx.TextEntryDialog(self, "New name", value=mod.name) as dlg:
-            if dlg.ShowModal() == wx.ID_OK:
-                mod.name = dlg.GetValue()
-                self.refresh_modules(select_id=mod.id)
+        self._update_geometry_ui()
+        app_services.request_checkpoint()
+        if mod:
+            app_services.show_status(f"Deleted module '{mod.name}'")
 
     def on_slice_grid(self, _: wx.CommandEvent) -> None:
         if not self.selected_image_id:
@@ -1705,6 +1935,17 @@ class ModuleEditorPanel(wx.Panel):
         if not bmp:
             wx.MessageBox("Image bitmap not available for slicing", "Error")
             return
+        with SliceOptionsDialog(
+            self,
+            "Grid Slice",
+            "Cut the whole image into equally sized modules.",
+            [("Tile width", self._slice_tile_size[0], 1, 4096), ("Tile height", self._slice_tile_size[1], 1, 4096)],
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            self._slice_tile_size = tuple(dlg.get_values())  # type: ignore[assignment]
+        if not self._confirm_replace_image_modules("Grid Slice"):
+            return
         # Start from fresh modules for this image
         self.project.modules = [m for m in self.project.modules if m.image_id != img.id]
         wx_image = bmp.ConvertToImage()
@@ -1716,8 +1957,7 @@ class ModuleEditorPanel(wx.Panel):
         
         # Grid loop
         count = 0
-        tile_w = self.tile_w.GetValue()
-        tile_h = self.tile_h.GetValue()
+        tile_w, tile_h = self._slice_tile_size
         
         rows = h // tile_h
         cols = w // tile_w
@@ -1735,7 +1975,8 @@ class ModuleEditorPanel(wx.Panel):
                 count += 1
                 
         self.refresh_modules()
-        wx.MessageBox(f"Sliced {count} grid modules.", "Success")
+        app_services.request_checkpoint()
+        app_services.show_status(f"Grid Slice created {count} module(s).")
 
     def on_auto_modularize_sheet(self, _event: wx.CommandEvent = None) -> None:
         if not self.selected_image_id:
@@ -1746,6 +1987,8 @@ class ModuleEditorPanel(wx.Panel):
             if dlg.ShowModal() != wx.ID_OK:
                 return
             config = dlg.GetValues()
+        if not self._confirm_replace_image_modules("Auto Modularize"):
+            return
 
         before_image_ids = {img.id for img in self.project.images}
         with wx.BusyCursor():
@@ -1768,6 +2011,7 @@ class ModuleEditorPanel(wx.Panel):
                 self.select_image(target_image_id)
             else:
                 self.refresh_modules()
+            app_services.request_checkpoint()
         else:
             wx.MessageBox(f"Error: {msg}", "Error")
 
@@ -2039,6 +2283,7 @@ class ModuleEditorPanel(wx.Panel):
         self.choice_type.Enable(True)
         
         self.refresh_modules()
+        self._update_geometry_ui()
 
     def _rebuild_overlays(self) -> None:
         overlays = []
@@ -2085,3 +2330,5 @@ class ModuleEditorPanel(wx.Panel):
                 self.module_list.SetItem(i, 1, f"{mod.rect[0]},{mod.rect[1]} {mod.rect[2]}x{mod.rect[3]}")
                 self.module_list.SetItem(i, 2, f"{mod.pivot[0]},{mod.pivot[1]}")
                 break
+        self._update_geometry_ui()
+        app_services.request_checkpoint()

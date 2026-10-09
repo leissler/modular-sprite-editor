@@ -250,7 +250,19 @@ class TimelineControl(wx.ScrolledWindow):
             font.SetWeight(wx.FONTWEIGHT_BOLD)
             dc.SetFont(font)
             dc.SetTextForeground(wx.Colour(200, 200, 200))
-            dc.DrawText(str(i), rect.x + 2, rect.y + 2)
+            dc.DrawText(str(i + 1), rect.x + 2, rect.y + 2)
+
+            # Hold duration badge (ticks), so long holds are visible at a glance
+            duration = max(1, int(af.duration_frames))
+            badge = f"×{duration}"
+            tw, th = dc.GetTextExtent(badge)
+            bx = rect.x + rect.width - tw - 4
+            by = rect.y + rect.height - th - 2
+            dc.SetPen(wx.TRANSPARENT_PEN)
+            dc.SetBrush(wx.Brush(wx.Colour(20, 20, 20) if duration == 1 else wx.Colour(150, 95, 20)))
+            dc.DrawRectangle(bx - 2, by, tw + 4, th)
+            dc.SetTextForeground(wx.Colour(230, 230, 230))
+            dc.DrawText(badge, bx, by)
             
             # Drop Marker
             if i == self.drop_marker_index:

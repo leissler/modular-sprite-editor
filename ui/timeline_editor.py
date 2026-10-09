@@ -19,6 +19,7 @@ from models import (
     apply_timeline_easing,
     generate_id,
 )
+from ui import app_services
 from ui.canvas import FrameCanvas
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.frame_palette import FramePalette
@@ -183,6 +184,16 @@ class TimelineCanvas(FrameCanvas):
         self.project = project
         self.clear_cache()
         self.Refresh(False)
+
+    def get_content_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        rects = [item["screen_rect"] for item in self._drawn_objects]
+        if not rects:
+            return None
+        x0, y0 = self.screen_to_world(wx.Point(min(r.x for r in rects), min(r.y for r in rects)))
+        x1, y1 = self.screen_to_world(
+            wx.Point(max(r.x + r.width for r in rects), max(r.y + r.height for r in rects))
+        )
+        return (x0, y0, x1, y1)
 
     def set_scene(self, scene: Optional[TimelineScene]) -> None:
         self.scene = scene
@@ -743,8 +754,7 @@ class TimelineCanvas(FrameCanvas):
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
         self.SetFocus()
-        if event.AltDown() or event.ControlDown():
-            self.on_pan_start(event)
+        if self.begin_pan_if_requested(event):
             return
         handle_hit = self._hit_test_path_handle(event.GetPosition())
         if handle_hit:
@@ -1872,17 +1882,38 @@ class TimelineEditorPanel(wx.Panel):
         self.left_panel = wx.Panel(self.main_splitter)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # --- Scenes: list + settings of the selected scene ---
         scene_box = wx.StaticBox(self.left_panel, label="Scenes")
         scene_sizer = wx.StaticBoxSizer(scene_box, wx.VERTICAL)
-        self.scene_list = wx.ListCtrl(scene_box, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL)
+        self.scene_list = wx.ListCtrl(scene_box, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL, size=(-1, 90))
         self.scene_list.InsertColumn(0, "Scene")
         scene_btns = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add_scene = wx.Button(scene_box, label="Add")
-        self.btn_del_scene = wx.Button(scene_box, label="Del")
+        self.btn_dup_scene = wx.Button(scene_box, label="Duplicate")
+        self.btn_del_scene = wx.Button(scene_box, label="Delete")
         scene_btns.Add(self.btn_add_scene, 1, wx.RIGHT, 4)
+        scene_btns.Add(self.btn_dup_scene, 1, wx.RIGHT, 4)
         scene_btns.Add(self.btn_del_scene, 1)
-        scene_sizer.Add(self.scene_list, 1, wx.EXPAND | wx.ALL, 4)
-        scene_sizer.Add(scene_btns, 0, wx.EXPAND | wx.ALL, 4)
+        scene_sizer.Add(self.scene_list, 0, wx.EXPAND | wx.ALL, 4)
+        scene_sizer.Add(scene_btns, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+
+        self.scene_name = wx.TextCtrl(scene_box)
+        self.scene_fps = wx.SpinCtrl(scene_box, min=1, max=120, initial=12, size=(64, -1))
+        self.scene_duration = wx.SpinCtrlDouble(scene_box, min=0.1, max=10000.0, initial=10.0, inc=0.1, size=(80, -1))
+        self.scene_loop = wx.CheckBox(scene_box, label="Loop")
+        scene_form = wx.FlexGridSizer(0, 2, 4, 6)
+        scene_form.AddGrowableCol(1, 1)
+        scene_form.Add(wx.StaticText(scene_box, label="Name"), 0, wx.ALIGN_CENTER_VERTICAL)
+        scene_form.Add(self.scene_name, 1, wx.EXPAND)
+        timing_row = wx.BoxSizer(wx.HORIZONTAL)
+        timing_row.Add(self.scene_fps, 0, wx.RIGHT, 4)
+        timing_row.Add(wx.StaticText(scene_box, label="fps"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        timing_row.Add(self.scene_duration, 0, wx.RIGHT, 4)
+        timing_row.Add(wx.StaticText(scene_box, label="s"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        timing_row.Add(self.scene_loop, 0, wx.ALIGN_CENTER_VERTICAL)
+        scene_form.Add(wx.StaticText(scene_box, label="Timing"), 0, wx.ALIGN_CENTER_VERTICAL)
+        scene_form.Add(timing_row, 1, wx.EXPAND)
+        scene_sizer.Add(scene_form, 0, wx.EXPAND | wx.ALL, 4)
 
         palette_box = wx.StaticBox(self.left_panel, label="Source Palette")
         palette_sizer = wx.StaticBoxSizer(palette_box, wx.VERTICAL)
@@ -1894,6 +1925,10 @@ class TimelineEditorPanel(wx.Panel):
         self.palette_book.AddPage(self.frame_palette, "Frames")
         self.palette_book.AddPage(self.animation_palette, "Animations")
         palette_sizer.Add(self.palette_book, 1, wx.EXPAND | wx.ALL, 4)
+        palette_sizer.Add(
+            wx.StaticText(palette_box, label="Drag to the canvas or double-click to add."),
+            0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4,
+        )
 
         left_sizer.Add(scene_sizer, 0, wx.EXPAND | wx.ALL, 4)
         left_sizer.Add(palette_sizer, 1, wx.EXPAND | wx.ALL, 4)
@@ -1917,118 +1952,152 @@ class TimelineEditorPanel(wx.Panel):
         self.inspector_panel.Bind(wx.EVT_SIZE, self.on_inspector_size)
         inspector_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        props_box = wx.StaticBox(self.inspector_panel, label="Object & Key")
-        props_sizer = wx.StaticBoxSizer(props_box, wx.VERTICAL)
-        self.object_name = wx.TextCtrl(props_box)
-        self.parent_choice = wx.Choice(props_box)
-        self.source_type_choice = wx.Choice(props_box, choices=["none", "module", "frame", "animation"])
-        self.source_choice = wx.Choice(props_box)
-        self.draw_order_spin = wx.SpinCtrl(props_box, min=0, max=9999, initial=0)
-        self.playback_mode_choice = wx.Choice(props_box, choices=["loop", "once", "ping_pong"])
-        self.path_mode_choice = wx.Choice(props_box, choices=list(TIMELINE_PATH_MODES))
-        self.playback_speed = wx.SpinCtrlDouble(props_box, min=0.05, max=16.0, initial=1.0, inc=0.05)
-        self.playback_offset = wx.SpinCtrlDouble(props_box, min=-9999.0, max=9999.0, initial=0.0, inc=0.1)
-        self.chk_source_root = wx.CheckBox(props_box, label="Use Source Root Motion")
-        self.key_time = wx.SpinCtrlDouble(props_box, min=0.0, max=9999.0, initial=0.0, inc=0.1)
-        self.key_x = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_y = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_rot = wx.SpinCtrlDouble(props_box, min=-3600.0, max=3600.0, initial=0.0, inc=90.0)
-        self.key_scale_x = wx.SpinCtrlDouble(props_box, min=-16.0, max=16.0, initial=1.0, inc=0.05)
-        self.key_scale_y = wx.SpinCtrlDouble(props_box, min=-16.0, max=16.0, initial=1.0, inc=0.05)
-        self.key_source_type_choice = wx.Choice(
-            props_box, choices=[KEY_SOURCE_NO_CHANGE, "none", "module", "frame", "animation"]
-        )
-        self.key_source_choice = wx.Choice(props_box)
-        self.key_source_offset_x = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_source_offset_y = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_easing = wx.Choice(props_box, choices=list(TIMELINE_EASINGS))
-        self.key_path_in_x = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_path_in_y = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_path_out_x = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.key_path_out_y = wx.SpinCtrlDouble(props_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
-        self.chk_key_visible = wx.CheckBox(props_box, label="Visible")
-        self.chk_key_flip_x = wx.CheckBox(props_box, label="Flip X")
-        self.chk_key_flip_y = wx.CheckBox(props_box, label="Flip Y")
-        self.btn_add_key = wx.Button(props_box, label="Add Key")
-        self.btn_del_key = wx.Button(props_box, label="Delete Key")
-
-        form = wx.FlexGridSizer(0, 2, 4, 6)
-        form.AddGrowableCol(1, 1)
-        rows = [
+        # --- Object properties ---
+        obj_box = wx.StaticBox(self.inspector_panel, label="Object")
+        obj_sizer = wx.StaticBoxSizer(obj_box, wx.VERTICAL)
+        self.object_name = wx.TextCtrl(obj_box)
+        self.parent_choice = wx.Choice(obj_box)
+        self.source_type_choice = wx.Choice(obj_box, choices=["none", "module", "frame", "animation"])
+        self.source_choice = wx.Choice(obj_box)
+        self.draw_order_spin = wx.SpinCtrl(obj_box, min=0, max=9999, initial=0)
+        self.playback_mode_choice = wx.Choice(obj_box, choices=["loop", "once", "ping_pong"])
+        self.path_mode_choice = wx.Choice(obj_box, choices=list(TIMELINE_PATH_MODES))
+        self.playback_speed = wx.SpinCtrlDouble(obj_box, min=0.05, max=16.0, initial=1.0, inc=0.05)
+        self.playback_offset = wx.SpinCtrlDouble(obj_box, min=-9999.0, max=9999.0, initial=0.0, inc=0.1)
+        self.chk_source_root = wx.CheckBox(obj_box, label="Apply animation frame offsets (root motion)")
+        obj_form = wx.FlexGridSizer(0, 2, 4, 6)
+        obj_form.AddGrowableCol(1, 1)
+        for label, ctrl in (
             ("Name", self.object_name),
             ("Parent", self.parent_choice),
             ("Source", self.source_type_choice),
-            ("Asset", self.source_choice),
-            ("Draw Order", self.draw_order_spin),
+            ("Source asset", self.source_choice),
+            ("Draw order", self.draw_order_spin),
             ("Playback", self.playback_mode_choice),
-            ("Path", self.path_mode_choice),
             ("Speed", self.playback_speed),
-            ("Offset (s)", self.playback_offset),
-            ("Key Time (s)", self.key_time),
-            ("X", self.key_x),
-            ("Y", self.key_y),
+            ("Start offset (s)", self.playback_offset),
+            ("Motion path", self.path_mode_choice),
+        ):
+            obj_form.Add(wx.StaticText(obj_box, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
+            obj_form.Add(ctrl, 1, wx.EXPAND)
+        obj_sizer.Add(obj_form, 0, wx.EXPAND | wx.ALL, 4)
+        obj_sizer.Add(self.chk_source_root, 0, wx.ALL, 4)
+
+        # --- Keyframe properties ---
+        key_box = wx.StaticBox(self.inspector_panel, label="Keyframe")
+        key_sizer = wx.StaticBoxSizer(key_box, wx.VERTICAL)
+        self.key_time = wx.SpinCtrlDouble(key_box, min=0.0, max=9999.0, initial=0.0, inc=0.1)
+        self.key_x = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_y = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_rot = wx.SpinCtrlDouble(key_box, min=-3600.0, max=3600.0, initial=0.0, inc=90.0)
+        # Scale is reserved in the data model but not supported by the renderers yet.
+        self.key_scale_x = wx.SpinCtrlDouble(key_box, min=-16.0, max=16.0, initial=1.0, inc=0.05)
+        self.key_scale_y = wx.SpinCtrlDouble(key_box, min=-16.0, max=16.0, initial=1.0, inc=0.05)
+        self.key_scale_x.Hide()
+        self.key_scale_y.Hide()
+        self.key_source_type_choice = wx.Choice(
+            key_box, choices=[KEY_SOURCE_NO_CHANGE, "none", "module", "frame", "animation"]
+        )
+        self.key_source_choice = wx.Choice(key_box)
+        self.key_source_offset_x = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_source_offset_y = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_easing = wx.Choice(key_box, choices=list(TIMELINE_EASINGS))
+        self.key_path_in_x = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_path_in_y = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_path_out_x = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.key_path_out_y = wx.SpinCtrlDouble(key_box, min=-4096.0, max=4096.0, initial=0.0, inc=1.0)
+        self.chk_key_visible = wx.CheckBox(key_box, label="Visible")
+        self.chk_key_flip_x = wx.CheckBox(key_box, label="Flip X")
+        self.chk_key_flip_y = wx.CheckBox(key_box, label="Flip Y")
+        self.btn_add_key = wx.Button(key_box, label="Add Key at Playhead")
+        self.btn_del_key = wx.Button(key_box, label="Delete Key")
+
+        def pair(a: wx.Window, b: wx.Window) -> wx.BoxSizer:
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            row.Add(a, 1, wx.RIGHT, 4)
+            row.Add(b, 1)
+            return row
+
+        key_form = wx.FlexGridSizer(0, 2, 4, 6)
+        key_form.AddGrowableCol(1, 1)
+        self._path_handle_rows: List[wx.Window] = []
+        for label, item in (
+            ("Time (s)", self.key_time),
+            ("Position", pair(self.key_x, self.key_y)),
             ("Rotation", self.key_rot),
-            ("Scale X", self.key_scale_x),
-            ("Scale Y", self.key_scale_y),
-            ("Key Source", self.key_source_type_choice),
-            ("Key Asset", self.key_source_choice),
-            ("Source Off X", self.key_source_offset_x),
-            ("Source Off Y", self.key_source_offset_y),
             ("Easing", self.key_easing),
-            ("Path In X", self.key_path_in_x),
-            ("Path In Y", self.key_path_in_y),
-            ("Path Out X", self.key_path_out_x),
-            ("Path Out Y", self.key_path_out_y),
-        ]
-        for label, ctrl in rows:
-            form.Add(wx.StaticText(props_box, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
-            form.Add(ctrl, 1, wx.EXPAND)
-        props_sizer.Add(form, 0, wx.EXPAND | wx.ALL, 4)
+            ("Switch source", self.key_source_type_choice),
+            ("Switch to", self.key_source_choice),
+            ("Source offset", pair(self.key_source_offset_x, self.key_source_offset_y)),
+            ("Path in", pair(self.key_path_in_x, self.key_path_in_y)),
+            ("Path out", pair(self.key_path_out_x, self.key_path_out_y)),
+        ):
+            label_ctrl = wx.StaticText(key_box, label=label)
+            key_form.Add(label_ctrl, 0, wx.ALIGN_CENTER_VERTICAL)
+            key_form.Add(item, 1, wx.EXPAND)
+            if label in ("Path in", "Path out"):
+                self._path_handle_rows.append(label_ctrl)
+        self._path_handle_rows.extend(
+            [self.key_path_in_x, self.key_path_in_y, self.key_path_out_x, self.key_path_out_y]
+        )
+        key_sizer.Add(key_form, 0, wx.EXPAND | wx.ALL, 4)
         flags = wx.BoxSizer(wx.HORIZONTAL)
-        flags.Add(self.chk_source_root, 0, wx.RIGHT, 12)
         flags.Add(self.chk_key_visible, 0, wx.RIGHT, 12)
         flags.Add(self.chk_key_flip_x, 0, wx.RIGHT, 8)
         flags.Add(self.chk_key_flip_y, 0)
-        props_sizer.Add(flags, 0, wx.ALL, 4)
+        key_sizer.Add(flags, 0, wx.ALL, 4)
         key_btns = wx.BoxSizer(wx.HORIZONTAL)
         key_btns.Add(self.btn_add_key, 1, wx.RIGHT, 4)
         key_btns.Add(self.btn_del_key, 1)
-        props_sizer.Add(key_btns, 0, wx.EXPAND | wx.ALL, 4)
+        key_sizer.Add(key_btns, 0, wx.EXPAND | wx.ALL, 4)
 
-        inspector_sizer.Add(props_sizer, 1, wx.EXPAND | wx.ALL, 4)
+        inspector_sizer.Add(obj_sizer, 0, wx.EXPAND | wx.ALL, 4)
+        inspector_sizer.Add(key_sizer, 0, wx.EXPAND | wx.ALL, 4)
         self.inspector_panel.SetSizer(inspector_sizer)
         self.inspector_panel.FitInside()
 
-        self.top_splitter.SplitVertically(self.canvas, self.inspector_panel, 760)
+        self.top_splitter.SplitVertically(self.canvas, self.inspector_panel, -330)
+        self.top_splitter.SetSashGravity(1.0)
         self.top_splitter.SetMinimumPaneSize(220)
         preview_sizer.Add(self.top_splitter, 1, wx.EXPAND | wx.ALL, 4)
         self.canvas_controls = CanvasDisplayControls(self.preview_panel, self.canvas, show_transparency=True)
-        preview_sizer.Add(self.canvas_controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        preview_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         self.preview_panel.SetSizer(preview_sizer)
 
         self.timeline_panel = wx.Panel(self.right_splitter)
         timeline_panel_sizer = wx.BoxSizer(wx.VERTICAL)
         bottom_box = wx.StaticBox(self.timeline_panel, label="Timeline")
         bottom_sizer = wx.StaticBoxSizer(bottom_box, wx.VERTICAL)
+
+        tracks_bar = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_add_null = wx.Button(bottom_box, label="Add Null")
+        self.btn_add_null.SetToolTip("Add an empty object (useful as a parent / pivot)")
+        self.btn_del_object = wx.Button(bottom_box, label="Delete Object")
+        tracks_bar.Add(self.btn_add_null, 0, wx.RIGHT, 4)
+        tracks_bar.Add(self.btn_del_object, 0)
+        tracks_bar.AddStretchSpacer(1)
+        tracks_bar.Add(
+            wx.StaticText(bottom_box, label="Drag a track onto another to parent it  •  Wheel: zoom  •  Shift+wheel / Space+drag: pan"),
+            0, wx.ALIGN_CENTER_VERTICAL,
+        )
+
         self.dopesheet = TimelineDopesheet(bottom_box)
-        transport = wx.BoxSizer(wx.VERTICAL)
-        transport_row_1 = wx.BoxSizer(wx.HORIZONTAL)
-        transport_row_2 = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_add_null = wx.Button(bottom_box, label="Null")
-        self.btn_del_object = wx.Button(bottom_box, label="Delete")
-        self.btn_prev = wx.Button(bottom_box, label="<")
+        transport = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_prev = wx.Button(bottom_box, label="◀", size=(36, -1))
         self.btn_play = wx.Button(bottom_box, label="Play")
         self.btn_stop = wx.Button(bottom_box, label="Stop")
-        self.btn_next = wx.Button(bottom_box, label=">")
+        self.btn_next = wx.Button(bottom_box, label="▶", size=(36, -1))
+        self.btn_prev.SetToolTip("Previous frame (,)")
+        self.btn_play.SetToolTip("Play / pause (Enter)")
+        self.btn_stop.SetToolTip("Stop")
+        self.btn_next.SetToolTip("Next frame (.)")
         self.current_time_spin = wx.SpinCtrlDouble(bottom_box, min=0.0, max=9999.0, initial=0.0, inc=0.1)
-        self.scene_name = wx.TextCtrl(bottom_box)
-        self.scene_fps = wx.SpinCtrl(bottom_box, min=1, max=120, initial=12)
-        self.scene_duration = wx.SpinCtrlDouble(bottom_box, min=0.1, max=10000.0, initial=10.0, inc=0.1)
         self.ruler_mode_choice = wx.Choice(bottom_box, choices=[RULER_MODE_TIME, RULER_MODE_FRAMES])
         self.snap_mode_choice = wx.Choice(bottom_box, choices=[SNAP_FREE, SNAP_FRAMES, SNAP_TENTHS, SNAP_CUSTOM])
         self.custom_snap_spin = wx.SpinCtrlDouble(bottom_box, min=0.01, max=1000.0, initial=0.25, inc=0.01)
+        self.ruler_mode_choice.SetMinSize((96, -1))
+        self.snap_mode_choice.SetMinSize((96, -1))
         self.timeline_hscroll = wx.ScrollBar(bottom_box, style=wx.SB_HORIZONTAL)
-        self.scene_loop = wx.CheckBox(bottom_box, label="Loop")
         for ctrl, digits in (
             (self.playback_offset, 2),
             (self.key_time, 3),
@@ -2037,33 +2106,18 @@ class TimelineEditorPanel(wx.Panel):
             (self.custom_snap_spin, 3),
         ):
             ctrl.SetDigits(digits)
-        self.key_scale_x.Disable()
-        self.key_scale_y.Disable()
-        transport_row_1.Add(self.btn_add_null, 0, wx.RIGHT, 4)
-        transport_row_1.Add(self.btn_del_object, 0, wx.RIGHT, 12)
-        transport_row_1.Add(self.btn_prev, 0, wx.RIGHT, 4)
-        transport_row_1.Add(self.btn_play, 0, wx.RIGHT, 4)
-        transport_row_1.Add(self.btn_stop, 0, wx.RIGHT, 4)
-        transport_row_1.Add(self.btn_next, 0, wx.RIGHT, 12)
-        transport_row_1.Add(wx.StaticText(bottom_box, label="Time (s)"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        transport_row_1.Add(self.current_time_spin, 0, wx.RIGHT, 12)
-        transport_row_1.Add(wx.StaticText(bottom_box, label="Ruler"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        transport_row_1.Add(self.ruler_mode_choice, 0, wx.RIGHT, 12)
-        transport_row_1.Add(wx.StaticText(bottom_box, label="Snap"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        transport_row_1.Add(self.snap_mode_choice, 0, wx.RIGHT, 8)
-        transport_row_1.Add(self.custom_snap_spin, 0)
+        for btn in (self.btn_prev, self.btn_play, self.btn_stop, self.btn_next):
+            transport.Add(btn, 0, wx.RIGHT, 4)
+        transport.AddSpacer(8)
+        transport.Add(wx.StaticText(bottom_box, label="Time (s)"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        transport.Add(self.current_time_spin, 0, wx.RIGHT, 12)
+        transport.Add(wx.StaticText(bottom_box, label="Ruler"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        transport.Add(self.ruler_mode_choice, 0, wx.RIGHT, 12)
+        transport.Add(wx.StaticText(bottom_box, label="Snap"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        transport.Add(self.snap_mode_choice, 0, wx.RIGHT, 4)
+        transport.Add(self.custom_snap_spin, 0)
 
-        transport_row_2.Add(wx.StaticText(bottom_box, label="Scene"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        transport_row_2.Add(self.scene_name, 1, wx.RIGHT, 12)
-        transport_row_2.Add(wx.StaticText(bottom_box, label="FPS"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        transport_row_2.Add(self.scene_fps, 0, wx.RIGHT, 12)
-        transport_row_2.Add(wx.StaticText(bottom_box, label="Length (s)"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        transport_row_2.Add(self.scene_duration, 0, wx.RIGHT, 12)
-        transport_row_2.Add(self.scene_loop, 0, wx.ALIGN_CENTER_VERTICAL)
-
-        transport.Add(transport_row_1, 0, wx.EXPAND | wx.BOTTOM, 4)
-        transport.Add(transport_row_2, 0, wx.EXPAND)
-
+        bottom_sizer.Add(tracks_bar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 4)
         bottom_sizer.Add(self.dopesheet, 1, wx.EXPAND | wx.ALL, 4)
         bottom_sizer.Add(self.timeline_hscroll, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom_sizer.Add(transport, 0, wx.EXPAND | wx.ALL, 4)
@@ -2084,7 +2138,9 @@ class TimelineEditorPanel(wx.Panel):
         self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_scene, self.scene_list)
         self.Bind(wx.EVT_BUTTON, self.on_add_scene, self.btn_add_scene)
+        self.Bind(wx.EVT_BUTTON, self.on_duplicate_scene, self.btn_dup_scene)
         self.Bind(wx.EVT_BUTTON, self.on_delete_scene, self.btn_del_scene)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_panel_char_hook)
         self.Bind(wx.EVT_BUTTON, self.on_add_null_object, self.btn_add_null)
         self.Bind(wx.EVT_BUTTON, self.on_delete_object, self.btn_del_object)
         self.Bind(wx.EVT_BUTTON, lambda e: self.seek_relative(-1.0), self.btn_prev)
@@ -2175,6 +2231,44 @@ class TimelineEditorPanel(wx.Panel):
         self.refresh_choices()
         self.refresh_scenes()
         self._update_timeline_view_controls()
+
+    # --- Panel interface used by the main window ---
+    def get_active_canvas(self):
+        return self.canvas
+
+    def on_active_mapping_changed(self) -> None:
+        self.refresh_choices()
+        self.canvas.Refresh(False)
+
+    def refresh_after_history(self) -> None:
+        if not self.project.get_timeline_scene(self.selected_scene_id or ""):
+            self.selected_scene_id = None
+        self.canvas.clear_cache()
+        self.refresh_choices()
+        self.refresh_scenes(self.selected_scene_id)
+
+    def stop_playback(self) -> None:
+        self.on_stop(None)
+
+    def on_panel_char_hook(self, event: wx.KeyEvent) -> None:
+        if not self.IsShownOnScreen():
+            event.Skip()
+            return
+        focus = wx.Window.FindFocus()
+        if app_services.text_entry_has_focus() or event.CmdDown() or event.ControlDown() or event.AltDown():
+            event.Skip()
+            return
+        keycode = event.GetKeyCode()
+        if keycode in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and focus is not self.scene_list:
+            self.on_play(None)
+            return
+        if keycode == ord(','):
+            self.seek_relative(-1.0)
+            return
+        if keycode == ord('.'):
+            self.seek_relative(1.0)
+            return
+        event.Skip()
 
     def _bind_value_ctrl(self, ctrl: wx.Window) -> None:
         if isinstance(ctrl, wx.TextCtrl):
@@ -2278,14 +2372,15 @@ class TimelineEditorPanel(wx.Panel):
 
     def _update_path_handle_ui_enabled(self) -> None:
         obj = self.get_selected_object()
-        enabled = bool(obj) and (obj.path_mode or "linear") == "spline"
-        for ctrl in (
-            self.key_path_in_x,
-            self.key_path_in_y,
-            self.key_path_out_x,
-            self.key_path_out_y,
-        ):
-            ctrl.Enable(enabled)
+        visible = bool(obj) and (obj.path_mode or "linear") == "spline"
+        changed = False
+        for ctrl in self._path_handle_rows:
+            if ctrl.IsShown() != visible:
+                ctrl.Show(visible)
+                changed = True
+        if changed:
+            self.inspector_panel.Layout()
+            self.inspector_panel.FitInside()
 
     def refresh_choices(self) -> None:
         self.module_palette.project = self.project
@@ -2729,22 +2824,23 @@ class TimelineEditorPanel(wx.Panel):
                 self.chk_key_flip_x.SetValue(False)
                 self.chk_key_flip_y.SetValue(False)
                 return
-            self.key_time.SetValue(key.time)
-            self.key_x.SetValue(key.x)
-            self.key_y.SetValue(key.y)
-            self.key_rot.SetValue(key.rotation_degrees)
+            # "+ 0.0" normalises -0.0 so fields never show "-0"
+            self.key_time.SetValue(key.time + 0.0)
+            self.key_x.SetValue(key.x + 0.0)
+            self.key_y.SetValue(key.y + 0.0)
+            self.key_rot.SetValue(key.rotation_degrees + 0.0)
             self.key_scale_x.SetValue(key.scale_x)
             self.key_scale_y.SetValue(key.scale_y)
             key_source_type = key.source_type if key.source_type in TIMELINE_SOURCE_TYPES else KEY_SOURCE_NO_CHANGE
             self.key_source_type_choice.SetStringSelection(key_source_type)
             self.refresh_key_source_choices(preferred_id=key.source_id)
-            self.key_source_offset_x.SetValue(float(key.source_offset[0]))
-            self.key_source_offset_y.SetValue(float(key.source_offset[1]))
+            self.key_source_offset_x.SetValue(float(key.source_offset[0]) + 0.0)
+            self.key_source_offset_y.SetValue(float(key.source_offset[1]) + 0.0)
             self.key_easing.SetStringSelection(key.easing)
-            self.key_path_in_x.SetValue(key.path_in[0] if key.path_in else key.x)
-            self.key_path_in_y.SetValue(key.path_in[1] if key.path_in else key.y)
-            self.key_path_out_x.SetValue(key.path_out[0] if key.path_out else key.x)
-            self.key_path_out_y.SetValue(key.path_out[1] if key.path_out else key.y)
+            self.key_path_in_x.SetValue((key.path_in[0] if key.path_in else key.x) + 0.0)
+            self.key_path_in_y.SetValue((key.path_in[1] if key.path_in else key.y) + 0.0)
+            self.key_path_out_x.SetValue((key.path_out[0] if key.path_out else key.x) + 0.0)
+            self.key_path_out_y.SetValue((key.path_out[1] if key.path_out else key.y) + 0.0)
             self.chk_key_visible.SetValue(key.visible)
             self.chk_key_flip_x.SetValue(key.flip_x)
             self.chk_key_flip_y.SetValue(key.flip_y)
@@ -2798,6 +2894,7 @@ class TimelineEditorPanel(wx.Panel):
         self.update_object_ui()
         self.update_key_ui()
         self.sync_preview()
+        app_services.request_checkpoint()
 
     def on_module_palette_activated(self, event: wx.ListEvent) -> None:
         idx = event.GetIndex()
@@ -2807,15 +2904,34 @@ class TimelineEditorPanel(wx.Panel):
     def on_add_scene(self, event: wx.CommandEvent) -> None:
         scene = self.project.create_timeline_scene(f"Scene {len(self.project.timeline_scenes) + 1}")
         self.refresh_scenes(select_id=scene.id)
+        app_services.request_checkpoint()
+
+    def on_duplicate_scene(self, event: wx.CommandEvent) -> None:
+        scene = self.get_selected_scene()
+        if not scene:
+            return
+        copy_scene = scene.clone()
+        copy_scene.id = generate_id("scene")
+        copy_scene.name = f"{scene.name} copy"
+        idx = self.project.timeline_scenes.index(scene)
+        self.project.timeline_scenes.insert(idx + 1, copy_scene)
+        self.refresh_scenes(select_id=copy_scene.id)
+        app_services.request_checkpoint()
 
     def on_delete_scene(self, event: wx.CommandEvent) -> None:
-        if not self.selected_scene_id:
+        scene = self.get_selected_scene()
+        if not scene:
             return
+        msg = f"Delete scene '{scene.name}' with {len(scene.objects)} object(s)?"
+        if wx.MessageBox(msg, "Delete Scene", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            return
+        self.on_stop(None)
         self.project.timeline_scenes = [
-            scene for scene in self.project.timeline_scenes if scene.id != self.selected_scene_id
+            item for item in self.project.timeline_scenes if item.id != scene.id
         ]
         self.selected_scene_id = None
         self.refresh_scenes()
+        app_services.request_checkpoint()
 
     def on_select_scene(self, event: wx.ListEvent) -> None:
         idx = event.GetIndex()
@@ -3076,15 +3192,20 @@ class TimelineEditorPanel(wx.Panel):
     def seek_relative(self, delta: float) -> None:
         self.on_seek(self.current_time + float(delta) * self._scene_frame_step())
 
-    def on_play(self, event: wx.CommandEvent) -> None:
+    def on_play(self, event: Optional[wx.CommandEvent]) -> None:
         scene = self.get_selected_scene()
         if not scene:
             return
+        if self.is_playing:
+            self.on_stop(None)
+            return
         self.is_playing = True
+        self.btn_play.SetLabel("Pause")
         self.timer.Start(max(16, int(round(1000.0 / max(1, scene.fps)))))
 
-    def on_stop(self, event: wx.CommandEvent) -> None:
+    def on_stop(self, event: Optional[wx.CommandEvent]) -> None:
         self.is_playing = False
+        self.btn_play.SetLabel("Play")
         self.timer.Stop()
 
     def on_timer(self, event: wx.TimerEvent) -> None:
@@ -3117,6 +3238,7 @@ class TimelineEditorPanel(wx.Panel):
         self.update_object_ui()
         self.update_key_ui()
         self.sync_preview()
+        app_services.request_checkpoint()
 
     def on_delete_object(self, event: wx.CommandEvent) -> None:
         scene = self.get_selected_scene()
@@ -3131,6 +3253,7 @@ class TimelineEditorPanel(wx.Panel):
         self.update_object_ui()
         self.update_key_ui()
         self.sync_preview()
+        app_services.request_checkpoint()
 
     def on_add_key(self, event: wx.CommandEvent) -> None:
         scene = self.get_selected_scene()
@@ -3181,6 +3304,7 @@ class TimelineEditorPanel(wx.Panel):
         self.selected_key_id = key.id
         self.update_key_ui()
         self.sync_preview()
+        app_services.request_checkpoint()
 
     def on_delete_key(self, event: wx.CommandEvent) -> None:
         obj = self.get_selected_object()
@@ -3190,6 +3314,7 @@ class TimelineEditorPanel(wx.Panel):
         self.selected_key_id = obj.sorted_keyframes()[0].id if obj.keyframes else None
         self.update_key_ui()
         self.sync_preview()
+        app_services.request_checkpoint()
 
     def _selected_parent_id(self) -> Optional[str]:
         idx = self.parent_choice.GetSelection()

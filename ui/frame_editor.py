@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import json
-from typing import Optional, List, Tuple
+from typing import Any, Dict, Optional, List, Tuple
 import copy
 import wx
 
-from models import Project, Frame, generate_id
+from models import CollisionRect, ControlPoint, FModule, Project, Frame, generate_id
 from optimization import optimize_nested_frame_combos
-from ui.canvas import FrameCanvas
+from ui import app_services
+from ui.canvas import FrameCanvas, GHOST_NEXT, GHOST_PREVIOUS
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.collision_manager import CollisionManagerPanel
 from ui.point_manager import PointManagerPanel
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
+
+# Part/collision/point clipboard shared by all frames (kind is the edit mode it came from).
+_FRAME_CLIPBOARD: Dict[str, Any] = {"kind": None, "items": []}
+
+NUDGE_SMALL = 1
+NUDGE_LARGE = 8  # one 8x8 hardware tile
 
 class ModulePalette(wx.ListCtrl):
     """Visual list of modules draggable onto the canvas."""
@@ -35,11 +42,25 @@ class ModulePalette(wx.ListCtrl):
         self._thumb_cache = {}   # (mod_id, rect, scale, trans_color) -> (bmp, sel_bmp)
         self._last_scale = 0.0
         self._last_fingerprint = None
+        self.filter_text = ""
+
+    def set_filter(self, text: str) -> None:
+        self.filter_text = (text or "").strip().lower()
+        self.refresh_modules()
+
+    def _visible_modules(self):
+        if not self.filter_text:
+            return list(self.project.modules)
+        return [m for m in self.project.modules if self.filter_text in m.name.lower()]
 
     def refresh_modules(self):
         # 1. Check if actually needed (skip if data hasn't changed)
-        # Fingerprint covers: count, identities, and visual properties (rect, name)
-        current_fingerprint = (len(self.project.modules), tuple((m.id, m.name, m.rect) for m in self.project.modules))
+        # Fingerprint covers: count, identities, visual properties (rect, name) and the filter
+        current_fingerprint = (
+            self.filter_text,
+            len(self.project.modules),
+            tuple((m.id, m.name, m.rect, m.type, tuple(m.color), tuple(m.params)) for m in self.project.modules),
+        )
         if current_fingerprint == self._last_fingerprint:
             return
         self._last_fingerprint = current_fingerprint
@@ -53,7 +74,8 @@ class ModulePalette(wx.ListCtrl):
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.item_images.clear()
         
-        if not self.project.modules:
+        visible_modules = self._visible_modules()
+        if not visible_modules:
             self.module_ids = []
             return
 
@@ -78,7 +100,7 @@ class ModulePalette(wx.ListCtrl):
             self._thumb_cache.clear()
             self._last_scale = uniform_scale
 
-        for mod in self.project.modules:
+        for mod in visible_modules:
             asset = self.project.get_image(mod.image_id)
             trans_color = asset.transparent_color if asset else None
             
@@ -174,7 +196,7 @@ class ModulePalette(wx.ListCtrl):
             self.SetItemData(item_idx, item_idx) 
             self.item_images[item_idx] = (idx_norm, idx_sel)
                 
-        self.module_ids = [m.id for m in self.project.modules]
+        self.module_ids = [m.id for m in visible_modules]
 
 
     def on_item_selected(self, event):
@@ -333,6 +355,10 @@ class FrameListDropTarget(wx.TextDropTarget):
         except (ValueError, IndexError):
             return False
             
+        if self.editor.frame_filter_active():
+            app_services.show_status("Clear the frame filter to reorder frames.")
+            return False
+
         # Find target index using helper
         target_idx, _ = self._get_insertion_point(x, y)
         if target_idx == wx.NOT_FOUND:
@@ -341,99 +367,124 @@ class FrameListDropTarget(wx.TextDropTarget):
         self.editor.move_frame(src_idx, target_idx)
         return True
 
-from ui.undo_manager import UndoManager
-
 class FrameEditorPanel(wx.Panel):
+    MODE_KEYS = ("module", "collision", "point")
+    MODE_LABELS = ("Parts", "Collision", "Points")
+    MODE_HINTS = {
+        "module": "Drag modules from the palette  •  Click/Shift+click: select  •  Arrows: nudge (Shift = 8 px)  •  H/V: flip  •  R: rotate",
+        "collision": "Drag on empty space: new box  •  Drag box: move  •  Drag corner: resize  •  Right-click: role / delete",
+        "point": "Shift+click: new point  •  Drag: move  •  Arrows: nudge  •  Right-click: role / delete",
+    }
+    ONION_CHOICES = ("Off", "Previous", "Next", "Both")
+
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent)
         self.project = project
         self.selected_frame_id: Optional[str] = None
-        
-        self.undo_manager = UndoManager()
-        
-        # Clipboard
+        self._frame_view: List[Frame] = []
+        self._last_frames_fingerprint = None
+        self.onion_mode = "off"
+
+        # Clipboard for the frame-list "Copy Collision Rects / Control Points" actions
         self._clipboard_col: List = [] 
         self._clipboard_pts: List = []
         
         # Layout: Splitter
         self.splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
         
-        # Left Panel: Frames List + Module Palette
+        # Left Panel: Frames List + Module Palette / Type managers
         left_panel = wx.Panel(self.splitter)
+        self.left_panel = left_panel
         left_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        self.frames_box = wx.StaticBox(left_panel, label="Frames")
+        frames_sizer = wx.StaticBoxSizer(self.frames_box, wx.VERTICAL)
+        self.frame_filter = wx.SearchCtrl(self.frames_box, style=wx.TE_PROCESS_ENTER)
+        self.frame_filter.SetDescriptiveText("Filter frames")
+        self.frame_filter.ShowCancelButton(True)
+        frames_sizer.Add(self.frame_filter, 0, wx.EXPAND | wx.ALL, 4)
+
         # Frames List (ListCtrl for better DnD and Inline Rename)
-        left_sizer.Add(wx.StaticText(left_panel, label="Frames"), 0, wx.ALL, 5)
-        self.frame_list = wx.ListCtrl(left_panel, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
-        self.frame_list.InsertColumn(0, "Frame", width=180) # Auto-size later?
+        self.frame_list = wx.ListCtrl(
+            self.frames_box, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS
+        )
+        self.frame_list.InsertColumn(0, "Frame", width=180)
         self.frame_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_frame_list_context_menu)
         self.frame_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_frame_dclick)
         # Enable Drag FROM list (to reorder OR drop on canvas)
         self.frame_list.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag_frame)
         self.frame_list.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.on_begin_label_edit)
         self.frame_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.on_end_label_edit)
-        # MouseUp binding removed
         self.frame_list.SetDropTarget(FrameListDropTarget(self))
         self.frame_list.Bind(wx.EVT_SIZE, self.on_frame_list_resize)
-        
-        left_sizer.Add(self.frame_list, 1, wx.EXPAND | wx.ALL, 5)
-        
+        frames_sizer.Add(self.frame_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+
         frame_btns = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_add = wx.Button(left_panel, label="+", size=(30,-1))
-        self.btn_del = wx.Button(left_panel, label="-", size=(30,-1))
-        self.btn_role_tools = wx.Button(left_panel, label="Role Tools")
-        
-        # Mode Selection
-        self.mode_choices = ["Modules", "Collision", "Points"]
-        self.choice_mode = wx.Choice(left_panel, choices=self.mode_choices)
-        self.choice_mode.SetSelection(0)
-        
-        frame_btns.Add(self.btn_add, 0)
-        frame_btns.Add(self.btn_del, 0)
-        frame_btns.Add(self.choice_mode, 1, wx.LEFT, 5)
-        frame_btns.Add(self.btn_role_tools, 0, wx.LEFT, 5)
-        
-        left_sizer.Add(frame_btns, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Visualization Toggles
-        vvis_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.chk_show_col = wx.CheckBox(left_panel, label="Colliders")
-        self.chk_show_pts = wx.CheckBox(left_panel, label="Points")
-        self.chk_show_pts.SetValue(True) 
-        
-        vvis_sizer.Add(self.chk_show_col, 0, wx.RIGHT, 5)
-        vvis_sizer.Add(self.chk_show_pts, 0)
-        
-        left_sizer.Add(vvis_sizer, 0, wx.ALL, 5)
+        self.btn_add = wx.Button(self.frames_box, label="Add")
+        self.btn_dup = wx.Button(self.frames_box, label="Duplicate")
+        self.btn_del = wx.Button(self.frames_box, label="Delete")
+        self.btn_add.SetToolTip("Add an empty frame")
+        self.btn_dup.SetToolTip("Duplicate the selected frame")
+        self.btn_del.SetToolTip("Delete the selected frame (Delete key in the list)")
+        frame_btns.Add(self.btn_add, 1, wx.RIGHT, 4)
+        frame_btns.Add(self.btn_dup, 1, wx.RIGHT, 4)
+        frame_btns.Add(self.btn_del, 1)
+        frames_sizer.Add(frame_btns, 0, wx.EXPAND | wx.ALL, 4)
+        left_sizer.Add(frames_sizer, 1, wx.EXPAND | wx.ALL, 4)
 
-        # Module Palette
-        self.lbl_modules = wx.StaticText(left_panel, label="Modules (Drag to Canvas)")
-        left_sizer.Add(self.lbl_modules, 0, wx.ALL, 5)
-        self.palette = ModulePalette(left_panel, project)
-        left_sizer.Add(self.palette, 1, wx.EXPAND | wx.ALL, 5)
-        
-        # Collision Manager (Hidden by default)
-        self.col_manager = CollisionManagerPanel(left_panel, project, on_change=self.on_col_type_change)
-        left_sizer.Add(self.col_manager, 1, wx.EXPAND | wx.ALL, 5)
-        left_sizer.Hide(self.col_manager)
+        # Mode-dependent side box: module palette, collision types or point types
+        self.side_box = wx.StaticBox(left_panel, label="Module Palette")
+        self._side_sizer = wx.StaticBoxSizer(self.side_box, wx.VERTICAL)
+        self.palette_filter = wx.SearchCtrl(self.side_box, style=wx.TE_PROCESS_ENTER)
+        self.palette_filter.SetDescriptiveText("Filter modules")
+        self.palette_filter.ShowCancelButton(True)
+        self._side_sizer.Add(self.palette_filter, 0, wx.EXPAND | wx.ALL, 4)
+        self.palette = ModulePalette(self.side_box, project)
+        self.palette.SetToolTip("Drag a module onto the canvas")
+        self._side_sizer.Add(self.palette, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        self.col_manager = CollisionManagerPanel(self.side_box, project, on_change=self.on_col_type_change)
+        self._side_sizer.Add(self.col_manager, 1, wx.EXPAND | wx.ALL, 4)
+        self.point_manager = PointManagerPanel(self.side_box, project, on_change=self.on_point_type_change)
+        self._side_sizer.Add(self.point_manager, 1, wx.EXPAND | wx.ALL, 4)
+        self._side_sizer.Hide(self.col_manager)
+        self._side_sizer.Hide(self.point_manager)
+        left_sizer.Add(self._side_sizer, 1, wx.EXPAND | wx.ALL, 4)
 
-        # Point Manager (Hidden by default)
-        self.point_manager = PointManagerPanel(left_panel, project, on_change=self.on_point_type_change)
-        left_sizer.Add(self.point_manager, 1, wx.EXPAND | wx.ALL, 5)
-        left_sizer.Hide(self.point_manager)
-        
         left_panel.SetSizer(left_sizer)
         
-        # Right Panel: Canvas
+        # Right Panel: mode bar, canvas, view bar
         right_panel = wx.Panel(self.splitter)
         canvas_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        mode_bar = wx.BoxSizer(wx.HORIZONTAL)
+        mode_bar.Add(wx.StaticText(right_panel, label="Edit"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.mode_buttons: List[wx.RadioButton] = []
+        for idx, label in enumerate(self.MODE_LABELS):
+            btn = wx.RadioButton(right_panel, label=label, style=wx.RB_GROUP if idx == 0 else 0)
+            btn.Bind(wx.EVT_RADIOBUTTON, lambda e, i=idx: self.set_edit_mode(self.MODE_KEYS[i]))
+            mode_bar.Add(btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
+            self.mode_buttons.append(btn)
+        self.mode_buttons[0].SetValue(True)
+        canvas_sizer.Add(mode_bar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 6)
         
         self.canvas = FrameCanvas(right_panel, project)
         self.canvas.on_create_frame_needed = self.on_auto_create_frame
-        
-        canvas_sizer.Add(self.canvas, 1, wx.EXPAND)
+        canvas_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
+
         self.canvas_controls = CanvasDisplayControls(right_panel, self.canvas, show_transparency=True)
-        canvas_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.TOP, 4)
+        self.canvas_controls.add_separator()
+        self.chk_show_col = self.canvas_controls.add_toggle(
+            "Collision", False, self.on_toggle_vis_col, "Show collision boxes while editing parts"
+        )
+        self.chk_show_pts = self.canvas_controls.add_toggle(
+            "Points", True, self.on_toggle_vis_pts, "Show control points while editing parts"
+        )
+        self.onion_choice = wx.Choice(self.canvas_controls, choices=list(self.ONION_CHOICES))
+        self.onion_choice.SetSelection(0)
+        self.onion_choice.SetMinSize((110, -1))
+        self.onion_choice.SetToolTip("Ghost the neighbouring frames of the frame list")
+        self.canvas_controls.add_control(self.onion_choice, "Onion")
+        canvas_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         right_panel.SetSizer(canvas_sizer)
         
         # Split
@@ -446,27 +497,17 @@ class FrameEditorPanel(wx.Panel):
         
         # Bindings
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select_frame, self.frame_list)
-        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.on_frame_list_context_menu, self.frame_list)
         self.Bind(wx.EVT_BUTTON, self.on_add_frame, self.btn_add)
+        self.Bind(wx.EVT_BUTTON, lambda e: self.duplicate_selected_frame(), self.btn_dup)
         self.Bind(wx.EVT_BUTTON, self.on_delete_frame, self.btn_del)
-        self.Bind(wx.EVT_BUTTON, self.on_role_tools_menu, self.btn_role_tools)
-        self.Bind(wx.EVT_CHOICE, self.on_mode_change, self.choice_mode)
-        self.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_col, self.chk_show_col)
-        self.Bind(wx.EVT_CHECKBOX, self.on_toggle_vis_pts, self.chk_show_pts)
+        self.frame_filter.Bind(wx.EVT_TEXT, lambda e: self.refresh_frames(self.selected_frame_id))
+        self.frame_filter.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: self.frame_filter.SetValue(""))
+        self.palette_filter.Bind(wx.EVT_TEXT, lambda e: self.palette.set_filter(self.palette_filter.GetValue()))
+        self.palette_filter.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: self.palette_filter.SetValue(""))
+        self.onion_choice.Bind(wx.EVT_CHOICE, self.on_onion_changed)
         
         self.palette.refresh_modules()
         self.refresh_frames()
-        
-        # Accelerators
-        accel_tbl = wx.AcceleratorTable([
-            (wx.ACCEL_CTRL, ord('Z'), wx.ID_UNDO),
-            (wx.ACCEL_CTRL, ord('Y'), wx.ID_REDO),
-            (wx.ACCEL_CTRL | wx.ACCEL_SHIFT, ord('Z'), wx.ID_REDO)
-        ])
-        self.SetAcceleratorTable(accel_tbl)
-        
-        self.Bind(wx.EVT_MENU, self.on_undo, id=wx.ID_UNDO)
-        self.Bind(wx.EVT_MENU, self.on_redo, id=wx.ID_REDO)
         
         # Init color maps
         self.on_col_type_change() 
@@ -480,57 +521,237 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.on_selection_changed = self.on_canvas_selection_changed
         self.canvas.on_modify_ended = self.snapshot
         self.canvas.on_modify_started = self.snapshot
-        
-        # Initial Snapshot
-        self.snapshot()
 
     def snapshot(self):
-        """Captures the current state of the active frame for Undo."""
-        if self.canvas.frame:
-            self.undo_manager.push_state(self.canvas.frame.clone())
+        """Mark an undo step (project-wide history lives in the main window)."""
+        app_services.request_checkpoint()
 
-    def on_undo(self, event):
-        state = self.undo_manager.undo()
-        if state:
-            self._restore_state(state)
+    # --- Panel interface used by the main window ---
+    def get_active_canvas(self):
+        return self.canvas
 
-    def on_redo(self, event):
-        state = self.undo_manager.redo()
-        if state:
-            self._restore_state(state)
+    def on_active_mapping_changed(self) -> None:
+        self.canvas.Refresh(False)
 
-    def _restore_state(self, new_frame: Frame):
-        # 1. Update Project Data
-        # Find index of frame with same ID
-        found = False
-        for i, f in enumerate(self.project.frames):
-            if f.id == new_frame.id:
-                self.project.frames[i] = new_frame
-                found = True
-                break
-        
-        if not found:
-            print(f"Warning: Frame {new_frame.id} not found in project to restore.")
+    def refresh_after_history(self) -> None:
+        frame = self.project.get_frame(self.selected_frame_id or "")
+        if not frame:
+            self.selected_frame_id = None
+        self._last_frames_fingerprint = None
+        self.palette.refresh_modules()
+        self.col_manager.set_project(self.project)
+        self.point_manager.set_project(self.project)
+        self.refresh_frames(self.selected_frame_id)
+        self.canvas.set_frame(frame)
+        if frame:
+            fm_ids = {fm.id for fm in frame.fmodules}
+            cr_ids = {cr.id for cr in frame.collision_rects}
+            cp_ids = {cp.id for cp in frame.control_points}
+            self.canvas.selected_fmodules = [i for i in self.canvas.selected_fmodules if i in fm_ids]
+            self.canvas.selected_collision_rects = [i for i in self.canvas.selected_collision_rects if i in cr_ids]
+            self.canvas.selected_points = [i for i in self.canvas.selected_points if i in cp_ids]
+        self.on_col_type_change()
+        self.on_point_type_change()
+        self._update_ghosts()
+
+    def frame_filter_active(self) -> bool:
+        return bool(self.frame_filter.GetValue().strip())
+
+    def select_frame_by_id(self, frame_id: str) -> None:
+        frame = self.project.get_frame(frame_id)
+        if not frame:
             return
+        if self.frame_filter_active() and frame not in self._frame_view:
+            self.frame_filter.ChangeValue("")
+            self._last_frames_fingerprint = None
+        self.refresh_frames(select_id=frame_id)
+        self._switch_canvas_view(frame)
 
-        # 2. Update Canvas
-        self.canvas.set_frame(new_frame)
+    # --- Edit mode ---
+    def set_edit_mode(self, mode: str) -> None:
+        if mode not in self.MODE_KEYS:
+            return
+        idx = self.MODE_KEYS.index(mode)
+        if not self.mode_buttons[idx].GetValue():
+            self.mode_buttons[idx].SetValue(True)
+        self.canvas.edit_mode = mode
+        show_palette = mode == "module"
+        self._side_sizer.Show(self.palette_filter, show_palette)
+        self._side_sizer.Show(self.palette, show_palette)
+        self._side_sizer.Show(self.col_manager, mode == "collision")
+        self._side_sizer.Show(self.point_manager, mode == "point")
+        self.side_box.SetLabel({"module": "Module Palette", "collision": "Collision Types", "point": "Point Types"}[mode])
+        if mode != "module":
+            self.canvas.selected_fmodules = []
+        if mode != "collision":
+            self.canvas.selected_collision_rects = []
+        if mode != "point":
+            self.canvas.selected_points = []
+        if mode == "collision" and self.col_manager.active_type_id:
+            self.canvas.active_collision_type_id = self.col_manager.active_type_id
+        if mode == "point" and self.point_manager.active_type_id:
+            self.canvas.active_point_type_id = self.point_manager.active_type_id
+        self.left_panel.Layout()
         self.canvas.Refresh()
-        
-        # 3. Update Point Manager / Collision Manager
-        if hasattr(self.point_manager, 'refresh_list'):
-            self.point_manager.refresh_list()
-        if hasattr(self.col_manager, 'refresh_list'):
-            self.col_manager.refresh_list()
-        
+        app_services.show_status(self.MODE_HINTS[mode])
+
+    # --- Onion skin (neighbours in the frame list) ---
+    def on_onion_changed(self, _event: wx.CommandEvent) -> None:
+        self.onion_mode = self.ONION_CHOICES[self.onion_choice.GetSelection()].lower()
+        self._update_ghosts()
+
+    def _update_ghosts(self) -> None:
+        layers: List[Dict[str, Any]] = []
+        frame = self.canvas.frame
+        if frame and self.onion_mode != "off" and frame in self._frame_view:
+            idx = self._frame_view.index(frame)
+            if self.onion_mode in ("previous", "both") and idx > 0:
+                layers.append({"frame": self._frame_view[idx - 1], "style": GHOST_PREVIOUS})
+            if self.onion_mode in ("next", "both") and idx + 1 < len(self._frame_view):
+                layers.append({"frame": self._frame_view[idx + 1], "style": GHOST_NEXT})
+        self.canvas.ghost_layers = layers
+        self.canvas.Refresh(False)
+
+    # --- Selection helpers for edit commands ---
+    def _selected_items(self) -> Tuple[str, list]:
+        frame = self.canvas.frame
+        mode = self.canvas.edit_mode
+        if not frame:
+            return mode, []
+        if mode == "collision":
+            ids = set(self.canvas.selected_collision_rects)
+            return mode, [cr for cr in frame.collision_rects if cr.id in ids]
+        if mode == "point":
+            ids = set(self.canvas.selected_points)
+            return mode, [cp for cp in frame.control_points if cp.id in ids]
+        ids = set(self.canvas.selected_fmodules)
+        return mode, [fm for fm in frame.fmodules if fm.id in ids]
+
+    def _select_items(self, mode: str, ids: List[str]) -> None:
+        if mode == "collision":
+            self.canvas.selected_collision_rects = list(ids)
+        elif mode == "point":
+            self.canvas.selected_points = list(ids)
+        else:
+            self.canvas.selected_fmodules = list(ids)
+            if self.canvas.on_selection_changed:
+                self.canvas.on_selection_changed(self.canvas.selected_fmodules)
+        self.canvas.Refresh(False)
+
+    def _focus_in_lists(self) -> bool:
+        focus = wx.Window.FindFocus()
+        return focus in (self.frame_list, self.palette) or app_services.text_entry_has_focus()
+
+    # --- Edit commands (Edit menu) ---
+    def edit_copy(self) -> None:
+        mode, items = self._selected_items()
+        if not items:
+            app_services.show_status("Nothing selected to copy")
+            return
+        _FRAME_CLIPBOARD["kind"] = mode
+        _FRAME_CLIPBOARD["items"] = [item.to_dict() for item in items]
+        app_services.show_status(f"Copied {len(items)} item(s)")
+
+    def edit_cut(self) -> None:
+        mode, items = self._selected_items()
+        if not items:
+            return
+        self.edit_copy()
+        self._delete_selection()
+
+    def edit_paste(self) -> None:
+        kind = _FRAME_CLIPBOARD.get("kind")
+        items = _FRAME_CLIPBOARD.get("items") or []
+        if not kind or not items:
+            app_services.show_status("Clipboard is empty")
+            return
+        frame = self.canvas.frame or self.on_auto_create_frame()
+        if not frame:
+            return
+        if kind != self.canvas.edit_mode:
+            self.set_edit_mode(kind)
+        new_ids = self._insert_items(frame, kind, items)
+        self._select_items(kind, new_ids)
+        app_services.show_status(f"Pasted {len(new_ids)} item(s)")
+
+    def edit_duplicate(self) -> None:
+        mode, items = self._selected_items()
+        if not items or wx.Window.FindFocus() is self.frame_list:
+            self.duplicate_selected_frame()
+            return
+        frame = self.canvas.frame
+        new_ids = self._insert_items(frame, mode, [item.to_dict() for item in items])
+        self._select_items(mode, new_ids)
+        app_services.show_status(f"Duplicated {len(new_ids)} item(s) in place; use the arrow keys to move them")
+
+    def edit_select_all(self) -> None:
+        frame = self.canvas.frame
+        if not frame:
+            return
+        mode = self.canvas.edit_mode
+        if mode == "collision":
+            ids = [cr.id for cr in frame.collision_rects]
+        elif mode == "point":
+            ids = [cp.id for cp in frame.control_points]
+        else:
+            ids = [fm.id for fm in frame.fmodules]
+        self._select_items(mode, ids)
+
+    def _insert_items(self, frame: Frame, kind: str, item_dicts: List[dict]) -> List[str]:
+        new_ids: List[str] = []
+        for data in item_dicts:
+            data = dict(data)
+            if kind == "collision":
+                data["id"] = generate_id("crect")
+                frame.collision_rects.append(CollisionRect.from_dict(data))
+            elif kind == "point":
+                data["id"] = generate_id("pt")
+                frame.control_points.append(ControlPoint.from_dict(data))
+            else:
+                if data.get("ref_type") == "frame" and (
+                    data.get("ref_id") == frame.id or self.project.frame_has_cycle(frame.id, data.get("ref_id"))
+                ):
+                    continue
+                data["id"] = generate_id("fmod")
+                frame.fmodules.append(FModule.from_dict(data))
+            new_ids.append(data["id"])
+        return new_ids
+
+    def _delete_selection(self) -> None:
+        mode = self.canvas.edit_mode
+        if mode == "collision":
+            self._delete_selected_collision_rects()
+        elif mode == "point":
+            self._delete_selected_points()
+        else:
+            self._delete_selected_modules()
+
+    def _nudge_selection(self, dx: int, dy: int) -> None:
+        mode, items = self._selected_items()
+        if not items:
+            return
+        for item in items:
+            if mode == "collision":
+                x, y, w, h = item.rect
+                item.rect = (x + dx, y + dy, w, h)
+            elif mode == "point":
+                item.x += dx
+                item.y += dy
+            else:
+                x, y = item.position
+                item.position = (x + dx, y + dy)
+        self.canvas.Refresh(False)
+
     def on_canvas_selection_changed(self, selected_ids: List[str]):
         if not selected_ids:
             return
             
-        # For now just sync different module types if one selected
-        # If multiple, maybe just the first one?
+        # Sync the palette to the first selected part
+        frame = self.canvas.frame
+        if not frame:
+            return
         fid = selected_ids[0]
-        fm = next((f for f in self.project.get_frame(self.selected_frame_id).fmodules if f.id == fid), None)
+        fm = next((f for f in frame.fmodules if f.id == fid), None)
         if fm and fm.ref_type == "module":
             self.palette.select_module(fm.ref_id)
 
@@ -688,7 +909,7 @@ class FrameEditorPanel(wx.Panel):
         self.PopupMenu(menu)
         menu.Destroy()
 
-    def _validate_roles(self) -> None:
+    def validate_roles(self) -> None:
         issues = self.project.validate_role_uniqueness()
         if not issues:
             wx.MessageBox(
@@ -736,7 +957,7 @@ class FrameEditorPanel(wx.Panel):
         finally:
             dlg.Destroy()
 
-    def _inspect_compiled_role_tables(self) -> None:
+    def inspect_compiled_role_tables(self) -> None:
         if not self.project.animations:
             wx.MessageBox("No animations available.", "Role Table Inspection", wx.OK | wx.ICON_INFORMATION)
             return
@@ -780,16 +1001,6 @@ class FrameEditorPanel(wx.Panel):
             json.dumps(payload, indent=2),
         )
 
-    def on_role_tools_menu(self, event: wx.CommandEvent) -> None:
-        menu = wx.Menu()
-        item_validate_roles = menu.Append(wx.ID_ANY, "Validate Roles (All Frames)")
-        item_inspect_tables = menu.Append(wx.ID_ANY, "Inspect Compiled Role Tables...")
-
-        self.Bind(wx.EVT_MENU, lambda e: self._validate_roles(), item_validate_roles)
-        self.Bind(wx.EVT_MENU, lambda e: self._inspect_compiled_role_tables(), item_inspect_tables)
-        self.btn_role_tools.PopupMenu(menu)
-        menu.Destroy()
-
     def on_canvas_right_down(self, event: wx.MouseEvent):
         if self.canvas.edit_mode == "collision":
             self._show_collision_context_menu(event)
@@ -823,20 +1034,19 @@ class FrameEditorPanel(wx.Panel):
                 self.canvas.Refresh()
                 
             # Module actions
-            flip_x_item = menu.Append(wx.ID_ANY, "Flip Horizontal (X)")
-            flip_y_item = menu.Append(wx.ID_ANY, "Flip Vertical (Y)")
+            flip_x_item = menu.Append(wx.ID_ANY, "Flip Horizontal (H)")
+            flip_y_item = menu.Append(wx.ID_ANY, "Flip Vertical (V)")
             menu.AppendSeparator()
             
             # Use ID for binding, binding to item object is flaky depending on wx version/context
             self.Bind(wx.EVT_MENU, self.on_flip_x, id=flip_x_item.GetId())
             self.Bind(wx.EVT_MENU, self.on_flip_y, id=flip_y_item.GetId())
 
-            rot_cw_item = menu.Append(wx.ID_ANY, "Rotate CW (90°)")
-            rot_ccw_item = menu.Append(wx.ID_ANY, "Rotate CCW (90°)")
+            rot_cw_item = menu.Append(wx.ID_ANY, "Rotate CW 90° (R)")
+            rot_ccw_item = menu.Append(wx.ID_ANY, "Rotate CCW 90° (Shift+R)")
             self.Bind(wx.EVT_MENU, self.on_rotate_cw, id=rot_cw_item.GetId())
             self.Bind(wx.EVT_MENU, self.on_rotate_ccw, id=rot_ccw_item.GetId())
             
-            menu.AppendSeparator()
             menu.AppendSeparator()
             z_up_item = menu.Append(wx.ID_ANY, "Move Forward (Cmd \u2191)")
             z_down_item = menu.Append(wx.ID_ANY, "Move Backwards (Cmd \u2193)")
@@ -1102,43 +1312,55 @@ class FrameEditorPanel(wx.Panel):
         self.snapshot()
 
     def on_key_down(self, event: wx.KeyEvent):
-        # Checking if canvas or panel has focus might be needed, 
-        # but CHAR_HOOK catches globally in this window.
+        # CHAR_HOOK sees every key in this tab before the focused control does.
         keycode = event.GetKeyCode()
-        
-        # Only process if we are visible?
+
         if not self.IsShownOnScreen():
             event.Skip()
             return
-            
-        # If a text control has focus (e.g. rename list item), skip CHAR_HOOK logic
-        # so the native widget handles Backspace/Delete.
-        focus = wx.Window.FindFocus()
-        if focus and isinstance(focus, wx.TextCtrl):
-             event.Skip()
-             return
 
-        if keycode == ord('X'):
+        # Text fields (rename, filters, spin controls) keep their own keys.
+        focus = wx.Window.FindFocus()
+        if app_services.text_entry_has_focus():
+            event.Skip()
+            return
+
+        # The frame list: Delete removes the frame, arrows navigate the list.
+        if focus is self.frame_list:
+            if keycode in (wx.WXK_DELETE, wx.WXK_BACK) and not event.HasAnyModifiers():
+                self.on_delete_frame(None)
+                return
+            event.Skip()
+            return
+        if focus is self.palette:
+            event.Skip()
+            return
+
+        cmd = event.CmdDown() or event.ControlDown()
+        if cmd and keycode in (wx.WXK_UP, wx.WXK_DOWN):
+            if keycode == wx.WXK_UP:
+                self._change_z_order("top" if event.ShiftDown() else "up")
+            else:
+                self._change_z_order("bottom" if event.ShiftDown() else "down")
+            return
+        if cmd or event.AltDown():
+            event.Skip()  # menu accelerators (copy/paste/undo...)
+            return
+
+        if keycode in (wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_UP, wx.WXK_DOWN):
+            step = NUDGE_LARGE if event.ShiftDown() else NUDGE_SMALL
+            dx = {wx.WXK_LEFT: -step, wx.WXK_RIGHT: step}.get(keycode, 0)
+            dy = {wx.WXK_UP: -step, wx.WXK_DOWN: step}.get(keycode, 0)
+            self._nudge_selection(dx, dy)
+            return
+        if keycode in (ord('H'), ord('X')):
             self._toggle_flip("x")
-        elif keycode == ord('Y'):
+        elif keycode in (ord('V'), ord('Y')):
             self._toggle_flip("y")
-        elif (keycode == wx.WXK_UP) and (event.CmdDown() or event.ControlDown()):
-             if event.ShiftDown():
-                 self._change_z_order("top")
-             else:
-                 self._change_z_order("up")
-        elif (keycode == wx.WXK_DOWN) and (event.CmdDown() or event.ControlDown()):
-             if event.ShiftDown():
-                 self._change_z_order("bottom")
-             else:
-                 self._change_z_order("down")
-        elif keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK:
-             if self.canvas.edit_mode == "collision":
-                 self._delete_selected_collision_rects()
-             elif self.canvas.edit_mode == "point":
-                 self._delete_selected_points()
-             else:
-                 self._delete_selected_modules()
+        elif keycode == ord('R'):
+            self._rotate_selected(-90 if event.ShiftDown() else 90)
+        elif keycode in (wx.WXK_DELETE, wx.WXK_BACK):
+            self._delete_selection()
         else:
             event.Skip()
 
@@ -1151,54 +1373,71 @@ class FrameEditorPanel(wx.Panel):
         return None
 
     def refresh_frames(self, select_id: Optional[str] = None):
+        query = self.frame_filter.GetValue().strip().lower()
         # Fingerprint to skip full rebuild if just switching tabs
-        current_fingerprint = (len(self.project.frames), tuple((f.id, f.name) for f in self.project.frames))
-        if current_fingerprint == getattr(self, "_last_frames_fingerprint", None):
+        current_fingerprint = (query, len(self.project.frames), tuple((f.id, f.name) for f in self.project.frames))
+        if current_fingerprint == self._last_frames_fingerprint:
             # Only update selection if needed
             if select_id:
-                for i in range(self.frame_list.GetItemCount()):
-                    if self.project.frames[i].id == select_id:
-                         if not self.frame_list.IsSelected(i):
+                for i, frame in enumerate(self._frame_view):
+                    if frame.id == select_id:
+                        if not self.frame_list.IsSelected(i):
                             self.frame_list.Select(i)
                             self.frame_list.EnsureVisible(i)
-                         break
+                        break
             return
         self._last_frames_fingerprint = current_fingerprint
 
+        if query:
+            self._frame_view = [f for f in self.project.frames if query in f.name.lower()]
+            self.frames_box.SetLabel(f"Frames ({len(self._frame_view)} of {len(self.project.frames)})")
+        else:
+            self._frame_view = list(self.project.frames)
+            self.frames_box.SetLabel(f"Frames ({len(self.project.frames)})")
+
         self.frame_list.DeleteAllItems()
         target_idx = -1
-        for idx, f in enumerate(self.project.frames):
+        for idx, f in enumerate(self._frame_view):
             self.frame_list.InsertItem(idx, f.name)
-            self.frame_list.SetItemData(idx, idx) # We track by index mostly now, or map later if needed.
-            # Storing ID would require String->Int map in C++, py ListCtrl is finicky. 
-            # We assume order matches project.frames.
-            
             if select_id and f.id == select_id:
                 target_idx = idx
-                
+
         if target_idx != -1:
             self.frame_list.Select(target_idx)
             self.frame_list.EnsureVisible(target_idx)
-            
+
+    def _frame_at(self, view_idx: int) -> Optional[Frame]:
+        if 0 <= view_idx < len(self._frame_view):
+            return self._frame_view[view_idx]
+        return None
+
+    def duplicate_selected_frame(self) -> None:
+        if self.selected_frame_id:
+            self._duplicate_frame(self.selected_frame_id)
+
     def _duplicate_frame(self, fid: str):
         frame = self.project.get_frame(fid)
-        if not frame: return
-        
-        # Deep copy via serialization
-        data = frame.to_dict()
-        new_frame = Frame.from_dict(data)
-        
-        # Ensure unique IDs
-        new_frame.id = generate_id("frame")
-        new_frame.name = f"{frame.name} (Copy)"
-        
-        # Regenerate FModule IDs to avoid sharing references
+        if not frame:
+            return
+
+        # Deep copy via serialization, with fresh ids for everything inside
+        new_frame = Frame.from_dict(frame.to_dict())
+        new_frame.id = generate_id("frm")
+        new_frame.name = self._unique_frame_name(f"{frame.name} copy")
         for fm in new_frame.fmodules:
             fm.id = generate_id("fmod")
-            
-        self.project.frames.append(new_frame)
+        for cr in new_frame.collision_rects:
+            cr.id = generate_id("crect")
+        for cp in new_frame.control_points:
+            cp.id = generate_id("pt")
+
+        self.project.frames.insert(self.project.frames.index(frame) + 1, new_frame)
+        if self.frame_filter_active():
+            self.frame_filter.ChangeValue("")
         self.refresh_frames(new_frame.id)
-        
+        self._switch_canvas_view(new_frame)
+        self.snapshot()
+
     def _mirror_frame(self, fid: str, axis: str):
         frame = self.project.get_frame(fid)
         if not frame: return
@@ -1223,6 +1462,7 @@ class FrameEditorPanel(wx.Panel):
                 cp.y = -cp.y
                 
         self.canvas.Refresh()
+        self.snapshot()
 
     def refresh_choices(self):
         """Called by app.py when switching tools."""
@@ -1232,16 +1472,16 @@ class FrameEditorPanel(wx.Panel):
 
     # --- Copy / Paste / Propagate Logic ---
     def on_frame_list_context_menu(self, event):
-        idx = self.frame_list.GetFirstSelected()
-        if idx == -1: return
-        
-        fid = self.project.frames[idx].id
-        frame = self.project.get_frame(fid)
+        frame = self._frame_at(self.frame_list.GetFirstSelected())
+        if not frame:
+            return
+        fid = frame.id
         
         menu = wx.Menu()
         
         # Frame Actions
         item_dup = menu.Append(wx.ID_ANY, "Duplicate Frame")
+        item_del = menu.Append(wx.ID_ANY, "Delete Frame")
         menu.AppendSeparator()
         item_mirror_x = menu.Append(wx.ID_ANY, "Mirror Horizontal (X)")
         item_mirror_y = menu.Append(wx.ID_ANY, "Mirror Vertical (Y)")
@@ -1267,6 +1507,7 @@ class FrameEditorPanel(wx.Panel):
 
         # Bind
         self.Bind(wx.EVT_MENU, lambda e: self._duplicate_frame(fid), item_dup)
+        self.Bind(wx.EVT_MENU, lambda e: self.on_delete_frame(None), item_del)
         self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "x"), item_mirror_x)
         self.Bind(wx.EVT_MENU, lambda e: self._mirror_frame(fid, "y"), item_mirror_y)
         self.Bind(wx.EVT_MENU, lambda e: self._rotate_frame(90), item_rot_cw)
@@ -1335,15 +1576,14 @@ class FrameEditorPanel(wx.Panel):
         
     def _paste_collision(self):
         # Paste to currently selected frame
-        idx = self.frame_list.GetFirstSelected()
-        if idx == -1 or not self._clipboard_col: return
-        fid = self.project.frames[idx].id
-        frame = self.project.get_frame(fid)
-        
+        frame = self._frame_at(self.frame_list.GetFirstSelected())
+        if not frame or not self._clipboard_col:
+            return
         clones = self._clone_rects(self._clipboard_col)
         frame.collision_rects.extend(clones)
         self.canvas.Refresh()
-        
+        self.snapshot()
+
     def _propagate_collision(self, src_frame):
         # Propagate to ALL frames (Append)
         # Maybe exclude source?
@@ -1353,19 +1593,20 @@ class FrameEditorPanel(wx.Panel):
             clones = self._clone_rects(src_rects)
             f.collision_rects.extend(clones)
         self.canvas.Refresh()
+        self.snapshot()
+        app_services.show_status(f"Appended {len(src_rects)} collision box(es) to every other frame")
 
     def _copy_points(self, frame):
         self._clipboard_pts = copy.deepcopy(frame.control_points)
 
     def _paste_points(self):
-        idx = self.frame_list.GetFirstSelected()
-        if idx == -1 or not self._clipboard_pts: return
-        fid = self.project.frames[idx].id
-        frame = self.project.get_frame(fid)
-        
+        frame = self._frame_at(self.frame_list.GetFirstSelected())
+        if not frame or not self._clipboard_pts:
+            return
         clones = self._clone_points(self._clipboard_pts)
         frame.control_points.extend(clones)
         self.canvas.Refresh()
+        self.snapshot()
 
     def _propagate_points(self, src_frame):
         src_pts = src_frame.control_points
@@ -1374,6 +1615,8 @@ class FrameEditorPanel(wx.Panel):
             clones = self._clone_points(src_pts)
             f.control_points.extend(clones)
         self.canvas.Refresh()
+        self.snapshot()
+        app_services.show_status(f"Appended {len(src_pts)} control point(s) to every other frame")
 
     # QoL Implementations
     def on_frame_list_resize(self, event):
@@ -1392,28 +1635,25 @@ class FrameEditorPanel(wx.Panel):
     def on_end_label_edit(self, event):
         if event.IsEditCancelled():
             return
-            
-        new_name = event.GetLabel()
-        idx = event.GetIndex()
-        
-        if 0 <= idx < len(self.project.frames):
-            frame = self.project.frames[idx]
-            if new_name and new_name != frame.name:
-                frame.name = new_name
-                # self.refresh_frames(frame.id) # No need to refresh entire list, label is updated by Ctrl
-                
+        new_name = event.GetLabel().strip()
+        frame = self._frame_at(event.GetIndex())
+        if frame and new_name and new_name != frame.name:
+            frame.name = new_name
+            self._last_frames_fingerprint = None
+            wx.CallAfter(self.snapshot)
+
     # Renamed to match binding
     def on_begin_drag_frame(self, event):
         # Drag started: Cancel pending selection switch (if any)
         # This allows dragging a highlighted frame WITHOUT switching the view to it.
         self._pending_frame_switch = None
         
-        idx = event.GetIndex()
-        if idx != -1:
-            # Send both Index (for reordering) and ID (for canvas drop)
+        frame = self._frame_at(event.GetIndex())
+        if frame:
+            # Send both project index (for reordering) and ID (for canvas drop)
             # Format: FRAME_REF:<idx>:<id>
-            frame_id = self.project.frames[idx].id
-            text_data = wx.TextDataObject(f"FRAME_REF:{idx}:{frame_id}")
+            project_idx = self.project.frames.index(frame)
+            text_data = wx.TextDataObject(f"FRAME_REF:{project_idx}:{frame.id}")
             source = wx.DropSource(self.frame_list)
             source.SetData(text_data)
             source.DoDragDrop(wx.Drag_DefaultMove)
@@ -1423,7 +1663,7 @@ class FrameEditorPanel(wx.Panel):
             if self.selected_frame_id:
                 # Find index of self.selected_frame_id
                 active_idx = -1
-                for i, f in enumerate(self.project.frames):
+                for i, f in enumerate(self._frame_view):
                     if f.id == self.selected_frame_id:
                         active_idx = i
                         break
@@ -1452,6 +1692,7 @@ class FrameEditorPanel(wx.Panel):
             self.project.frames.insert(target_idx, frame)
             self.refresh_frames(frame.id)
             self.on_select_frame(None)
+            self.snapshot()
             
     def set_project(self, project: Project):
         self.project = project
@@ -1461,24 +1702,22 @@ class FrameEditorPanel(wx.Panel):
         # Completely recreate ModulePalette to force-clear wx.ListCtrl/ImageList internal caches
         # This is required because on some platforms (macOS), the ImageList layer is extremely sticky.
         old_palette = self.palette
-        parent = old_palette.GetParent()
-        sizer = parent.GetSizer()
-        
-        # Find position
-        sizer_items = sizer.GetChildren()
+        sizer = self._side_sizer
         insert_idx = 0
-        for i, item in enumerate(sizer_items):
-             if item.GetWindow() == old_palette:
-                 insert_idx = i
-                 break
-        
+        for i, item in enumerate(sizer.GetChildren()):
+            if item.GetWindow() == old_palette:
+                insert_idx = i
+                break
+        was_shown = old_palette.IsShown()
         sizer.Detach(old_palette)
         old_palette.Destroy()
-        
-        # Create new
-        self.palette = ModulePalette(parent, project)
-        sizer.Insert(insert_idx, self.palette, 1, wx.EXPAND | wx.ALL, 5)
-        parent.Layout()
+
+        self.palette = ModulePalette(self.side_box, project)
+        self.palette.SetToolTip("Drag a module onto the canvas")
+        self.palette.filter_text = self.palette_filter.GetValue().strip().lower()
+        sizer.Insert(insert_idx, self.palette, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        sizer.Show(self.palette, was_shown)
+        self.left_panel.Layout()
         
         # Update Managers
         self.col_manager.set_project(project)
@@ -1487,8 +1726,10 @@ class FrameEditorPanel(wx.Panel):
         self.palette.refresh_modules()
         
         self.selected_frame_id = None # Clear previous selection
+        self._last_frames_fingerprint = None
         self.refresh_frames()
         self.canvas.set_frame(None)
+        self.canvas.ghost_layers = []
         self.canvas.clear_cache() # Fix: FrameCanvas has its own bitmap cache that must be cleared!
         
         # Ensure canvas has correct collision/point colors immediately
@@ -1497,75 +1738,25 @@ class FrameEditorPanel(wx.Panel):
 
     def on_select_frame(self, event):
         idx = event.GetIndex() if event else self.frame_list.GetFirstSelected()
-        if idx != -1:
-            # Assume list order == project order
-            if 0 <= idx < len(self.project.frames):
-                frame = self.project.frames[idx]
-                self._switch_canvas_view(frame)
+        frame = self._frame_at(idx)
+        if frame:
+            self._switch_canvas_view(frame)
         else:
             self.canvas.set_frame(None)
-            
-    # on_frame_list_mouseup removed
-            
+            self.canvas.ghost_layers = []
+
     def _switch_canvas_view(self, frame):
         self.selected_frame_id = frame.id
         self.canvas.set_frame(frame)
-    
-    def on_mode_change(self, event):
-        sel = self.choice_mode.GetSelection()
-        
-        if sel == 0: # Modules
-            self.canvas.edit_mode = "module"
-            self.lbl_modules.Show()
-            self.palette.Show()
-            self.col_manager.Hide()
-            self.point_manager.Hide()
-            
-            # Clear other selections
-            self.canvas.selected_collision_rects = []
-            self.canvas.selected_points = []
-            
-        elif sel == 1: # Collision
-            self.canvas.edit_mode = "collision"
-            self.lbl_modules.Hide()
-            self.palette.Hide()
-            self.col_manager.Show()
-            self.point_manager.Hide()
-            
-            # Clear other selections
-            self.canvas.selected_fmodules = []
-            self.canvas.selected_points = []
-            
-            if self.col_manager.active_type_id:
-                self.canvas.active_collision_type_id = self.col_manager.active_type_id
-        elif sel == 2: # Points
-            self.canvas.edit_mode = "point"
-            self.lbl_modules.Hide()
-            self.palette.Hide()
-            self.col_manager.Hide()
-            self.point_manager.Show()
-            
-            # Clear other selections
-            self.canvas.selected_fmodules = []
-            self.canvas.selected_collision_rects = []
-            
-            if self.point_manager.active_type_id:
-                self.canvas.active_point_type_id = self.point_manager.active_type_id
-                
-        self.left_panel_layout()
+        self._update_ghosts()
+
+    def on_toggle_vis_col(self, checked: bool):
+        self.canvas.show_collision = checked
         self.canvas.Refresh()
 
-    def on_toggle_vis_col(self, event):
-        self.canvas.show_collision = event.IsChecked()
+    def on_toggle_vis_pts(self, checked: bool):
+        self.canvas.show_points = checked
         self.canvas.Refresh()
-
-    def on_toggle_vis_pts(self, event):
-        self.canvas.show_points = event.IsChecked()
-        self.canvas.Refresh()
-
-    def left_panel_layout(self):
-        # Trigger layout on the parent of the hidden/shown items
-        self.frame_list.GetParent().Layout()
 
     def on_col_type_change(self):
         self.canvas.active_collision_type_id = self.col_manager.active_type_id
@@ -1606,24 +1797,75 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.Refresh()
 
     def on_add_frame(self, _):
-        # Manually create frame (models.py doesn't have create_frame helper on Project)
-        new_frame_id = generate_id("frm")
-        frame = Frame(
-            id=new_frame_id,
-            name=f"Frame {len(self.project.frames)+1}"
-        )
-        self.project.frames.append(frame)
-        
+        frame = Frame(id=generate_id("frm"), name=self._unique_frame_name(f"Frame {len(self.project.frames) + 1}"))
+        current = self.project.get_frame(self.selected_frame_id or "")
+        insert_at = self.project.frames.index(current) + 1 if current else len(self.project.frames)
+        self.project.frames.insert(insert_at, frame)
+        if self.frame_filter_active():
+            self.frame_filter.ChangeValue("")
         self.selected_frame_id = frame.id
         self.refresh_frames(select_id=frame.id)
-        self.canvas.set_frame(frame)
-        
+        self._switch_canvas_view(frame)
+        self.snapshot()
+
+    def _unique_frame_name(self, base: str) -> str:
+        used = {f.name for f in self.project.frames}
+        candidate = base
+        suffix = 2
+        while candidate in used:
+            candidate = f"{base} ({suffix})"
+            suffix += 1
+        return candidate
+
+    def frame_references(self, frame_id: str) -> Dict[str, int]:
+        """How often a frame is used by animations, other frames and timeline scenes."""
+        anims = sum(1 for a in self.project.animations if any(af.frame_id == frame_id for af in a.aframes))
+        nested = sum(
+            1 for f in self.project.frames if any(fm.ref_type == "frame" and fm.ref_id == frame_id for fm in f.fmodules)
+        )
+        scene_objects = 0
+        for scene in self.project.timeline_scenes:
+            for obj in scene.objects:
+                if (obj.source_type == "frame" and obj.source_id == frame_id) or any(
+                    k.source_type == "frame" and k.source_id == frame_id for k in obj.keyframes
+                ):
+                    scene_objects += 1
+        return {"animations": anims, "frames": nested, "scene_objects": scene_objects}
+
     def on_delete_frame(self, _):
-        if self.selected_frame_id:
-             self.project.frames = [f for f in self.project.frames if f.id != self.selected_frame_id]
-             self.selected_frame_id = None
-             self.refresh_frames()
-             self.canvas.set_frame(None)
+        frame = self.project.get_frame(self.selected_frame_id or "")
+        if not frame:
+            return
+        refs = self.frame_references(frame.id)
+        uses = []
+        if refs["animations"]:
+            uses.append(f"{refs['animations']} animation(s)")
+        if refs["frames"]:
+            uses.append(f"{refs['frames']} other frame(s) as a nested part")
+        if refs["scene_objects"]:
+            uses.append(f"{refs['scene_objects']} timeline object(s)")
+        if uses:
+            msg = (
+                f"Frame '{frame.name}' is used by " + ", ".join(uses) + ".\n"
+                "Those references will point to a missing frame.\n\nDelete it anyway? (Undo with Ctrl/Cmd+Z.)"
+            )
+            if wx.MessageBox(msg, "Delete Frame", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+                return
+        view_idx = self._frame_view.index(frame) if frame in self._frame_view else -1
+        self.project.frames = [f for f in self.project.frames if f.id != frame.id]
+        self._last_frames_fingerprint = None
+        self.selected_frame_id = None
+        self.refresh_frames()
+        neighbour = self._frame_at(min(view_idx, len(self._frame_view) - 1)) if view_idx >= 0 else None
+        if neighbour:
+            self.refresh_frames(select_id=neighbour.id)
+            self._switch_canvas_view(neighbour)
+        else:
+            self.canvas.set_frame(None)
+            self.canvas.ghost_layers = []
+        self.snapshot()
+        app_services.show_status(f"Deleted frame '{frame.name}'")
+
     def _rotate_frame(self, degrees: float):
         frame = self.project.get_frame(self.selected_frame_id)
         if not frame: return
@@ -1674,3 +1916,4 @@ class FrameEditorPanel(wx.Panel):
                  cp.x, cp.y = -x, -y
 
         self.canvas.Refresh()
+        self.snapshot()

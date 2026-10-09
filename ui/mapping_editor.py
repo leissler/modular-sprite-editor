@@ -5,6 +5,7 @@ import wx
 from typing import Optional, Dict
 
 from models import Project, ModuleMapping, generate_id
+from ui import app_services
 from ui.utils import ThumbnailGenerator
 
 class MappingVisualizer(wx.ScrolledWindow):
@@ -35,7 +36,34 @@ class MappingVisualizer(wx.ScrolledWindow):
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_left_up)
         self.Bind(wx.EVT_MOTION, self.on_motion)
+        self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
         self.Bind(wx.EVT_SIZE, self.on_size)
+
+    def on_right_down(self, event):
+        idx = self._hit_test_mapped(event.GetPosition())
+        if idx == -1 or not self.mapping:
+            event.Skip()
+            return
+        source = self.project.modules[idx]
+        menu = wx.Menu()
+        item_reset = menu.Append(wx.ID_ANY, f"Use Original ({source.name})")
+        item_hide = menu.Append(wx.ID_ANY, "Hide This Module")
+        item_reset.Enable(source.id in self.mapping.map)
+        item_hide.Enable(not (source.id in self.mapping.map and self.mapping.map[source.id] is None))
+
+        def apply(target):
+            if target == "reset":
+                self.mapping.map.pop(source.id, None)
+            else:
+                self.mapping.map[source.id] = None
+            self.Refresh()
+            if self.on_change_callback:
+                self.on_change_callback()
+
+        self.Bind(wx.EVT_MENU, lambda e: apply("reset"), item_reset)
+        self.Bind(wx.EVT_MENU, lambda e: apply("hide"), item_hide)
+        self.PopupMenu(menu)
+        menu.Destroy()
 
     def set_zoom(self, scale: float):
         self._zoom_scale = scale
@@ -130,25 +158,32 @@ class MappingVisualizer(wx.ScrolledWindow):
  
         # Draw Mapped Strip (Bottom)
         strip_y = self.padding + sh + 40
-        dc.DrawText("Mapped Targets (Drag Source here)", self.padding, strip_y - 20)
+        dc.DrawText("Replacement shown for each module (drag a source module onto a slot, right-click to reset or hide)", self.padding, strip_y - 20)
         
         for i, mod in enumerate(self.project.modules):
             x = self.padding + i * (sw + self.gap)
             
-            # Find target
+            # Find target: unmapped = original module, None = hidden, unknown id = missing
             target_mod = None
             target_id = None
             is_missing = False
+            is_hidden = False
             
             if self.mapping:
-                target_id = self.mapping.map.get(mod.id, None)
-                if target_id:
-                    target_mod = self.project.get_module(target_id)
-                    if not target_mod:
-                        is_missing = True
+                if mod.id in self.mapping.map:
+                    target_id = self.mapping.map.get(mod.id)
+                    if target_id is None:
+                        is_hidden = True
+                    else:
+                        target_mod = self.project.get_module(target_id)
+                        if not target_mod:
+                            is_missing = True
             
             is_highlight = (i == self.highlight_idx)
-            self._draw_slot(dc, x, strip_y, base_sz, target_mod, is_source=False, highlight=is_highlight, custom_scale=scale, missing_id=target_id if is_missing else None)
+            self._draw_slot(
+                dc, x, strip_y, base_sz, target_mod, is_source=False, highlight=is_highlight,
+                custom_scale=scale, missing_id=target_id if is_missing else None, hidden=is_hidden,
+            )
  
         # Draw Drag Ghost
         if self._drag_source_module_id and getattr(self, '_drag_cursor_pos', None):
@@ -160,7 +195,7 @@ class MappingVisualizer(wx.ScrolledWindow):
                  # thumb = self.generator.render_thumbnail(self.project, mod, 48, 48, custom_scale=scale)
                  # dc.DrawBitmap(thumb, pt.x - 24, pt.y - 24)
  
-    def _draw_slot(self, dc, x, y, size, module, is_source, highlight=False, custom_scale=0.0, missing_id: str = None):
+    def _draw_slot(self, dc, x, y, size, module, is_source, highlight=False, custom_scale=0.0, missing_id: str = None, hidden: bool = False):
         # Background
         if highlight:
             dc.SetBrush(wx.Brush(wx.Colour(100, 100, 150)))
@@ -192,14 +227,15 @@ class MappingVisualizer(wx.ScrolledWindow):
                 dc.SetFont(font)
                 
                 if missing_id:
-                    # Draw "Missing" in Red
                     dc.SetTextForeground(wx.Colour(255, 100, 100))
                     text = "Missing"
-                    # Maybe show ID tooltip?
+                elif hidden:
+                    dc.SetTextForeground(wx.Colour(255, 170, 80))
+                    text = "Hidden"
                 else:
-                    # Draw "None" (Identity)
-                    dc.SetTextForeground(wx.Colour(100, 100, 100))
-                    text = "None"
+                    # Not remapped: the original module is used
+                    dc.SetTextForeground(wx.Colour(120, 120, 120))
+                    text = "= original"
                     
                 tw, th = dc.GetTextExtent(text)
                 dc.DrawText(text, int(x + (size - tw)/2), int(y + size/2 - th/2))
@@ -548,8 +584,10 @@ class MappingEditorPanel(wx.Panel):
         
         btns_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_add = wx.Button(self.left_panel, label="Add")
-        self.btn_del = wx.Button(self.left_panel, label="Del")
+        self.btn_dup = wx.Button(self.left_panel, label="Duplicate")
+        self.btn_del = wx.Button(self.left_panel, label="Delete")
         btns_sizer.Add(self.btn_add, 1, wx.RIGHT, 4)
+        btns_sizer.Add(self.btn_dup, 1, wx.RIGHT, 4)
         btns_sizer.Add(self.btn_del, 1)
         
         left_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.ALL, 4)
@@ -567,9 +605,8 @@ class MappingEditorPanel(wx.Panel):
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
         # Buttons
-        self.btn_identity = wx.Button(self.right_panel_top, label="Reset Identity")
-        self.btn_clear = wx.Button(self.right_panel_top, label="Clear All")
-        top_sizer.Add(self.btn_identity, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 4)
+        self.btn_clear = wx.Button(self.right_panel_top, label="Reset All to Original")
+        self.btn_clear.SetToolTip("Remove every replacement and hidden module from this mapping")
         top_sizer.Add(self.btn_clear, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         
         # Toolbar for zoom and names
@@ -618,7 +655,7 @@ class MappingEditorPanel(wx.Panel):
         right_sizer.Add(self.right_splitter, 1, wx.EXPAND | wx.ALL, 4)
         self.right_panel.SetSizer(right_sizer)
         
-        self.splitter.SplitVertically(self.left_panel, self.right_panel, 120) # Narrower left panel
+        self.splitter.SplitVertically(self.left_panel, self.right_panel, 240)
         self.splitter.SetMinimumPaneSize(100)
         self.splitter.SetSashGravity(0.1)
         
@@ -630,8 +667,10 @@ class MappingEditorPanel(wx.Panel):
         
         # Bindings
         self.btn_add.Bind(wx.EVT_BUTTON, self.on_add)
+        self.btn_dup.Bind(wx.EVT_BUTTON, self.on_duplicate)
         self.btn_del.Bind(wx.EVT_BUTTON, self.on_del)
-        self.btn_identity.Bind(wx.EVT_BUTTON, self.on_identity)
+        self.list_ctrl.Bind(wx.EVT_KEY_DOWN, self.on_list_key)
+        self._syncing_selection = False
         self.btn_clear.Bind(wx.EVT_BUTTON, self.on_clear)
         self.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select)
         self.list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_deselect)
@@ -649,94 +688,139 @@ class MappingEditorPanel(wx.Panel):
 
     def on_mapping_changed(self):
         """Called when visualizer modifies the mapping."""
-        # Force cache invalidation in preview? 
-        # Preview checks id(mapping), which hasn't changed, only content.
-        # But Preview.on_paint calls _calculate_uniform_scale, which iterates content.
-        # However, _calculate_uniform_scale caches the scale!
-        # If mapping changes, the BOUNDS of frames might change (different modules -> different sizes).
-        # So we must force Preview to clear its cache.
+        # Mapped modules can change frame bounds, so the cached preview scale is stale.
         self.preview._cached_scale = 0.0
         self.preview.Refresh()
+        app_services.request_checkpoint()
+
+    # --- Panel interface used by the main window ---
+    def get_active_canvas(self):
+        return None
+
+    def refresh_after_history(self) -> None:
+        self.current_mapping = self.project.active_mapping
+        self.refresh_list()
+        self.visualizer.set_mapping(self.current_mapping)
+        self.preview.set_mapping(self.current_mapping)
+        self.preview._cached_scale = 0.0
+
+    def on_active_mapping_changed(self) -> None:
+        """Keep the list selection in sync with the global preview mapping selector."""
+        if self.current_mapping is self.project.active_mapping:
+            return
+        self.current_mapping = self.project.active_mapping
+        self._syncing_selection = True
+        try:
+            self.refresh_list()
+        finally:
+            self._syncing_selection = False
+        self.visualizer.set_mapping(self.current_mapping)
+        self.preview.set_mapping(self.current_mapping)
+
+    def _set_active(self, mapping: Optional[ModuleMapping]) -> None:
+        self.current_mapping = mapping
+        self.visualizer.set_mapping(mapping)
+        self.preview.set_mapping(mapping)
+        self.project.active_mapping = mapping
+        if not self._syncing_selection:
+            app_services.notify_active_mapping_changed()
 
     def refresh_list(self):
         self.list_ctrl.DeleteAllItems()
         for i, m in enumerate(self.project.mappings):
             self.list_ctrl.InsertItem(i, m.name)
         
-        if self.project.mappings:
-            # Try to restore selection if valid
-            if self.project.active_mapping in self.project.mappings:
-                idx_to_select = self.project.mappings.index(self.project.active_mapping)
-                self.list_ctrl.Select(idx_to_select)
-                self.list_ctrl.EnsureVisible(idx_to_select)
-            else:
-                 # Do not select anything by default
-                 pass
-        else:
+        if self.project.active_mapping in self.project.mappings:
+            idx_to_select = self.project.mappings.index(self.project.active_mapping)
+            self.list_ctrl.Select(idx_to_select)
+            self.list_ctrl.EnsureVisible(idx_to_select)
+        elif not self.project.mappings:
             self.visualizer.set_mapping(None)
             self.preview.set_mapping(None)
             self.project.active_mapping = None
 
     def on_add(self, event):
-        new_map = ModuleMapping(id=generate_id("map"), name=f"Mapping {len(self.project.mappings)}")
-        # Default is Empty (empty dict means all None)
+        new_map = ModuleMapping(id=generate_id("map"), name=f"Mapping {len(self.project.mappings) + 1}")
+        # Empty map = every module shows its original
         self.project.mappings.append(new_map)
         idx = self.list_ctrl.InsertItem(self.list_ctrl.GetItemCount(), new_map.name)
         self.list_ctrl.Select(idx)
         self.list_ctrl.EditLabel(idx)
+        app_services.request_checkpoint()
+
+    def on_duplicate(self, event):
+        idx = self.list_ctrl.GetFirstSelected()
+        if not (0 <= idx < len(self.project.mappings)):
+            return
+        source = self.project.mappings[idx]
+        copy_map = ModuleMapping(id=generate_id("map"), name=f"{source.name} copy", map=dict(source.map))
+        self.project.mappings.insert(idx + 1, copy_map)
+        self.project.active_mapping = copy_map
+        self.refresh_list()
+        self._set_active(copy_map)
+        app_services.request_checkpoint()
+
+    def on_list_key(self, event):
+        if event.GetKeyCode() in (wx.WXK_DELETE, wx.WXK_BACK):
+            self.on_del(None)
+            return
+        event.Skip()
 
     def on_del(self, event):
         idx = self.list_ctrl.GetFirstSelected()
-        if idx != -1:
-            self.project.mappings.pop(idx)
-            self.list_ctrl.DeleteItem(idx)
-            if idx < self.list_ctrl.GetItemCount():
-                self.list_ctrl.Select(idx)
-            elif self.list_ctrl.GetItemCount() > 0:
-                self.list_ctrl.Select(self.list_ctrl.GetItemCount() - 1)
-            else:
-                self.visualizer.set_mapping(None)
-                self.preview.set_mapping(None)
-                self.project.active_mapping = None
+        if idx == -1:
+            return
+        mapping = self.project.mappings[idx]
+        msg = f"Delete mapping '{mapping.name}' ({len(mapping.map)} remapped module(s))?"
+        if wx.MessageBox(msg, "Delete Mapping", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            return
+        self.project.mappings.pop(idx)
+        self.list_ctrl.DeleteItem(idx)
+        if idx < self.list_ctrl.GetItemCount():
+            self.list_ctrl.Select(idx)
+        elif self.list_ctrl.GetItemCount() > 0:
+            self.list_ctrl.Select(self.list_ctrl.GetItemCount() - 1)
+        else:
+            self._set_active(None)
+        app_services.request_checkpoint()
 
     def on_select(self, event):
         idx = event.GetIndex()
         if 0 <= idx < len(self.project.mappings):
-            self.current_mapping = self.project.mappings[idx]
-            self.visualizer.set_mapping(self.current_mapping)
-            self.preview.set_mapping(self.current_mapping)
-            self.project.active_mapping = self.current_mapping
+            self._set_active(self.project.mappings[idx])
 
     def on_deselect(self, event):
-        self.current_mapping = None
-        self.visualizer.set_mapping(None)
-        self.preview.set_mapping(None)
-        self.project.active_mapping = None
+        if self._syncing_selection:
+            return
+        # A click on another item deselects first; only clear if nothing ends up selected.
+        wx.CallAfter(self._clear_if_unselected)
 
+    def _clear_if_unselected(self):
+        if self.list_ctrl.GetFirstSelected() == -1 and self.current_mapping is not None:
+            self._set_active(None)
 
     def on_rename(self, event):
         idx = event.GetIndex()
         if not event.IsEditCancelled() and 0 <= idx < len(self.project.mappings):
-            self.project.mappings[idx].name = event.GetLabel()
+            new_name = event.GetLabel().strip()
+            if new_name:
+                self.project.mappings[idx].name = new_name
+                wx.CallAfter(app_services.notify_active_mapping_changed)
+                wx.CallAfter(app_services.request_checkpoint)
         event.Skip()
-
-    def on_identity(self, event):
-        if not self.current_mapping: return
-        dlg = wx.MessageDialog(self, "Reset mapping to Identity (Map to Self)?", "Confirm", wx.YES_NO | wx.ICON_QUESTION)
-        if dlg.ShowModal() == wx.ID_YES:
-            # Identity: map module.id -> module.id
-            self.current_mapping.map = {m.id: m.id for m in self.project.modules}
-            self.visualizer.Refresh()
-            self.preview.Refresh()
-        dlg.Destroy()
 
     def on_clear(self, event):
         if not self.current_mapping: return
-        dlg = wx.MessageDialog(self, "Clear mapping (Map all to None)?", "Confirm", wx.YES_NO | wx.ICON_QUESTION)
+        dlg = wx.MessageDialog(
+            self,
+            "Reset every module of this mapping to its original (removes all replacements and hidden modules)?",
+            "Reset Mapping",
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
         if dlg.ShowModal() == wx.ID_YES:
-            self.current_mapping.map = {} # Empty dict implies None
+            self.current_mapping.map = {}
             self.visualizer.Refresh()
-            self.preview.Refresh()
+            self.on_mapping_changed()
         dlg.Destroy()
 
     def on_toggle_names(self, event):

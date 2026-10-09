@@ -3,15 +3,46 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, List, Optional, Tuple
+from collections import OrderedDict
+from contextlib import contextmanager
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import wx
 
-from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
+from models import AFrame, Animation, Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
 
 Color = Tuple[int, int, int]
+
+# Onion-skin styles: (red, green, blue, alpha) channel factors applied to ghost images.
+GHOST_PREVIOUS = (1.0, 0.55, 0.55, 0.38)
+GHOST_NEXT = (0.55, 0.75, 1.0, 0.38)
+GHOST_REFERENCE = (1.0, 1.0, 1.0, 0.35)
+
+# Upper bound for cached zoomed bitmaps, in screen pixels (~4 bytes each).
+SCALED_CACHE_PIXEL_BUDGET = 24_000_000
+
+
+def _mask_to_alpha(img: wx.Image) -> wx.Image:
+    """Fold a mask colour into the alpha channel (tinting would otherwise un-mask it)."""
+    if not img.HasMask():
+        if not img.HasAlpha():
+            img.InitAlpha()
+        return img
+    if not img.HasAlpha():
+        img.InitAlpha()  # converts the mask
+        return img
+    mr, mg, mb = img.GetMaskRed(), img.GetMaskGreen(), img.GetMaskBlue()
+    data = img.GetData()
+    alpha = bytearray(img.GetAlpha())
+    for i in range(len(alpha)):
+        j = i * 3
+        if data[j] == mr and data[j + 1] == mg and data[j + 2] == mb:
+            alpha[i] = 0
+    img.SetAlpha(bytes(alpha))
+    img.SetMask(False)
+    return img
 
 
 def _color_from_id(identifier: str) -> Color:
@@ -48,6 +79,14 @@ class FrameCanvas(BaseCanvas):
         self.render_rotation = 0.0
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
         self._asset_image_cache: dict[str, wx.Image] = {}
+        # Zoomed/flipped/rotated module bitmaps, so paints during drags do not rescale images.
+        self._scaled_cache: "OrderedDict[Any, wx.Bitmap]" = OrderedDict()
+        self._scaled_cache_pixels = 0
+        # Active ghost style while drawing onion-skin layers (None = normal drawing).
+        self._ghost_style: Optional[Tuple[float, float, float, float]] = None
+        # Onion-skin layers drawn under the current frame:
+        # dicts with frame, offset, flip_x, flip_y, rotation, style.
+        self.ghost_layers: List[Dict[str, Any]] = []
         
         # Interaction Modes
         self.edit_mode = "module" # "module" or "collision"
@@ -93,7 +132,81 @@ class FrameCanvas(BaseCanvas):
     def clear_cache(self) -> None:
         self._bitmap_cache.clear()
         self._asset_image_cache.clear()
+        self._scaled_cache.clear()
+        self._scaled_cache_pixels = 0
         self.Refresh(False)
+
+    def _remember_scaled(self, key: Any, bmp: wx.Bitmap) -> None:
+        pixels = bmp.GetWidth() * bmp.GetHeight()
+        self._scaled_cache[key] = bmp
+        self._scaled_cache_pixels += pixels
+        while self._scaled_cache_pixels > SCALED_CACHE_PIXEL_BUDGET and len(self._scaled_cache) > 1:
+            _old_key, old_bmp = self._scaled_cache.popitem(last=False)
+            self._scaled_cache_pixels -= old_bmp.GetWidth() * old_bmp.GetHeight()
+
+    @contextmanager
+    def frame_transform(
+        self,
+        frame: Optional[Frame],
+        offset: Tuple[float, float] = (0.0, 0.0),
+        flip_x: bool = False,
+        flip_y: bool = False,
+        rotation: float = 0.0,
+        ghost_style: Optional[Tuple[float, float, float, float]] = None,
+    ) -> Iterator[None]:
+        """Temporarily render another frame with its own transform (onion skin, bounds)."""
+        saved = (self.frame, self.frame_offset, self.render_flip_x, self.render_flip_y, self.render_rotation, self._ghost_style)
+        self.frame = frame
+        self.frame_offset = offset
+        self.render_flip_x = flip_x
+        self.render_flip_y = flip_y
+        self.render_rotation = rotation
+        self._ghost_style = ghost_style
+        try:
+            yield
+        finally:
+            (self.frame, self.frame_offset, self.render_flip_x, self.render_flip_y,
+             self.render_rotation, self._ghost_style) = saved
+
+    def _draw_ghost_layers(self, gc: wx.GraphicsContext) -> None:
+        for layer in self.ghost_layers:
+            frame = layer.get("frame")
+            if not frame:
+                continue
+            with self.frame_transform(
+                frame,
+                layer.get("offset", (0.0, 0.0)),
+                bool(layer.get("flip_x", False)),
+                bool(layer.get("flip_y", False)),
+                float(layer.get("rotation", 0.0)),
+                layer.get("style", GHOST_REFERENCE),
+            ):
+                for fm in frame.fmodules:
+                    self._draw_fmodule_content(gc, fm)
+
+    def _frame_world_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        if not self.frame:
+            return None
+        points: List[Tuple[float, float]] = []
+        for fm in self.frame.fmodules:
+            x0, y0, x1, y1 = self._fmodule_bounds(fm)
+            points.append(self.local_to_world((x0, y0)))
+            points.append(self.local_to_world((x1, y1)))
+        for cr in self.frame.collision_rects:
+            rx, ry, rw, rh = cr.rect
+            points.append(self.local_to_world((rx, ry)))
+            points.append(self.local_to_world((rx + rw, ry + rh)))
+        for cp in self.frame.control_points:
+            points.append(self.local_to_world((cp.x, cp.y)))
+            points.append(self.local_to_world((cp.x + 1, cp.y + 1)))
+        if not points:
+            return None
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def get_content_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        return self._frame_world_bounds()
 
     # --- Frame-level Transforms (Local -> World) ---
     def local_to_world(self, pt: Tuple[float, float]) -> Tuple[float, float]:
@@ -161,6 +274,8 @@ class FrameCanvas(BaseCanvas):
             self._draw_message(gc, "No frame selected")
             return
         
+        self._draw_ghost_layers(gc)
+
         # Draw modules (dimmed if in collision mode)
         gc.PushState()
         # If collision mode, we might want to fade modules?
@@ -237,32 +352,40 @@ class FrameCanvas(BaseCanvas):
              if mod:
                  bmp = self._get_module_bitmap(mod)
                  if bmp:
-                     # High Quality (Nearest Neighbor) Scaling hack for GraphicsContext
+                     # Nearest-neighbour scaling done on the image (GraphicsContext would smooth).
                      target_w, target_h = int(round(w)), int(round(h))
                      if target_w > 0 and target_h > 0:
-                         img = bmp.ConvertToImage()
-                         
-                         # Apply flipping (Combine local flip with frame-level flip)
+                         # Combine local flip with frame-level flip; pixel-perfect 90° steps.
                          final_flip_x = fm.flip_x ^ self.render_flip_x
                          final_flip_y = fm.flip_y ^ self.render_flip_y
-                         
-                         if final_flip_x:
-                             img = img.Mirror(horizontally=True)
-                         if final_flip_y:
-                             img = img.Mirror(horizontally=False) # Vertical flip
-
-                         # Apply Rotation (Pixel perfect 90 deg steps)
                          rot = int(fm.rotation_degrees + self.render_rotation) % 360
-                         if rot == 90:
-                             img = img.Rotate90(clockwise=True)
-                         elif rot == 180:
-                             img = img.Rotate180()
-                         elif rot == 270:
-                             img = img.Rotate90(clockwise=False)
+                         cache_key = (
+                             self._module_bitmap_key(mod), final_flip_x, final_flip_y, rot,
+                             target_w, target_h, self._ghost_style,
+                         )
+                         scaled_bmp = self._scaled_cache.get(cache_key)
+                         if scaled_bmp is None:
+                             img = bmp.ConvertToImage()
+                             if final_flip_x:
+                                 img = img.Mirror(horizontally=True)
+                             if final_flip_y:
+                                 img = img.Mirror(horizontally=False)
+                             if rot == 90:
+                                 img = img.Rotate90(clockwise=True)
+                             elif rot == 180:
+                                 img = img.Rotate180()
+                             elif rot == 270:
+                                 img = img.Rotate90(clockwise=False)
+                             if self._ghost_style:
+                                 img = _mask_to_alpha(img)
+                                 r, g, b, a = self._ghost_style
+                                 img = img.AdjustChannels(r, g, b, a)
+                             img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
+                             scaled_bmp = img.ConvertToBitmap()
+                             self._remember_scaled(cache_key, scaled_bmp)
+                         else:
+                             self._scaled_cache.move_to_end(cache_key)
 
-                         img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
-                         scaled_bmp = img.ConvertToBitmap()
-                         
                          gc.DrawBitmap(scaled_bmp, sx0, sy0, target_w, target_h)
                      
         elif fm.ref_type == "frame":
@@ -521,12 +644,10 @@ class FrameCanvas(BaseCanvas):
 
     # Interaction
     def on_left_down(self, event: wx.MouseEvent) -> None:
-        if self._panning or event.AltDown(): # Handled by BaseCanvas or caller? Base handles Middle.
-             # BaseCanvas doesn't handle Left+Alt by default, needs override or call
-             if event.AltDown():
-                 self.on_pan_start(event) # Reuse pan logic
-                 return
-        
+        self.SetFocus()
+        if self.begin_pan_if_requested(event):
+            return
+
         if not self.frame:
             return
 
@@ -621,6 +742,7 @@ class FrameCanvas(BaseCanvas):
         
         if self._panning:
             self.on_pan_end(event)
+            return
             
         if self.edit_mode == "collision":
              if self._col_drag_mode != "none":
@@ -695,6 +817,10 @@ class FrameCanvas(BaseCanvas):
 
     # Interaction
     def on_mouse_drag(self, event: wx.MouseEvent) -> None:
+        if self.handle_pan_motion(event):
+            return
+        if not self.frame:
+            return
         # 1. Handle Hover Cursor (always, even if not dragging, unless dragging overrides)
         if self.edit_mode == "collision" and not event.Dragging():
             # Check for resize handles
@@ -723,10 +849,6 @@ class FrameCanvas(BaseCanvas):
         elif not self._dragging_ids and not self._col_drag_mode != "none":
              self.SetCursor(wx.Cursor(wx.CURSOR_ARROW))
 
-        if self._panning:
-            self.handle_pan_motion(event)
-            return
-            
         if not event.Dragging() or not event.LeftIsDown():
             return
 
@@ -1052,37 +1174,39 @@ class FrameCanvas(BaseCanvas):
         # _fmodule_bounds uses offset, but width is invariant
         return int(bounds[2] - bounds[0])
 
-    def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
-        # Robust Key Generation
+    def _module_bitmap_key(self, mod: Module) -> str:
         if mod.type == "MD_IMAGE":
             asset = self.project.get_image(mod.image_id)
             transparent_color = asset.transparent_color if asset else None
-            key = (
+            return (
                 f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
                 f"_{self.show_transparency}_{transparent_color}"
             )
-        else:
-            # For shapes, include visual properties in key
-            key = f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
-            
+        # For shapes, include visual properties in key
+        return f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
+
+    def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
+        key = self._module_bitmap_key(mod)
         if key in self._bitmap_cache:
             return self._bitmap_cache[key]
             
         if mod.type == "MD_IMAGE":
+            asset = self.project.get_image(mod.image_id)
             if not asset:
                 return None
                 
             try:
-                # Load full image (cached? We'll rely on FS cache for now or add one later if slow)
-                full_img = load_wx_image_safely(asset.file_path)
-                if self.show_transparency and asset.transparent_color:
-                    full_img.SetMaskColour(*asset.transparent_color)
+                full_img = self._get_asset_source_image(asset.id)
+                if not full_img:
+                    return None
                     
                 rx, ry, rw, rh = mod.rect
                 img_w, img_h = full_img.GetWidth(), full_img.GetHeight()
                 
-                if rx + rw <= img_w and ry + rh <= img_h:
+                if rx >= 0 and ry >= 0 and rw > 0 and rh > 0 and rx + rw <= img_w and ry + rh <= img_h:
                     sub_img = full_img.GetSubImage(wx.Rect(rx, ry, rw, rh))
+                    if self.show_transparency and asset.transparent_color:
+                        sub_img.SetMaskColour(*asset.transparent_color)
                     
                     if getattr(mod, 'rotated', False):
                         sub_img = sub_img.Rotate90(clockwise=False)
@@ -1443,6 +1567,88 @@ class AnimationCanvas(FrameCanvas):
         
         self.global_flip_x = False
         self.global_flip_y = False
+        # Onion skin: "off", "previous", "next" or "both" (neighbouring animation frames).
+        self.onion_mode = "off"
+
+    def _aframe_render_transform(self, af: AFrame) -> Tuple[Tuple[float, float], bool, bool, float]:
+        """Offset/flip/rotation for an animation frame, including the global mirror preview."""
+        ox, oy = af.offset
+        if self.global_flip_x:
+            ox = -ox
+        if self.global_flip_y:
+            oy = -oy
+        return (
+            (ox, oy),
+            af.flip_x != self.global_flip_x,
+            af.flip_y != self.global_flip_y,
+            float(getattr(af, "rotation_degrees", 0.0)),
+        )
+
+    def _onion_indices(self) -> List[Tuple[int, Tuple[float, float, float, float]]]:
+        if self.onion_mode == "off" or not self.animation or not self.current_aframe:
+            return []
+        frames = self.animation.aframes
+        try:
+            idx = next(i for i, af in enumerate(frames) if af is self.current_aframe)
+        except StopIteration:
+            return []
+        wrap = self.animation.playback_type == "loop" and len(frames) > 2
+        result: List[Tuple[int, Tuple[float, float, float, float]]] = []
+        if self.onion_mode in ("previous", "both"):
+            prev_idx = idx - 1
+            if prev_idx < 0 and wrap:
+                prev_idx = len(frames) - 1
+            if 0 <= prev_idx < len(frames) and prev_idx != idx:
+                result.append((prev_idx, GHOST_PREVIOUS))
+        if self.onion_mode in ("next", "both"):
+            next_idx = idx + 1
+            if next_idx >= len(frames) and wrap:
+                next_idx = 0
+            if 0 <= next_idx < len(frames) and next_idx != idx:
+                result.append((next_idx, GHOST_NEXT))
+        return result
+
+    def _rebuild_ghost_layers(self) -> None:
+        layers: List[Dict[str, Any]] = []
+        if self.animation:
+            for ghost_idx, style in self._onion_indices():
+                af = self.animation.aframes[ghost_idx]
+                frame = self.project.get_frame(af.frame_id)
+                if not frame:
+                    continue
+                offset, flip_x, flip_y, rotation = self._aframe_render_transform(af)
+                layers.append(
+                    {"frame": frame, "offset": offset, "flip_x": flip_x, "flip_y": flip_y,
+                     "rotation": rotation, "style": style}
+                )
+        self.ghost_layers = layers
+
+    def set_onion_mode(self, mode: str) -> None:
+        self.onion_mode = mode if mode in ("off", "previous", "next", "both") else "off"
+        self._rebuild_ghost_layers()
+        self.Refresh(False)
+
+    def get_content_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        if not self.animation or not self.animation.aframes:
+            return super().get_content_bounds()
+        boxes = []
+        for af in self.animation.aframes:
+            frame = self.project.get_frame(af.frame_id)
+            if not frame:
+                continue
+            offset, flip_x, flip_y, rotation = self._aframe_render_transform(af)
+            with self.frame_transform(frame, offset, flip_x, flip_y, rotation, self._ghost_style):
+                box = self._frame_world_bounds()
+            if box:
+                boxes.append(box)
+        if not boxes:
+            return None
+        return (
+            min(b[0] for b in boxes),
+            min(b[1] for b in boxes),
+            max(b[2] for b in boxes),
+            max(b[3] for b in boxes),
+        )
 
     def set_animation(self, anim: Optional[Animation], aframe: Optional[AFrame] = None):
         self.animation = anim
@@ -1461,30 +1667,25 @@ class AnimationCanvas(FrameCanvas):
     def _update_frame(self):
         if self.current_aframe:
             self.frame = self.project.get_frame(self.current_aframe.frame_id)
-            
-            # Apply Global Flip to Offset
-            ox, oy = self.current_aframe.offset
-            if self.global_flip_x: ox = -ox
-            if self.global_flip_y: oy = -oy
-            self.frame_offset = (ox, oy)
-            
-            # Apply Global Flip to Render (XOR)
-            self.render_flip_x = self.current_aframe.flip_x != self.global_flip_x
-            self.render_flip_y = self.current_aframe.flip_y != self.global_flip_y
-            self.render_rotation = getattr(self.current_aframe, "rotation_degrees", 0.0)
+            (
+                self.frame_offset,
+                self.render_flip_x,
+                self.render_flip_y,
+                self.render_rotation,
+            ) = self._aframe_render_transform(self.current_aframe)
         else:
             self.frame = None
             self.frame_offset = (0, 0)
             self.render_flip_x = False
             self.render_flip_y = False
+            self.render_rotation = 0.0
+        self._rebuild_ghost_layers()
 
     def draw_content(self, gc: wx.GraphicsContext) -> None:
         if self.show_trajectory and self.animation:
             self._draw_trajectory(gc)
              
         if self.current_aframe and self.frame:
-            # Note: FrameCanvas.draw_content now uses world_to_screen/screen_to_world
-            # which we overridden in FrameCanvas to handle flip and offset.
             super().draw_content(gc)
 
     def _draw_trajectory(self, gc: wx.GraphicsContext) -> None:
@@ -1534,11 +1735,7 @@ class AnimationCanvas(FrameCanvas):
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
         self.SetFocus() # Steal focus from inputs to trigger validation
-        # Allow panning if Alt is down (standard Mac behavior) or Control or Middle button
-        if event.AltDown() or event.ControlDown() or event.MiddleIsDown():
-            self._panning = True
-            self._start = event.GetPosition() # MUST match BaseCanvas.handle_pan_motion expected attr
-            self.CaptureMouse()
+        if self.begin_pan_if_requested(event):
             return
 
         pos = self.screen_to_world(event.GetPosition())
@@ -1553,13 +1750,9 @@ class AnimationCanvas(FrameCanvas):
             event.Skip()
 
     def on_mouse_drag(self, event: wx.MouseEvent) -> None:
-        if self._panning:
-             self.handle_pan_motion(event)
-             return
+        if self.handle_pan_motion(event):
+            return
 
-        # Reset cursor if not dragging collision handles (managed by Base/FrameCanvas logic usually)
-        # But we are overriding here.
-        
         if not event.Dragging() or not event.LeftIsDown():
              return
         

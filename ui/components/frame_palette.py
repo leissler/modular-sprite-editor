@@ -27,6 +27,8 @@ class FramePalette(wx.ScrolledWindow):
         
         # Drag State
         self._drag_start_pos: Optional[wx.Point] = None
+        self.filter_text = ""
+        self._cached_scale = 0.0
         
         self.SetBackgroundColour(wx.Colour(40, 40, 40))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
@@ -42,8 +44,23 @@ class FramePalette(wx.ScrolledWindow):
 
     def refresh_frames(self) -> None:
         """Call this when project frames change."""
+        self.invalidate_scale()
         self.layout_items()
         self.Refresh()
+
+    def invalidate_scale(self) -> None:
+        self._cached_scale = 0.0
+
+    def set_filter(self, text: str) -> None:
+        self.filter_text = (text or "").strip().lower()
+        self.Scroll(0, 0)
+        self.layout_items()
+        self.Refresh()
+
+    def visible_frames(self) -> List[Frame]:
+        if not self.filter_text:
+            return list(self.project.frames)
+        return [f for f in self.project.frames if self.filter_text in f.name.lower()]
 
     def layout_items(self) -> None:
         """Calculate virtual size based on item count and client width."""
@@ -53,7 +70,7 @@ class FramePalette(wx.ScrolledWindow):
         full_w = self.item_size[0] + self.padding
         self.cols = max(1, w // full_w)
         
-        count = len(self.project.frames)
+        count = len(self.visible_frames())
         rows = (count + self.cols - 1) // self.cols
         
         full_h = self.item_size[1] + self.padding
@@ -96,7 +113,7 @@ class FramePalette(wx.ScrolledWindow):
         # if x_in_cell > item_size[0]: return -1
         
         index = row * self.cols + col
-        if 0 <= index < len(self.project.frames):
+        if 0 <= index < len(self.visible_frames()):
             return index
         return -1
 
@@ -106,57 +123,26 @@ class FramePalette(wx.ScrolledWindow):
         dc.SetBackground(wx.Brush(wx.Colour(40, 40, 40)))
         dc.Clear()
         
-        if not self.project.frames:
+        frames = self.visible_frames()
+        if not frames:
             return
 
-        # Global scale calculation logic (re-implemented from prev Step)
-        # Ideally cached in generator or passed in.
-        # For efficiency, let's cache the uniform scale if project hasn't changed?
-        # Re-calculating O(N*M) every paint is bad. 
-        # But `refresh_frames` is manual. Let's calc scale there or here with caching?
-        # Let's do it simply for now.
-        
-        # Calculate update region
-        # update_region = self.GetUpdateRegion() # Unused for now
-        # rect = update_region.GetBox() 
-        
-        # Get visible scroll range to optimize loop?
-        # Get visible scroll range to optimize loop?
         vs_x, vs_y = self.GetViewStart()
-        # Pixels
         pu_x, pu_y = self.GetScrollPixelsPerUnit()
         cs_w, cs_h = self.GetClientSize()
         view_rect = wx.Rect(vs_x * pu_x, vs_y * pu_y, cs_w, cs_h)
-        
-        # Calculate Uniform Scale (Global)
-        # TODO: This should be cached in `refresh_frames` really.
-        # But I'll compute it here for robustness first.
-        global_max_w = 0.0
-        global_max_h = 0.0
-        for frame in self.project.frames:
-             if not frame.fmodules: continue
-             # Fast bounds approx? No, need module parsing.
-             # This loop inside Paint is DANGEROUS for performance.
-             # Optimization: WE MUST CACHE THE UNIFORM SCALE. 
-             if not frame.fmodules: continue
-             # Check for cache invalidation (mapping change)
-             # This is a bit hacky inside Paint, but avoids complex signal passing
-             current_map_id = id(self.project.active_mapping) if self.project.active_mapping else None
-             if getattr(self, '_last_map_id', None) != current_map_id:
-                 self._cached_scale = 0.0
-                 self._last_map_id = current_map_id
-             pass
 
-        # Let's assume uniform scale 1.0 for this step to just get drawing working, 
-        # or rely on ThumbnailGenerator default fit logic if custom_scale=0.
-        # Ideally, we add `self._cached_uniform_scale` updated in `refresh_frames`.
-        
+        current_map_id = id(self.project.active_mapping) if self.project.active_mapping else None
+        if getattr(self, '_last_map_id', None) != current_map_id:
+            self._cached_scale = 0.0
+            self._last_map_id = current_map_id
+
         scale = self._calculate_uniform_scale()
 
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
         dc.SetFont(font)
 
-        for i, frame in enumerate(self.project.frames):
+        for i, frame in enumerate(frames):
             r = self._get_item_rect(i)
             
             # Visibility Check
@@ -185,7 +171,7 @@ class FramePalette(wx.ScrolledWindow):
 
     def _calculate_uniform_scale(self) -> float:
         # Check cache
-        if hasattr(self, '_cached_scale') and self._cached_scale > 0: return self._cached_scale
+        if self._cached_scale > 0: return self._cached_scale
         
         global_max_w = 0.0
         global_max_h = 0.0
@@ -234,7 +220,7 @@ class FramePalette(wx.ScrolledWindow):
     def on_left_down(self, event) -> None:
         idx = self._hit_test(event.GetPosition())
         if idx != -1:
-            fid = self.project.frames[idx].id
+            fid = self.visible_frames()[idx].id
             self.selected_frame_id = fid
             self._drag_start_pos = event.GetPosition()
             self.Refresh()
@@ -269,7 +255,7 @@ class FramePalette(wx.ScrolledWindow):
     def on_double_click(self, event) -> None:
         idx = self._hit_test(event.GetPosition())
         if idx != -1:
-            fid = self.project.frames[idx].id
+            fid = self.visible_frames()[idx].id
             if self.on_frame_double_click:
                 self.on_frame_double_click(fid)
 

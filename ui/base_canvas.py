@@ -1,53 +1,70 @@
 from __future__ import annotations
-import time
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 import wx
+
+from ui import app_services
+
+# Integer levels keep every source pixel the same size on screen (nearest-neighbour scaling).
+ZOOM_LEVELS = (0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 32.0)
+
+# Wheel rotation units per zoom level. A mouse notch is 120; trackpads send small deltas.
+WHEEL_UNITS_PER_STEP = 40
+
 
 class BaseCanvas(wx.Panel):
     """
     Shared canvas providing:
-    - Infinite workspace (pan/zoom)
+    - Infinite workspace (pan/zoom) with one interaction model for every editor:
+        wheel = zoom at cursor, Shift+wheel / horizontal wheel = pan horizontally,
+        Alt+wheel = pan vertically, pinch = zoom,
+        Space+drag, Alt+drag or middle-drag = pan
+    - Pixel-art friendly integer zoom levels, fit-to-content
     - Coordinate transformation
-    - Checkerboard background
-    - Grid rendering
+    - Checkerboard background and grid rendering
     """
 
     def __init__(self, parent: wx.Window, style=wx.BORDER_SIMPLE):
-        super().__init__(parent, style=style)
-        
+        super().__init__(parent, style=style | wx.WANTS_CHARS)
+
         # View State
         self.zoom: float = 10.0
         self.pan: Tuple[float, float] = (0, 0)
         self.grid_spacing: Tuple[int, int] = (32, 32)
         self.show_grid: bool = True
         self.show_transparency: bool = True
+        self.min_zoom: float = 0.5
         self.max_zoom: float = 32.0
-        
+
         # Internal Interaction State
         self._wheel_accumulator = 0
+        self._magnify_accumulator = 0.0
         self._panning = False
-        self._last_pan_pos: Optional[wx.Point] = None
-        self._last_clamp_time: float = 0.0
-        self._last_clamp_dir: int = 0
         self._start = wx.Point()
+        self._fit_pending = False
 
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        
+
         # Event Bindings
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_MIDDLE_DOWN, self.on_pan_start)
         self.Bind(wx.EVT_MIDDLE_UP, self.on_pan_end)
-        # Note: Derived classes should likely override ON_LEFT_DOWN/UP and MOTION,
-        # but call base handlers or implement panning hooks if needed.
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._on_capture_lost)
+        self.Bind(wx.EVT_KEY_DOWN, self._on_base_key_down)
+        self.Bind(wx.EVT_SIZE, self._on_base_size)
+        if hasattr(wx, "EVT_MAGNIFY"):
+            self.Bind(wx.EVT_MAGNIFY, self.on_magnify)
+        # Derived classes bind LEFT_DOWN/UP and MOTION and start with:
+        #   if self.begin_pan_if_requested(event): return
+        #   if self.handle_pan_motion(event): return
 
     # --- Coordinate Systems ---
     def world_to_screen(self, pt: Tuple[float, float]) -> Tuple[float, float]:
-        cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
+        cx, cy = self.GetClientSize().width // 2, self.GetClientSize().height // 2
         return (cx + (pt[0] + self.pan[0]) * self.zoom, cy + (pt[1] + self.pan[1]) * self.zoom)
 
     def screen_to_world(self, pt: wx.Point) -> Tuple[float, float]:
-        cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
+        cx, cy = self.GetClientSize().width // 2, self.GetClientSize().height // 2
         return (
             (pt.x - cx) / self.zoom - self.pan[0],
             (pt.y - cy) / self.zoom - self.pan[1],
@@ -61,6 +78,7 @@ class BaseCanvas(wx.Panel):
     def set_view_state(self, pan: Tuple[float, float], zoom: float) -> None:
         self.pan = pan
         self.zoom = zoom
+        self._notify_zoom()
         self.Refresh(False)
 
     def get_view_state(self) -> Tuple[Tuple[float, float], float]:
@@ -78,27 +96,88 @@ class BaseCanvas(wx.Panel):
         self.show_transparency = show
         self.Refresh(False)
 
+    def _notify_zoom(self) -> None:
+        if self.IsShownOnScreen():
+            app_services.show_zoom(self.zoom)
+
+    def _zoom_levels(self) -> Tuple[float, ...]:
+        return tuple(z for z in ZOOM_LEVELS if self.min_zoom - 1e-6 <= z <= self.max_zoom + 1e-6)
+
+    def set_zoom_level(self, zoom: float, anchor: Optional[wx.Point] = None) -> None:
+        """Set zoom, keeping the world point under ``anchor`` (default: view centre) fixed."""
+        new_zoom = max(self.min_zoom, min(self.max_zoom, float(zoom)))
+        if abs(new_zoom - self.zoom) < 1e-6:
+            return
+        if anchor is None:
+            size = self.GetClientSize()
+            anchor = wx.Point(size.width // 2, size.height // 2)
+        world_before = self.screen_to_world(anchor)
+        self.zoom = new_zoom
+        cx, cy = self.GetClientSize().width // 2, self.GetClientSize().height // 2
+        self.pan = (
+            (anchor.x - cx) / new_zoom - world_before[0],
+            (anchor.y - cy) / new_zoom - world_before[1],
+        )
+        self._notify_zoom()
+        self.Refresh(False)
+
+    def zoom_step(self, direction: int, anchor: Optional[wx.Point] = None) -> None:
+        """Move one integer zoom level in or out (direction > 0 zooms in)."""
+        levels = self._zoom_levels()
+        if not levels:
+            return
+        if direction > 0:
+            target = next((z for z in levels if z > self.zoom + 1e-6), levels[-1])
+        else:
+            target = next((z for z in reversed(levels) if z < self.zoom - 1e-6), levels[0])
+        self.set_zoom_level(target, anchor)
+
+    def get_content_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        """World-space (x0, y0, x1, y1) of what this canvas shows. Override per canvas."""
+        return None
+
+    def fit_to_content(self, margin_px: int = 24) -> None:
+        bounds = self.get_content_bounds()
+        size = self.GetClientSize()
+        if bounds and (size.width <= 1 or size.height <= 1):
+            # Not laid out yet (hidden tab): fit once the canvas gets a real size.
+            self._fit_pending = True
+            return
+        self._fit_pending = False
+        if not bounds:
+            self.pan = (0.0, 0.0)
+            self.Refresh(False)
+            return
+        x0, y0, x1, y1 = bounds
+        w = max(1.0, x1 - x0)
+        h = max(1.0, y1 - y0)
+        avail_w = max(1, size.width - 2 * margin_px)
+        avail_h = max(1, size.height - 2 * margin_px)
+        fitting = [z for z in self._zoom_levels() if w * z <= avail_w and h * z <= avail_h]
+        self.zoom = fitting[-1] if fitting else self._zoom_levels()[0]
+        self.pan = (-(x0 + x1) / 2.0, -(y0 + y1) / 2.0)
+        self._notify_zoom()
+        self.Refresh(False)
+
     # --- Drawing Helpers ---
     def _draw_checkerboard(self, dc: wx.DC) -> None:
         size = self.GetClientSize()
         step = 8
         c1 = wx.Colour(60, 60, 60)
         c2 = wx.Colour(80, 80, 80)
-        
+
         b1, b2 = wx.Brush(c1), wx.Brush(c2)
         dc.SetPen(wx.TRANSPARENT_PEN)
-        
+
         # Get screen position of world origin (0, 0)
         ox, oy = self.world_to_screen((0, 0))
-        
-        # Determine the range of tiles that are visible on screen.
-        # Screen coordinate x mapping to world-relative tile index ix: sx = ox + ix * step
-        # Solving for ix at screen 0: ix = (0 - ox) // step
+
+        # Visible tile range (screen x of tile ix is ox + ix * step).
         first_ix = int((0 - ox) // step)
         first_iy = int((0 - oy) // step)
         last_ix = int((size.width - ox) // step)
         last_iy = int((size.height - oy) // step)
-        
+
         for iy in range(first_iy, last_iy + 1):
             sy = int(oy + iy * step)
             for ix in range(first_ix, last_ix + 1):
@@ -109,37 +188,33 @@ class BaseCanvas(wx.Panel):
     def _draw_grid(self, gc: wx.GraphicsContext) -> None:
         if not self.show_grid:
             return
-            
+
         w, h = self.GetClientSize()
-        
-        # Calculate visible grid lines
+
         top_left = self.screen_to_world(wx.Point(0, 0))
         bottom_right = self.screen_to_world(wx.Point(w, h))
-        
+
         left_world = top_left[0]
         top_world = top_left[1]
         right_world = bottom_right[0]
         bottom_world = bottom_right[1]
-        
+
         spacing_x, spacing_y = self.grid_spacing
-        
+
         grid_pen = wx.Pen(wx.Colour(100, 100, 100), width=1, style=wx.PENSTYLE_SOLID)
         gc.SetPen(grid_pen)
 
         # Vertical lines
-        start_x = int((left_world // spacing_x) * spacing_x)
-        current_x = start_x
+        current_x = int((left_world // spacing_x) * spacing_x)
         while current_x <= right_world + spacing_x:
             sx, _ = self.world_to_screen((current_x, 0))
-            # Round to align with pixels
             sx = round(sx)
             if 0 <= sx <= w:
                 gc.StrokeLine(sx, 0, sx, h)
             current_x += spacing_x
 
         # Horizontal lines
-        start_y = int((top_world // spacing_y) * spacing_y)
-        current_y = start_y
+        current_y = int((top_world // spacing_y) * spacing_y)
         while current_y <= bottom_world + spacing_y:
             _, sy = self.world_to_screen((0, current_y))
             sy = round(sy)
@@ -151,7 +226,6 @@ class BaseCanvas(wx.Panel):
         axis_pen = wx.Pen(wx.Colour(200, 200, 200, 100), width=2)
         gc.SetPen(axis_pen)
         cx, cy = self.world_to_screen((0, 0))
-        # Draw infinite axes? Just current screen view
         gc.StrokeLine(0, round(cy), w, round(cy))
         gc.StrokeLine(round(cx), 0, round(cx), h)
 
@@ -162,82 +236,66 @@ class BaseCanvas(wx.Panel):
     # --- Interaction ---
     def on_mousewheel(self, event: wx.MouseEvent) -> None:
         if event.LeftIsDown() or event.MiddleIsDown() or event.RightIsDown():
-             return
-
-        # Accumulate rotation to handle high-res trackpads
-        self._wheel_accumulator += event.GetWheelRotation()
-        
-        # Threshold for zoom step. 
-        # Standard mouse is 120 per notch. Trackpads can send tiny amounts.
-        # We process in chunks to avoid jitter.
-        step_size = 10 # Smaller than 120 to be responsive, but large enough to eat jitter
-        
-        if abs(self._wheel_accumulator) < step_size:
             return
-            
-        steps = int(self._wheel_accumulator / step_size)
-        remainder = self._wheel_accumulator % step_size
-        
-        # Keep the sign of remainder consistent with accumulator if simple modulo fails logic
-        # Actually simple truncation is fine, we just update accumulator to remainder
-        self._wheel_accumulator -= (steps * step_size)
-        
-        # Avoid huge jumps if events stacked up
-        steps = max(-5, min(5, steps))
-        
-        if steps == 0:
+        rotation = event.GetWheelRotation()
+        if rotation == 0:
             return
 
-        factor = 1.1 ** steps # Exponential zoom for multiple steps
-        now = time.monotonic()
-        max_zoom = self.max_zoom
-        min_zoom = 1.0
-
-        # Bounce protection logic
-        # We use 'steps' as proxy for rotation direction
-        if steps > 0 and self.zoom >= max_zoom - 1e-5:
-            self._last_clamp_time = now
-            self._last_clamp_dir = 1
-            return
-        if steps < 0 and self.zoom <= min_zoom + 1e-5:
-            self._last_clamp_time = now
-            self._last_clamp_dir = -1
-            return
-        if self._last_clamp_dir == 1 and steps < 0 and (now - self._last_clamp_time) < 0.2:
-            return
-        if self._last_clamp_dir == -1 and steps > 0 and (now - self._last_clamp_time) < 0.2:
+        horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
+        if horizontal or event.ShiftDown() or event.AltDown():
+            # Pan: one notch moves ~48 screen pixels.
+            delta_px = (rotation / 120.0) * 48.0
+            if horizontal:
+                delta_px = -delta_px
+            if horizontal or event.ShiftDown():
+                self.pan = (self.pan[0] + delta_px / self.zoom, self.pan[1])
+            else:
+                self.pan = (self.pan[0], self.pan[1] + delta_px / self.zoom)
+            self.Refresh(False)
             return
 
-
-        old_zoom = self.zoom
-        new_zoom = max(min_zoom, min(max_zoom, self.zoom * factor))
-        if abs(new_zoom - old_zoom) < 1e-6:
+        # Zoom: accumulate small trackpad deltas, one integer level per step.
+        self._wheel_accumulator += rotation
+        if abs(self._wheel_accumulator) < WHEEL_UNITS_PER_STEP:
             return
+        direction = 1 if self._wheel_accumulator > 0 else -1
+        self._wheel_accumulator = 0
+        self.zoom_step(direction, anchor=event.GetPosition())
 
-        mouse_pos = event.GetPosition()
-        world_before = self.screen_to_world(mouse_pos)
-        self.zoom = new_zoom
-        
-        # Adjust pan to zoom towards mouse
-        cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
-        self.pan = (
-            (mouse_pos.x - cx) / new_zoom - world_before[0],
-            (mouse_pos.y - cy) / new_zoom - world_before[1],
-        )
-        
-            
-        self.Refresh(False)
+    def on_magnify(self, event) -> None:
+        self._magnify_accumulator += event.GetMagnification()
+        if abs(self._magnify_accumulator) < 0.15:
+            return
+        direction = 1 if self._magnify_accumulator > 0 else -1
+        self._magnify_accumulator = 0.0
+        self.zoom_step(direction, anchor=event.GetPosition())
+
+    def _space_held(self) -> bool:
+        try:
+            return bool(wx.GetKeyState(wx.WXK_SPACE))
+        except Exception:
+            return False
+
+    def begin_pan_if_requested(self, event: wx.MouseEvent) -> bool:
+        """Start panning for Space+drag, Alt+drag or middle-drag. Returns True if panning started."""
+        if event.MiddleDown() or event.AltDown() or self._space_held():
+            self.on_pan_start(event)
+            return True
+        return False
 
     def on_pan_start(self, event: wx.MouseEvent) -> None:
+        self.SetFocus()
         self._panning = True
         self._start = event.GetPosition()
-        self.CaptureMouse()
+        self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        if not self.HasCapture():
+            self.CaptureMouse()
 
     def on_pan_end(self, _: wx.MouseEvent) -> None:
         if self.HasCapture():
             self.ReleaseMouse()
         self._panning = False
-        self._panning_alt = False
+        self.SetCursor(wx.NullCursor)
 
     def handle_pan_motion(self, event: wx.MouseEvent) -> bool:
         """Helper for mouse move. Returns True if handled (panning)."""
@@ -250,3 +308,19 @@ class BaseCanvas(wx.Panel):
             self.Refresh(False)
             return True
         return False
+
+    def _on_base_size(self, event: wx.SizeEvent) -> None:
+        event.Skip()
+        size = event.GetSize()
+        if self._fit_pending and size.width > 1 and size.height > 1:
+            wx.CallAfter(self.fit_to_content)
+        self.Refresh(False)
+
+    def _on_capture_lost(self, _event: wx.MouseCaptureLostEvent) -> None:
+        self._panning = False
+
+    def _on_base_key_down(self, event: wx.KeyEvent) -> None:
+        # Space is the pan modifier: swallow it so it does not beep.
+        if event.GetKeyCode() == wx.WXK_SPACE:
+            return
+        event.Skip()
