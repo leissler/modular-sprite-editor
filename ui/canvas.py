@@ -24,6 +24,15 @@ GHOST_REFERENCE = (1.0, 1.0, 1.0, 0.35)
 SCALED_CACHE_PIXEL_BUDGET = 24_000_000
 
 
+def _orthogonal_cos_sin(degrees: float) -> Tuple[float, float]:
+    """cos/sin with exact values at 90° steps (avoids off-by-one pixels from float residue)."""
+    quarter = float(degrees) / 90.0
+    if abs(quarter - round(quarter)) < 1e-9:
+        return ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[int(round(quarter)) % 4]
+    rad = math.radians(float(degrees))
+    return math.cos(rad), math.sin(rad)
+
+
 def _mask_to_alpha(img: wx.Image) -> wx.Image:
     """Fold a mask colour into the alpha channel (tinting would otherwise un-mask it)."""
     if not img.HasMask():
@@ -356,9 +365,12 @@ class FrameCanvas(BaseCanvas):
                      target_w, target_h = int(round(w)), int(round(h))
                      if target_w > 0 and target_h > 0:
                          # Combine local flip with frame-level flip; pixel-perfect 90° steps.
+                         # A mirrored frame transform reverses the direction of the part's rotation.
                          final_flip_x = fm.flip_x ^ self.render_flip_x
                          final_flip_y = fm.flip_y ^ self.render_flip_y
-                         rot = int(fm.rotation_degrees + self.render_rotation) % 360
+                         frame_mirrored = self.render_flip_x ^ self.render_flip_y
+                         part_rot = -fm.rotation_degrees if frame_mirrored else fm.rotation_degrees
+                         rot = int(round(part_rot + self.render_rotation)) % 360
                          cache_key = (
                              self._module_bitmap_key(mod), final_flip_x, final_flip_y, rot,
                              target_w, target_h, self._ghost_style,
@@ -391,113 +403,49 @@ class FrameCanvas(BaseCanvas):
         elif fm.ref_type == "frame":
              ref_frame = self.project.get_frame(fm.ref_id)
              if ref_frame:
-                 # Parent Transform Props
+                 # A nested frame is a geometric transform (flip, then rotate) about its anchor.
+                 # Each child is re-expressed as a part of this frame with the combined
+                 # transform, placed so its bounds land where the transformed child bounds are
+                 # (the same rule _fmodule_bounds and hit-testing use).
                  p_flip_x = fm.flip_x
                  p_flip_y = fm.flip_y
                  p_rot = fm.rotation_degrees
                  p_pos_x, p_pos_y = fm.position
-                 
-                 # Prepare Rotation Math
-                 rad = math.radians(p_rot)
-                 cos_a = math.cos(rad)
-                 sin_a = math.sin(rad)
-                 
+                 cos_a, sin_a = _orthogonal_cos_sin(p_rot)
+                 is_parent_flipped = p_flip_x ^ p_flip_y
+
                  for child_fm in ref_frame.fmodules:
-                    # Logic matches _fmodule_bounds transformation to ensure consistency
-                    
-                    # 1. Get Child Basics
-                    cx, cy = child_fm.position
-                    cw, ch = 32, 32
-                    piv_x, piv_y = 0, 0
-                    
-                    if child_fm.ref_type == "module":
-                        m = self.project.get_module(child_fm.ref_id)
-                        if m:
-                            cw, ch = m.rect[2], m.rect[3]
-                            piv_x, piv_y = m.pivot
-                            
-                    # 2. Derive Child Corners (Relative to Child Position)
-                    # Used to determine where the object SHOULD land
-                    corners = [
-                        (-piv_x, -piv_y),
-                        (cw - piv_x, -piv_y),
-                        (-piv_x, ch - piv_y),
-                        (cw - piv_x, ch - piv_y)
-                    ]
-                    
-                    # 3. Transform Corners (Parent Flip -> Rotate)
-                    ts_corners = []
-                    for lx, ly in corners:
-                        # Add Child Pos
-                        pcx = lx + cx
-                        pcy = ly + cy
-                        
-                        # Flip
-                        if p_flip_x: pcx = -pcx
-                        if p_flip_y: pcy = -pcy
-                        
-                        # Rotate
-                        rcx = pcx * cos_a - pcy * sin_a
-                        rcy = pcx * sin_a + pcy * cos_a
-                        
-                        ts_corners.append((rcx, rcy))
-                        
-                    # 4. Find Target AABB Top-Left (Relative to Parent Origin)
-                    target_min_x = min(p[0] for p in ts_corners)
-                    target_min_y = min(p[1] for p in ts_corners)
-                    
-                    # 5. Determine Child's Local Min X/Y (Relative to its own Anchor) in its New Orientation
-                    # We need to calculate what _fmodule_bounds(temp_fm) would return as the Local Top-Left (relative to its position).
-                    # 'local_min' = min(transformed_corners) relative to anchor.
-                    
-                    is_parent_flipped = (p_flip_x ^ p_flip_y)
+                    cx0, cy0, cx1, cy1 = self._fmodule_bounds(child_fm)
+                    ts_x: List[float] = []
+                    ts_y: List[float] = []
+                    for px, py in ((cx0, cy0), (cx1, cy0), (cx0, cy1), (cx1, cy1)):
+                        if p_flip_x:
+                            px = -px
+                        if p_flip_y:
+                            py = -py
+                        ts_x.append(px * cos_a - py * sin_a)
+                        ts_y.append(px * sin_a + py * cos_a)
+
                     child_rot = child_fm.rotation_degrees
                     final_rot = p_rot + (-child_rot if is_parent_flipped else child_rot)
                     final_flip_x = child_fm.flip_x ^ p_flip_x
                     final_flip_y = child_fm.flip_y ^ p_flip_y
-                    
-                    # Simulate Local Bounds calculation (simulating _fmodule_bounds logic for Module)
-                    # Base corners relative to anchor (0,0)
-                    local_corners = [
-                        (-piv_x, -piv_y),
-                        (cw - piv_x, -piv_y),
-                        (-piv_x, ch - piv_y),
-                        (cw - piv_x, ch - piv_y)
-                    ]
-                    
-                    # Note: We reverted Flip adjustment in _fmodule_bounds for modules, so we do NOT apply flip to corners here.
-                    # Just rotation.
-                    
-                    lrad = math.radians(final_rot)
-                    lcos = math.cos(lrad)
-                    lsin = math.sin(lrad)
-                    
-                    local_transformed = []
-                    for lcx, lcy in local_corners:
-                        lrx = lcx * lcos - lcy * lsin
-                        lry = lcx * lsin + lcy * lcos
-                        local_transformed.append((lrx, lry))
-                        
-                    local_min_x = min(p[0] for p in local_transformed)
-                    local_min_y = min(p[1] for p in local_transformed)
-                    
-                    # 6. Calculate Anchor Position
-                    # We want: (Anchor + local_min) = target_min
-                    # So: Anchor = target_min - local_min
-                    
-                    nx = p_pos_x + target_min_x - local_min_x
-                    ny = p_pos_y + target_min_y - local_min_y
-                    
-                    temp_fm = FModule(
+
+                    probe = FModule(
                         id="temp",
                         ref_type=child_fm.ref_type,
                         ref_id=child_fm.ref_id,
-                        position=(int(nx), int(ny)),
+                        position=(0, 0),
                         flip_x=final_flip_x,
                         flip_y=final_flip_y,
-                        rotation_degrees=final_rot
+                        rotation_degrees=final_rot,
                     )
-                    self._draw_fmodule_content(gc, temp_fm, depth + 1)
+                    local_min_x, local_min_y, _x1, _y1 = self._fmodule_bounds(probe)
+                    probe.position = (
+                        int(round(p_pos_x + min(ts_x) - local_min_x)),
+                        int(round(p_pos_y + min(ts_y) - local_min_y)),
+                    )
+                    self._draw_fmodule_content(gc, probe, depth + 1)
 
     def _draw_fmodule_overlay(self, gc: wx.GraphicsContext, fm: FModule) -> None:
         bounds = self._fmodule_bounds(fm)
@@ -951,9 +899,7 @@ class FrameCanvas(BaseCanvas):
             test_x = local_pt[0] - fm.position[0]
             test_y = local_pt[1] - fm.position[1]
 
-            rad = math.radians(-float(fm.rotation_degrees))
-            cos_a = math.cos(rad)
-            sin_a = math.sin(rad)
+            cos_a, sin_a = _orthogonal_cos_sin(-float(fm.rotation_degrees))
             rot_x = test_x * cos_a - test_y * sin_a
             rot_y = test_x * sin_a + test_y * cos_a
 
@@ -1093,9 +1039,7 @@ class FrameCanvas(BaseCanvas):
                 ]
                 
                 # Apply Rotation
-                rad = math.radians(fm.rotation_degrees)
-                cos_a = math.cos(rad)
-                sin_a = math.sin(rad)
+                cos_a, sin_a = _orthogonal_cos_sin(fm.rotation_degrees)
                 
                 final_points = []
                 for cx, cy in corners:
@@ -1121,11 +1065,8 @@ class FrameCanvas(BaseCanvas):
                 p_flip_x = fm.flip_x
                 p_flip_y = fm.flip_y
                 p_rot = fm.rotation_degrees
-                
-                rad = math.radians(p_rot)
-                cos_a = math.cos(rad)
-                sin_a = math.sin(rad)
-                
+                cos_a, sin_a = _orthogonal_cos_sin(p_rot)
+
                 min_x, min_y, max_x, max_y = 0, 0, 0, 0
                 first = True
                 
