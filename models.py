@@ -1808,6 +1808,12 @@ class RetroAnimatorExporter:
 
     @staticmethod
     def _rotation_matrix(degrees: float) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        # Exact values for 90° steps: float residue (cos 90° = 6e-17) would otherwise shift
+        # floor()-based part bounds by a pixel once nested transforms are composed.
+        quarter = float(degrees) / 90.0
+        if abs(quarter - round(quarter)) < 1e-9:
+            c, s = ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[int(round(quarter)) % 4]
+            return ((c, -s), (s, c))
         rad = math.radians(float(degrees))
         c = math.cos(rad)
         s = math.sin(rad)
@@ -2018,11 +2024,22 @@ class RetroAnimatorExporter:
                 float,
                 bool,
                 bool,
+                bool,
+                bool,
             ]
         ],
         depth: int,
         stack: set[str],
     ) -> None:
+        """
+        Flatten a frame into leaf module instances.
+
+        Each entry is (module, matrix, anchor, rotation, flip_x, flip_y, local_flip_x, local_flip_y).
+        Matches the editor canvas: a part's own flip mirrors the module image in place (about the
+        texture centre, bounds unchanged), so it is *not* part of the matrix; the renderer mirrors the
+        texture first. Flips of nested frames and animation steps are geometric mirrors and stay in
+        the matrix.
+        """
         if depth > 48:
             return
         frame = project.get_frame(frame_id)
@@ -2031,10 +2048,15 @@ class RetroAnimatorExporter:
 
         stack.add(frame_id)
         for fm in frame.fmodules:
-            local_a = RetroAnimatorExporter._mat_mul(
-                RetroAnimatorExporter._rotation_matrix(float(getattr(fm, "rotation_degrees", 0.0))),
-                RetroAnimatorExporter._flip_matrix(bool(getattr(fm, "flip_x", False)), bool(getattr(fm, "flip_y", False))),
-            )
+            local_flip_x = bool(getattr(fm, "flip_x", False))
+            local_flip_y = bool(getattr(fm, "flip_y", False))
+            rot_a = RetroAnimatorExporter._rotation_matrix(float(getattr(fm, "rotation_degrees", 0.0)))
+            if fm.ref_type == "frame":
+                local_a = RetroAnimatorExporter._mat_mul(
+                    rot_a, RetroAnimatorExporter._flip_matrix(local_flip_x, local_flip_y)
+                )
+            else:
+                local_a = rot_a
             local_b = (float(fm.position[0]), float(fm.position[1]))
             a_next, b_next = RetroAnimatorExporter._compose(parent_a, parent_b, local_a, local_b)
             local_rot = float(getattr(fm, "rotation_degrees", 0.0))
@@ -2046,7 +2068,9 @@ class RetroAnimatorExporter:
             if fm.ref_type == "module":
                 mod = RetroAnimatorExporter._resolve_module(project, fm.ref_id, mapping)
                 if mod:
-                    out.append((mod, a_next, b_next, rot_next, flip_x_next, flip_y_next))
+                    out.append(
+                        (mod, a_next, b_next, rot_next, flip_x_next, flip_y_next, local_flip_x, local_flip_y)
+                    )
             elif fm.ref_type == "frame":
                 RetroAnimatorExporter._collect_leaf_instances(
                     project=project,
@@ -2108,6 +2132,8 @@ class RetroAnimatorExporter:
                 float,
                 bool,
                 bool,
+                bool,
+                bool,
             ]
         ] = []
         RetroAnimatorExporter._collect_leaf_instances(
@@ -2130,8 +2156,9 @@ class RetroAnimatorExporter:
         global_max_x = float("-inf")
         global_max_y = float("-inf")
 
-        for mod, a_mat, b_vec, rot_deg, flip_x, flip_y in instances:
+        for mod, a_mat, b_vec, rot_deg, flip_x, flip_y, local_flip_x, local_flip_y in instances:
             base = RetroAnimatorExporter._load_module_rgba(project, mod, full_image_cache, module_cache)
+            base = RetroAnimatorExporter._mirror_in_place(base, local_flip_x, local_flip_y)
             w, h = base.size
             if w <= 0 or h <= 0:
                 continue
@@ -2211,6 +2238,16 @@ class RetroAnimatorExporter:
         return image, handle_x, handle_y, transformed_collisions
 
     @staticmethod
+    def _mirror_in_place(img: Any, flip_x: bool, flip_y: bool) -> Any:
+        from PIL import Image as PILImage
+
+        if flip_x:
+            img = img.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
+        if flip_y:
+            img = img.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
+        return img
+
+    @staticmethod
     def _module_handle_for_rotation(
         mod: "Module",
         anchor: Tuple[float, float],
@@ -2253,16 +2290,18 @@ class RetroAnimatorExporter:
         flip_y: bool,
         full_image_cache: Dict[str, Any],
         module_cache: Dict[str, Any],
+        local_flip_x: bool = False,
+        local_flip_y: bool = False,
     ) -> Optional[Tuple[Any, int, int]]:
         from PIL import Image as PILImage
 
         base = RetroAnimatorExporter._load_module_rgba(project, mod, full_image_cache, module_cache)
+        # The part's own flip is an in-place mirror of the module image (editor semantics);
+        # everything else (rotation, nested/animation flips) is on the affine path below.
+        base = RetroAnimatorExporter._mirror_in_place(base, local_flip_x, local_flip_y)
         w, h = base.size
         if w <= 0 or h <= 0:
             return None
-
-        # Keep all transforms on the same affine path so handle placement remains
-        # consistent for mirrored + orthogonal rotations.
 
         piv = (float(mod.pivot[0]), float(mod.pivot[1]))
         ap = RetroAnimatorExporter._mat_vec_mul(a_mat, piv)
@@ -2591,6 +2630,8 @@ class RetroAnimatorExporter:
                     float,
                     bool,
                     bool,
+                    bool,
+                    bool,
                 ]
             ] = []
             RetroAnimatorExporter._collect_leaf_instances(
@@ -2608,7 +2649,7 @@ class RetroAnimatorExporter:
             )
 
             sprites_json: List[Dict[str, Any]] = []
-            for idx, (mod, a_mat, b_vec, rot_deg, flip_x, flip_y) in enumerate(instances):
+            for idx, (mod, a_mat, b_vec, rot_deg, flip_x, flip_y, local_flip_x, local_flip_y) in enumerate(instances):
                 rendered = RetroAnimatorExporter._render_transformed_instance(
                     project=project,
                     mod=mod,
@@ -2619,6 +2660,8 @@ class RetroAnimatorExporter:
                     flip_y=flip_y,
                     full_image_cache=full_image_cache,
                     module_cache=module_cache,
+                    local_flip_x=local_flip_x,
+                    local_flip_y=local_flip_y,
                 )
                 if not rendered:
                     continue

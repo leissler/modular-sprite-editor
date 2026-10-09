@@ -81,11 +81,11 @@ not implemented yet.
 
 ## 7. Recommended next steps (not done in this pass)
 
-* **Decide the flip semantics.** Since commit `a50b12f` the RetroAnimator exporter mirrors a flipped part
-  around its pivot, while the editor canvas and the SGDK exporter mirror it in place (bounding box unchanged).
-  For parts with an off-centre pivot the RetroAnimator export is shifted relative to what the editor shows;
-  `tests/test_export_retro_animator.py::test_export_bakes_flip_without_displacing_handle` fails because of it.
-  Pick one rule, then align canvas, both exporters and the test.
+* ~~Decide the flip semantics.~~ **Resolved:** in-place part flips (editor behaviour) are canonical. The
+  RetroAnimator exporter was fixed (it mirrored around the pivot since `a50b12f`, displacing 546 flipped parts
+  in 189 PoP_WW frames). The parity check also exposed two canvas bugs, now fixed: rotated children of nested
+  frames were drawn away from their hit-test bounds, and mirrored animation steps / mirror preview rotated
+  parts the wrong way. `tools/check_export_parity.py` keeps export and canvas pixel-identical.
 
 * **One shared compositor** (`Project`-level, PIL based) used by thumbnails, GIF export, onion skin and the
   RetroAnimator/SGDK exporters so nested frames, rotation, shapes and mappings render identically everywhere (X17).

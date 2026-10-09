@@ -26,15 +26,13 @@ pip install -r requirements.txt          # wxPython, Pillow, pyinstaller (Python
 python3 app.py [project.json]            # optional project path opens it on start
 python3 -m pytest -q                     # unit tests (no display needed)
 python3 tools/gui_smoke.py [project]     # drives the real window (needs a display); default PoP_WW
+python3 tools/check_export_parity.py PROJECT...   # RetroAnimator export vs editor canvas, pixel-exact
 python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project files to the current format
 ./build_macos.sh | ./build_linux.sh | build_windows.bat     # PyInstaller builds
 ```
 
-Known pre-existing test failures (do not "fix" by editing the assertion without a decision):
-- `test_import_aurora.py` (repo root, stale): expects Aurora image ids to be file names; ids are generated on purpose.
-- `tests/test_export_retro_animator.py::test_export_bakes_flip_without_displacing_handle`: since `a50b12f`
-  the RetroAnimator exporter mirrors flipped parts around the pivot, while the editor canvas (and the SGDK
-  exporter) mirror in place. Open design question — see `docs/UX_AUDIT.md` §7.
+Known pre-existing test failure: `test_import_aurora.py` (repo root, stale) expects Aurora image ids to be
+file names; ids are generated on purpose.
 
 ## Layout
 
@@ -130,6 +128,17 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - Code style follows the surrounding code: type hints, `Optional[...]`, small helpers, comments only where
   they explain intent. No new dependencies without discussion.
 
+## Transform semantics (canonical — the editor canvas is the reference)
+
+- **Part flip** (`FModule.flip_x/y` on a module): mirrors the module image *in place* — the part's bounds do
+  not move, regardless of where the pivot is.
+- **Part rotation**: about the pivot, 90° steps (use exact cos/sin at 90° multiples, never raw `math.cos`).
+- **Nested frame part, animation step, mirror preview, timeline object**: geometric transform about the
+  anchor/origin — flip first, then rotate. A mirrored parent (odd number of flips) reverses the direction of
+  its children's rotation (`final_rot = parent_rot - child_rot`).
+- `tools/check_export_parity.py` and `tests/test_export_canvas_parity.py` render with the real canvas code and
+  compare against the RetroAnimator export pixel by pixel; run them after touching any transform code.
+
 ## Rendering paths (keep consistent)
 
 | Path | Where | Nested frames | Rotation | Shapes | Mapping |
@@ -137,7 +146,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 | Frame/animation/timeline canvas | `ui/canvas.py` | yes | 90° steps | yes | yes |
 | Thumbnails (palettes, strip, mappings) | `ui/utils.py` `ThumbnailGenerator` | **no** | frame-level only | yes | yes |
 | GIF export | `AnimationEditorPanel.on_export_gif` | **no** | **no** | **no** | **no** |
-| RetroAnimator export | `RetroAnimatorExporter` | yes | any (affine) | yes | yes (flip around pivot!) |
+| RetroAnimator export | `RetroAnimatorExporter` | yes | any (affine) | yes | yes |
 | SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
 
 Unifying these on one compositor is the top technical-debt item (`docs/UX_AUDIT.md` X17).

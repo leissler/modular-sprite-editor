@@ -65,7 +65,8 @@ load to identical projects before and after.
      "fmodules": [
        {"id": "fmod_…", "ref_type": "module",            // or "frame" (nested frame)
         "ref_id": "mod_…", "position": [x, y],           // where the pivot lands, frame space
-        "flip_x": false, "flip_y": false, "rotation_degrees": 0.0}
+        "flip_x": false, "flip_y": false,                // module: mirror in place; frame: mirror about position
+        "rotation_degrees": 0.0}                          // about the pivot / position, 90° steps
      ],
      "collision_rects": [{"id": "crect_…", "type_id": "ctype_…", "rect": [x, y, w, h], "role": "hurt"}],
      "control_points":  [{"id": "pt_…", "type_id": "ptype_…", "x": 0, "y": 0, "role": "hand"}]}

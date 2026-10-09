@@ -41,8 +41,8 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
    palette/line a part uses, cannot preview palette swaps (Mega Drive: 4 lines × 16 colours) and has no palette
    cycling.
 5. **Previews disagree.** Thumbnails, the frame strip and GIF export ignore nested frames and per-part rotation
-   (GIF also ignores shapes and mappings), and the RetroAnimator exporter flips around the pivot while the
-   editor and SGDK flip in place (see the failing export test).
+   (GIF also ignores shapes and mappings). The canvas and the RetroAnimator export now agree pixel-exactly
+   (`tools/check_export_parity.py`).
 6. **Timing UX.** All strip cells are equal width, so holds are only shown as a number; durations can't be dragged;
    no 50/60 Hz (PAL/NTSC) preview switch; per-step rotation has no direct control.
 7. **No sprite-sheet / engine export** beyond RetroAnimator and SGDK (Aseprite JSON, Godot/Unity sheets), and no
@@ -78,8 +78,8 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 ### 5. One compositor for all previews and exports (correctness)
 - Extract a `render_frame(project, frame, mapping, transform) -> PIL.Image + handle` from
-  `RetroAnimatorExporter._render_frame_variant` once the flip semantics are decided (in place vs. around pivot),
-  and use it for thumbnails, the frame strip, GIF export, onion-skin bakes and both exporters.
+  `RetroAnimatorExporter._render_frame_variant` (now verified against the canvas) and use it for thumbnails,
+  the frame strip, GIF export, onion-skin bakes and both exporters.
 
 ### 6. Palette awareness (high value for MD/SNES, larger effort)
 - Show the per-part palette line (derived from source colours or assigned), warn on parts that need >16 colours,
