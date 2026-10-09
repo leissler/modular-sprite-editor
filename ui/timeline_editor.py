@@ -1388,7 +1388,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         # - Shift+Wheel / sideways trackpad swipe pans horizontally
         # - Alt+Wheel keeps native vertical row scrolling behavior
         horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
-        if not self._wheel_filter.accept(horizontal, event.GetWheelRotation()):
+        if not self._wheel_filter.accept(horizontal, event.GetWheelRotation(), wheel_delta=event.GetWheelDelta()):
             return
         if horizontal:
             # Same direction as the canvases' sideways pan.

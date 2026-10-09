@@ -216,7 +216,9 @@ class MainFrame(wx.Frame):
         self.status_bar.SetStatusText(message, 0)
 
     def set_zoom_status(self, zoom: float) -> None:
-        self.status_bar.SetStatusText(f"Zoom {zoom:g}×", 1)
+        # Fractional values only show while a smooth zoom gesture is running.
+        text = f"{zoom:.0f}" if abs(zoom - round(zoom)) < 1e-6 else f"{zoom:.2f}".rstrip("0").rstrip(".")
+        self.status_bar.SetStatusText(f"Zoom {text}×", 1)
 
     def _current_tab_name(self) -> str:
         idx = self.book.GetSelection()

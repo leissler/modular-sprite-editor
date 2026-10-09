@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import time
 from typing import Optional, Tuple
 import wx
@@ -8,8 +9,43 @@ from ui import app_services
 # Integer levels keep every source pixel the same size on screen (nearest-neighbour scaling).
 ZOOM_LEVELS = (0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 32.0)
 
-# Wheel rotation units per zoom level. A mouse notch is 120; trackpads send small deltas.
-WHEEL_UNITS_PER_STEP = 40
+# Smooth wheel zoom: x1.1 per mouse notch (rotation is normalised by the platform's wheel
+# delta: 120 on Windows/GTK, 10 on macOS, where trackpads send small precise deltas).
+WHEEL_ZOOM_PER_NOTCH = math.log(1.1)
+MAX_ZOOM_FACTOR_PER_EVENT = 1.6
+# Pause after the last wheel/pinch event before the zoom snaps to an integer level.
+ZOOM_SNAP_DELAY_MS = 180
+# A gesture that changed the zoom by more than this always ends at least one level away.
+MIN_DELIBERATE_ZOOM = math.log(1.02)
+
+
+def wheel_zoom_factor(rotation: float, wheel_delta: float = 120.0) -> float:
+    """Continuous zoom factor for one wheel event."""
+    notches = float(rotation) / max(1.0, float(wheel_delta))
+    limit = math.log(MAX_ZOOM_FACTOR_PER_EVENT)
+    return math.exp(max(-limit, min(limit, notches * WHEEL_ZOOM_PER_NOTCH)))
+
+
+def nearest_zoom_level(zoom: float, levels) -> float:
+    """Closest level on a logarithmic scale (3.4 -> 3, 3.6 -> 4, 0.7 -> 0.5 or 1)."""
+    target = math.log(max(1e-6, float(zoom)))
+    return min(levels, key=lambda level: abs(math.log(level) - target))
+
+
+def snap_zoom_level(zoom: float, gesture_start: float, levels) -> float:
+    """
+    Level to settle on when a zoom gesture stops: the nearest level, but a deliberate gesture
+    (e.g. a single mouse notch, only x1.1) never snaps back to the level it started from.
+    """
+    target = nearest_zoom_level(zoom, levels)
+    start_level = nearest_zoom_level(gesture_start, levels)
+    moved = math.log(max(1e-6, float(zoom))) - math.log(max(1e-6, float(gesture_start)))
+    if target == start_level and abs(moved) > MIN_DELIBERATE_ZOOM:
+        ordered = sorted(levels)
+        idx = ordered.index(start_level)
+        idx = min(len(ordered) - 1, idx + 1) if moved > 0 else max(0, idx - 1)
+        target = ordered[idx]
+    return target
 
 
 class WheelGestureFilter:
@@ -18,8 +54,8 @@ class WheelGestureFilter:
 
     Two-finger scrolling on a trackpad emits small sideways events while the fingers move
     vertically (and vertical ones during a sideways swipe). The first events of a gesture decide
-    its axis; events on the other axis are ignored until the gesture pauses. A mouse-wheel notch
-    is large enough to decide immediately.
+    its axis; events on the other axis are ignored until the gesture pauses. A full mouse-wheel
+    notch (``wheel_delta``: 120 on Windows/GTK, 10 on macOS) decides immediately.
     """
 
     GESTURE_GAP_SECONDS = 0.25
@@ -34,7 +70,13 @@ class WheelGestureFilter:
         # True for the first accepted event of a gesture (reset per-gesture accumulators then).
         self.gesture_started = False
 
-    def accept(self, horizontal: bool, rotation: float, now: Optional[float] = None) -> bool:
+    def accept(
+        self,
+        horizontal: bool,
+        rotation: float,
+        now: Optional[float] = None,
+        wheel_delta: Optional[float] = None,
+    ) -> bool:
         """True if this event belongs to the gesture's axis and should be handled."""
         now = time.monotonic() if now is None else float(now)
         if now - self._last_time > self.GESTURE_GAP_SECONDS:
@@ -50,7 +92,10 @@ class WheelGestureFilter:
                 self._acc_h += abs(float(rotation))
             else:
                 self._acc_v += abs(float(rotation))
-            if self._acc_h + self._acc_v < self.DECIDE_UNITS:
+            threshold = self.DECIDE_UNITS
+            if wheel_delta and wheel_delta > 0:
+                threshold = min(threshold, float(wheel_delta))
+            if self._acc_h + self._acc_v < threshold:
                 return False
             self._axis = "h" if self._acc_h > self._acc_v else "v"
         if self._axis != ("h" if horizontal else "v"):
@@ -85,9 +130,10 @@ class BaseCanvas(wx.Panel):
         self.max_zoom: float = 32.0
 
         # Internal Interaction State
-        self._wheel_accumulator = 0
         self._wheel_filter = WheelGestureFilter()
-        self._magnify_accumulator = 0.0
+        self._zoom_snap_call: Optional[wx.CallLater] = None
+        self._zoom_snap_anchor: Optional[wx.Point] = None
+        self._zoom_gesture_start: Optional[float] = None
         self._panning = False
         self._start = wx.Point()
         self._fit_pending = False
@@ -292,10 +338,8 @@ class BaseCanvas(wx.Panel):
             return
 
         horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
-        if not self._wheel_filter.accept(horizontal, rotation):
+        if not self._wheel_filter.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
             return
-        if self._wheel_filter.gesture_started:
-            self._wheel_accumulator = 0
         if horizontal or event.ShiftDown() or event.AltDown():
             # Pan: one notch moves ~48 screen pixels.
             delta_px = (rotation / 120.0) * 48.0
@@ -308,21 +352,37 @@ class BaseCanvas(wx.Panel):
             self.Refresh(False)
             return
 
-        # Zoom: accumulate small trackpad deltas, one integer level per step.
-        self._wheel_accumulator += rotation
-        if abs(self._wheel_accumulator) < WHEEL_UNITS_PER_STEP:
-            return
-        direction = 1 if self._wheel_accumulator > 0 else -1
-        self._wheel_accumulator = 0
-        self.zoom_step(direction, anchor=event.GetPosition())
+        # Zoom smoothly while the gesture runs; snap to an integer level once it stops.
+        self._zoom_smoothly(wheel_zoom_factor(rotation, event.GetWheelDelta()), event.GetPosition())
 
     def on_magnify(self, event) -> None:
-        self._magnify_accumulator += event.GetMagnification()
-        if abs(self._magnify_accumulator) < 0.15:
+        factor = 1.0 + float(event.GetMagnification())
+        if factor > 0.0:
+            self._zoom_smoothly(min(MAX_ZOOM_FACTOR_PER_EVENT, factor), event.GetPosition())
+        if hasattr(event, "IsGestureEnd") and event.IsGestureEnd():
+            self._snap_zoom_now()
+
+    def _zoom_smoothly(self, factor: float, anchor: wx.Point) -> None:
+        if self._zoom_gesture_start is None:
+            self._zoom_gesture_start = self.zoom
+        self.set_zoom_level(self.zoom * factor, anchor)
+        self._zoom_snap_anchor = wx.Point(anchor.x, anchor.y)
+        if self._zoom_snap_call is not None and self._zoom_snap_call.IsRunning():
+            self._zoom_snap_call.Restart(ZOOM_SNAP_DELAY_MS)
+        else:
+            self._zoom_snap_call = wx.CallLater(ZOOM_SNAP_DELAY_MS, self._snap_zoom_now)
+
+    def _snap_zoom_now(self) -> None:
+        if not self:  # canvas destroyed while the snap was pending
             return
-        direction = 1 if self._magnify_accumulator > 0 else -1
-        self._magnify_accumulator = 0.0
-        self.zoom_step(direction, anchor=event.GetPosition())
+        if self._zoom_snap_call is not None and self._zoom_snap_call.IsRunning():
+            self._zoom_snap_call.Stop()
+        self._zoom_snap_call = None
+        start = self._zoom_gesture_start if self._zoom_gesture_start is not None else self.zoom
+        self._zoom_gesture_start = None
+        levels = self._zoom_levels()
+        if levels:
+            self.set_zoom_level(snap_zoom_level(self.zoom, start, levels), self._zoom_snap_anchor)
 
     def _space_held(self) -> bool:
         try:

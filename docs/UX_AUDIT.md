@@ -22,7 +22,7 @@ not implemented yet.
 | X7 | No status bar; editors use ad-hoc labels ("Selection: -", "Pivot: -"). | Inconsistency | done: shared status bar (messages + zoom + hints) |
 | X8 | `File ▸ New` handler exists but is not in the menu; no Edit / View / Help menus; About text shows a literal `\n`. | Missing affordances | done |
 | X9 | **Pan gesture differs per canvas**: Modules = Alt/Middle, Frames = Alt/Middle, Animations = Alt/Ctrl/Middle, Timeline = Alt/Ctrl/Middle, Dopesheet = Space/Middle. | Inconsistency | done: Space+drag, Alt+drag or middle-drag on every canvas |
-| X10 | **Non-integer zoom** (1.1× steps) produces uneven pixel sizes with nearest-neighbour scaling — wrong for pixel art. | Pixel-art fidelity | done: zoom snaps through integer levels (1×…32×) |
+| X10 | **Non-integer zoom** (1.1× steps) produces uneven pixel sizes with nearest-neighbour scaling — wrong for pixel art. | Pixel-art fidelity | done: zoom glides during a wheel/trackpad gesture and snaps to an integer level (1×…32×) when it stops; trackpad gestures are locked to one axis |
 | X11 | No "fit to content" / "reset view". | Navigation | done: View ▸ Fit (Cmd+0) and Actual size (Cmd+1) on every canvas |
 | X12 | Transform shortcuts differ: Frames uses X/Y to flip, Timeline uses H/V and R. | Inconsistency | done: H / V / R / Shift+R everywhere (X/Y kept as aliases in Frames) |
 | X13 | List management buttons differ per tab: `+`/`-`, `Add`/`Del`, `Add`/`Delete`; rename via double-click in some lists only; Delete key works in some lists only. | Inconsistency | done: Add / Duplicate / Delete everywhere, Delete key + double-click rename where lists support it |

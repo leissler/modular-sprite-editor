@@ -1,6 +1,12 @@
 import unittest
 
-from ui.base_canvas import WheelGestureFilter
+from ui.base_canvas import (
+    ZOOM_LEVELS,
+    WheelGestureFilter,
+    nearest_zoom_level,
+    snap_zoom_level,
+    wheel_zoom_factor,
+)
 
 FRAME = 1.0 / 60.0  # trackpads report at display rate
 
@@ -54,12 +60,42 @@ class TestWheelGestureFilter(unittest.TestCase):
         self.assertTrue(filter_.accept(False, 9, now=2 * FRAME))
         self.assertFalse(filter_.gesture_started)
 
+    def test_single_macos_mouse_notch_is_accepted(self):
+        # wxOSX reports a notch as rotation 10 with wheel delta 10.
+        filter_ = WheelGestureFilter()
+        self.assertTrue(filter_.accept(False, 10, now=0.0, wheel_delta=10))
+        self.assertTrue(WheelGestureFilter().accept(False, -120, now=0.0, wheel_delta=120))
+
     def test_axis_is_held_during_momentum(self):
         filter_ = WheelGestureFilter()
         # Strong vertical start, then decaying momentum with occasional sideways jitter.
         events = [(False, 30)] * 3 + [(False, 4), (True, 3)] * 30
         accepted = _run(filter_, events)
         self.assertTrue(all(not horizontal for horizontal, _ in accepted))
+
+
+class TestZoomSnapping(unittest.TestCase):
+    def test_notch_factor_is_platform_independent(self):
+        self.assertAlmostEqual(wheel_zoom_factor(10, 10), wheel_zoom_factor(120, 120))
+        self.assertAlmostEqual(wheel_zoom_factor(10, 10), 1.1)
+        self.assertLessEqual(wheel_zoom_factor(10_000, 10), 1.6 + 1e-9)
+
+    def test_nearest_level_is_logarithmic(self):
+        self.assertEqual(nearest_zoom_level(3.4, ZOOM_LEVELS), 3.0)
+        self.assertEqual(nearest_zoom_level(3.6, ZOOM_LEVELS), 4.0)
+        self.assertEqual(nearest_zoom_level(13.5, ZOOM_LEVELS), 12.0)
+
+    def test_single_notch_moves_exactly_one_level(self):
+        levels = sorted(ZOOM_LEVELS)
+        for i, level in enumerate(levels):
+            up = snap_zoom_level(level * 1.1, level, ZOOM_LEVELS)
+            down = snap_zoom_level(level / 1.1, level, ZOOM_LEVELS)
+            self.assertEqual(up, levels[min(i + 1, len(levels) - 1)])
+            self.assertEqual(down, levels[max(i - 1, 0)])
+
+    def test_overshoot_snaps_to_nearest_and_wiggle_stays(self):
+        self.assertEqual(snap_zoom_level(4.3, 3.0, ZOOM_LEVELS), 4.0)
+        self.assertEqual(snap_zoom_level(4.01, 4.0, ZOOM_LEVELS), 4.0)
 
 
 if __name__ == "__main__":

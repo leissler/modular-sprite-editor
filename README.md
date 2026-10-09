@@ -23,7 +23,7 @@ Construct complex character animations from individual body parts (modules). Def
 
 ### Everywhere
 *   **Project-wide Undo/Redo** for every editor, unsaved-change tracking and a save prompt on close.
-*   **One canvas model**: wheel/pinch zooms in integer pixel steps, Space/Alt/middle-drag pans, `Ctrl+0` fits.
+*   **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag pans, `Ctrl+0` fits.
 *   **Preview mapping selector** above the tabs — the mapping applied to every preview and to exports.
 *   **Filters** on all long lists (modules, frames, animations, palettes).
 
@@ -120,7 +120,7 @@ python3 tools/migrate_projects.py --dry-run DIR   # upgrade project files to the
 | **General** | New / Open / Save / Save As | `Cmd+N` / `Cmd+O` / `Cmd+S` / `Cmd+Shift+S` |
 | | Undo / Redo (all editors) | `Cmd+Z` / `Cmd+Shift+Z` |
 | | Switch tab | `Cmd+1` … `Cmd+5` |
-| **Canvas** | Zoom at cursor | `Mouse Wheel` / trackpad pinch |
+| **Canvas** | Zoom at cursor (settles on whole pixel sizes) | `Mouse Wheel` / two-finger scroll / pinch |
 | | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` |
 | | Fit / Actual pixels / Grid | `Cmd+0` / `Cmd+Shift+0` / `Cmd+G` |
 | **Modules** | Move pivot | `Shift + Drag` |

@@ -15,7 +15,7 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Global", "New / Open / Save / Save As", f"{MOD}+N / {MOD}+O / {MOD}+S / {MOD}+Shift+S"),
     ("Global", "Switch tab", f"{MOD}+1 … {MOD}+5"),
     ("Global", "This help", f"{MOD}+/"),
-    ("Every canvas", "Zoom at cursor (integer pixel steps)", "Mouse wheel / trackpad pinch"),
+    ("Every canvas", "Zoom at cursor (smooth, settles on whole pixel sizes)", "Mouse wheel / two-finger scroll / pinch"),
     ("Every canvas", "Pan", "Space+drag, Alt+drag or middle-drag"),
     ("Every canvas", "Pan horizontally / vertically", "Shift+wheel / Alt+wheel"),
     ("Every canvas", "Zoom in / out", f"{MOD}+= / {MOD}+-"),

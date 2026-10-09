@@ -111,7 +111,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   (`replace_project_contents`), so object references held by panels go stale — always re-fetch by id.
 - **Canvases** subclass `BaseCanvas`. In mouse handlers start with
   `if self.begin_pan_if_requested(event): return` and `if self.handle_pan_motion(event): return`.
-  Implement `get_content_bounds()` for Fit. Use integer zoom levels (`zoom_step`, `set_zoom_level`).
+  Implement `get_content_bounds()` for Fit. Wheel/pinch zoom is continuous during a gesture and snaps to
+  an integer level (`ZOOM_LEVELS`) ~180 ms after it stops (`snap_zoom_level`); `WheelGestureFilter` locks
+  each trackpad gesture to one axis. Programmatic zoom uses `zoom_step` / `set_zoom_level`.
 - **View options** belong in the canvas's `CanvasDisplayControls` (`add_toggle`, `add_control`), not in side
   panels. **Status/hints** go through `app_services.show_status`, not modal dialogs.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`
