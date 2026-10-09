@@ -998,13 +998,15 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.on_select_object: Optional[Callable[[Optional[str]], None]] = None
         self.on_toggle_object: Optional[Callable[[str], None]] = None
         self.on_reparent_object: Optional[Callable[[str, Optional[str]], None]] = None
+        self.on_view_changed: Optional[Callable[[float, float, float], None]] = None
 
         self.left_w = 260
         self.min_left_w = 160
         self.row_h = 24
-        self.frame_w = 18.0
-        self.min_frame_w = 6.0
-        self.max_frame_w = 80.0
+        self.default_frame_w = 18.0
+        self.frame_w = float(self.default_frame_w)
+        self.min_frame_w = 2.0
+        self.max_frame_w = 120.0
         self.header_h = 24
         self.scene_fps = 12
         self.duration_seconds = 10.0
@@ -1027,16 +1029,27 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self._drag_target_parent_id: Optional[str] = None
         self._drag_target_row: Optional[int] = None
         self._drag_target_valid = False
+        self._view_panning = False
+        self._view_pan_with_left = False
+        self._view_pan_start_pos: Optional[wx.Point] = None
+        self._view_pan_start_scroll_x: float = 0.0
 
         self.SetScrollRate(0, self.row_h)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_left_up)
+        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_middle_down)
+        self.Bind(wx.EVT_MIDDLE_UP, self.on_middle_up)
         self.Bind(wx.EVT_MOTION, self.on_motion)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_char_hook)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self.on_capture_lost)
         self.Bind(wx.EVT_SIZE, lambda e: self.Refresh(False))
+
+    def _notify_view_changed(self) -> None:
+        if self.on_view_changed:
+            self.on_view_changed(float(self.scroll_x), float(self._max_scroll_x()), float(self.frame_w))
 
     def set_scene(self, scene: Optional[TimelineScene]) -> None:
         self.scene = scene
@@ -1046,6 +1059,9 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.duration_seconds = scene.duration_seconds if scene else 10.0
         self._update_content_duration_seconds()
         self._update_virtual_size()
+        self.scroll_x = 0.0
+        self._clamp_scroll_x()
+        self._notify_view_changed()
         self.Refresh(False)
 
     def set_rows(self, rows: List[Tuple[TimelineObject, int, bool]], duration_seconds: float, scene_fps: int) -> None:
@@ -1054,15 +1070,32 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.scene_fps = max(1, int(scene_fps))
         self._update_content_duration_seconds()
         self._update_virtual_size()
+        self._clamp_scroll_x()
+        self._notify_view_changed()
         self.Refresh(False)
 
     def set_current_time(self, time_value: float) -> None:
         self.current_time = max(0.0, float(time_value))
+        self.ensure_time_visible(self.current_time, padding_px=max(24.0, float(self.frame_w) * 1.5), refresh=False)
         self.Refresh(False)
 
     def set_selection(self, object_id: Optional[str], key_id: Optional[str]) -> None:
+        old_object_id = self.selected_object_id
+        old_key_id = self.selected_key_id
         self.selected_object_id = object_id
         self.selected_key_id = key_id
+        if key_id and (key_id != old_key_id or object_id != old_object_id):
+            selected_time: Optional[float] = None
+            for obj, _depth, _has_children in self.rows:
+                if obj.id != object_id:
+                    continue
+                for key in obj.keyframes:
+                    if key.id == key_id:
+                        selected_time = float(key.time)
+                        break
+                break
+            if selected_time is not None:
+                self.ensure_time_visible(selected_time, padding_px=max(24.0, float(self.frame_w) * 1.5), refresh=False)
         self.Refresh(False)
 
     def set_collapsed_ids(self, collapsed_ids: set[str]) -> None:
@@ -1129,8 +1162,70 @@ class TimelineDopesheet(wx.ScrolledWindow):
         viewport_w = max(1, self.GetClientSize().width - self.left_w)
         return max(0.0, float(self._content_width() - viewport_w))
 
-    def _clamp_scroll_x(self) -> None:
-        self.scroll_x = max(0.0, min(self.scroll_x, self._max_scroll_x()))
+    def _clamp_scroll_x(self) -> bool:
+        clamped = max(0.0, min(self.scroll_x, self._max_scroll_x()))
+        changed = abs(clamped - self.scroll_x) > 1e-6
+        self.scroll_x = clamped
+        return changed
+
+    def get_horizontal_page_size(self) -> float:
+        return float(max(1, self.GetClientSize().width - self.left_w))
+
+    def get_horizontal_scroll(self) -> float:
+        return float(self.scroll_x)
+
+    def get_max_horizontal_scroll(self) -> float:
+        return float(self._max_scroll_x())
+
+    def get_zoom_percent(self) -> int:
+        return int(round((float(self.frame_w) / max(1e-6, float(self.default_frame_w))) * 100.0))
+
+    def set_horizontal_scroll(self, scroll_x: float, refresh: bool = True) -> bool:
+        clamped = max(0.0, min(float(scroll_x), self._max_scroll_x()))
+        if abs(clamped - self.scroll_x) <= 1e-6:
+            return False
+        self.scroll_x = clamped
+        self._notify_view_changed()
+        if refresh:
+            self.Refresh(False)
+        return True
+
+    def set_zoom_percent(self, percent: float, anchor_x: Optional[float] = None, refresh: bool = True) -> bool:
+        clamped_percent = max(1.0, float(percent))
+        target_frame_w = float(self.default_frame_w) * (clamped_percent / 100.0)
+        return self._set_frame_width(target_frame_w, anchor_x=anchor_x, refresh=refresh)
+
+    def _set_frame_width(self, next_frame_w: float, anchor_x: Optional[float] = None, refresh: bool = True) -> bool:
+        prev_frame_w = float(self.frame_w)
+        clamped = max(float(self.min_frame_w), min(float(self.max_frame_w), float(next_frame_w)))
+        if abs(clamped - prev_frame_w) <= 1e-6:
+            return False
+
+        if anchor_x is None:
+            anchor_x = float(self.left_w + max(0, self.GetClientSize().width - self.left_w) / 2.0)
+        anchor_frames = (float(anchor_x) - float(self.left_w) + float(self.scroll_x)) / max(1e-6, prev_frame_w)
+        self.frame_w = clamped
+        self._update_virtual_size()
+        self.scroll_x = anchor_frames * float(self.frame_w) - (float(anchor_x) - float(self.left_w))
+        self._clamp_scroll_x()
+        self._notify_view_changed()
+        if refresh:
+            self.Refresh(False)
+        return True
+
+    def ensure_time_visible(self, time_value: float, padding_px: float = 24.0, refresh: bool = True) -> bool:
+        key_x = float(self.left_w + self._time_x(float(time_value)) - self.scroll_x)
+        viewport_left = float(self.left_w) + float(padding_px)
+        viewport_right = float(max(self.left_w + 1, self.GetClientSize().width - 1)) - float(padding_px)
+        if key_x < viewport_left:
+            new_scroll = float(self._time_x(float(time_value))) - float(padding_px)
+            return self.set_horizontal_scroll(new_scroll, refresh=refresh)
+        if key_x > viewport_right:
+            new_scroll = float(self._time_x(float(time_value))) - (
+                float(max(self.left_w + 1, self.GetClientSize().width - 1) - self.left_w) - float(padding_px)
+            )
+            return self.set_horizontal_scroll(new_scroll, refresh=refresh)
+        return False
 
     def _disclosure_rect(self, row: int, depth: int) -> wx.Rect:
         y = self.header_h + row * self.row_h
@@ -1152,6 +1247,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self.left_w = new_width
         self._update_virtual_size()
         self._clamp_scroll_x()
+        self._notify_view_changed()
         self.Refresh(False)
 
     def _playhead_x(self) -> int:
@@ -1183,12 +1279,33 @@ class TimelineDopesheet(wx.ScrolledWindow):
         return near_top or near_bottom
 
     def _update_cursor(self, pos: wx.Point) -> None:
-        if self._resizing_divider or self._divider_hit_test(pos):
+        if self._view_panning or (wx.GetKeyState(wx.WXK_SPACE) and not self._resizing_divider and not self._dragging_playhead):
+            self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        elif self._resizing_divider or self._divider_hit_test(pos):
             self.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
         elif self._dragging_playhead or self._is_over_playhead_marker(pos):
             self.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
         else:
             self.SetCursor(wx.NullCursor)
+
+    def _start_view_pan(self, pos: wx.Point, with_left: bool) -> None:
+        self._view_panning = True
+        self._view_pan_with_left = bool(with_left)
+        self._view_pan_start_pos = wx.Point(pos.x, pos.y)
+        self._view_pan_start_scroll_x = float(self.scroll_x)
+        if not self.HasCapture():
+            self.CaptureMouse()
+        self._update_cursor(pos)
+
+    def _stop_view_pan(self, pos: Optional[wx.Point] = None) -> None:
+        self._view_panning = False
+        self._view_pan_with_left = False
+        self._view_pan_start_pos = None
+        if self.HasCapture() and not self._resizing_divider and not self._dragging_playhead and not self._drag_track_active:
+            self.ReleaseMouse()
+        if pos is None:
+            pos = wx.Point(0, 0)
+        self._update_cursor(pos)
 
     def _tick_kind(self, frame_idx: int) -> str:
         if self.ruler_mode == RULER_MODE_TIME:
@@ -1233,11 +1350,15 @@ class TimelineDopesheet(wx.ScrolledWindow):
     def _hit_test(self, pos: wx.Point) -> Tuple[Optional[str], Optional[str], Optional[float]]:
         x, y = self.CalcUnscrolledPosition(pos)
         if y < self.header_h:
+            if x < self.left_w:
+                return (None, None, None)
             return (None, None, self._time_from_x(x))
         row = (y - self.header_h) // self.row_h
         if row < 0 or row >= len(self.rows):
             return (None, None, None)
         obj = self.rows[row][0]
+        if x < self.left_w:
+            return (obj.id, None, None)
         for key in obj.sorted_keyframes():
             key_x = self.left_w + self._time_x(key.time) - self.scroll_x
             key_y = self.header_h + row * self.row_h + self.row_h // 2
@@ -1247,27 +1368,49 @@ class TimelineDopesheet(wx.ScrolledWindow):
 
     def on_mousewheel(self, event: wx.MouseEvent) -> None:
         wheel_steps = float(event.GetWheelRotation()) / 120.0
-        if event.ControlDown():
-            if abs(wheel_steps) > 1e-6:
-                anchor_x = int(event.GetPosition().x)
-                anchor_frames = (float(anchor_x) - float(self.left_w) + self.scroll_x) / max(1e-6, float(self.frame_w))
-                factor = math.pow(1.12, wheel_steps)
-                next_frame_w = max(self.min_frame_w, min(self.max_frame_w, float(self.frame_w) * factor))
-                if abs(next_frame_w - float(self.frame_w)) > 1e-6:
-                    self.frame_w = float(next_frame_w)
-                    self._update_virtual_size()
-                    self.scroll_x = anchor_frames * float(self.frame_w) - (float(anchor_x) - float(self.left_w))
-                    self._clamp_scroll_x()
-                    self.Refresh(False)
+        if abs(wheel_steps) <= 1e-6:
+            return
+
+        # Direct interaction mode (similar to canvas):
+        # - Wheel zooms timeline around cursor
+        # - Shift+Wheel pans horizontally
+        # - Alt+Wheel keeps native vertical row scrolling behavior
+        if event.AltDown():
+            event.Skip()
             return
         if event.ShiftDown():
-            self.scroll_x -= wheel_steps * max(72.0, float(self.frame_w) * 3.0)
-            self._clamp_scroll_x()
-            self.Refresh(False)
+            self.set_horizontal_scroll(
+                float(self.scroll_x) + wheel_steps * max(72.0, float(self.frame_w) * 3.0),
+                refresh=True,
+            )
+            return
+
+        anchor_x = int(event.GetPosition().x)
+        factor = math.pow(1.12, wheel_steps)
+        next_frame_w = float(self.frame_w) * factor
+        self._set_frame_width(next_frame_w, anchor_x=float(anchor_x), refresh=True)
+
+    def on_char_hook(self, event: wx.KeyEvent) -> None:
+        # Space is used as a drag modifier for timeline panning.
+        # Consume it here so focused controls do not emit system beeps.
+        if event.GetKeyCode() == wx.WXK_SPACE:
+            return
+        event.Skip()
+
+    def on_middle_down(self, event: wx.MouseEvent) -> None:
+        self._start_view_pan(event.GetPosition(), with_left=False)
+
+    def on_middle_up(self, event: wx.MouseEvent) -> None:
+        if self._view_panning and not self._view_pan_with_left:
+            self._stop_view_pan(event.GetPosition())
+            event.Skip()
             return
         event.Skip()
 
     def on_left_down(self, event: wx.MouseEvent) -> None:
+        if wx.GetKeyState(wx.WXK_SPACE):
+            self._start_view_pan(event.GetPosition(), with_left=True)
+            return
         self._drag_track_object_id = None
         self._drag_track_start_pos = None
         self._drag_track_active = False
@@ -1318,6 +1461,10 @@ class TimelineDopesheet(wx.ScrolledWindow):
             self.on_seek(time_value)
 
     def on_left_up(self, event: wx.MouseEvent) -> None:
+        if self._view_panning and self._view_pan_with_left:
+            self._stop_view_pan(event.GetPosition())
+            event.Skip()
+            return
         if self._drag_track_active:
             if self._drag_target_valid and self._drag_track_object_id and self.on_reparent_object:
                 self.on_reparent_object(self._drag_track_object_id, self._drag_target_parent_id)
@@ -1354,6 +1501,11 @@ class TimelineDopesheet(wx.ScrolledWindow):
         event.Skip()
 
     def on_motion(self, event: wx.MouseEvent) -> None:
+        if self._view_panning and self._view_pan_start_pos:
+            dx = float(event.GetPosition().x - self._view_pan_start_pos.x)
+            self.set_horizontal_scroll(self._view_pan_start_scroll_x - dx, refresh=True)
+            self._update_cursor(event.GetPosition())
+            return
         if (
             self._drag_track_object_id
             and self._drag_track_start_pos
@@ -1398,6 +1550,9 @@ class TimelineDopesheet(wx.ScrolledWindow):
     def on_capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
         self._resizing_divider = False
         self._dragging_playhead = False
+        self._view_panning = False
+        self._view_pan_with_left = False
+        self._view_pan_start_pos = None
         self._drag_track_active = False
         self._drag_track_object_id = None
         self._drag_track_start_pos = None
@@ -1427,6 +1582,8 @@ class TimelineDopesheet(wx.ScrolledWindow):
         visible = wx.Rect(0, view_y * px_per_unit_y, total_w, client_h)
         header_y = visible.y
         header_bottom = header_y + self.header_h
+        track_clip_x = self.left_w + 1
+        track_clip_w = max(1, total_w - track_clip_x)
 
         visible_track_w = max(1, _client_w - self.left_w)
         start_frame_idx = max(0, int(math.floor(self.scroll_x / max(1e-6, float(self.frame_w)))) - 2)
@@ -1435,6 +1592,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
             int(math.ceil((self.scroll_x + visible_track_w) / max(1e-6, float(self.frame_w)))) + 2,
         )
 
+        dc.SetClippingRegion(track_clip_x, header_bottom, track_clip_w, max(1, total_h - header_bottom))
         for frame_idx in range(start_frame_idx, end_frame_idx + 1):
             x = int(round(self.left_w + self._frame_index_x(frame_idx) - self.scroll_x))
             if x < self.left_w - self.frame_w or x > total_w + self.frame_w:
@@ -1448,6 +1606,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
                 color = wx.Colour(48, 52, 60)
             dc.SetPen(wx.Pen(color))
             dc.DrawLine(x, header_bottom, x, total_h)
+        dc.DestroyClippingRegion()
 
         for row, (obj, depth, has_children) in enumerate(self.rows):
             y = self.header_h + row * self.row_h
@@ -1474,6 +1633,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
             dc.SetTextForeground(wx.Colour(232, 232, 232))
             dc.DrawText(obj.name, text_x, y + 4)
 
+            dc.SetClippingRegion(track_clip_x, y, track_clip_w, self.row_h)
             for key in obj.sorted_keyframes():
                 key_x = int(round(self.left_w + self._time_x(key.time) - self.scroll_x))
                 key_y = y + self.row_h // 2
@@ -1487,6 +1647,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
                 dc.SetBrush(wx.Brush(fill))
                 dc.SetPen(wx.Pen(wx.Colour(20, 20, 20)))
                 dc.DrawPolygon(points)
+            dc.DestroyClippingRegion()
 
         if self._drag_track_active and self._drag_target_valid:
             dc.SetPen(wx.Pen(wx.Colour(140, 210, 255), 2))
@@ -1498,6 +1659,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
                 dc.DrawRectangle(2, target_y + 1, max(10, self.left_w - 4), self.row_h - 2)
 
         playhead_x = self._playhead_x()
+        dc.SetClippingRegion(track_clip_x, header_y, track_clip_w, max(1, total_h - header_y))
         dc.SetPen(wx.Pen(wx.Colour(255, 92, 92), 2))
         footer_top = max(header_bottom, visible.y + visible.height - self._playhead_footer_h)
         dc.DrawLine(playhead_x, header_y, playhead_x, footer_top)
@@ -1523,6 +1685,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
             wx.Point(playhead_x + self._playhead_marker_half_w, bottom_marker_tip_y + self._playhead_marker_h),
         ]
         dc.DrawPolygon(bottom_points)
+        dc.DestroyClippingRegion()
 
         dc.SetPen(wx.Pen(wx.Colour(66, 66, 66)))
         dc.SetBrush(wx.Brush(wx.Colour(42, 42, 42)))
@@ -1531,6 +1694,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         dc.SetTextForeground(wx.Colour(180, 180, 180))
         dc.DrawText("Tracks", 8, header_y + 4)
 
+        dc.SetClippingRegion(track_clip_x, header_y, track_clip_w, self.header_h)
         for frame_idx in range(start_frame_idx, end_frame_idx + 1):
             x = int(round(self.left_w + self._frame_index_x(frame_idx) - self.scroll_x))
             if x < self.left_w - self.frame_w or x > total_w + self.frame_w:
@@ -1550,6 +1714,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
             if tick_kind == "major":
                 dc.SetTextForeground(wx.Colour(206, 212, 226))
                 dc.DrawText(self._tick_label(frame_idx), x + 3, header_y + 2)
+        dc.DestroyClippingRegion()
 
         dc.SetPen(wx.Pen(wx.Colour(78, 78, 78), 1))
         dc.DrawLine(self.left_w, header_y, self.left_w, total_h)
@@ -1699,6 +1864,7 @@ class TimelineEditorPanel(wx.Panel):
         self._key_source_choice_ids: List[Optional[str]] = []
         self._parent_choice_ids: List[Optional[str]] = []
         self.collapsed_object_ids: set[str] = set()
+        self._timeline_view_ui_updating = False
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.main_splitter = wx.SplitterWindow(self, style=wx.SP_3D | wx.SP_LIVE_UPDATE)
@@ -1861,6 +2027,7 @@ class TimelineEditorPanel(wx.Panel):
         self.ruler_mode_choice = wx.Choice(bottom_box, choices=[RULER_MODE_TIME, RULER_MODE_FRAMES])
         self.snap_mode_choice = wx.Choice(bottom_box, choices=[SNAP_FREE, SNAP_FRAMES, SNAP_TENTHS, SNAP_CUSTOM])
         self.custom_snap_spin = wx.SpinCtrlDouble(bottom_box, min=0.01, max=1000.0, initial=0.25, inc=0.01)
+        self.timeline_hscroll = wx.ScrollBar(bottom_box, style=wx.SB_HORIZONTAL)
         self.scene_loop = wx.CheckBox(bottom_box, label="Loop")
         for ctrl, digits in (
             (self.playback_offset, 2),
@@ -1898,6 +2065,7 @@ class TimelineEditorPanel(wx.Panel):
         transport.Add(transport_row_2, 0, wx.EXPAND)
 
         bottom_sizer.Add(self.dopesheet, 1, wx.EXPAND | wx.ALL, 4)
+        bottom_sizer.Add(self.timeline_hscroll, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom_sizer.Add(transport, 0, wx.EXPAND | wx.ALL, 4)
         timeline_panel_sizer.Add(bottom_sizer, 1, wx.EXPAND | wx.ALL, 4)
         self.timeline_panel.SetSizer(timeline_panel_sizer)
@@ -1926,6 +2094,7 @@ class TimelineEditorPanel(wx.Panel):
         self.Bind(wx.EVT_BUTTON, self.on_add_key, self.btn_add_key)
         self.Bind(wx.EVT_BUTTON, self.on_delete_key, self.btn_del_key)
         self.scene_list.Bind(wx.EVT_SIZE, self.on_scene_list_size)
+        self.dopesheet.Bind(wx.EVT_SIZE, self.on_dopesheet_size)
 
         self.frame_palette.on_frame_double_click = lambda frame_id: self.add_object_from_palette("frame", frame_id)
         self.animation_palette.on_animation_double_click = lambda anim_id: self.add_object_from_palette("animation", anim_id)
@@ -1936,6 +2105,7 @@ class TimelineEditorPanel(wx.Panel):
         self.dopesheet.on_select_object = self.on_dopesheet_select_object
         self.dopesheet.on_toggle_object = self.on_dopesheet_toggle_object
         self.dopesheet.on_reparent_object = self.on_dopesheet_reparent_object
+        self.dopesheet.on_view_changed = self.on_dopesheet_view_changed
         self.canvas.on_select_object = self.on_canvas_select_object
         self.canvas.on_select_key = self.on_canvas_select_key
         self.canvas.on_begin_drag_object = self.on_canvas_begin_drag_object
@@ -1989,8 +2159,22 @@ class TimelineEditorPanel(wx.Panel):
         ):
             self._bind_value_ctrl(ctrl)
 
+        for evt in (
+            wx.EVT_SCROLL_TOP,
+            wx.EVT_SCROLL_BOTTOM,
+            wx.EVT_SCROLL_LINEUP,
+            wx.EVT_SCROLL_LINEDOWN,
+            wx.EVT_SCROLL_PAGEUP,
+            wx.EVT_SCROLL_PAGEDOWN,
+            wx.EVT_SCROLL_THUMBTRACK,
+            wx.EVT_SCROLL_THUMBRELEASE,
+            wx.EVT_SCROLL_CHANGED,
+        ):
+            self.timeline_hscroll.Bind(evt, self.on_timeline_hscroll)
+
         self.refresh_choices()
         self.refresh_scenes()
+        self._update_timeline_view_controls()
 
     def _bind_value_ctrl(self, ctrl: wx.Window) -> None:
         if isinstance(ctrl, wx.TextCtrl):
@@ -2026,6 +2210,47 @@ class TimelineEditorPanel(wx.Panel):
 
     def on_inspector_size(self, event: wx.SizeEvent) -> None:
         self.inspector_panel.FitInside()
+        event.Skip()
+
+    def on_dopesheet_size(self, event: wx.SizeEvent) -> None:
+        self._update_timeline_view_controls()
+        event.Skip()
+
+    def on_dopesheet_view_changed(self, _scroll_x: float, _max_scroll_x: float, _frame_w: float) -> None:
+        self._update_timeline_view_controls()
+
+    def _update_timeline_view_controls(self) -> None:
+        if not hasattr(self, "timeline_hscroll"):
+            return
+        self._timeline_view_ui_updating = True
+        try:
+            max_scroll = float(self.dopesheet.get_max_horizontal_scroll())
+            page = float(self.dopesheet.get_horizontal_page_size())
+            page_int = max(1, int(round(page)))
+            if max_scroll <= 1e-6:
+                self.timeline_hscroll.Enable(False)
+                self.timeline_hscroll.SetScrollbar(0, page_int, page_int + 1, max(1, int(round(page_int * 0.9))), True)
+            else:
+                self.timeline_hscroll.Enable(True)
+                pos = int(round(self.dopesheet.get_horizontal_scroll()))
+                thumb = page_int
+                full_range = max(thumb + 1, int(math.ceil(max_scroll + page)))
+                pos = max(0, min(pos, full_range - thumb))
+                self.timeline_hscroll.SetScrollbar(
+                    pos,
+                    thumb,
+                    full_range,
+                    max(1, int(round(page_int * 0.9))),
+                    True,
+                )
+        finally:
+            self._timeline_view_ui_updating = False
+
+    def on_timeline_hscroll(self, event: wx.ScrollEvent) -> None:
+        if self._timeline_view_ui_updating:
+            event.Skip()
+            return
+        self.dopesheet.set_horizontal_scroll(float(event.GetPosition()), refresh=True)
         event.Skip()
 
     def _scene_frame_step(self, scene: Optional[TimelineScene] = None) -> float:
