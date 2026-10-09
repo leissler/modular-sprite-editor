@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 from typing import Optional, Tuple
 import wx
 
@@ -9,6 +10,54 @@ ZOOM_LEVELS = (0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 2
 
 # Wheel rotation units per zoom level. A mouse notch is 120; trackpads send small deltas.
 WHEEL_UNITS_PER_STEP = 40
+
+
+class WheelGestureFilter:
+    """
+    Locks a scroll gesture to one axis.
+
+    Two-finger scrolling on a trackpad emits small sideways events while the fingers move
+    vertically (and vertical ones during a sideways swipe). The first events of a gesture decide
+    its axis; events on the other axis are ignored until the gesture pauses. A mouse-wheel notch
+    is large enough to decide immediately.
+    """
+
+    GESTURE_GAP_SECONDS = 0.25
+    DECIDE_UNITS = 12.0
+
+    def __init__(self) -> None:
+        self._axis: Optional[str] = None
+        self._last_time = float("-inf")
+        self._acc_h = 0.0
+        self._acc_v = 0.0
+        self._start_pending = False
+        # True for the first accepted event of a gesture (reset per-gesture accumulators then).
+        self.gesture_started = False
+
+    def accept(self, horizontal: bool, rotation: float, now: Optional[float] = None) -> bool:
+        """True if this event belongs to the gesture's axis and should be handled."""
+        now = time.monotonic() if now is None else float(now)
+        if now - self._last_time > self.GESTURE_GAP_SECONDS:
+            self._axis = None
+            self._acc_h = 0.0
+            self._acc_v = 0.0
+            self._start_pending = True
+        self._last_time = now
+        self.gesture_started = False
+
+        if self._axis is None:
+            if horizontal:
+                self._acc_h += abs(float(rotation))
+            else:
+                self._acc_v += abs(float(rotation))
+            if self._acc_h + self._acc_v < self.DECIDE_UNITS:
+                return False
+            self._axis = "h" if self._acc_h > self._acc_v else "v"
+        if self._axis != ("h" if horizontal else "v"):
+            return False
+        self.gesture_started = self._start_pending
+        self._start_pending = False
+        return True
 
 
 class BaseCanvas(wx.Panel):
@@ -37,6 +86,7 @@ class BaseCanvas(wx.Panel):
 
         # Internal Interaction State
         self._wheel_accumulator = 0
+        self._wheel_filter = WheelGestureFilter()
         self._magnify_accumulator = 0.0
         self._panning = False
         self._start = wx.Point()
@@ -242,6 +292,10 @@ class BaseCanvas(wx.Panel):
             return
 
         horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
+        if not self._wheel_filter.accept(horizontal, rotation):
+            return
+        if self._wheel_filter.gesture_started:
+            self._wheel_accumulator = 0
         if horizontal or event.ShiftDown() or event.AltDown():
             # Pan: one notch moves ~48 screen pixels.
             delta_px = (rotation / 120.0) * 48.0

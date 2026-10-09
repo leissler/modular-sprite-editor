@@ -20,6 +20,7 @@ from models import (
     generate_id,
 )
 from ui import app_services
+from ui.base_canvas import WheelGestureFilter
 from ui.canvas import FrameCanvas
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.frame_palette import FramePalette
@@ -1043,6 +1044,7 @@ class TimelineDopesheet(wx.ScrolledWindow):
         self._view_pan_with_left = False
         self._view_pan_start_pos: Optional[wx.Point] = None
         self._view_pan_start_scroll_x: float = 0.0
+        self._wheel_filter = WheelGestureFilter()
 
         self.SetScrollRate(0, self.row_h)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
@@ -1383,8 +1385,18 @@ class TimelineDopesheet(wx.ScrolledWindow):
 
         # Direct interaction mode (similar to canvas):
         # - Wheel zooms timeline around cursor
-        # - Shift+Wheel pans horizontally
+        # - Shift+Wheel / sideways trackpad swipe pans horizontally
         # - Alt+Wheel keeps native vertical row scrolling behavior
+        horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
+        if not self._wheel_filter.accept(horizontal, event.GetWheelRotation()):
+            return
+        if horizontal:
+            # Same direction as the canvases' sideways pan.
+            self.set_horizontal_scroll(
+                float(self.scroll_x) + wheel_steps * max(72.0, float(self.frame_w) * 3.0),
+                refresh=True,
+            )
+            return
         if event.AltDown():
             event.Skip()
             return
