@@ -16,6 +16,111 @@ def generate_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+# Native project file format version (top-level "format_version" key).
+# 1 = unversioned files written before versioning existed.
+# 2 = legacy fields canonicalized (see migrate_project_dict).
+PROJECT_FORMAT_VERSION = 2
+
+
+def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
+    # Same heuristic AFrame.from_dict has always applied to unversioned files:
+    # large values were absolute milliseconds at an assumed 10 FPS.
+    ms = int(ms_value)
+    if ms >= 10:
+        return max(1, round(ms / 100.0))
+    return ms
+
+
+def _migrate_v1_to_v2(data: Dict[str, Any], notes: List[str]) -> None:
+    converted_durations = 0
+    for anim in data.get("animations", []) or []:
+        for af in anim.get("aframes", []) or []:
+            if af.get("duration_frames") is None:
+                af["duration_frames"] = _legacy_duration_ms_to_frames(af.get("duration_ms", 1))
+                af.pop("duration_ms", None)
+                converted_durations += 1
+    if converted_durations:
+        notes.append(f"Converted {converted_durations} legacy duration_ms value(s) to duration_frames.")
+
+    for frame in data.get("frames", []) or []:
+        for cp in frame.get("control_points", []) or []:
+            if cp.get("role") is None:
+                legacy_name = cp.get("name")
+                cp["role"] = legacy_name if isinstance(legacy_name, str) else ""
+            cp.pop("name", None)
+        for cr in frame.get("collision_rects", []) or []:
+            if cr.get("role") is None:
+                cr["role"] = ""
+
+    converted_scenes = 0
+    for scene in data.get("timeline_scenes", []) or []:
+        if scene.get("duration_seconds") is not None:
+            continue
+        fps = max(1, int(scene.get("fps", 12)))
+        to_seconds = 1.0 / float(fps)
+        scene["duration_seconds"] = float(scene.get("duration_frames", 120)) * to_seconds
+        for obj in scene.get("objects", []) or []:
+            obj["playback_offset"] = float(obj.get("playback_offset", 0.0)) * to_seconds
+            for key in obj.get("keyframes", []) or []:
+                key["time"] = float(key.get("time", 0.0)) * to_seconds
+        converted_scenes += 1
+    if converted_scenes:
+        notes.append(f"Converted {converted_scenes} frame-based timeline scene(s) to seconds.")
+
+    converted_shapes = 0
+    for mod in data.get("modules", []) or []:
+        mod_type = mod.get("type", "MD_IMAGE")
+        params = list(mod.get("params", []) or [])
+        rect = mod.get("rect", [0, 0, 1, 1])
+        w = max(1, int(rect[2]) if len(rect) > 2 else 1)
+        h = max(1, int(rect[3]) if len(rect) > 3 else 1)
+        if mod_type == "MD_LINE" and len(params) == 2:
+            # Legacy: end point in pixels relative to the module origin.
+            mod["params"] = [0.0, 0.0, params[0] / w * 100.0, params[1] / h * 100.0]
+            converted_shapes += 1
+        elif mod_type in ("MD_TRIANGLE", "MD_FILL_TRIANGLE") and len(params) == 4:
+            # Legacy: P2/P3 in pixels relative to P1 at the module origin.
+            mod["params"] = [
+                0.0,
+                0.0,
+                params[0] / w * 100.0,
+                params[1] / h * 100.0,
+                params[2] / w * 100.0,
+                params[3] / h * 100.0,
+            ]
+            converted_shapes += 1
+    if converted_shapes:
+        notes.append(f"Converted {converted_shapes} legacy line/triangle shape module(s) to percentage points.")
+
+
+def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+    """
+    Upgrade a native project dict to PROJECT_FORMAT_VERSION.
+
+    Works on a deep copy, keeps unknown keys, and returns (migrated_data, notes).
+    Files newer than this build are returned unchanged with a warning note.
+    """
+    migrated = json.loads(json.dumps(data))
+    notes: List[str] = []
+    try:
+        version = int(migrated.get("format_version", 1))
+    except (TypeError, ValueError):
+        version = 1
+
+    if version > PROJECT_FORMAT_VERSION:
+        notes.append(
+            f"File format version {version} is newer than this editor supports "
+            f"({PROJECT_FORMAT_VERSION}). Unknown data may be lost when saving."
+        )
+        return migrated, notes
+
+    if version < 2:
+        _migrate_v1_to_v2(migrated, notes)
+
+    migrated.pop("format_version", None)
+    return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes
+
+
 @dataclass
 class ImageAsset:
     id: str
@@ -63,7 +168,6 @@ class Module:
             "image_id": self.image_id,
             "rect": list(self.rect),
             "pivot": list(self.pivot),
-            "type": self.type,
             "type": self.type,
             "color": list(self.color),
             "rotated": self.rotated,
@@ -2712,6 +2816,7 @@ class Project:
     
     # Runtime state (not serialized)
     active_mapping: Optional[ModuleMapping] = field(default=None, init=False)
+    load_notes: List[str] = field(default_factory=list, init=False)
 
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
         return next((img for img in self.images if img.id == image_id), None)
@@ -3060,6 +3165,7 @@ class Project:
             return d
 
         return {
+            "format_version": PROJECT_FORMAT_VERSION,
             "name": self.name,
             "images": [get_img_dict(img) for img in self.images],
             "modules": [m.to_dict() for m in self.modules],
@@ -3081,6 +3187,8 @@ class Project:
 
     @staticmethod
     def from_dict(data: Dict, base_path: Optional[str] = None) -> "Project":
+        data, notes = migrate_project_dict(data)
+
         # Helper to resolve paths
         def resolve_img(d: Dict) -> ImageAsset:
             img = ImageAsset.from_dict(d)
@@ -3097,7 +3205,7 @@ class Project:
         collision_types = [CollisionType.from_dict(ct) for ct in data.get("collision_types", [])]
         point_types = [PointType.from_dict(pt) for pt in data.get("point_types", [])]
         
-        return Project(
+        project = Project(
             name=data.get("name", "New Project"),
             images=images,
             modules=modules,
@@ -3108,6 +3216,8 @@ class Project:
             collision_types=collision_types,
             point_types=point_types,
         )
+        project.load_notes = notes
+        return project
 
     @staticmethod
     def from_json(path: str) -> "Project":
