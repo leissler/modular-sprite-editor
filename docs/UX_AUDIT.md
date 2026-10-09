@@ -18,7 +18,7 @@ not implemented yet.
 | X3 | Destructive operations without confirmation: delete frame (breaks animations that reference it), delete module, remove image (deletes its modules), **Slice Image / Auto Detect wipe every module of the image** (and with it every frame part that references them), delete scene, delete mapping. | Data loss | done: confirmation dialogs with reference counts (plus undo) |
 | X4 | Empty toolbar band between title and tabs (created but never populated). | Clutter | done: removed; replaced by a slim context bar with the mapping selector |
 | X5 | The **active mapping is hidden global state**: selecting a mapping in the Mappings tab silently changes rendering in all other tabs *and* what gets exported, with no indicator elsewhere. | Confusion, wrong exports | done: "Preview mapping" selector visible on every tab |
-| X6 | "Saved to ..." modal after every Cmd+S; many "Success" modals after routine operations. | Flow interruption | done: status-bar messages instead of modals for routine results |
+| X6 | "Saved to ..." modal after every Cmd+S; many "Success" modals after routine operations. | Flow interruption | done: status-bar messages for save, slice, auto detect, reference frames, deletes (multi-line reports such as export summaries stay dialogs) |
 | X7 | No status bar; editors use ad-hoc labels ("Selection: -", "Pivot: -"). | Inconsistency | done: shared status bar (messages + zoom + hints) |
 | X8 | `File ▸ New` handler exists but is not in the menu; no Edit / View / Help menus; About text shows a literal `\n`. | Missing affordances | done |
 | X9 | **Pan gesture differs per canvas**: Modules = Alt/Middle, Frames = Alt/Middle, Animations = Alt/Ctrl/Middle, Timeline = Alt/Ctrl/Middle, Dopesheet = Space/Middle. | Inconsistency | done: Space+drag, Alt+drag or middle-drag on every canvas |
@@ -50,7 +50,7 @@ not implemented yet.
 | F2 | No keyboard nudge for parts, collision boxes or points (pixel-exact placement needs arrows). | done: arrows = 1 px, Shift+arrows = 8 px (one tile) |
 | F3 | No copy/paste/duplicate of parts between frames (core modular workflow). | done: Cmd+C / Cmd+V / Cmd+D, Cmd+A select all |
 | F4 | Paste / propagate collision & points and frame mirror/rotate are not undoable. | done (global history) |
-| F5 | README promises onion skinning, which does not exist. | done in Animations (prev/next ghosts); "reference frame" ghost in Frames |
+| F5 | README promises onion skinning, which does not exist. | done: Animations ghost previous/next animation step (with their offsets); Frames ghost the previous/next frame of the (filtered) frame list |
 | F6 | Two `on_frame_list_context_menu` definitions (the first is dead). | done |
 
 ## 4. Animations tab
@@ -81,10 +81,18 @@ not implemented yet.
 
 ## 7. Recommended next steps (not done in this pass)
 
+* **Decide the flip semantics.** Since commit `a50b12f` the RetroAnimator exporter mirrors a flipped part
+  around its pivot, while the editor canvas and the SGDK exporter mirror it in place (bounding box unchanged).
+  For parts with an off-centre pivot the RetroAnimator export is shifted relative to what the editor shows;
+  `tests/test_export_retro_animator.py::test_export_bakes_flip_without_displacing_handle` fails because of it.
+  Pick one rule, then align canvas, both exporters and the test.
+
 * **One shared compositor** (`Project`-level, PIL based) used by thumbnails, GIF export, onion skin and the
   RetroAnimator/SGDK exporters so nested frames, rotation, shapes and mappings render identically everywhere (X17).
 * Frame list thumbnails (small icons in the list).
 * Proportional-width (duration-scaled) cells in the animation strip, drag-to-change duration.
 * AFrame rotation control in the Animations tab (A5).
 * Per-project persisted view settings (grid size, zoom per tab) in `wx.Config`.
+* Delete key for the scene list; drag-reorder for scenes and mappings.
+* Remove the stale root-level `test_*.py` scripts or move them into `tests/` (one of them fails by design).
 * See `docs/ANIMATION.md` for the animation feature roadmap.
