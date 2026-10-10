@@ -16,11 +16,14 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 - Mappings swap or hide modules for every frame of every animation (costume / damage / invisibility states),
   baked by the exporters.
 
-**Timeline scenes (Timeline tab, experimental)**
-- Objects with a source (module / frame / animation / none), parenting, draw order, playback speed/offset/mode.
-- Keyframes: position, 90° rotation, flip, visibility, 31 easing curves, linear or spline motion paths with
-  editable handles, per-key source switches with hold semantics, source offsets, root motion from the
-  animation's step offsets. Dopesheet with zoom/pan, snapping, ruler in frames or seconds.
+**Timeline scenes (Timeline tab)**
+- Objects with a source (module / frame / animation / group), parenting, draw order, playback speed/offset/mode.
+- Keyframes: position, 90° rotation, flip, visibility, easing per segment (shape × direction, plus Hold),
+  straight or curved motion paths with handles edited on the stage, per-key image swaps with hold semantics,
+  swap offsets, root motion from the animation's step offsets.
+- Editor (`ui/scene_editor/`): Library | Stage | contextual Inspector, one frame-based timeline with the layer
+  tree and dopesheet side by side, Auto-Key, tween bars labelled with their easing, animation frame-change
+  ticks, console screen guides.
 - Scale and opacity are in the data model but deliberately not exposed (no hardware support on the main target).
 
 **Runtime / export**

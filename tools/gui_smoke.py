@@ -36,6 +36,8 @@ def hook(exc_type, exc, tb):
 sys.excepthook = hook
 
 a = app_mod.SpriteEditorApp(False)
+# Failed wx assertions raise exceptions instead of opening a modal dialog that would block the run.
+a.SetAssertMode(wx.APP_ASSERT_EXCEPTION)
 frame = a.GetTopWindow()
 frame.SetSize((1500, 950))
 frame.confirm_discard_changes = lambda: True  # no save prompts in the smoke test
@@ -218,31 +220,96 @@ def run():
 
     step("animations: select/onion/play/nudge/undo/mirror/dup/filter", animations)
 
-    # ---- Timeline
+    # ---- Timeline (scene editor)
     te = frame.timeline_editor
 
     def timeline():
-        frame.select_tab(3)
-        pump()
-        if not proj.timeline_scenes:
-            te.on_add_scene(None)
-        te.refresh_scenes()
-        n = len(te.get_selected_scene().objects)
-        te.on_add_null_object(None)
-        check(len(te.get_selected_scene().objects) == n + 1, "add null")
-        frame.on_undo(None)
-        pump()
-        check(len(te.get_selected_scene().objects) == n, "undo add null")
-        te.on_play(None)
-        pump(5)
-        te.on_play(None)
-        te.seek_relative(1.0)
-        te.path_mode_choice.SetStringSelection("spline")
-        te._update_path_handle_ui_enabled()
-        te.on_duplicate_scene(None)
-        frame.on_undo(None)
+        from ui.scene_editor import ops
 
-    step("timeline: add/undo null, play toggle, spline rows, dup scene", timeline)
+        frame.select_tab(3)
+        pump(5)
+        if not proj.timeline_scenes:
+            te.new_scene()
+        te.refresh_scenes()
+        scene = te.scene()
+        check(scene is not None, "scene selected")
+        n = len(scene.objects)
+
+        # Add from the library (animation if any, else a frame), then a group
+        if proj.animations:
+            te.add_object("animation", proj.animations[0].id, (10, 20))
+        else:
+            te.add_object("frame", proj.frames[0].id, (10, 20))
+        pump()
+        obj = te.obj()
+        check(obj is not None and len(scene.objects) == n + 1, "add object from library")
+        te.add_object("none", None, (0, 0))
+        group = te.obj()
+
+        # Clicking (no drag) must not create keys
+        keys_before = len(obj.keyframes)
+        te.select_object(obj.id)
+        te.seek(5)
+        te._stage_drag_begin(obj.id)
+        te._stage_drag(obj.id, 0.0, 0.0)
+        te._stage_drag_end()
+        check(len(obj.keyframes) == keys_before, "click without drag adds no key")
+
+        # Auto-Key on: dragging at frame 5 creates a key there
+        te._stage_drag_begin(obj.id)
+        te._stage_drag(obj.id, 6.0, -3.0)
+        te._stage_drag_end()
+        key5 = ops.key_at_frame(obj, 5, scene.fps)
+        check(key5 is not None and (key5.x, key5.y) == (16.0, 17.0), "auto-key drag sets a key")
+
+        # Auto-Key off between keys: moving shifts the whole animation
+        te.auto_key = False
+        te.seek(2)
+        before = [(k.x, k.y) for k in obj.sorted_keyframes()]
+        te._on_transform_field("x", 30)
+        after = [(k.x, k.y) for k in obj.sorted_keyframes()]
+        check(len(after) == len(before) and all(a[0] != b[0] for a, b in zip(after, before)), "auto-key off shifts all keys")
+        te.auto_key = True
+
+        # Easing via inspector path, retime, parent, play, delete, undo
+        first = obj.sorted_keyframes()[0]
+        te.seek(ops.frame_of(first.time, scene.fps))
+        te._on_easing("cubic_out")
+        check(ops.segment_easing(obj, first.id) == "cubic_out", "segment easing set")
+        te.set_key_selection({obj.id: {key5.id}})
+        te._timeline_move_keys(3, {(obj.id, key5.id): 5})
+        te._commit()
+        check(ops.frame_of(key5.time, scene.fps) == 8, "retime key")
+        te._move_layer(obj.id, group.id, None)
+        check(obj.parent_id == group.id, "parent via layer drag")
+        te.toggle_play()
+        pump(8)
+        te.toggle_play()
+        te.flip_selected("x")
+        te.rotate_selected(90)
+        te.edit_select_all()
+        te.edit_copy()
+        te.seek(ops.scene_length_frames(scene) // 2)
+        te.edit_paste()
+        te.inspector.show_context(proj, scene, te.obj(), te.frame)
+        te.select_object(None)  # scene settings
+        te._on_scene_field("fps", 30)
+        te.screen_choice.SetSelection(1)
+        te._on_screen_choice(None)
+        te.stage.Refresh()
+        te.stage.Update()
+        te.timeline.Refresh()
+        te.timeline.Update()
+        count = len(scene.objects)
+        te.select_object(group.id)
+        te.delete_selection()
+        check(len(scene.objects) == count - 1 and obj.parent_id is None, "delete group keeps child")
+        for _ in range(12):
+            frame.on_undo(None)
+        pump()
+        check(len(te.scene().objects) >= n, "undo through scene edits")
+
+    step("timeline: add, auto-key, easing, retime, parent, play, copy/paste, delete, undo", timeline)
 
     # ---- Mappings
     def mappings():

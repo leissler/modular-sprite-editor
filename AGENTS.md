@@ -7,7 +7,7 @@ Guidance for coding agents (and humans) working on this repository. Read this be
 A wxPython desktop tool for **modular pixel-art sprites for retro consoles** (Mega Drive / SGDK is the
 main target). Artwork is cut into reusable **modules** (sprite-sheet rectangles or vector shapes), assembled
 into **frames** (positioned, flipped, 90°-rotated parts, optionally nested frames), sequenced into
-**animations** (per-frame duration in ticks, offset, flip), composed in experimental **timeline scenes**
+**animations** (per-frame duration in ticks, offset, flip), composed in **timeline scenes**
 (keyframed objects), and re-skinned with **mappings** (module → module / hidden substitutions).
 Frames also carry **collision boxes** and **control points** with semantic *roles* for game logic.
 
@@ -57,7 +57,15 @@ ui/
   module_editor.py         Modules tab (ModuleCanvas + panel)
   frame_editor.py          Frames tab (ModulePalette + panel)
   animation_editor.py      Animations tab
-  timeline_editor.py       Timeline tab (TimelineCanvas, TimelineDopesheet, panel) — experimental
+  scene_editor/            Timeline tab (scene editor), redesigned from scratch:
+    ops.py                 wx-free scene operations (frame<->time, keys, easing names, layer tree, draw
+                           order, world-preserving reparent, add/duplicate/delete) — unit-tested
+    panel.py               SceneEditorPanel: scene bar, transport, Auto-Key, commands, keyboard, playback
+    stage.py               StageCanvas (FrameCanvas): objects, screen guides, motion path + handles
+    timeline.py            TimelineWidget: layer tree + frame-based dopesheet in one custom-drawn widget
+    inspector.py           SceneInspector: contextual sections (scene / object / playback / transform /
+                           motion / swap), EasingPreview, SourcePickerDialog
+    library.py             SceneLibrary: Animations / Frames / Modules palettes (drag or double-click)
   mapping_editor.py        Mappings tab
   components/              CanvasDisplayControls (shared view bar), FramePalette, TimelineControl (frame strip)
   collision_manager.py / point_manager.py   type lists (colour, visibility, active type)
@@ -65,7 +73,8 @@ ui/
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator
 tools/                     migrate_projects.py, gui_smoke.py
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py) + Mega Drive runtime demo
-tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline, migration)
+tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
+                           scene ops, migration)
 docs/                      UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
 ```
 
@@ -104,7 +113,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Panel interface** (every tab panel implements): `set_project(project)`, `refresh_after_history()`
   (re-resolve selections by id after undo/redo replaced the project contents in place),
   `get_active_canvas()` (a `BaseCanvas` or `None`), optional `on_active_mapping_changed()`,
-  `edit_copy/edit_cut/edit_paste/edit_duplicate/edit_select_all`, `stop_playback()`.
+  `edit_copy/edit_cut/edit_paste/edit_duplicate/edit_select_all`, `stop_playback()`; the Timeline panel
+  also gets `on_tab_activated()` (fits the stage/timeline the first time a scene is shown).
 - **Undo:** do not add per-editor undo stacks. After a completed edit call
   `app_services.request_checkpoint()`. The main window also checkpoints every 700 ms while no mouse button is
   held, so a drag becomes one step. Undo/redo replace the *contents* of the same `Project` object
@@ -120,6 +130,12 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   (on macOS `wx.SearchCtrl` is *not* a `wx.TextCtrl`) and leave Cmd/Ctrl combos to the menus. Shared keys:
   H/V flip, R / Shift+R rotate, arrows nudge (Shift = 8 px), Enter play/pause, `,`/`.` step, Delete.
   Update `ui/shortcuts_dialog.py` and the README controls table when adding shortcuts.
+- **Timeline (scene editor):** the UI counts in *frames* at the scene fps; the model stores seconds — convert
+  with `ops.time_of` / `ops.frame_of` only. A segment's easing lives on its *end* key (`ops.segment_end_key`).
+  Layer rows are listed in draw order (lower rows draw on top) and `ops.normalize_draw_order` keeps
+  `draw_order` depth-first so the SGDK exporter's global sort matches. Auto-Key on: pose edits create/update a
+  key at the playhead (created lazily on the first real drag movement); off: edits between keys shift every
+  key of the layer. Put scene logic in `ops.py` (testable without a display), not in the widgets.
 - **Destructive actions** confirm when they break references (count the references) and stay undoable.
 - **Lists** use Add / Duplicate / Delete buttons, Delete key, double-click/F2 rename, and a filter
   (`wx.SearchCtrl`). Filtered lists keep a view list (`_frame_view`, `_anim_view`, `_modules_view`); never

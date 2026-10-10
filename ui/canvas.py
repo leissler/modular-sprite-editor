@@ -228,7 +228,7 @@ class FrameCanvas(BaseCanvas):
         # wx coordinates: y down.
         # Standard rot: x' = x cos - y sin, y' = x sin + y cos
         # For 90 deg steps:
-        rot = int(self.render_rotation) % 360
+        rot = int(round(self.render_rotation)) % 360
         if rot == 90:
             rx, ry = -fy, fx
         elif rot == 180:
@@ -251,7 +251,7 @@ class FrameCanvas(BaseCanvas):
         oy = pt[1] - self.frame_offset[1]
         
         # 2. Un-Rotate (Reverse of local_to_world rotation)
-        rot = int(self.render_rotation) % 360
+        rot = int(round(self.render_rotation)) % 360
         if rot == 90:
             # Reverse of (-fy, fx) is (ry, -rx)
             rx, ry = oy, -ox

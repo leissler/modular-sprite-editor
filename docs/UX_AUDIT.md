@@ -63,14 +63,26 @@ not implemented yet.
 | A4 | No onion skin. | done: previous/next ghosts |
 | A5 | AFrame rotation is only reachable from the context menu. | open |
 
-## 5. Timeline tab (experimental)
+## 5. Timeline tab — redesigned (`timeline-redesign` branch)
 
-| # | Finding | Status |
+The first pass only tidied the old editor (grouped boxes, global undo, play shortcuts); the redesign then replaced `ui/timeline_editor.py`
+(3 400 lines) with `ui/scene_editor/` built around how animators already work (Flash/Animate, After Effects,
+Spine, Aseprite). The file format is unchanged; every existing scene opens as before.
+
+| # | Finding in the old editor | Redesign |
 |---|---------|--------|
-| T1 | One long "Object & Key" form (the `&` is swallowed as a mnemonic and renders as "Object Key"); disabled Scale X/Y rows; spline handle rows shown for linear paths. | done: separate *Object* and *Keyframe* boxes, hidden scale rows, handle rows only for spline paths |
-| T2 | Scene settings (name, FPS, length, loop) are in the transport bar, object Add-Null/Delete are mixed with transport buttons. | done: scene settings next to the scene list, object buttons above the tracks |
-| T3 | No undo. | done (global history) |
-| T4 | No play/step shortcuts. | done (same keys as Animations) |
+| T1 | One long inspector form mixing scene, object, key, segment, path and swap fields; many fields irrelevant to the selection; jargon ("source switch", "source offset", "root motion", spline handle numbers). | Contextual inspector: only the sections that apply (Scene when nothing is selected; Object; Animation playback only for animation sources; Transform *at frame N*; Motion to next key; Swap image at this key). Plain words, tooltips for the jargon. |
+| T2 | Draw order was a number in the inspector and unrelated to the row order in the dopesheet; no per-layer hide / lock. | Row order = draw order (lower rows draw on top); drag a layer to reorder, onto another to parent it (world pose preserved). Eye / lock per layer. |
+| T3 | Playhead edited in seconds, plus Ruler (time / frames) and Snap (free / frames / tenths / custom) modes. | Frames everywhere (ruler, playhead, inspector, length); keys always sit on whole frames; seconds only as secondary info. |
+| T4 | Editing a pose required finding/selecting the right key first. | Auto-Key (on by default): move / flip / rotate at the playhead and a key appears. Off: edits move the whole layer. K / Shift+K set / toggle a key. |
+| T5 | Easing picked per key from 32 technical names (`expo_in_out`, …) without a preview; it applied to the segment *ending* at that key, which was not obvious. | Tween bars between keys labelled with the easing ("Strong ease out", "Hold"); right-click a bar for quick presets; inspector picks shape × direction with a live curve preview. |
+| T6 | Kept: motion path with draggable keys / spline handles on the canvas. | Added per-frame dots on the path (spacing shows the easing) and a plain "Straight / Curved" path choice for the layer. |
+| T7 | No idea what fits on the console screen. | Screen guide (MD / SNES / NES / GBA / GB) with the scene origin at the screen's top-left; outside is dimmed. |
+| T8 | Animation objects gave no hint where their frames change. | Green ticks on the layer row where the playing animation changes frame. |
+| T9 | Scene settings, source palette and transport spread over three boxed panels. | Library (Animations / Frames / Modules, filtered) on the left, scene settings in the inspector when nothing is selected, one transport row above the timeline. |
+
+Known limits: one selected object at a time (keys can be multi-selected across layers); rotation tweens in
+90° steps; scale/opacity stay hidden (no hardware support on the main target).
 
 ## 6. Mappings tab
 

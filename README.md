@@ -13,7 +13,7 @@ Construct complex character animations from individual body parts (modules). Def
 ## ⚠️ Project Status
 
 - The **Modules / Frames / Animations / Mappings** workflow is actively used and is the most complete part of the tool.
-- The **Timeline Editor is experimental** and still in active development. Behavior, data shape, and UX are not final yet.
+- The **Timeline** (scene editor) was redesigned on the `timeline-redesign` branch and is still young: the file format is unchanged, but the UX may still evolve.
 - SGDK export and demo content lives in [`examples/sgdk`](examples/sgdk/README.md), including a blob-based runtime data path for Mega Drive tests.
 - Project files carry a `format_version` (currently 2); older files are upgraded on load. See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 
@@ -44,9 +44,12 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Onion Skinning**, trajectory view, offset dragging/nudging and mirror preview.
 *   **GIF Export**.
 
-### 🧪 Timeline Editor (Experimental)
-*   **Scene Composition** from modules, frames and animations, with parenting and draw order.
-*   **Keyframes** with easing, linear/spline motion paths, per-key source switches and root motion.
+### 🎬 Timeline (Scenes)
+*   **Library → Stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES / GBA / GB) shows what fits on screen.
+*   **Layers + dopesheet** in one timeline, counted in frames: lower rows draw on top, drag a layer onto another to parent it, eye / lock per layer.
+*   **Auto-Key** like in animation tools: moving, flipping or rotating an object sets a key at the playhead. With Auto-Key off, edits move the whole layer.
+*   **Readable tweens**: bars between keys show the easing by name (right-click a bar to change it), curved paths are edited on the stage, animation frame changes show as ticks.
+*   **Contextual inspector**: only what applies to the selection — scene, object, animation playback, transform at the playhead, motion to the next key, swap image at a key.
 
 ### 🎯 Mapping Editor
 *   **Module Variants**: Replace modules (e.g. "Clean Armor" → "Damaged Armor") or hide them (invisibility) without touching frames.
@@ -129,7 +132,10 @@ python3 tools/migrate_projects.py --dry-run DIR   # upgrade project files to the
 | | Draw order | `Cmd+↑/↓` (`Shift` = to front/back) |
 | | Copy / Paste / Duplicate / Select all | `Cmd+C` / `Cmd+V` / `Cmd+D` / `Cmd+A` |
 | **Animations / Timeline** | Play/Pause | `Enter` |
-| | Previous/Next Frame | `,` / `.` (`←` / `→` in the frame strip) |
+| | Previous/Next Frame | `,` / `.` (`←` / `→` in the frame strip / timeline) |
+| **Timeline** | Previous/Next key, first/last frame | `Shift+,` / `Shift+.`, `Home` / `End` |
+| | Set key / add-or-remove key at playhead | `K` / `Shift+K` |
+| | Flip / Rotate selected object | `H` `V` / `R` (`Shift+R` = CCW) |
 
 ---
 

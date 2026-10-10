@@ -21,7 +21,7 @@ from ui.mapping_editor import MappingEditorPanel
 from ui.module_editor import ModuleEditorPanel
 from ui.project_history import ProjectHistory
 from ui.shortcuts_dialog import ShortcutsDialog
-from ui.timeline_editor import TimelineEditorPanel
+from ui.scene_editor.panel import SceneEditorPanel
 
 APP_NAME = "Modular Sprite Editor"
 TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
@@ -31,7 +31,7 @@ TAB_HINTS = {
     "Modules": "Drag: select rect  •  Shift+drag: pivot  •  Space/Alt/Middle-drag: pan  •  Wheel: zoom",
     "Frames": "Drag parts from the palette  •  Arrows: nudge (Shift = 8 px)  •  H/V: flip  •  R: rotate  •  Space/Alt-drag: pan",
     "Animations": "Enter: play/pause  •  , / .: step  •  Drag canvas: move frame offset  •  Arrows: nudge offset",
-    "Timeline": "Enter: play/pause  •  , / .: step  •  H/V: flip  •  R: rotate  •  Wheel over tracks: zoom",
+    "Timeline": "Drag from the Library onto the stage  •  Enter: play  •  , / .: step  •  K: key  •  Auto-Key edits set keys at the playhead",
     "Mappings": "Drag a source module onto a target slot  •  Right-click a target slot to reset or hide it",
 }
 
@@ -163,7 +163,7 @@ class MainFrame(wx.Frame):
         self.module_editor = ModuleEditorPanel(self.book, self.project)
         self.frame_editor = FrameEditorPanel(self.book, self.project)
         self.animation_editor = AnimationEditorPanel(self.book, self.project)
-        self.timeline_editor = TimelineEditorPanel(self.book, self.project)
+        self.timeline_editor = SceneEditorPanel(self.book, self.project)
         self.mapping_editor = MappingEditorPanel(self.book, self.project)
         self.panels = [
             self.module_editor,
@@ -356,8 +356,7 @@ class MainFrame(wx.Frame):
             self.animation_editor.refresh_choices()
             self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
         elif page_idx == 3:
-            self.timeline_editor.refresh_choices()
-            self.timeline_editor.refresh_scenes(self.timeline_editor.selected_scene_id)
+            self.timeline_editor.on_tab_activated()
         elif page_idx == 4:
             self.mapping_editor.refresh_list()
             self.mapping_editor.visualizer.update_virtual_size()
