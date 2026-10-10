@@ -417,54 +417,15 @@ class MappingFramePreview(wx.ScrolledWindow):
         event.Skip()
         
     def _calculate_uniform_scale(self) -> float:
-        # Optimization: Return cached if valid
-        if self._cached_scale > 0: return self._cached_scale
-        
-        global_max_w = 0.0
-        global_max_h = 0.0
-        
-        for frame in self.project.frames:
-            if not frame.fmodules: continue
-            
-            # Calculate bounds with MAPPING applied
-            min_x, min_y, max_x, max_y = float('inf'), float('inf'), float('-inf'), float('-inf')
-            has = False
-            
-            for fm in frame.fmodules:
-                if fm.ref_type == "module":
-                    ref_id = fm.ref_id
-                    # APPLY MAPPING
-                    if self.mapping and ref_id in self.mapping.map:
-                         ref_id = self.mapping.map[ref_id]
-
-                    if not ref_id: continue # Mapped to None or missing
-
-                    mod = self.project.get_module(ref_id)
-                    if mod:
-                         mw, mh = mod.rect[2], mod.rect[3]
-                         piv_x, piv_y = mod.pivot
-                         x0 = fm.position[0] - piv_x
-                         y0 = fm.position[1] - piv_y
-                         min_x = min(min_x, x0)
-                         min_y = min(min_y, y0)
-                         max_x = max(max_x, x0 + mw)
-                         max_y = max(max_y, y0 + mh)
-                         has = True
-            
-            if has:
-                global_max_w = max(global_max_w, max(1, max_x - min_x))
-                global_max_h = max(global_max_h, max(1, max_y - min_y))
-
-        uniform_scale = 0.0
+        """One scale for all frames (with this mapping), so their relative sizes stay visible."""
+        if self._cached_scale > 0:
+            return self._cached_scale
+        sizes = [self.generator.frame_size(self.project, frame, self.mapping) for frame in self.project.frames]
+        global_max_w = max((w for w, _h in sizes), default=0)
+        global_max_h = max((h for _w, h in sizes), default=0)
+        uniform_scale = 1.0
         if global_max_w > 0 and global_max_h > 0:
-             scale_x = self.item_size[0] / global_max_w
-             scale_y = self.item_size[1] / global_max_h
-             uniform_scale = min(scale_x, scale_y)
-             # Cap scale to avoid extreme blowups
-             uniform_scale = min(uniform_scale, 32.0)
-        
-        if uniform_scale == 0: uniform_scale = 1.0
-        
+            uniform_scale = min(self.item_size[0] / global_max_w, self.item_size[1] / global_max_h, 32.0)
         self._cached_scale = uniform_scale
         return uniform_scale
 

@@ -82,7 +82,10 @@ ui/
   components/              CanvasDisplayControls (shared view bar), FramePalette
   collision_manager.py / point_manager.py   type lists (colour, visibility, active type)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)
-  utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator
+  utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
+                           to frame_render)
+  frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
+                           cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py) + Mega Drive runtime demo
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
@@ -185,9 +188,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 | Path | Where | Nested frames | Rotation | Shapes | Mapping |
 |---|---|---|---|---|---|
 | Frame/animation/timeline canvas | `ui/canvas.py` | yes | 90° steps | yes | yes |
-| Animations tab thumbnails, GIF export | `ui/animation_editor/render.py` (RetroAnimator renderer) | yes | yes | yes | yes |
-| Thumbnails (frame/module palettes, mappings) | `ui/utils.py` `ThumbnailGenerator` | **no** | frame-level only | yes | yes |
+| All frame thumbnails, Animations tab, GIF export | `ui/frame_render.py` (RetroAnimator renderer, content-cached) | yes | yes | yes | yes |
+| Single-module thumbnails | `ui/utils.py` `ThumbnailGenerator` (module path) | n/a | n/a | yes | n/a |
 | RetroAnimator export | `RetroAnimatorExporter` | yes | any (affine) | yes | yes |
 | SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
 
-Unifying these on one compositor is the top technical-debt item (`docs/UX_AUDIT.md` X17).
+Previews now share one compositor (`ui/frame_render.py`); `tests/test_thumbnails.py` checks thumbnails against the
+canvas. The SGDK exporter still bakes on its own (it needs per-part hardware sprites, not a flat image).

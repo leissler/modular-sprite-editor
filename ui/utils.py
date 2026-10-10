@@ -390,12 +390,6 @@ class ThumbnailGenerator:
         self.asset_cache = {}
 
     def render_thumbnail(self, project: 'Project', item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None) -> wx.Bitmap:
-        # DEBUG: PROBE
-        type_str = "Unknown"
-        if getattr(item, 'fmodules', None) is not None: type_str = "Frame"
-        elif getattr(item, 'image_id', None) is not None: type_str = "Module"
-        # Debug removed
-        
         bmp = wx.Bitmap(width, height)
         dc = wx.MemoryDC(bmp)
         dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
@@ -478,220 +472,28 @@ class ThumbnailGenerator:
                          dc.DrawBitmap(final_bmp, int(off_x), int(off_y), True)
             return
 
-        # Handle Frame
-        frame = None
-        if hasattr(item, 'fmodules'):
-             frame = item
-        
-        if not frame:
-             return
+        # Frames (nested frames, part rotation, shapes, mapping) go through the parity-checked renderer.
+        if not hasattr(item, 'fmodules') or not item.fmodules:
+            return
+        from ui.frame_render import SHARED, to_bitmap, transform
 
-        if not frame.fmodules:
-             return
-
-        # Calculate Bounds
-        min_x, min_y, max_x, max_y = float('inf'), float('inf'), float('-inf'), float('-inf')
-        has_content = False
-        
-        for fm in frame.fmodules:
-            if fm.ref_type == "module":
-                ref_id = fm.ref_id
-                if mapping and ref_id in mapping.map:
-                    ref_id = mapping.map[ref_id]
-
-                if not ref_id: continue
-
-                mod = project.get_module(ref_id)
-                if mod:
-                    mw, mh = mod.rect[2], mod.rect[3]
-                    if getattr(mod, 'rotated', False):
-                        mw, mh = mh, mw
-
-                    piv_x, piv_y = mod.pivot
-                    x0 = fm.position[0] - piv_x
-                    y0 = fm.position[1] - piv_y
-                    
-                    min_x = min(min_x, x0)
-                    min_y = min(min_y, y0)
-                    max_x = max(max_x, x0 + mw)
-                    max_y = max(max_y, y0 + mh)
-                    has_content = True
-
-        if not has_content:
-             return
-
-        # Rotation Logic for Content Size
-        content_w = max(1, max_x - min_x)
-        content_h = max(1, max_y - min_y)
-        
-        rot_int = int(rotation) % 360
-        eff_w, eff_h = content_w, content_h
-        if rot_int == 90 or rot_int == 270:
-            eff_w, eff_h = content_h, content_w
-            
-        # Calc Scale
+        a, b = transform(flip_x, flip_y, rotation)
+        image, _x, _y = SHARED.render(project, item, mapping, a, b)
+        iw, ih = image.size
+        if iw <= 1 and ih <= 1 and not image.getbbox():
+            return
         if custom_scale > 0:
             scale = custom_scale
         else:
-            scale = min(width / eff_w, height / eff_h)
-            scale = min(scale, 32.0)
-            
-        if eff_w == 0 or eff_h == 0:
-             return
+            scale = min(32.0, width / max(1, iw), height / max(1, ih))
+        bmp = to_bitmap(image, scale)
+        dc.DrawBitmap(bmp, int(x_off + (width - bmp.GetWidth()) / 2), int(y_off + (height - bmp.GetHeight()) / 2), True)
 
-        # Calculate Offset to center in RECT
-        off_x = x_off + (width - eff_w * scale) / 2
-        off_y = y_off + (height - eff_h * scale) / 2
-        
-        # We will do manual transform
-        for fm in frame.fmodules:
-            if fm.ref_type == "module":
-                ref_id = fm.ref_id
-                if mapping and ref_id in mapping.map:
-                    ref_id = mapping.map[ref_id]
+    def frame_size(self, project: 'Project', frame, mapping: Optional['ModuleMapping'] = None) -> Tuple[int, int]:
+        """Pixel size of a frame as drawn (for palettes that scale all frames alike)."""
+        if not getattr(frame, 'fmodules', None):
+            return (0, 0)
+        from ui.frame_render import SHARED
 
-                if not ref_id: continue
-
-                mod = project.get_module(ref_id)
-                if mod:
-                    asset = project.get_image(mod.image_id)
-                    if asset:
-                        try:
-                            if asset.id not in self.asset_cache:
-                                full_img = load_wx_image_safely(asset.file_path)
-                                if asset.transparent_color:
-                                    full_img.SetMaskColour(*asset.transparent_color)
-                                self.asset_cache[asset.id] = full_img
-                            
-                            full_img = self.asset_cache[asset.id]
-                            
-                            rx, ry, rw, rh = mod.rect
-                            if rx + rw <= full_img.GetWidth() and ry + rh <= full_img.GetHeight():
-                                sub = full_img.GetSubImage(wx.Rect(int(rx), int(ry), int(rw), int(rh)))
-                                
-                                if getattr(mod, 'rotated', False):
-                                    sub = sub.Rotate90(clockwise=False)
-                                    # Swap dimensions for logical processing
-                                    rw, rh = rh, rw
-                                
-                                # Module Flips
-                                if fm.flip_x: sub = sub.Mirror(True)
-                                if fm.flip_y: sub = sub.Mirror(False)
-                                
-                                # Position
-                                piv_x, piv_y = mod.pivot
-                                raw_x = fm.position[0] - piv_x
-                                raw_y = fm.position[1] - piv_y
-                                
-                                rel_x = raw_x - min_x
-                                rel_y = raw_y - min_y
-                                
-                                # Global Flip X -> Flip around center of content rectangle
-                                if flip_x:
-                                    rel_x = content_w - rel_x - rw
-                                    sub = sub.Mirror(True)
-                                if flip_y:
-                                    rel_y = content_h - rel_y - rh
-                                    sub = sub.Mirror(False)
-                                
-                                # Apply Rotation to Coordinates and Image
-                                rot_int = int(rotation) % 360
-                                if rot_int == 90:
-                                    # (x, y) -> (content_h - y - rh, x)
-                                    # New Width is content_h
-                                    new_x = content_h - rel_y - rh
-                                    new_y = rel_x
-                                    rel_x, rel_y = new_x, new_y
-                                    sub = sub.Rotate90(True) # Clockwise
-                                    rw, rh = rh, rw
-                                elif rot_int == 180:
-                                    # (x, y) -> (content_w - x - rw, content_h - y - rh)
-                                    new_x = content_w - rel_x - rw
-                                    new_y = content_h - rel_y - rh
-                                    rel_x, rel_y = new_x, new_y
-                                    sub = sub.Rotate180()
-                                elif rot_int == 270:
-                                    # (x, y) -> (y, content_w - x - rw)
-                                    new_x = rel_y
-                                    new_y = content_w - rel_x - rw
-                                    rel_x, rel_y = new_x, new_y
-                                    sub = sub.Rotate90(False) # Counter-Clockwise
-                                    rw, rh = rh, rw
-
-                                # Scale
-                                dest_x = off_x + rel_x * scale
-                                dest_y = off_y + rel_y * scale
-                                dest_w = rw * scale
-                                dest_h = rh * scale
-                                
-                                if dest_w > 0 and dest_h > 0:
-                                     sub = sub.Scale(int(dest_w), int(dest_h), wx.IMAGE_QUALITY_NEAREST)
-                                     sub_bmp = sub.ConvertToBitmap()
-                                     dc.DrawBitmap(sub_bmp, int(dest_x), int(dest_y), True)
-                        except Exception:
-                             pass
-                    else:
-                        # Shape Module in Frame
-                        mw, mh = mod.rect[2], mod.rect[3]
-                        shape_bmp = render_pixel_shape_to_bitmap(mod.type, mw, mh, mod.color, mod.params)
-                        
-                        if shape_bmp:
-                            img = shape_bmp.ConvertToImage()
-                            
-                            # Module Flips
-                            if fm.flip_x: img = img.Mirror(True)
-                            if fm.flip_y: img = img.Mirror(False)
-                            
-                            rw, rh = mw, mh
-                            
-                            piv_x, piv_y = mod.pivot
-                            raw_x = fm.position[0] - piv_x
-                            raw_y = fm.position[1] - piv_y
-                            
-                            rel_x = raw_x - min_x
-                            rel_y = raw_y - min_y
-                            
-                            # Global Flip X -> Flip around center of content rectangle
-                            if flip_x:
-                                rel_x = content_w - rel_x - rw
-                                img = img.Mirror(True)
-                            if flip_y:
-                                rel_y = content_h - rel_y - rh
-                                img = img.Mirror(False)
-
-                            # Apply Rotation to Coordinates and Image
-                            rot_int = int(rotation) % 360
-                            if rot_int == 90:
-                                # (x, y) -> (content_h - y - rh, x)
-                                new_x = content_h - rel_y - rh
-                                new_y = rel_x
-                                rel_x, rel_y = new_x, new_y
-                                img = img.Rotate90(True) # Clockwise
-                                rw, rh = rh, rw
-                            elif rot_int == 180:
-                                # (x, y) -> (content_w - x - rw, content_h - y - rh)
-                                new_x = content_w - rel_x - rw
-                                new_y = content_h - rel_y - rh
-                                rel_x, rel_y = new_x, new_y
-                                img = img.Rotate180()
-                            elif rot_int == 270:
-                                # (x, y) -> (y, content_w - x - rw)
-                                new_x = rel_y
-                                new_y = content_w - rel_x - rw
-                                rel_x, rel_y = new_x, new_y
-                                img = img.Rotate90(False) # Counter-Clockwise
-                                rw, rh = rh, rw
-                            
-                            dest_x = off_x + rel_x * scale
-                            dest_y = off_y + rel_y * scale
-                            dest_w = rw * scale
-                            dest_h = rh * scale
-                            
-                            if dest_w > 0 and dest_h > 0:
-                                 img.Rescale(int(dest_w), int(dest_h), wx.IMAGE_QUALITY_NEAREST)
-                                 dc.DrawBitmap(img.ConvertToBitmap(), int(dest_x), int(dest_y), True)
-        
-        # DEBUG: Fall through - Check if we reached end
-        # If nothing drawn, but arrived here
-        # dc.SetBrush(wx.Brush(wx.Colour(0, 255, 0))) # Green
-        # dc.DrawRectangle(rect.x + rect.width - 5, rect.y + rect.height - 5, 5, 5)
+        image, _x, _y = SHARED.render(project, frame, mapping)
+        return image.size if image.getbbox() else (0, 0)

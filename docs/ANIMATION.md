@@ -46,9 +46,9 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 4. **Palette is invisible.** The SGDK exporter quantises to a master palette, but the editor never shows which
    palette/line a part uses, cannot preview palette swaps (Mega Drive: 4 lines × 16 colours) and has no palette
    cycling.
-5. **Previews disagree (partly fixed).** The Animations tab and GIF export now use the renderer that matches the
-   canvas and the RetroAnimator export pixel-exactly (`tools/check_export_parity.py`); the frame/module palettes
-   still use `ThumbnailGenerator`, which ignores nested frames and per-part rotation.
+5. **Previews disagree (fixed).** All thumbnails and GIF export use the renderer that matches the canvas and the
+   RetroAnimator export pixel-exactly (`ui/frame_render.py`, checked by `tests/test_thumbnails.py` and
+   `tools/check_export_parity.py`).
 6. **Timing UX (mostly done).** Duration-scaled cells, hold dragging, multi-select, step rotation and preview
    speed exist now; still missing: a 50/60 Hz (PAL/NTSC) preview switch and timing presets.
 7. **No sprite-sheet / engine export** beyond RetroAnimator and SGDK (Aseprite JSON, Godot/Unity sheets), and no
