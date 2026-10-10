@@ -56,6 +56,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.project: Optional[Project] = None
         self.animation: Optional[Animation] = None
         self.indices: List[int] = []
+        self.budget: Optional[Tuple[str, bool]] = None
         self._updating = False
 
         # Callbacks (set by the panel)
@@ -101,6 +102,9 @@ class AnimationInspector(wx.ScrolledWindow):
         self.usage = wx.StaticText(p, label="")
         self.usage.SetForegroundColour(wx.Colour(150, 156, 170))
         _row(grid, p, "Used in", self.usage)
+        self.budget_info = wx.StaticText(p, label="")
+        self.budget_info.SetToolTip("The step that needs the most hardware sprites (view bar ▸ Budget)")
+        self.budget_label = _row(grid, p, "Budget", self.budget_info)
         self.btn_mirror_h = wx.Button(p, label="Mirror H", style=wx.BU_EXACTFIT)
         self.btn_mirror_v = wx.Button(p, label="Mirror V", style=wx.BU_EXACTFIT)
         self.btn_mirror_h.SetToolTip("Mirror every step and its motion horizontally (e.g. turn a walk to face left)")
@@ -197,7 +201,15 @@ class AnimationInspector(wx.ScrolledWindow):
         self.flip_v.Bind(wx.EVT_TOGGLEBUTTON, lambda e: step("flip_y", self.flip_v.GetValue()))
 
     # ------------------------------------------------------------------ context
-    def show(self, project: Optional[Project], animation: Optional[Animation], indices: List[int]) -> None:
+    def show(
+        self,
+        project: Optional[Project],
+        animation: Optional[Animation],
+        indices: List[int],
+        budget: Optional[Tuple[str, bool]] = None,
+    ) -> None:
+        """``budget``: (text about the worst step, over the limit?) when the Budget view is on."""
+        self.budget = budget
         self.project = project
         self.animation = animation
         self.indices = [i for i in indices if animation and 0 <= i < len(animation.aframes)]
@@ -232,6 +244,12 @@ class AnimationInspector(wx.ScrolledWindow):
         self.length.SetLabel(ops.describe_length(anim))
         uses = ops.scene_usage(self.project, anim.id) if self.project else 0
         self.usage.SetLabel(f"{uses} timeline object{'s' if uses != 1 else ''}" if uses else "no timeline scenes")
+        text, over = self.budget if self.budget else ("", False)
+        self.budget_info.SetLabel(text)
+        self.budget_info.SetForegroundColour(wx.Colour(255, 120, 110) if over else self.length.GetForegroundColour())
+        self.budget_info.Wrap(200)
+        self.budget_info.Show(bool(text))
+        self.budget_label.Show(bool(text))
         has_steps = bool(anim.aframes)
         for btn in (self.btn_mirror_h, self.btn_mirror_v, self.btn_rot_ccw, self.btn_rot_cw, self.btn_reverse, self.btn_gif):
             btn.Enable(has_steps)

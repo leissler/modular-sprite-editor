@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import wx
 
+from hardware_budget import Budget, BudgetCalculator, HardwareProfile
 from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
@@ -58,6 +59,10 @@ def _color_from_id(identifier: str) -> Color:
     seed = sum(ord(c) for c in identifier)
     return ((seed * 37) % 200 + 30, (seed * 57) % 200 + 30, (seed * 97) % 200 + 30)
 
+# One calculator for every canvas: it caches module images and their 8×8 block masks.
+BUDGET = BudgetCalculator()
+
+
 class FrameCanvas(BaseCanvas):
     """Canvas that can render a Frame and support selection/move of FModules."""
 
@@ -97,6 +102,9 @@ class FrameCanvas(BaseCanvas):
         # sprite covers). Rects are collected while drawing, so nested frames and the stage get it too.
         self.show_part_bounds: bool = False
         self._part_rects: List[Tuple[float, float, float, float]] = []
+        # "Budget" view: hardware sprites of what is shown, scanlines that would drop sprites, and a readout.
+        self.budget_profile: Optional[HardwareProfile] = None
+        self._budget_hud: Optional[Budget] = None  # drawn last, over everything else
         # Onion-skin layers drawn under the current frame:
         # dicts with frame, offset, flip_x, flip_y, rotation, style.
         self.ghost_layers: List[Dict[str, Any]] = []
@@ -276,8 +284,10 @@ class FrameCanvas(BaseCanvas):
         dc = wx.AutoBufferedPaintDC(self)
         self.draw_backdrop(dc)
         gc = wx.GraphicsContext.Create(dc)
+        self._budget_hud = None
         self._draw_grid(gc)
         self.draw_content(gc)
+        self._draw_budget_hud(gc)
 
     def draw_content(self, gc: wx.GraphicsContext) -> None:
         if not self.frame:
@@ -294,6 +304,8 @@ class FrameCanvas(BaseCanvas):
         gc.PopState()
         if self.show_part_bounds:
             self._draw_part_bounds(gc)
+        if self.budget_profile is not None:
+            self._draw_budget(gc, self.compute_budget())
             
         if self.edit_mode in ("collision", "point"):
              # Dim modules
@@ -449,6 +461,60 @@ class FrameCanvas(BaseCanvas):
                         int(round(p_pos_y + min(ts_y) - local_min_y)),
                     )
                     self._draw_fmodule_content(gc, probe, depth + 1)
+
+    def set_budget_profile(self, profile: Optional[HardwareProfile]) -> None:
+        self.budget_profile = profile
+        self.Refresh(False)
+
+    def compute_budget(self) -> Optional[Budget]:
+        """Hardware sprites for the frame as currently drawn (with its offset / flips / rotation)."""
+        if self.budget_profile is None or self.frame is None:
+            return None
+        from ui.frame_render import transform
+
+        a, b = transform(self.render_flip_x, self.render_flip_y, self.render_rotation, self.frame_offset)
+        return BUDGET.frame_budget(self.project, self.frame, self.project.active_mapping, self.budget_profile, a, b)
+
+    def _draw_budget(self, gc: wx.GraphicsContext, budget: Optional[Budget]) -> None:
+        """Overlay (red scanlines, hardware sprite outlines); the readout follows in _draw_budget_hud."""
+        self._budget_hud = budget
+        if budget is None:
+            return
+        width, height = self.GetClientSize()
+        gc.SetPen(wx.TRANSPARENT_PEN)
+        gc.SetBrush(wx.Brush(wx.Colour(255, 60, 60, 80)))
+        for first, last in budget.over_lines():
+            top = self.world_to_screen((0, first))[1]
+            bottom = self.world_to_screen((0, last + 1))[1]
+            gc.DrawRectangle(0, top, width, max(1.0, bottom - top))
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        gc.SetPen(wx.Pen(wx.Colour(255, 214, 102, 220), 1))
+        for s in budget.sprites:
+            x0, y0 = self.world_to_screen((s.x, s.y))
+            x1, y1 = self.world_to_screen((s.x + s.w, s.y + s.h))
+            gc.DrawRectangle(round(x0) + 0.5, round(y0) + 0.5, max(0, round(x1 - x0) - 1), max(0, round(y1 - y0) - 1))
+
+    def _draw_budget_hud(self, gc: wx.GraphicsContext) -> None:
+        """Readout in the top-left corner; red when sprites would drop out."""
+        budget = self._budget_hud
+        if budget is None or self.budget_profile is None:
+            return
+        over = budget.over_budget()
+        lines = [budget.profile.name, budget.summary()]
+        if over:
+            lines.append("Over the limit: sprites on the red lines would flicker or vanish")
+        font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+        gc.SetFont(font, wx.Colour(255, 150, 150) if over else wx.Colour(235, 235, 240))
+        extents = [gc.GetTextExtent(line) for line in lines]
+        box_w = max(w for w, _h in extents) + 16
+        box_h = sum(h for _w, h in extents) + 10 + 2 * (len(lines) - 1)
+        gc.SetPen(wx.TRANSPARENT_PEN)
+        gc.SetBrush(wx.Brush(wx.Colour(18, 19, 22, 215)))
+        gc.DrawRoundedRectangle(8, 8, box_w, box_h, 5)
+        y = 13.0
+        for line, (_w, h) in zip(lines, extents):
+            gc.DrawText(line, 16, y)
+            y += h + 2
 
     def set_show_part_bounds(self, show: bool) -> None:
         self.show_part_bounds = bool(show)

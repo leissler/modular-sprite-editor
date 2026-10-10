@@ -72,20 +72,12 @@ class AnimationEditorPanel(wx.Panel):
         stage_panel = wx.Panel(self.inner_split)
         stage_sizer = wx.BoxSizer(wx.VERTICAL)
         self.stage = AnimationStage(stage_panel, self.project)
-        self.canvas_controls = CanvasDisplayControls(stage_panel, self.stage, view_key="animations", part_bounds=True)
+        self.canvas_controls = CanvasDisplayControls(stage_panel, self.stage, view_key="animations", part_bounds=True, budget=True)
         self.canvas_controls.add_separator()
         self.chk_path = self.canvas_controls.add_toggle("Path", True, lambda v: self._refresh_stage(), "Show the motion path of the step offsets")
         self.chk_collision = self.canvas_controls.add_toggle("Collision", False, self._on_toggle_collision)
         self.chk_points = self.canvas_controls.add_toggle("Points", False, self._on_toggle_points)
-        self.onion_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in ONION_MODES])
-        self.onion_choice.SetSelection(0)
-        self.onion_choice.SetMinSize((self.canvas_controls.GetTextExtent("Previous")[0] + 44, -1))
-        self.onion_choice.SetToolTip("Ghost the previous (red) / next (blue) step")
-        self.canvas_controls.add_control(self.onion_choice, "Onion")
-        self.mirror_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in MIRROR_MODES])
-        self.mirror_choice.SetSelection(0)
-        self.mirror_choice.SetToolTip("Preview the animation mirrored (e.g. facing the other way); the data is not changed")
-        self.canvas_controls.add_control(self.mirror_choice, "Mirror")
+        self.canvas_controls.on_budget_changed = lambda: self.refresh(stage=False, sequence=False)
         stage_sizer.Add(self.stage, 1, wx.EXPAND | wx.ALL, 2)
         stage_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         stage_panel.SetSizer(stage_sizer)
@@ -132,6 +124,18 @@ class AnimationEditorPanel(wx.Panel):
         self.speed_choice.SetSelection(0)
         self.speed_choice.SetToolTip("Preview speed (slow motion helps to check single ticks)")
         transport.Add(self.speed_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14)
+        # Preview settings live with playback (like onion skin in a timeline), not in the view bar.
+        transport.Add(wx.StaticText(bottom, label="Onion"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.onion_choice = wx.Choice(bottom, choices=[label for label, _ in ONION_MODES])
+        self.onion_choice.SetSelection(0)
+        self.onion_choice.SetMinSize((bottom.GetTextExtent("Previous")[0] + 44, -1))
+        self.onion_choice.SetToolTip("Ghost the previous (red) / next (blue) step on the stage")
+        transport.Add(self.onion_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        transport.Add(wx.StaticText(bottom, label="Mirror"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.mirror_choice = wx.Choice(bottom, choices=[label for label, _ in MIRROR_MODES])
+        self.mirror_choice.SetSelection(0)
+        self.mirror_choice.SetToolTip("Preview the animation mirrored (e.g. facing the other way); the data is not changed")
+        transport.Add(self.mirror_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14)
         self.btn_delete = tbutton("Delete", "Delete the selected steps (Delete)", 64)
         transport.AddStretchSpacer(1)
         self.btn_fit_seq = tbutton("Fit", "Show the whole animation in the sequence", 44)
@@ -321,10 +325,37 @@ class AnimationEditorPanel(wx.Panel):
         if sequence:
             self.sequence.set_data(self.project, anim, self.renderer, self.tick, step, self.selection)
         if inspector:
-            self.inspector.show(self.project, anim, sorted(self.selection))
+            self.inspector.show(self.project, anim, sorted(self.selection), self._worst_step_budget(anim))
         if not self.is_playing:
             self.browser.list.Refresh()  # rows show length and mode
         self._update_transport()
+
+    def _worst_step_budget(self, anim: Optional[Animation]) -> Optional[Tuple[str, bool]]:
+        profile = self.stage.budget_profile
+        if profile is None or not anim or not anim.aframes:
+            return None
+        from ui.animation_editor.render import step_affine
+        from ui.canvas import BUDGET
+
+        worst = None
+        for index, af in enumerate(anim.aframes):
+            frame = self.project.get_frame(af.frame_id)
+            if frame is None:
+                continue
+            a, b = step_affine(af)
+            budget = BUDGET.frame_budget(self.project, frame, self.project.active_mapping, profile, a, b)
+            rank = (budget.over_budget(), budget.sprite_count, budget.tile_count)
+            if worst is None or rank > worst[0]:
+                worst = (rank, index, budget)
+        if worst is None:
+            return None
+        _rank, index, budget = worst
+        count, pixels = budget.worst_line()
+        text = (
+            f"worst step {index + 1}: {budget.sprite_count} sprites, {budget.tile_count} tiles; "
+            f"busiest line {count}/{profile.sprites_per_line} sprites, {pixels}/{profile.pixels_per_line} px"
+        )
+        return text, budget.over_budget()
 
     def _refresh_stage(self) -> None:
         anim = self.animation()

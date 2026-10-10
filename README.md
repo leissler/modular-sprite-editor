@@ -38,6 +38,9 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Collision & Points**: Hitboxes and utility points with semantic roles, compiled into per-animation lookup tables.
 *   **Onion Skinning**: ghost the previous/next frame of the list.
 
+### 🎮 Hardware Budget (Mega Drive)
+*   **Budget** in the Frames, Animations and Timeline view bars (MD H40 / H32): outlines the hardware sprites each part becomes, marks scanlines where sprites would drop out in red, and shows sprites, tiles and the busiest line. The Animations inspector names the worst step; the Timeline counts the whole scene. Numbers follow the SGDK exporter.
+
 ### 🎬 Animation Editor
 *   **Sequence on a tick ruler**: every step is as wide as its hold; drag a step's right edge to change the hold, drag steps to reorder (Alt copies), drop frames from the library where they should go. A coloured stripe marks repeated frames.
 *   **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick; preview speed ½× / ¼× / 2×.

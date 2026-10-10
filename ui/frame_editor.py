@@ -472,7 +472,7 @@ class FrameEditorPanel(wx.Panel):
         self.canvas.on_create_frame_needed = self.on_auto_create_frame
         canvas_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
 
-        self.canvas_controls = CanvasDisplayControls(right_panel, self.canvas, view_key="frames", part_bounds=True)
+        self.canvas_controls = CanvasDisplayControls(right_panel, self.canvas, view_key="frames", part_bounds=True, budget=True)
         self.canvas_controls.add_separator()
         self.chk_show_col = self.canvas_controls.add_toggle(
             "Collision", False, self.on_toggle_vis_col, "Show collision boxes while editing parts"

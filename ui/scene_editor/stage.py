@@ -8,8 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import wx
 
 from models import FModule, Project, TimelineKeyframe, TimelineObject, TimelineScene
+from hardware_budget import Budget, HwPart
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
-from ui.canvas import FrameCanvas
+from ui.canvas import BUDGET, FrameCanvas
 from ui.scene_editor import ops
 
 # Retro screen guides: label -> (width, height). The guide's top-left is the scene origin,
@@ -178,6 +179,7 @@ class StageCanvas(FrameCanvas):
         self._drawn_objects = []
         self._drawn_keys = []
         self._drawn_handles = []
+        self._budget_hud = None
         self._draw_grid(gc)
         if not self.scene:
             gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(190, 190, 190))
@@ -202,6 +204,8 @@ class StageCanvas(FrameCanvas):
                 )
         if self.show_part_bounds:
             self._draw_part_bounds(gc)
+        if self.budget_profile is not None:
+            self._draw_budget(gc, self.compute_budget(states))
 
         self._draw_screen_guide(gc)
         self._draw_motion_path(gc, states)
@@ -212,6 +216,35 @@ class StageCanvas(FrameCanvas):
                 gc.SetBrush(wx.TRANSPARENT_BRUSH)
                 gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 1, wx.PENSTYLE_SHORT_DASH))
                 gc.DrawRectangle(r.x, r.y, r.width, r.height)
+        self._draw_budget_hud(gc)
+
+    def compute_budget(self, states: Optional[Dict[str, Dict[str, Any]]] = None) -> Optional[Budget]:
+        """Hardware sprites of everything visible at the playhead (the limits are per screen and per line)."""
+        if self.budget_profile is None or not self.scene:
+            return None
+        from ui.frame_render import transform
+
+        if states is None:
+            states = ops.evaluate_states(self.project, self.scene, self.time_value)
+        mapping = self.project.active_mapping
+        cache: Dict[str, ops.Matrix] = {}
+        parts: List[HwPart] = []
+        for obj, _depth, _kids in ops.tree_rows(self.scene, set()):
+            state = states.get(obj.id)
+            if not state or self._is_hidden(obj) or not state.get("visible", True):
+                continue
+            offset, rotation, flip_x, flip_y = self._matrix_to_frame_transform(ops.world_matrix(self.scene, states, obj.id, cache))
+            a, b = transform(flip_x, flip_y, rotation, offset)
+            source_type = state.get("source_type")
+            source_id = state.get("source_id")
+            frame_id = state.get("frame_id") or source_id
+            if source_type == "module" and source_id:
+                parts += BUDGET.module_parts(self.project, str(source_id), mapping, self.budget_profile, a, b)
+            elif source_type in ("frame", "animation") and frame_id:
+                frame = self.project.get_frame(str(frame_id))
+                if frame:
+                    parts += BUDGET.frame_parts(self.project, frame, mapping, self.budget_profile, a, b)
+        return Budget(self.budget_profile, parts)
 
     def _is_hidden(self, obj: TimelineObject) -> bool:
         current: Optional[TimelineObject] = obj

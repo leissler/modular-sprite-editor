@@ -4,10 +4,13 @@ from typing import Callable, List, Optional, Tuple
 
 import wx
 
+from hardware_budget import PROFILES, profile_by_key
 from ui.base_canvas import BACKDROP_CHECKER, BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR, BaseCanvas
 
 CONFIG_BACKDROP = "View/Backdrop/{}"  # per tab: "checker" | "colour"
 CONFIG_BACKDROP_COLOUR = "View/BackdropColour"  # "r,g,b", one preview colour shared by all tabs
+CONFIG_BUDGET = "View/Budget/{}"  # per tab: "" (off) or a hardware profile key
+BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32"}
 
 # Live view bars, so a new backdrop colour shows in every tab at once. Destroyed wx windows are falsy.
 _LIVE_BARS: List["CanvasDisplayControls"] = []
@@ -66,6 +69,7 @@ class CanvasDisplayControls(wx.Panel):
         default_backdrop: str = BACKDROP_CHECKER,
         scene_backdrop: bool = False,
         part_bounds: bool = False,
+        budget: bool = False,
         key_colour_toggle: bool = False,
         on_key_colour_changed: Optional[Callable[[bool], None]] = None,
     ):
@@ -74,6 +78,7 @@ class CanvasDisplayControls(wx.Panel):
         self.view_key = view_key
         self.scene_backdrop = scene_backdrop
         self.on_key_colour_changed = on_key_colour_changed
+        self.on_budget_changed: Optional[Callable[[], None]] = None
 
         self._sizer = wx.BoxSizer(wx.HORIZONTAL)
         controls = self._sizer
@@ -118,6 +123,20 @@ class CanvasDisplayControls(wx.Panel):
             controls.Add(self.chk_part_bounds, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
             self.chk_part_bounds.Bind(wx.EVT_CHECKBOX, self._on_toggle_part_bounds)
 
+        self.budget_choice: Optional[wx.Choice] = None
+        if budget:
+            labels = ["Off"] + [BUDGET_LABELS.get(p.key, p.name) for p in PROFILES]
+            self.budget_choice = wx.Choice(self, choices=labels)
+            longest = max(self.GetTextExtent(label)[0] for label in labels)
+            self.budget_choice.SetMinSize((longest + 44, -1))
+            self.budget_choice.SetToolTip(
+                "Hardware budget: outline the console's hardware sprites, mark scanlines where sprites would "
+                "drop out (red) and show sprite / tile counts. MD H40 = 320 px wide mode, H32 = 256 px."
+            )
+            controls.Add(wx.StaticText(self, label="Budget"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+            controls.Add(self.budget_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+            self.budget_choice.Bind(wx.EVT_CHOICE, self._on_budget_choice)
+
         self.chk_key_colour: Optional[wx.CheckBox] = None
         if key_colour_toggle:
             self.chk_key_colour = wx.CheckBox(self, label="Show key colour")
@@ -146,6 +165,8 @@ class CanvasDisplayControls(wx.Panel):
         cfg = _config()
         mode = cfg.Read(CONFIG_BACKDROP.format(view_key), default_backdrop) if cfg else default_backdrop
         self._set_backdrop_mode(mode, persist=False)
+        if self.budget_choice is not None:
+            self._set_budget(cfg.Read(CONFIG_BUDGET.format(view_key), "") if cfg else "", persist=False)
         _LIVE_BARS.append(self)
 
     def add_separator(self) -> None:
@@ -220,6 +241,24 @@ class CanvasDisplayControls(wx.Panel):
         if self.backdrop_picker:
             self.backdrop_picker.SetColour(wx.Colour(*colour))
         self.canvas.set_backdrop(self.canvas.backdrop, colour)
+
+    # --- hardware budget (FrameCanvas and subclasses)
+    def _set_budget(self, key: str, persist: bool = True) -> None:
+        profile = profile_by_key(key)
+        if self.budget_choice is not None:
+            self.budget_choice.SetSelection(PROFILES.index(profile) + 1 if profile else 0)
+        self.canvas.set_budget_profile(profile)  # type: ignore[attr-defined]
+        if persist:
+            cfg = _config()
+            if cfg:
+                cfg.Write(CONFIG_BUDGET.format(self.view_key), profile.key if profile else "")
+                cfg.Flush()
+
+    def _on_budget_choice(self, _event: wx.CommandEvent) -> None:
+        index = self.budget_choice.GetSelection() if self.budget_choice else 0
+        self._set_budget(PROFILES[index - 1].key if index > 0 else "")
+        if self.on_budget_changed:
+            self.on_budget_changed()
 
     # --- part bounds (FrameCanvas and subclasses)
     def _on_toggle_part_bounds(self, event: wx.CommandEvent) -> None:

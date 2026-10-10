@@ -37,8 +37,10 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 ## Gaps that matter for retro work
 
-1. **No hardware budget feedback while animating.** Sprite count, sprite-per-scanline overflow, unique 8×8 tiles
-   and VRAM per frame are only visible later on hardware (SGDK HUD). This is the biggest risk for console work.
+1. **Hardware budget feedback (done for Mega Drive).** The view bar's *Budget* choice (MD H40 / H32) in Frames,
+   Animations and Timeline outlines the VDP sprites, marks scanlines over the sprite / pixel limit in red and shows
+   sprites, tiles and the busiest line; the Animations inspector names the worst step. Still missing: other
+   consoles, and tile dedupe / DMA-per-step numbers.
 2. **No animation events / markers.** Hit-active windows, sound cues, spawn points, cancel windows, footsteps are
    per-step game data that today must be encoded in frame names or roles.
 3. **No loop ranges or chaining.** Retro animations often play an intro once and then loop a sub-range, or hand
@@ -56,15 +58,13 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 ## Recommended extensions (priority order)
 
-### 1. Hardware budget overlay (high value, moderate effort)
-- New `Project`-independent module `hardware_profiles.py` with per-target limits: sprite sizes (MD: 8–32 px in
-  8 px steps, SNES: two global sizes, GBA: 12 shapes, NES: 8×8 / 8×16), sprites per frame, sprites per scanline,
-  VRAM tiles.
-- Per frame: greedy cover of each part with hardware sprites (reuse SGDK exporter logic), count sprites, mark
-  scanlines over the limit in red on the canvas, show unique tiles; per animation: worst frame and tiles that must
-  be streamed (DMA) per step.
-- UI: a "Budget" toggle in the Frames/Animations view bar plus a numbers readout in the status bar; target
-  chosen per project (store as `"target_profile"` → **format v3**, additive).
+### 1. Hardware budget overlay (Mega Drive done)
+- Done: `hardware_budget.py` places parts exactly like the SGDK exporter (tested against it), cuts them into
+  ≤32×32 VDP sprites on the 8 px grid (skipping empty blocks), and checks sprites per screen / per line and sprite
+  pixels per line for MD H40 and H32. UI: *Budget* in the view bars (per tab, app preference), red scanlines,
+  readout, worst step in the Animations inspector, whole-scene budget in the Timeline.
+- Next: SNES / GBA / NES profiles (different sprite shapes and limits), unique-tile counting with flip dedupe,
+  tiles to stream (DMA) per animation step, and a per-project target (would be **format v3**, additive).
 
 ### 2. Step events / markers (high value, low effort)
 - Data: `AFrame.events: List[str]` (free tags like `hit_on`, `sfx:slash`, `spawn:dust`) — additive, **format v3**.

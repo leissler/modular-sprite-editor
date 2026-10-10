@@ -43,6 +43,8 @@ app.py                     MainFrame: menus, tabs, context bar (preview mapping)
 models.py                  Dataclasses + JSON (to_dict/from_dict), format migration, timeline evaluation
                            (easing, spline paths, source switching), AuroraGT + RetroAnimator import,
                            RetroAnimator export (baked parts), role tables
+hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32): SGDK-exact part placement, ≤32×32 VDP
+                           sprite cut, per-screen / per-line limits — wx-free, tested against the SGDK exporter
 optimization.py            Sheet optimisation/packing, auto-modularisation (freeform + tile-constrained
                            with console profiles), nested-frame combo optimisation
 rect_packer.py             MaxRects bin packer
@@ -144,6 +146,12 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `apply_key_colour` (hide the sheet's transparent colour). Composition canvases always key; only the Modules
   tab offers "Show key colour". `FrameCanvas.show_part_bounds` outlines every module part. Create thumbnail
   `wx.ImageList`s with `mask=False` (a masked list costs ~6 ms per `Add` on macOS).
+- **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
+  whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
+  `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part`; `tests/test_hardware_budget.py` compares them.
+- **Preferences** go through `wx.Config.Get()`; because the main window is built before the app name is set, the
+  store is named after the launched script (`app` for `python3 app.py`). Test scripts therefore get their own store,
+  but must not leave preference changes behind anyway.
 - **View options** belong in the canvas's `CanvasDisplayControls` (`add_toggle`, `add_control`), not in side
   panels. **Status/hints** go through `app_services.show_status`, not modal dialogs.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`

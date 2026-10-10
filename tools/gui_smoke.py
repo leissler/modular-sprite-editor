@@ -370,6 +370,7 @@ def run():
 
     step("animations: mouse in the sequence and the list", animation_mouse)
 
+
     # ---- Timeline (scene editor)
     te = frame.timeline_editor
 
@@ -444,8 +445,13 @@ def run():
         te.inspector.show_context(proj, scene, te.obj(), te.frame)
         te.select_object(None)  # scene settings
         te._on_scene_field("fps", 30)
+        from ui.scene_editor.panel import CONFIG_SCREEN_GUIDE
+
+        saved_guide = wx.Config.Get().ReadInt(CONFIG_SCREEN_GUIDE, 0)
         te.screen_choice.SetSelection(1)
         te._on_screen_choice(None)
+        wx.Config.Get().WriteInt(CONFIG_SCREEN_GUIDE, saved_guide)  # the smoke test must not change preferences
+        wx.Config.Get().Flush()
         te.stage.Refresh()
         te.stage.Update()
         te.timeline.Refresh()
@@ -460,6 +466,53 @@ def run():
         check(len(te.scene().objects) >= n, "undo through scene edits")
 
     step("timeline: add, auto-key, easing, retime, parent, play, copy/paste, delete, undo", timeline)
+
+    def budget():
+        import hardware_budget as hb
+
+        # Frames tab
+        frame.select_tab(1)
+        pump()
+        fe = frame.frame_editor
+        fe.canvas_controls._set_budget("md_h40", persist=False)
+        target = next((f for f in proj.frames if f.fmodules), None)
+        if target:
+            fe.select_frame_by_id(target.id)
+            pump()
+            b = fe.canvas.compute_budget()
+            check(b is not None and b.sprite_count > 0, "frames: budget counts hardware sprites")
+            fe.canvas.Refresh()
+            fe.canvas.Update()
+        fe.canvas_controls._set_budget("", persist=False)
+        check(fe.canvas.budget_profile is None, "frames: budget off")
+
+        # Animations tab: overlay plus the worst step in the inspector
+        frame.select_tab(2)
+        pump()
+        anim = max(proj.animations, key=lambda a: len(a.aframes)) if proj.animations else None
+        if anim:
+            ae.select_animation(anim.id)
+            ae.canvas_controls._set_budget("md_h32", persist=False)
+            ae.refresh()
+            pump()
+            check(ae.stage.budget_profile is hb.MEGA_DRIVE_H32, "animations: budget profile")
+            check(ae.inspector.budget_info.IsShown() and "worst step" in ae.inspector.budget_info.GetLabel(), "animations: worst step shown")
+            ae.stage.Refresh()
+            ae.stage.Update()
+            ae.canvas_controls._set_budget("", persist=False)
+            ae.refresh()
+
+        # Timeline: whole scene
+        frame.select_tab(3)
+        pump()
+        te.canvas_controls._set_budget("md_h40", persist=False)
+        b = te.stage.compute_budget()
+        check(b is not None, "timeline: scene budget")
+        te.stage.Refresh()
+        te.stage.Update()
+        te.canvas_controls._set_budget("", persist=False)
+
+    step("budget overlay: frames / animations / timeline", budget)
 
     # ---- Mappings
     def mappings():
