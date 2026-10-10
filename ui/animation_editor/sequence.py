@@ -33,7 +33,7 @@ LABEL_STEPS = (1, 2, 5, 10, 20, 50, 100, 200, 500)
 RULER_H = 22
 EVENT_LANE = 12  # coloured event chips between the ruler and the cells
 CELL_TOP = RULER_H + EVENT_LANE + 4
-THUMB = 56
+THUMB = 64
 CELL_H = THUMB + 22
 LEFT_PAD = 10
 EDGE_GRAB = 5
@@ -58,7 +58,7 @@ class SequenceWidget(wx.Panel):
         self.tick = 0
         self.step = -1
         self.selected: Set[int] = set()
-        self.tick_w = 64.0
+        self.tick_w = 72.0
         self.scroll_x = 0.0
 
         self._mode: Optional[str] = None
@@ -275,9 +275,10 @@ class SequenceWidget(wx.Panel):
         dc.SetPen(wx.Pen(COL_SELECTED if chosen else COL_BORDER, 2 if chosen else 1))
         dc.SetBrush(wx.Brush(COL_CELL_CURRENT if current else COL_CELL))
         dc.DrawRectangle(r)
-        side = max(8, min(THUMB, r.width - 6))
-        if self.renderer and self.project:
-            bmp = self.renderer.thumbnail(self.project, af, self.mapping, side)
+        # Same size for every cell (longer holds do not get bigger pictures), shared scale per animation.
+        side = max(8, min(THUMB, int(self.tick_w) - 8, r.width - 6))
+        if self.renderer and self.project and self.animation:
+            bmp = self.renderer.strip_thumbnail(self.project, self.animation, index, self.mapping, side)
             dc.DrawBitmap(bmp, r.x + 3, r.y + 3)
         # Hold band: the rest of a long cell shows that the drawing holds.
         band_x = r.x + side + 6

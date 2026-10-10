@@ -25,9 +25,11 @@ class StepRenderer:
     def __init__(self, frames: Optional[FrameRenderer] = None) -> None:
         self.frames = frames or SHARED
         self._bitmaps: Dict[Tuple[Any, ...], wx.Bitmap] = {}
+        self._layouts: Dict[Tuple[Any, ...], Tuple[int, int, float, int, int]] = {}
 
     def clear(self) -> None:
         self._bitmaps.clear()
+        self._layouts.clear()
 
     def render(
         self,
@@ -61,6 +63,76 @@ class StepRenderer:
         if bmp is None:
             image, _x, _y = self.render(project, af, mapping, with_offset=False)
             bmp = fit_bitmap(image, size, size, background)
+            if len(self._bitmaps) > 3000:
+                self._bitmaps.clear()
+            self._bitmaps[key] = bmp
+        return bmp
+
+
+    @staticmethod
+    def _step_key(project: Project, af: AFrame, mapping: Optional[ModuleMapping]) -> Tuple[Any, ...]:
+        return (frame_signature(project, af.frame_id, mapping), bool(af.flip_x), bool(af.flip_y),
+                int(round(af.rotation_degrees)) % 360)
+
+    def strip_layout(
+        self, project: Project, anim: Animation, mapping: Optional[ModuleMapping], size: int
+    ) -> Tuple[int, int, float, int, int]:
+        """(x0, y0, scale, left, top): one scale and one origin for every step of an animation.
+
+        Fitting each step on its own would zoom a slightly smaller pose 2× and its neighbour 1×; with a shared
+        layout the strip shows real size differences and how the pose moves around the frame origin.
+        """
+        key = (tuple(self._step_key(project, af, mapping) for af in anim.aframes), mapping_key(mapping), int(size))
+        layout = self._layouts.get(key)
+        if layout is not None:
+            return layout
+        boxes = []
+        for af in anim.aframes:
+            image, x, y = self.render(project, af, mapping, with_offset=False)
+            if image.getbbox():
+                boxes.append((x, y, x + image.size[0], y + image.size[1]))
+        if not boxes:
+            layout = (0, 0, 1.0, 0, 0)
+        else:
+            x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+            w = max(1, max(b[2] for b in boxes) - x0)
+            h = max(1, max(b[3] for b in boxes) - y0)
+            fit = min((size - 2) / w, (size - 2) / h)
+            scale = float(max(1, int(fit))) if fit >= 1 else fit
+            layout = (x0, y0, scale, int((size - w * scale) // 2), int((size - h * scale) // 2))
+        if len(self._layouts) > 500:
+            self._layouts.clear()
+        self._layouts[key] = layout
+        return layout
+
+    def strip_thumbnail(
+        self,
+        project: Project,
+        anim: Animation,
+        index: int,
+        mapping: Optional[ModuleMapping],
+        size: int,
+        background: Tuple[int, int, int] = (50, 50, 50),
+    ) -> wx.Bitmap:
+        """A step's thumbnail in its animation's shared layout (same scale and origin for every step)."""
+        from PIL import Image as PILImage
+
+        af = anim.aframes[index]
+        layout = self.strip_layout(project, anim, mapping, size)
+        key = ("strip",) + self._step_key(project, af, mapping) + (mapping_key(mapping), int(size), background, layout)
+        bmp = self._bitmaps.get(key)
+        if bmp is None:
+            x0, y0, scale, left, top = layout
+            image, x, y = self.render(project, af, mapping, with_offset=False)
+            canvas = PILImage.new("RGBA", (int(size), int(size)), tuple(background) + (255,))
+            if image.getbbox():
+                tw, th = max(1, int(round(image.size[0] * scale))), max(1, int(round(image.size[1] * scale)))
+                scaled = image.resize((tw, th), PILImage.NEAREST) if (tw, th) != image.size else image
+                canvas.alpha_composite(scaled, (left + int(round((x - x0) * scale)), top + int(round((y - y0) * scale))))
+            rgb = canvas.convert("RGB")
+            wx_image = wx.Image(int(size), int(size))
+            wx_image.SetData(rgb.tobytes())
+            bmp = wx_image.ConvertToBitmap()
             if len(self._bitmaps) > 3000:
                 self._bitmaps.clear()
             self._bitmaps[key] = bmp

@@ -145,7 +145,7 @@ class AnimationEditorPanel(wx.Panel):
         bottom_sizer.Add(self.sequence_view, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom.SetSizer(bottom_sizer)
 
-        self.vsplit.SplitHorizontally(top, bottom, -170)
+        self.vsplit.SplitHorizontally(top, bottom, -194)
         self.vsplit.SetSashGravity(1.0)
         self.vsplit.SetMinimumPaneSize(140)
         root.Add(self.vsplit, 1, wx.EXPAND)
