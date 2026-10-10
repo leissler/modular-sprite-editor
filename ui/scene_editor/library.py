@@ -19,7 +19,7 @@ class AnimationPalette(wx.ListCtrl):
         super().__init__(parent, style=wx.LC_ICON | wx.LC_SINGLE_SEL | wx.LC_AUTOARRANGE)
         self.project = project
         self.generator = ThumbnailGenerator()
-        self.image_list = wx.ImageList(96, 96)
+        self.image_list = wx.ImageList(96, 96, mask=False)  # opaque thumbnails; a mask costs ~6 ms per Add on macOS
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.animation_ids: List[str] = []
         self.filter_text = ""
@@ -33,7 +33,7 @@ class AnimationPalette(wx.ListCtrl):
 
     def refresh_animations(self) -> None:
         self.DeleteAllItems()
-        self.image_list = wx.ImageList(96, 96)
+        self.image_list = wx.ImageList(96, 96, mask=False)  # opaque thumbnails; a mask costs ~6 ms per Add on macOS
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.animation_ids = []
         self.generator.clear_cache()

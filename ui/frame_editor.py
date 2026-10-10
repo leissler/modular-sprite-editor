@@ -27,7 +27,8 @@ class ModulePalette(wx.ListCtrl):
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent, style=wx.LC_ICON | wx.LC_SINGLE_SEL | wx.LC_AUTOARRANGE)
         self.project = project
-        self.image_list = wx.ImageList(96, 96)
+        # Thumbnails are opaque; a masked list makes macOS build a mask per Add (~6 ms each).
+        self.image_list = wx.ImageList(96, 96, mask=False)
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag)
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_item_selected)
@@ -70,7 +71,7 @@ class ModulePalette(wx.ListCtrl):
         self.DeleteAllItems()
         
         item_side = 96
-        self.image_list = wx.ImageList(item_side, item_side)
+        self.image_list = wx.ImageList(item_side, item_side, mask=False)
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.item_images.clear()
         
