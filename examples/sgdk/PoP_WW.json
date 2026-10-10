@@ -42390,7 +42390,7 @@
               "id": "tlk_96c36c11",
               "time": 0.0,
               "x": -20.0,
-              "y": -0.0,
+              "y": 0.0,
               "rotation_degrees": 0.0,
               "scale_x": 1.0,
               "scale_y": 1.0,
@@ -42402,13 +42402,17 @@
               "path_in": null,
               "path_out": null,
               "source_type": null,
-              "source_id": null
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
             },
             {
               "id": "tlk_c414dd1d",
               "time": 0.5,
-              "x": 15.0,
-              "y": -50.0,
+              "x": 11.0,
+              "y": -44.0,
               "rotation_degrees": 0.0,
               "scale_x": 1.0,
               "scale_y": 1.0,
@@ -42417,10 +42421,20 @@
               "visible": true,
               "opacity": 1.0,
               "easing": "quint_in_out",
-              "path_in": null,
-              "path_out": null,
+              "path_in": [
+                0.0,
+                -43.0
+              ],
+              "path_out": [
+                39.0,
+                -45.0
+              ],
               "source_type": null,
-              "source_id": null
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
             },
             {
               "id": "tlk_13abb85c",
@@ -42438,7 +42452,117 @@
               "path_in": null,
               "path_out": null,
               "source_type": null,
-              "source_id": null
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tlo_af627e71",
+          "name": "Null",
+          "parent_id": null,
+          "source_type": "none",
+          "source_id": null,
+          "draw_order": 1,
+          "playback_offset": 0.0,
+          "playback_speed": 1.0,
+          "playback_mode": "loop",
+          "path_mode": "spline",
+          "use_source_root_motion": false,
+          "keyframes": [
+            {
+              "id": "tlk_b2c465aa",
+              "time": 0.0,
+              "x": 40.0,
+              "y": -37.0,
+              "rotation_degrees": 0.0,
+              "scale_x": 1.0,
+              "scale_y": 1.0,
+              "flip_x": false,
+              "flip_y": false,
+              "visible": true,
+              "opacity": 1.0,
+              "easing": "linear",
+              "path_in": null,
+              "path_out": [
+                19.0,
+                -41.0
+              ],
+              "source_type": null,
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": "tlk_299c088f",
+              "time": 0.08333333333333333,
+              "x": 12.125,
+              "y": -15.75,
+              "rotation_degrees": 0.0,
+              "scale_x": 1.0,
+              "scale_y": 1.0,
+              "flip_x": false,
+              "flip_y": false,
+              "visible": true,
+              "opacity": 1.0,
+              "easing": "linear",
+              "path_in": null,
+              "path_out": null,
+              "source_type": null,
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": "tlk_4bcc8f7b",
+              "time": 0.16666666666666666,
+              "x": 34.75,
+              "y": -8.5,
+              "rotation_degrees": 0.0,
+              "scale_x": 1.0,
+              "scale_y": 1.0,
+              "flip_x": false,
+              "flip_y": false,
+              "visible": true,
+              "opacity": 1.0,
+              "easing": "linear",
+              "path_in": null,
+              "path_out": null,
+              "source_type": null,
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": "tlk_c420d635",
+              "time": 0.36666666666666664,
+              "x": 34.75,
+              "y": -8.5,
+              "rotation_degrees": 0.0,
+              "scale_x": 1.0,
+              "scale_y": 1.0,
+              "flip_x": false,
+              "flip_y": false,
+              "visible": true,
+              "opacity": 1.0,
+              "easing": "linear",
+              "path_in": null,
+              "path_out": null,
+              "source_type": null,
+              "source_id": null,
+              "source_offset": [
+                0.0,
+                0.0
+              ]
             }
           ]
         }
