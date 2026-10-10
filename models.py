@@ -1099,7 +1099,9 @@ class TimelineScene:
         has_path = prev_key.path_out is not None or next_key.path_in is not None
         if obj.path_mode == "spline" and has_path:
             pos_x, pos_y = _timeline_cubic_point(p0, p1, p2, p3, eased_t)
-        elif obj.path_mode == "spline" and len(keyframes) >= 3:
+        elif obj.path_mode == "spline" and len(keyframes) >= 3 and p0 != p3:
+            # Auto curves only between keys at different spots: two keys at the same spot hold
+            # still instead of drifting out and back along the neighbours' tangent.
             left_neighbor = keyframes[prev_idx - 1] if prev_idx > 0 else prev_key
             right_neighbor = keyframes[next_idx + 1] if (next_idx + 1) < len(keyframes) else next_key
             pos_x, pos_y = _timeline_catmull_rom_point(

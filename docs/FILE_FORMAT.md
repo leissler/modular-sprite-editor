@@ -114,6 +114,11 @@ load to identical projects before and after.
 }
 ```
 
+Timeline evaluation notes: a segment's easing is the `easing` of its *end* key. With `path_mode: "spline"`,
+a segment with an explicit handle (`path_out` of its start key or `path_in` of its end key) is a cubic Bézier;
+otherwise it follows an automatic Catmull-Rom curve through the neighbouring keys, except that two
+consecutive keys at the same position hold still (no drift out and back).
+
 Not stored in the file: the active (preview) mapping, view state, grid size, zoom.
 
 ## Other formats

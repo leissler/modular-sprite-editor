@@ -106,6 +106,33 @@ class TestTimelineScenes(unittest.TestCase):
         self.assertAlmostEqual(linear_state["y"], 5.0, places=6)
         self.assertGreater(spline_state["y"], linear_state["y"])
 
+    def test_spline_holds_still_between_keys_at_the_same_spot(self):
+        project = Project(name="Timeline Spline Hold")
+        scene = project.create_timeline_scene("Hold Scene")
+        obj = scene.create_object("Spline", source_type="none", source_id=None)
+        obj.path_mode = "spline"
+        obj.keyframes = [
+            TimelineKeyframe(id="k0", time=0.0, x=0.0, y=0.0, easing="linear"),
+            TimelineKeyframe(id="k1", time=1.0, x=10.0, y=10.0, easing="linear"),
+            TimelineKeyframe(id="k2", time=2.0, x=10.0, y=10.0, easing="linear"),
+            TimelineKeyframe(id="k3", time=3.0, x=30.0, y=0.0, easing="linear"),
+            TimelineKeyframe(id="k4", time=4.0, x=40.0, y=20.0, easing="linear"),
+        ]
+        for time in (1.25, 1.5, 1.75):
+            state = scene.evaluate_object_state(project, obj.id, time)
+            assert state is not None
+            self.assertAlmostEqual(state["x"], 10.0, places=6)
+            self.assertAlmostEqual(state["y"], 10.0, places=6)
+        # Neighbouring segments still curve.
+        curved = scene.evaluate_object_state(project, obj.id, 2.5)
+        assert curved is not None
+        self.assertNotAlmostEqual(curved["y"], 5.0, places=3)
+        # An explicit handle still shapes the segment between equal keys.
+        obj.keyframes[1].path_out = (20.0, 10.0)
+        shaped = scene.evaluate_object_state(project, obj.id, 1.5)
+        assert shaped is not None
+        self.assertGreater(shaped["x"], 10.0)
+
     def test_linear_mode_ignores_explicit_path_handles(self):
         project = Project(name="Timeline Path Handles")
         scene = project.create_timeline_scene("Handle Scene")
