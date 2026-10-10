@@ -42545,8 +42545,8 @@
             {
               "id": "tlk_c420d635",
               "time": 0.36666666666666664,
-              "x": 34.75,
-              "y": -8.5,
+              "x": 50.0,
+              "y": -19.0,
               "rotation_degrees": 0.0,
               "scale_x": 1.0,
               "scale_y": 1.0,
@@ -42555,7 +42555,10 @@
               "visible": true,
               "opacity": 1.0,
               "easing": "linear",
-              "path_in": null,
+              "path_in": [
+                57.25,
+                -5.800000000000001
+              ],
               "path_out": null,
               "source_type": null,
               "source_id": null,
