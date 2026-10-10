@@ -396,8 +396,7 @@ class ModuleCanvas(BaseCanvas):
     def on_paint(self, _: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         dc.Clear()
-        if self.show_transparency:
-            self._draw_checkerboard(dc)
+        self.draw_backdrop(dc)
         gc = wx.GraphicsContext.Create(dc)
         
         # Revert to standard AA to match Frame Editor layout
@@ -671,8 +670,9 @@ class ModuleCanvas(BaseCanvas):
 
 
     def set_transparent_view(self, enable: bool) -> None:
+        # The panel hands over an already keyed (or raw) sheet bitmap; this only records the state.
         self.transparent_view = enable
-        self.set_show_transparency(enable)
+        self.set_apply_key_colour(enable)
 
     def _is_over_pivot(self, world: Tuple[float, float]) -> bool:
         if not self.pivot:
@@ -922,13 +922,13 @@ class ModuleEditorPanel(wx.Panel):
         self.canvas_controls = CanvasDisplayControls(
             self.right_panel,
             self.canvas,
-            show_transparency=True,
-            on_transparency_changed=self._on_canvas_transparency_changed,
+            view_key="modules",
+            key_colour_toggle=True,
+            on_key_colour_changed=self._on_key_colour_shown_changed,
         )
         self.grid_w = self.canvas_controls.grid_w
         self.grid_h = self.canvas_controls.grid_h
         self.chk_grid = self.canvas_controls.chk_grid
-        self.chk_trans_view = self.canvas_controls.chk_transparency
         canvas_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         
         self.right_panel.SetSizer(canvas_sizer)
@@ -975,7 +975,7 @@ class ModuleEditorPanel(wx.Panel):
         self._suppress_module_events: bool = False
         self._modules_view: list[Module] = []
         self._last_canvas_selection: Optional[str] = None
-        self.canvas_controls.set_transparency_value(self.transparent_view)
+        self.canvas_controls.set_key_colour_shown(not self.transparent_view)
         self._update_geometry_ui()
 
     # --- Panel interface used by the main window ---
@@ -2213,15 +2213,15 @@ class ModuleEditorPanel(wx.Panel):
         color = asset.transparent_color or (0, 0, 0)
         self.trans_swatch.SetBackgroundColour(wx.Colour(*color))
         self.trans_swatch.Refresh()
-        self.canvas_controls.set_transparency_value(self.transparent_view)
+        self.canvas_controls.set_key_colour_shown(not self.transparent_view)
 
-    def _on_canvas_transparency_changed(self, enabled: bool) -> None:
-        self._apply_transparency_toggle(enabled, sync_controls=False)
+    def _on_key_colour_shown_changed(self, shown: bool) -> None:
+        self._apply_transparency_toggle(not shown, sync_controls=False)
 
     def _apply_transparency_toggle(self, enabled: bool, sync_controls: bool = True) -> None:
         self.transparent_view = bool(enabled)
         if sync_controls and getattr(self, "canvas_controls", None):
-            self.canvas_controls.set_transparency_value(self.transparent_view)
+            self.canvas_controls.set_key_colour_shown(not self.transparent_view)
         self.canvas.set_transparent_view(self.transparent_view)
         if not self.selected_image_id:
             return

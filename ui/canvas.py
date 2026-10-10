@@ -93,6 +93,10 @@ class FrameCanvas(BaseCanvas):
         self._scaled_cache_pixels = 0
         # Active ghost style while drawing onion-skin layers (None = normal drawing).
         self._ghost_style: Optional[Tuple[float, float, float, float]] = None
+        # "Part bounds" view: outline the screen rect of every module part (what each hardware
+        # sprite covers). Rects are collected while drawing, so nested frames and the stage get it too.
+        self.show_part_bounds: bool = False
+        self._part_rects: List[Tuple[float, float, float, float]] = []
         # Onion-skin layers drawn under the current frame:
         # dicts with frame, offset, flip_x, flip_y, rotation, style.
         self.ghost_layers: List[Dict[str, Any]] = []
@@ -270,10 +274,7 @@ class FrameCanvas(BaseCanvas):
         
     def on_paint(self, event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
-        dc.Clear()
-        if self.show_transparency:
-            self._draw_checkerboard(dc)
-            
+        self.draw_backdrop(dc)
         gc = wx.GraphicsContext.Create(dc)
         self._draw_grid(gc)
         self.draw_content(gc)
@@ -287,12 +288,12 @@ class FrameCanvas(BaseCanvas):
 
         # Draw modules (dimmed if in collision mode)
         gc.PushState()
-        # If collision mode, we might want to fade modules?
-        # Visual dimming: done by drawing overlay after modules, or just accept full brightness.
-        # Let's draw modules first.
+        self._part_rects = []
         for fm in self.frame.fmodules:
             self._draw_fmodule_content(gc, fm)
         gc.PopState()
+        if self.show_part_bounds:
+            self._draw_part_bounds(gc)
             
         if self.edit_mode in ("collision", "point"):
              # Dim modules
@@ -358,6 +359,8 @@ class FrameCanvas(BaseCanvas):
              if not ref_id: return
 
              mod = self.project.get_module(ref_id)
+             if mod and self._ghost_style is None:
+                 self._part_rects.append((sx0, sy0, w, h))
              if mod:
                  bmp = self._get_module_bitmap(mod)
                  if bmp:
@@ -446,6 +449,16 @@ class FrameCanvas(BaseCanvas):
                         int(round(p_pos_y + min(ts_y) - local_min_y)),
                     )
                     self._draw_fmodule_content(gc, probe, depth + 1)
+
+    def set_show_part_bounds(self, show: bool) -> None:
+        self.show_part_bounds = bool(show)
+        self.Refresh(False)
+
+    def _draw_part_bounds(self, gc: wx.GraphicsContext) -> None:
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        gc.SetPen(wx.Pen(wx.Colour(90, 210, 255, 220), 1))
+        for x, y, w, h in self._part_rects:
+            gc.DrawRectangle(round(x) + 0.5, round(y) + 0.5, max(0, round(w) - 1), max(0, round(h) - 1))
 
     def _draw_fmodule_overlay(self, gc: wx.GraphicsContext, fm: FModule) -> None:
         bounds = self._fmodule_bounds(fm)
@@ -961,7 +974,7 @@ class FrameCanvas(BaseCanvas):
         if img.GetWidth() != target_w or img.GetHeight() != target_h:
             img.Rescale(target_w, target_h, wx.IMAGE_QUALITY_NEAREST)
 
-        if mod.type == "MD_IMAGE" and self.show_transparency:
+        if mod.type == "MD_IMAGE" and self.apply_key_colour:
             asset = self.project.get_image(mod.image_id)
             if asset and asset.transparent_color:
                 tr, tg, tb = asset.transparent_color
@@ -1121,7 +1134,7 @@ class FrameCanvas(BaseCanvas):
             transparent_color = asset.transparent_color if asset else None
             return (
                 f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
-                f"_{self.show_transparency}_{transparent_color}"
+                f"_{self.apply_key_colour}_{transparent_color}"
             )
         # For shapes, include visual properties in key
         return f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
@@ -1146,7 +1159,7 @@ class FrameCanvas(BaseCanvas):
                 
                 if rx >= 0 and ry >= 0 and rw > 0 and rh > 0 and rx + rw <= img_w and ry + rh <= img_h:
                     sub_img = full_img.GetSubImage(wx.Rect(rx, ry, rw, rh))
-                    if self.show_transparency and asset.transparent_color:
+                    if self.apply_key_colour and asset.transparent_color:
                         sub_img.SetMaskColour(*asset.transparent_color)
                     
                     if getattr(mod, 'rotated', False):

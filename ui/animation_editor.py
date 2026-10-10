@@ -83,7 +83,7 @@ class AnimationEditorPanel(wx.Panel):
         
         # 1. Canvas + view bar
         self.canvas = AnimationCanvas(self.right_panel, self.project)
-        self.canvas_controls = CanvasDisplayControls(self.right_panel, self.canvas, show_transparency=True)
+        self.canvas_controls = CanvasDisplayControls(self.right_panel, self.canvas, view_key="animations", part_bounds=True)
         self.canvas_controls.add_separator()
         self.chk_trajectory = self.canvas_controls.add_toggle(
             "Path", True, self.on_toggle_trajectory, "Show the offset trajectory of all frames"

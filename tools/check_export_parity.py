@@ -104,7 +104,7 @@ def export_pixels(export_dir: str, payload: Dict) -> Pixels:
 def check_project(path: str, canvas_parent: wx.Window) -> Tuple[int, int, List[str]]:
     project = Project.from_json(path)
     canvas = AnimationCanvas(canvas_parent, project)
-    canvas.show_transparency = True
+    canvas.apply_key_colour = True
     problems: List[str] = []
     checked = 0
     shape_ids = {m.id for m in project.modules if m.type != "MD_IMAGE"}

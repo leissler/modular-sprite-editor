@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import wx
 
 from models import FModule, Project, TimelineKeyframe, TimelineObject, TimelineScene
+from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
 from ui.canvas import FrameCanvas
 from ui.scene_editor import ops
 
@@ -38,10 +39,7 @@ class StageCanvas(FrameCanvas):
         self.screen_guide: Optional[Tuple[int, int]] = None
         self.zoom = 4.0
         self.max_zoom = 24.0
-        # Colour-keyed sheets must always be keyed; the view bar's Transparency toggle only
-        # switches the checkerboard (otherwise the scene background colour shows).
-        self.show_transparency = True
-        self.show_checkerboard = False
+        self.backdrop = BACKDROP_COLOUR  # the scene's background colour; the view bar can pick the checkerboard
         self.show_collision = False
         self.show_points = False
 
@@ -77,9 +75,11 @@ class StageCanvas(FrameCanvas):
         self.project = project
         self.clear_cache()
 
-    def set_show_transparency(self, show: bool) -> None:
-        self.show_checkerboard = bool(show)
-        self.Refresh(False)
+    def backdrop_fill_colour(self) -> Tuple[int, int, int]:
+        if self.scene:
+            r, g, b = self.scene.background_color[:3]
+            return (int(r), int(g), int(b))
+        return DEFAULT_BACKDROP_COLOUR
 
     def fit_to_content(self, margin_px: int = 12) -> None:
         # Tighter than the editors' default so small sprites land on the next zoom level.
@@ -171,11 +171,7 @@ class StageCanvas(FrameCanvas):
     # ------------------------------------------------------------------ paint
     def on_paint(self, event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
-        bg = wx.Colour(*self.scene.background_color) if self.scene else wx.Colour(32, 32, 32)
-        dc.SetBackground(wx.Brush(bg))
-        dc.Clear()
-        if self.show_checkerboard:
-            self._draw_checkerboard(dc)
+        self.draw_backdrop(dc)
         gc = wx.GraphicsContext.Create(dc)
         if not gc:
             return
@@ -190,6 +186,7 @@ class StageCanvas(FrameCanvas):
 
         states = ops.evaluate_states(self.project, self.scene, self.time_value)
         cache: Dict[str, ops.Matrix] = {}
+        self._part_rects = []
         for obj, _depth, _kids in ops.tree_rows(self.scene, set()):
             if obj.id not in states or self._is_hidden(obj):
                 continue
@@ -203,6 +200,8 @@ class StageCanvas(FrameCanvas):
                 self._drawn_objects.append(
                     {"object_id": obj.id, "screen_rect": self._screen_rect(bounds, world)}
                 )
+        if self.show_part_bounds:
+            self._draw_part_bounds(gc)
 
         self._draw_screen_guide(gc)
         self._draw_motion_path(gc, states)

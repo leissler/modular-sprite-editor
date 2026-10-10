@@ -124,6 +124,11 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   Implement `get_content_bounds()` for Fit. Wheel/pinch zoom is continuous during a gesture and snaps to
   an integer level (`ZOOM_LEVELS`) ~180 ms after it stops (`snap_zoom_level`); `WheelGestureFilter` locks
   each trackpad gesture to one axis. Programmatic zoom uses `zoom_step` / `set_zoom_level`.
+- **Backdrop vs. key colour** are separate: `BaseCanvas.backdrop` (checker / solid colour, chosen in the view
+  bar, remembered per tab in `wx.Config`; the colour is shared by all tabs, the Timeline uses the scene's) and
+  `apply_key_colour` (hide the sheet's transparent colour). Composition canvases always key; only the Modules
+  tab offers "Show key colour". `FrameCanvas.show_part_bounds` outlines every module part. Create thumbnail
+  `wx.ImageList`s with `mask=False` (a masked list costs ~6 ms per `Add` on macOS).
 - **View options** belong in the canvas's `CanvasDisplayControls` (`add_toggle`, `add_control`), not in side
   panels. **Status/hints** go through `app_services.show_status`, not modal dialogs.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`

@@ -105,6 +105,13 @@ class WheelGestureFilter:
         return True
 
 
+# What shows behind the artwork. Hiding a sheet's transparent key colour is a separate switch
+# (BaseCanvas.apply_key_colour): composition editors always hide it, only the Modules tab can show it.
+BACKDROP_CHECKER = "checker"
+BACKDROP_COLOUR = "colour"
+DEFAULT_BACKDROP_COLOUR: Tuple[int, int, int] = (32, 32, 32)
+
+
 class BaseCanvas(wx.Panel):
     """
     Shared canvas providing:
@@ -125,7 +132,9 @@ class BaseCanvas(wx.Panel):
         self.pan: Tuple[float, float] = (0, 0)
         self.grid_spacing: Tuple[int, int] = (32, 32)
         self.show_grid: bool = True
-        self.show_transparency: bool = True
+        self.backdrop: str = BACKDROP_CHECKER
+        self.backdrop_colour: Tuple[int, int, int] = DEFAULT_BACKDROP_COLOUR
+        self.apply_key_colour: bool = True
         self.min_zoom: float = 0.5
         self.max_zoom: float = 32.0
 
@@ -188,9 +197,27 @@ class BaseCanvas(wx.Panel):
         self.show_grid = show
         self.Refresh(False)
 
-    def set_show_transparency(self, show: bool) -> None:
-        self.show_transparency = show
+    def set_backdrop(self, mode: str, colour: Optional[Tuple[int, int, int]] = None) -> None:
+        self.backdrop = mode if mode in (BACKDROP_CHECKER, BACKDROP_COLOUR) else BACKDROP_CHECKER
+        if colour is not None:
+            self.backdrop_colour = (int(colour[0]), int(colour[1]), int(colour[2]))
         self.Refresh(False)
+
+    def set_apply_key_colour(self, apply: bool) -> None:
+        self.apply_key_colour = bool(apply)
+        self.Refresh(False)
+
+    def backdrop_fill_colour(self) -> Tuple[int, int, int]:
+        """The solid backdrop colour (the scene stage uses its scene's background instead)."""
+        return self.backdrop_colour
+
+    def draw_backdrop(self, dc: wx.DC) -> None:
+        if self.backdrop == BACKDROP_COLOUR:
+            dc.SetBackground(wx.Brush(wx.Colour(*self.backdrop_fill_colour())))
+            dc.Clear()
+        else:
+            dc.Clear()
+            self._draw_checkerboard(dc)
 
     def _notify_zoom(self) -> None:
         if self.IsShownOnScreen():

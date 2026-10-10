@@ -9,6 +9,7 @@ import wx
 
 from models import Project, TimelineKeyframe, TimelineObject, TimelineScene, generate_id
 from ui import app_services
+from ui.base_canvas import BACKDROP_COLOUR
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.scene_editor import ops
 from ui.scene_editor.inspector import SceneInspector
@@ -113,9 +114,10 @@ class SceneEditorPanel(wx.Panel):
         stage_sizer = wx.BoxSizer(wx.VERTICAL)
         self.stage = StageCanvas(stage_panel, self.project)
         self.stage.SetDropTarget(_StageDropTarget(self))
-        self.canvas_controls = CanvasDisplayControls(stage_panel, self.stage, show_transparency=True)
-        self.canvas_controls.chk_transparency.SetValue(False)
-        self.canvas_controls.chk_transparency.SetToolTip("Show a checkerboard instead of the scene background colour")
+        self.canvas_controls = CanvasDisplayControls(
+            stage_panel, self.stage, view_key="timeline", default_backdrop=BACKDROP_COLOUR,
+            scene_backdrop=True, part_bounds=True,
+        )
         self.screen_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in SCREEN_GUIDES])
         self.screen_choice.SetToolTip("Outline of a console screen with its top-left at the scene origin")
         self.canvas_controls.add_control(self.screen_choice, "Screen")
