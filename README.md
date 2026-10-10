@@ -39,10 +39,11 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Onion Skinning**: ghost the previous/next frame of the list.
 
 ### 🎬 Animation Editor
-*   **Frame strip** with hold durations (ticks), drag & drop, reordering.
-*   **Playback**: Loop, Ping-Pong, Forward, Backward, loop counts and FPS (ticks per second).
-*   **Onion Skinning**, trajectory view, offset dragging/nudging and mirror preview.
-*   **GIF Export**.
+*   **Sequence on a tick ruler**: every step is as wide as its hold; drag a step's right edge to change the hold, drag steps to reorder (Alt copies), drop frames from the library where they should go. A coloured stripe marks repeated frames.
+*   **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick; preview speed ½× / ¼× / 2×.
+*   **Stage**: drag to move the selected steps' offsets, motion path, onion skin, mirror preview, part bounds, collision boxes and points.
+*   **Animations list** with thumbnails, length and playback mode; contextual inspector for the animation and the selected step(s); whole-animation mirror / rotate / reverse.
+*   **GIF Export** of one playback cycle, pixel-identical to the editor (nested frames, rotation, shapes, preview mapping).
 
 ### 🎬 Timeline (Scenes)
 *   **Library → Stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES / GBA / GB) shows what fits on screen.
@@ -132,7 +133,10 @@ python3 tools/migrate_projects.py --dry-run DIR   # upgrade project files to the
 | | Draw order | `Cmd+↑/↓` (`Shift` = to front/back) |
 | | Copy / Paste / Duplicate / Select all | `Cmd+C` / `Cmd+V` / `Cmd+D` / `Cmd+A` |
 | **Animations / Timeline** | Play/Pause | `Enter` |
-| | Previous/Next Frame | `,` / `.` (`←` / `→` in the frame strip / timeline) |
+| | Previous/Next step (Animations) or frame (Timeline) | `,` / `.` (`←` / `→` in the sequence / timeline) |
+| **Animations** | Previous/Next tick, first/last step | `Shift+,` / `Shift+.`, `Home` / `End` |
+| | Shorter / longer hold | `[` / `]` or drag a step's right edge |
+| | Flip / Rotate selected steps | `H` `V` / `R` (`Shift+R` = CCW) |
 | **Timeline** | Previous/Next key, first/last frame | `Shift+,` / `Shift+.`, `Home` / `End` |
 | | Set key / add-or-remove key at playhead | `K` / `Shift+K` |
 | | Flip / Rotate selected object | `H` `V` / `R` (`Shift+R` = CCW) |

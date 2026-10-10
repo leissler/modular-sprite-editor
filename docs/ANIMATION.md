@@ -7,10 +7,13 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 **Frame-based animation (Animations tab, production ready)**
 - An animation is a list of steps `(frame, duration in ticks, offset, flip X/Y, rotation)` with `fps` = ticks
   per second, playback `forward / backward / loop / ping_pong` and `loop_count`.
-- Per-step offsets give root motion; the canvas shows the offset trajectory and lets you drag/nudge offsets.
-- Whole-animation flip / 90° rotate, duplicate, mirror preview (Mirror X/Y), GIF export.
-- New in this pass: onion skin (previous = red, next = blue), duration badges in the strip, tick/length readout,
-  Enter/`,`/`.` transport keys, arrow-key offset nudging, project-wide undo.
+- Per-step offsets give root motion; the stage shows the motion path and moves the selected steps' offsets by
+  drag or arrow keys.
+- Editor (`ui/animation_editor/`, redesigned): animations list with thumbnails and length; a sequence on a tick
+  ruler where each step is as wide as its hold (drag the edge to retime, drag to reorder, Alt copies, multi-select,
+  copy/paste); contextual inspector (animation settings and whole-animation mirror / rotate / reverse, step
+  frame / hold / offset / rotation / flips); onion skin, mirror preview, part bounds; playback that follows the
+  SGDK runtime tick by tick with ¼×–2× preview speed; GIF export of one cycle through the parity-checked renderer.
 - Collision boxes and control points live on frames; `compile_animation_role_tables()` turns their roles into
   dense per-step lookup tables (`type + role → index`), validated by Tools ▸ Validate Roles.
 - Mappings swap or hide modules for every frame of every animation (costume / damage / invisibility states),
@@ -43,11 +46,11 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 4. **Palette is invisible.** The SGDK exporter quantises to a master palette, but the editor never shows which
    palette/line a part uses, cannot preview palette swaps (Mega Drive: 4 lines × 16 colours) and has no palette
    cycling.
-5. **Previews disagree.** Thumbnails, the frame strip and GIF export ignore nested frames and per-part rotation
-   (GIF also ignores shapes and mappings). The canvas and the RetroAnimator export now agree pixel-exactly
-   (`tools/check_export_parity.py`).
-6. **Timing UX.** All strip cells are equal width, so holds are only shown as a number; durations can't be dragged;
-   no 50/60 Hz (PAL/NTSC) preview switch; per-step rotation has no direct control.
+5. **Previews disagree (partly fixed).** The Animations tab and GIF export now use the renderer that matches the
+   canvas and the RetroAnimator export pixel-exactly (`tools/check_export_parity.py`); the frame/module palettes
+   still use `ThumbnailGenerator`, which ignores nested frames and per-part rotation.
+6. **Timing UX (mostly done).** Duration-scaled cells, hold dragging, multi-select, step rotation and preview
+   speed exist now; still missing: a 50/60 Hz (PAL/NTSC) preview switch and timing presets.
 7. **No sprite-sheet / engine export** beyond RetroAnimator and SGDK (Aseprite JSON, Godot/Unity sheets), and no
    Aseprite import for animators who draw there.
 
@@ -73,11 +76,10 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 - Playback: play steps once, then loop `[loop_start, end]`; when a `forward` animation ends, continue with
   `next_animation_id`. Preview in the editor and the SGDK player (`MS_PLAY_LOOP_FROM`, `next` index).
 
-### 4. Duration-scaled strip and timing tools (medium value, low effort)
-- Cell width proportional to `duration_frames` (with a minimum), drag a cell's right edge to change its hold,
-  multi-select steps to set duration / offset / flip together, "spread" timing presets (1-1-2-2…).
-- Playback rate toggle: animation fps vs. 60 Hz / 50 Hz display to judge how ticks feel on NTSC vs. PAL.
-- Expose step rotation (90° buttons) in "Selected Frame".
+### 4. Timing tools (medium value, low effort)
+- Done in the redesign: duration-scaled cells, edge-drag holds, multi-select edits, step rotation, preview speed.
+- Still open: "spread" timing presets (1-1-2-2…), and a 60 Hz / 50 Hz display toggle to judge how ticks feel on
+  NTSC vs. PAL.
 
 ### 5. One compositor for all previews and exports (correctness)
 - Extract a `render_frame(project, frame, mapping, transform) -> PIL.Image + handle` from

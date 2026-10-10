@@ -53,10 +53,22 @@ ui/
   project_history.py       ProjectHistory: compressed Project.to_dict() snapshots, undo/redo, dirty flag
   base_canvas.py           BaseCanvas: pan/zoom model, integer zoom levels, fit, grid, checkerboard
   canvas.py                FrameCanvas (frame editing, collision/point modes, ghost layers, bitmap
-                           caches), AnimationCanvas (offset drag, trajectory, onion skin)
+                           caches, part bounds)
   module_editor.py         Modules tab (ModuleCanvas + panel)
   frame_editor.py          Frames tab (ModulePalette + panel)
-  animation_editor.py      Animations tab
+  animation_editor/        Animations tab, redesigned from scratch:
+    ops.py                 wx-free: tick timing, Player (playback exactly like the SGDK runtime),
+                           step edits (insert/move/copy/hold/flip/rotate/nudge/reverse), whole-animation
+                           mirror/rotate, animation list ops — unit-tested
+    render.py              StepRenderer: pixel-exact step images via the RetroAnimator renderer
+                           (thumbnails, list icons, GIF export)
+    panel.py               AnimationEditorPanel: layout, playhead/playback, commands, keyboard, edit menu
+    stage.py               AnimationStage (FrameCanvas): current step, onion skin, motion path, offset drag,
+                           mirror preview (step_transform)
+    sequence.py            SequenceWidget: steps as hold-wide cells on a tick ruler (hold drag, reorder,
+                           drops from the library)
+    inspector.py           AnimationInspector: animation settings/tools + selected step(s)
+    browser.py             AnimationBrowser (thumbnail list, rename, drag reorder), FrameLibrary
   scene_editor/            Timeline tab (scene editor), redesigned from scratch:
     ops.py                 wx-free scene operations (frame<->time, keys, easing names, layer tree, draw
                            order, world-preserving reparent, add/duplicate/delete) — unit-tested
@@ -67,14 +79,14 @@ ui/
                            motion / swap), EasingPreview, SourcePickerDialog
     library.py             SceneLibrary: Animations / Frames / Modules palettes (drag or double-click)
   mapping_editor.py        Mappings tab
-  components/              CanvasDisplayControls (shared view bar), FramePalette, TimelineControl (frame strip)
+  components/              CanvasDisplayControls (shared view bar), FramePalette
   collision_manager.py / point_manager.py   type lists (colour, visibility, active type)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator
 tools/                     migrate_projects.py, gui_smoke.py
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py) + Mega Drive runtime demo
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
-                           scene ops, migration)
+                           scene ops, animation ops, export/canvas parity, migration)
 docs/                      UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
 ```
 
@@ -141,6 +153,11 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `draw_order` depth-first so the SGDK exporter's global sort matches. Auto-Key on: pose edits create/update a
   key at the playhead (created lazily on the first real drag movement); off: edits between keys shift every
   key of the layer. Put scene logic in `ops.py` (testable without a display), not in the widgets.
+- **Animations:** holds are ticks at `Animation.fps`; anything below 1 plays as 1 (`ops.hold`), like the exporters.
+  Playback preview goes through `ops.Player`, which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop
+  backwards repeats; ping-pong does not repeat its end steps); keep them in sync. Thumbnails and GIF export
+  render through `render.StepRenderer` (the parity-checked renderer), not `ThumbnailGenerator`. The stage's
+  mirror preview reverses a step's rotation for an odd number of mirror axes (`AnimationStage.step_transform`).
 - **Destructive actions** confirm when they break references (count the references) and stay undoable.
 - **Lists** use Add / Duplicate / Delete buttons, Delete key, double-click/F2 rename, and a filter
   (`wx.SearchCtrl`). Filtered lists keep a view list (`_frame_view`, `_anim_view`, `_modules_view`); never
@@ -160,15 +177,16 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   anchor/origin — flip first, then rotate. A mirrored parent (odd number of flips) reverses the direction of
   its children's rotation (`final_rot = parent_rot - child_rot`).
 - `tools/check_export_parity.py` and `tests/test_export_canvas_parity.py` render with the real canvas code and
-  compare against the RetroAnimator export pixel by pixel; run them after touching any transform code.
+  compare against the RetroAnimator export pixel by pixel (and the Animations stage's mirror preview against
+  `StepRenderer`); run them after touching any transform code.
 
 ## Rendering paths (keep consistent)
 
 | Path | Where | Nested frames | Rotation | Shapes | Mapping |
 |---|---|---|---|---|---|
 | Frame/animation/timeline canvas | `ui/canvas.py` | yes | 90° steps | yes | yes |
-| Thumbnails (palettes, strip, mappings) | `ui/utils.py` `ThumbnailGenerator` | **no** | frame-level only | yes | yes |
-| GIF export | `AnimationEditorPanel.on_export_gif` | **no** | **no** | **no** | **no** |
+| Animations tab thumbnails, GIF export | `ui/animation_editor/render.py` (RetroAnimator renderer) | yes | yes | yes | yes |
+| Thumbnails (frame/module palettes, mappings) | `ui/utils.py` `ThumbnailGenerator` | **no** | frame-level only | yes | yes |
 | RetroAnimator export | `RetroAnimatorExporter` | yes | any (affine) | yes | yes |
 | SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
 

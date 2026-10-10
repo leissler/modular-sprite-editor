@@ -1,0 +1,971 @@
+"""Animations tab: Animations + Frames | Stage | Inspector on top, transport and sequence below."""
+
+from __future__ import annotations
+
+import time
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+import wx
+
+from models import AFrame, Animation, Project
+from ui import app_services
+from ui.animation_editor import ops
+from ui.animation_editor.browser import AnimationBrowser, FrameLibrary
+from ui.animation_editor.inspector import AnimationInspector
+from ui.animation_editor.render import StepRenderer, export_gif
+from ui.animation_editor.sequence import SequenceView
+from ui.animation_editor.stage import ONION_MODES, AnimationStage
+from ui.components.canvas_display_controls import CanvasDisplayControls
+
+MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
+    ("Off", (False, False)),
+    ("H", (True, False)),
+    ("V", (False, True)),
+    ("H + V", (True, True)),
+]
+SPEEDS: List[Tuple[str, float]] = [("1×", 1.0), ("½×", 0.5), ("¼×", 0.25), ("2×", 2.0)]
+HOLD_PRESETS = (1, 2, 3, 4, 6, 8)
+
+# Copied steps, shared between animations for the session.
+_STEP_CLIPBOARD: List[Dict[str, Any]] = []
+
+
+class AnimationEditorPanel(wx.Panel):
+    def __init__(self, parent: wx.Window, project: Project):
+        super().__init__(parent)
+        self.project = project
+        self.selected_animation_id: Optional[str] = None
+        self.tick = 0
+        self.selection: Set[int] = set()
+        self.is_playing = False
+        self.repeat = True
+        self.speed = 1.0
+        self.renderer = StepRenderer()
+        self.player: Optional[ops.Player] = None
+        self._play_clock: Tuple[float, int] = (0.0, 0)
+        self._drag_bases: Dict[int, Tuple[int, int]] = {}
+        self._hold_bases: Dict[int, int] = {}
+        self._fitted_id: Optional[str] = None
+        self._view: List[Animation] = []
+        self.on_edit_frame: Optional[Callable[[str], None]] = None  # set by the main window
+        self.timer = wx.Timer(self)
+
+        self._build_ui()
+        self._bind()
+        self.refresh_animations()
+
+    # ================================================================== layout
+    def _build_ui(self) -> None:
+        root = wx.BoxSizer(wx.VERTICAL)
+        self.vsplit = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
+        top = wx.Panel(self.vsplit)
+        self.outer_split = wx.SplitterWindow(top, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
+
+        self.left_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
+        self.browser = AnimationBrowser(self.left_split)
+        self.library = FrameLibrary(self.left_split, self.project)
+        self.left_split.SplitHorizontally(self.browser, self.library, 0)
+        self.left_split.SetSashGravity(0.5)
+        self.left_split.SetMinimumPaneSize(140)
+
+        self.inner_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
+        stage_panel = wx.Panel(self.inner_split)
+        stage_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.stage = AnimationStage(stage_panel, self.project)
+        self.canvas_controls = CanvasDisplayControls(stage_panel, self.stage, view_key="animations", part_bounds=True)
+        self.canvas_controls.add_separator()
+        self.chk_path = self.canvas_controls.add_toggle("Path", True, lambda v: self._refresh_stage(), "Show the motion path of the step offsets")
+        self.chk_collision = self.canvas_controls.add_toggle("Collision", False, self._on_toggle_collision)
+        self.chk_points = self.canvas_controls.add_toggle("Points", False, self._on_toggle_points)
+        self.onion_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in ONION_MODES])
+        self.onion_choice.SetSelection(0)
+        self.onion_choice.SetMinSize((self.canvas_controls.GetTextExtent("Previous")[0] + 44, -1))
+        self.onion_choice.SetToolTip("Ghost the previous (red) / next (blue) step")
+        self.canvas_controls.add_control(self.onion_choice, "Onion")
+        self.mirror_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in MIRROR_MODES])
+        self.mirror_choice.SetSelection(0)
+        self.mirror_choice.SetToolTip("Preview the animation mirrored (e.g. facing the other way); the data is not changed")
+        self.canvas_controls.add_control(self.mirror_choice, "Mirror")
+        stage_sizer.Add(self.stage, 1, wx.EXPAND | wx.ALL, 2)
+        stage_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        stage_panel.SetSizer(stage_sizer)
+
+        self.inspector = AnimationInspector(self.inner_split)
+        self.inner_split.SplitVertically(stage_panel, self.inspector, -320)
+        self.inner_split.SetSashGravity(1.0)
+        self.inner_split.SetMinimumPaneSize(240)
+        self.outer_split.SplitVertically(self.left_split, self.inner_split, 260)
+        self.outer_split.SetMinimumPaneSize(200)
+        top_sizer = wx.BoxSizer(wx.VERTICAL)
+        top_sizer.Add(self.outer_split, 1, wx.EXPAND)
+        top.SetSizer(top_sizer)
+
+        bottom = wx.Panel(self.vsplit)
+        bottom_sizer = wx.BoxSizer(wx.VERTICAL)
+        transport = wx.BoxSizer(wx.HORIZONTAL)
+
+        def tbutton(label: str, tip: str, width: int = 34) -> wx.Button:
+            btn = wx.Button(bottom, label=label, size=(width, -1))
+            btn.SetToolTip(tip)
+            transport.Add(btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 2)
+            return btn
+
+        self.btn_first = tbutton("|◀", "First step (Home)")
+        self.btn_prev_step = tbutton("◆◀", "Previous step (,)")
+        self.btn_prev_tick = tbutton("◀", "Previous tick (Shift+,)")
+        self.btn_play = tbutton("▶", "Play / pause (Enter)", 44)
+        self.btn_next_tick = tbutton("▶", "Next tick (Shift+.)")
+        self.btn_next_step = tbutton("▶◆", "Next step (.)")
+        self.btn_last = tbutton("▶|", "Last step (End)")
+        transport.AddSpacer(10)
+        transport.Add(wx.StaticText(bottom, label="Tick"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.tick_spin = wx.SpinCtrl(bottom, min=0, max=100000, initial=0, size=(64, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+        transport.Add(self.tick_spin, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.tick_info = wx.StaticText(bottom, label="", size=(230, -1), style=wx.ST_NO_AUTORESIZE)
+        transport.Add(self.tick_info, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        self.chk_repeat = wx.CheckBox(bottom, label="Repeat")
+        self.chk_repeat.SetValue(True)
+        self.chk_repeat.SetToolTip("Keep the preview going: restart when the animation stops (Play once, or after its repeats)")
+        transport.Add(self.chk_repeat, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        transport.Add(wx.StaticText(bottom, label="Speed"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        self.speed_choice = wx.Choice(bottom, choices=[label for label, _ in SPEEDS])
+        self.speed_choice.SetSelection(0)
+        self.speed_choice.SetToolTip("Preview speed (slow motion helps to check single ticks)")
+        transport.Add(self.speed_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14)
+        self.btn_delete = tbutton("Delete", "Delete the selected steps (Delete)", 64)
+        transport.AddStretchSpacer(1)
+        self.btn_fit_seq = tbutton("Fit", "Show the whole animation in the sequence", 44)
+        bottom_sizer.Add(transport, 0, wx.EXPAND | wx.ALL, 4)
+        self.sequence_view = SequenceView(bottom)
+        self.sequence = self.sequence_view.widget
+        bottom_sizer.Add(self.sequence_view, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        bottom.SetSizer(bottom_sizer)
+
+        self.vsplit.SplitHorizontally(top, bottom, -170)
+        self.vsplit.SetSashGravity(1.0)
+        self.vsplit.SetMinimumPaneSize(140)
+        root.Add(self.vsplit, 1, wx.EXPAND)
+        self.SetSizer(root)
+        wx.CallAfter(self._place_left_sash)
+
+    def _place_left_sash(self) -> None:
+        if self.left_split:
+            height = self.left_split.GetClientSize().height
+            if height > 300:
+                self.left_split.SetSashPosition(int(height * 0.52))
+
+    def _bind(self) -> None:
+        b = self.browser
+        b.search.Bind(wx.EVT_TEXT, lambda e: self.refresh_animations())
+        b.search.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: b.search.SetValue(""))
+        b.list.Bind(wx.EVT_LISTBOX, self._on_list_select)
+        b.list.Bind(wx.EVT_LISTBOX_DCLICK, lambda e: b.list.begin_rename())
+        b.list.Bind(wx.EVT_CONTEXT_MENU, self._on_list_menu)
+        b.list.Bind(wx.EVT_KEY_DOWN, self._on_list_key)
+        b.list.on_move = self._move_animation
+        b.list.on_rename = self._rename_animation
+        b.btn_new.Bind(wx.EVT_BUTTON, lambda e: self.new_animation())
+        b.btn_dup.Bind(wx.EVT_BUTTON, lambda e: self.duplicate_animation())
+        b.btn_del.Bind(wx.EVT_BUTTON, lambda e: self.delete_animation())
+        self.library.palette.on_frame_double_click = self.insert_frame_after_current
+
+        self.onion_choice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_stage())
+        self.mirror_choice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_stage())
+
+        self.btn_first.Bind(wx.EVT_BUTTON, lambda e: self.seek_step(0))
+        self.btn_last.Bind(wx.EVT_BUTTON, lambda e: self.seek_step(len(self._steps()) - 1))
+        self.btn_prev_step.Bind(wx.EVT_BUTTON, lambda e: self.step(-1))
+        self.btn_next_step.Bind(wx.EVT_BUTTON, lambda e: self.step(1))
+        self.btn_prev_tick.Bind(wx.EVT_BUTTON, lambda e: self.step_tick(-1))
+        self.btn_next_tick.Bind(wx.EVT_BUTTON, lambda e: self.step_tick(1))
+        self.btn_play.Bind(wx.EVT_BUTTON, lambda e: self.toggle_play())
+        self.tick_spin.Bind(wx.EVT_SPINCTRL, lambda e: self.seek_tick(self.tick_spin.GetValue()))
+        self.tick_spin.Bind(wx.EVT_TEXT_ENTER, lambda e: self.seek_tick(self.tick_spin.GetValue()))
+        self.chk_repeat.Bind(wx.EVT_CHECKBOX, self._on_repeat)
+        self.speed_choice.Bind(wx.EVT_CHOICE, self._on_speed)
+        self.btn_delete.Bind(wx.EVT_BUTTON, lambda e: self.delete_steps())
+        self.btn_fit_seq.Bind(wx.EVT_BUTTON, lambda e: self.sequence.fit())
+        self.Bind(wx.EVT_TIMER, self._on_timer, self.timer)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
+
+        st = self.stage
+        st.on_pick_step = self._pick_step_on_stage
+        st.on_drag_begin = self._stage_drag_begin
+        st.on_drag = self._stage_drag
+        st.on_drag_end = self._stage_drag_end
+        st.on_drop_frame = self.insert_frame_after_current
+
+        sq = self.sequence
+        sq.on_seek_tick = self.seek_tick
+        sq.on_select_steps = self._sequence_select
+        sq.on_hold_drag_begin = self._hold_drag_begin
+        sq.on_hold_drag = self._hold_drag
+        sq.on_hold_drag_end = self._commit
+        sq.on_move_steps = self.move_steps
+        sq.on_insert_frame = self.insert_frame
+        sq.on_open_frame = self._open_frame_of_step
+        sq.on_context_menu = self._sequence_menu
+
+        ins = self.inspector
+        ins.on_animation_change = self._on_animation_field
+        ins.on_animation_tool = self._on_animation_tool
+        ins.on_step_change = self._on_step_field
+        ins.on_pick_frame = self._pick_frame_for_selection
+        ins.on_open_frame = lambda: self._open_frame_of_step(self.current_step())
+
+    # ================================================================== main-window interface
+    def get_active_canvas(self):
+        return self.stage
+
+    def set_project(self, project: Project) -> None:
+        self.stop_playback()
+        self.project = project
+        self.renderer.clear()
+        self.stage.set_project(project)
+        self.stage.collision_type_colors = {ct.id: ct.color for ct in project.collision_types}
+        self.stage.point_type_colors = {pt.id: pt.color for pt in project.point_types}
+        self.library.set_project(project)
+        self.browser.search.ChangeValue("")
+        self.selected_animation_id = project.animations[0].id if project.animations else None
+        self.selection = set()
+        self.tick = 0
+        self._fitted_id = None
+        self.refresh_animations()
+
+    def refresh_after_history(self) -> None:
+        self.renderer.clear()
+        self.stage.clear_cache()
+        self.library.refresh()
+        if self.selected_animation_id and not self.project.get_animation(self.selected_animation_id):
+            self.selected_animation_id = None
+        self.refresh_animations()
+
+    def on_tab_activated(self) -> None:
+        """Frames or modules may have changed in other tabs."""
+        self.renderer.clear()
+        self.stage.clear_cache()
+        self.stage.collision_type_colors = {ct.id: ct.color for ct in self.project.collision_types}
+        self.stage.point_type_colors = {pt.id: pt.color for pt in self.project.point_types}
+        self.library.refresh()
+        self.refresh_animations()
+        wx.CallAfter(self._fit_views)
+
+    def refresh_library(self) -> None:
+        self.library.refresh()
+
+    def on_active_mapping_changed(self) -> None:
+        self.library.refresh()
+        self.stage.clear_cache()
+        self.refresh()
+
+    def stop_playback(self) -> None:
+        if self.is_playing:
+            self.toggle_play()
+
+    # ================================================================== helpers
+    def animation(self) -> Optional[Animation]:
+        return self.project.get_animation(self.selected_animation_id) if self.selected_animation_id else None
+
+    def _steps(self) -> List[AFrame]:
+        anim = self.animation()
+        return anim.aframes if anim else []
+
+    def current_step(self) -> int:
+        anim = self.animation()
+        return ops.step_at_tick(anim, self.tick) if anim else -1
+
+    def _targets(self) -> List[int]:
+        """Steps an edit applies to: the selection, else the step at the playhead."""
+        if self.selection:
+            return sorted(self.selection)
+        current = self.current_step()
+        return [current] if current >= 0 else []
+
+    def _commit(self) -> None:
+        self.refresh()
+        app_services.request_checkpoint()
+
+    def _mirror(self) -> Tuple[bool, bool]:
+        return MIRROR_MODES[max(0, self.mirror_choice.GetSelection())][1]
+
+    def _clamp(self) -> None:
+        anim = self.animation()
+        total = ops.total_ticks(anim) if anim else 0
+        self.tick = max(0, min(self.tick, total - 1)) if total else 0
+        count = len(anim.aframes) if anim else 0
+        self.selection = {i for i in self.selection if i < count}
+
+    # ================================================================== refresh
+    def refresh_animations(self) -> None:
+        query = self.browser.filter_text()
+        self._view = [a for a in self.project.animations if not query or query in a.name.lower()]
+        total = len(self.project.animations)
+        self.browser.title.SetLabel(
+            f"ANIMATIONS ({len(self._view)} OF {total})" if query else f"ANIMATIONS ({total})"
+        )
+        if self.selected_animation_id and not self.project.get_animation(self.selected_animation_id):
+            self.selected_animation_id = None
+        if self.selected_animation_id is None and self.project.animations:
+            self.selected_animation_id = self.project.animations[0].id
+        self.browser.list.set_items(self.project, self.renderer, self._view, self.selected_animation_id)
+        self.browser.btn_dup.Enable(self.animation() is not None)
+        self.browser.btn_del.Enable(self.animation() is not None)
+        self.refresh()
+
+    def refresh(self, stage: bool = True, sequence: bool = True, inspector: bool = True) -> None:
+        self._clamp()
+        anim = self.animation()
+        step = self.current_step()
+        if stage:
+            self._refresh_stage()
+        if sequence:
+            self.sequence.set_data(self.project, anim, self.renderer, self.tick, step, self.selection)
+        if inspector:
+            self.inspector.show(self.project, anim, sorted(self.selection))
+        if not self.is_playing:
+            self.browser.list.Refresh()  # rows show length and mode
+        self._update_transport()
+
+    def _refresh_stage(self) -> None:
+        anim = self.animation()
+        self.stage.set_view(
+            anim,
+            self.current_step(),
+            self.selection,
+            self._mirror(),
+            ONION_MODES[max(0, self.onion_choice.GetSelection())][1],
+            self.chk_path.GetValue(),
+        )
+
+    def _update_transport(self) -> None:
+        anim = self.animation()
+        has_steps = bool(anim and anim.aframes)
+        self.btn_play.SetLabel("❚❚" if self.is_playing else "▶")
+        for btn in (self.btn_first, self.btn_prev_step, self.btn_prev_tick, self.btn_play,
+                    self.btn_next_tick, self.btn_next_step, self.btn_last, self.btn_fit_seq):
+            btn.Enable(has_steps)
+        self.btn_delete.Enable(has_steps)
+        if not has_steps:
+            self.tick_info.SetLabel("")
+            self.tick_spin.SetValue(0)
+            return
+        total = ops.total_ticks(anim)
+        if not self.tick_spin.HasFocus():
+            self.tick_spin.SetRange(0, max(0, total - 1))
+            self.tick_spin.SetValue(self.tick)
+        self.tick_info.SetLabel(
+            f"/ {total - 1}   {ops.seconds(anim, self.tick):.2f} s   step {self.current_step() + 1} of {len(anim.aframes)}"
+        )
+
+    def _fit_views(self) -> None:
+        anim = self.animation()
+        if anim and self._fitted_id != anim.id and self.stage.IsShownOnScreen():
+            self._fitted_id = anim.id
+            self.stage.fit_to_content()
+            self.sequence.fit()
+
+    # ================================================================== animations
+    def select_animation(self, anim_id: Optional[str]) -> None:
+        self.stop_playback()
+        self.selected_animation_id = anim_id
+        self.tick = 0
+        self.selection = set()
+        self.browser.list.set_items(self.project, self.renderer, self._view, anim_id)
+        self.browser.btn_dup.Enable(anim_id is not None)
+        self.browser.btn_del.Enable(anim_id is not None)
+        self.refresh()
+        self._fitted_id = None
+        self._fit_views()
+
+    def _on_list_select(self, _event: wx.CommandEvent) -> None:
+        anim = self.browser.list.selected_animation()
+        if anim and anim.id != self.selected_animation_id:
+            self.select_animation(anim.id)
+
+    def new_animation(self) -> None:
+        anim = ops.new_animation(self.project, self.selected_animation_id)
+        self.browser.search.ChangeValue("")
+        self.selected_animation_id = anim.id
+        self.refresh_animations()
+        self.select_animation(anim.id)
+        app_services.request_checkpoint()
+        wx.CallAfter(self.browser.list.begin_rename)
+
+    def duplicate_animation(self) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        copy = ops.duplicate_animation(self.project, anim)
+        self.browser.search.ChangeValue("")
+        self.selected_animation_id = copy.id
+        self.refresh_animations()
+        self.select_animation(copy.id)
+        app_services.request_checkpoint()
+        app_services.show_status(f"Duplicated '{anim.name}'")
+
+    def delete_animation(self) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        uses = ops.scene_usage(self.project, anim.id)
+        message = f"Delete animation '{anim.name}'?"
+        if uses:
+            message += f"\n\nIt is shown by {uses} timeline object(s); they will show nothing."
+        if wx.MessageBox(message, "Delete Animation", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            return
+        position = self._view.index(anim) if anim in self._view else 0
+        self.stop_playback()
+        self.project.animations.remove(anim)
+        remaining = [a for a in self._view if a is not anim]
+        neighbour = remaining[min(position, len(remaining) - 1)] if remaining else None
+        self.selected_animation_id = neighbour.id if neighbour else None
+        self.refresh_animations()
+        self.select_animation(self.selected_animation_id)
+        app_services.request_checkpoint()
+        app_services.show_status(f"Deleted '{anim.name}'")
+
+    def _rename_animation(self, anim_id: str, name: str) -> None:
+        anim = self.project.get_animation(anim_id)
+        if anim and name and name != anim.name:
+            anim.name = name
+            self.refresh_animations()
+            app_services.request_checkpoint()
+
+    def _move_animation(self, anim_id: str, index: int) -> None:
+        if self.browser.filter_text():
+            app_services.show_status("Clear the filter to reorder animations")
+            return
+        ops.move_animation(self.project, anim_id, index)
+        self.refresh_animations()
+        app_services.request_checkpoint()
+
+    def _on_list_key(self, event: wx.KeyEvent) -> None:
+        code = event.GetKeyCode()
+        if code in (wx.WXK_DELETE, wx.WXK_BACK):
+            self.delete_animation()
+        elif code == wx.WXK_F2:
+            self.browser.list.begin_rename()
+        else:
+            event.Skip()
+
+    def _on_list_menu(self, _event: wx.ContextMenuEvent) -> None:
+        if not self.animation():
+            return
+        menu = wx.Menu()
+        entries = [
+            ("Rename", self.browser.list.begin_rename),
+            ("Duplicate", self.duplicate_animation),
+            ("Delete", self.delete_animation),
+            None,
+            ("Export GIF…", self.export_gif),
+        ]
+        for entry in entries:
+            if entry is None:
+                menu.AppendSeparator()
+                continue
+            label, handler = entry
+            item = menu.Append(wx.ID_ANY, label)
+            self.Bind(wx.EVT_MENU, lambda e, h=handler: h(), item)
+        self.browser.list.PopupMenu(menu)
+        menu.Destroy()
+
+    def _on_animation_field(self, field: str, value: Any) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        if field == "name":
+            if not value or value == anim.name:
+                return
+            anim.name = str(value)
+        elif field == "playback":
+            anim.playback_type = str(value)
+        elif field == "loops":
+            anim.loop_count = max(0, int(value))
+        elif field == "fps":
+            anim.fps = max(1, int(value))
+        if self.is_playing:
+            self.player = ops.Player(anim, self.repeat)
+            self.player.start(self.current_step())
+            self._play_clock = (time.monotonic(), 0)
+        self.refresh_animations()
+        app_services.request_checkpoint()
+
+    def _on_animation_tool(self, name: str) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        if name == "gif":
+            self.export_gif()
+            return
+        if name == "mirror_x":
+            ops.mirror_animation(anim, "x")
+        elif name == "mirror_y":
+            ops.mirror_animation(anim, "y")
+        elif name == "rot_cw":
+            ops.rotate_animation(anim, 90)
+        elif name == "rot_ccw":
+            ops.rotate_animation(anim, -90)
+        elif name == "reverse":
+            self.reverse_steps()
+            return
+        self.renderer.clear()
+        self._commit()
+        self._fitted_id = None
+        self._fit_views()
+
+    # ================================================================== playhead
+    def seek_tick(self, tick: int) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        self.tick = max(0, min(int(tick), ops.total_ticks(anim) - 1))
+        if self.is_playing and self.player:
+            self.player.start(self.current_step())
+            self._play_clock = (time.monotonic(), 0)
+        self.sequence.ensure_tick_visible(self.tick)
+        self.refresh()
+
+    def seek_step(self, index: int) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        index = max(0, min(index, len(anim.aframes) - 1))
+        self.seek_tick(ops.step_starts(anim)[index])
+
+    def step(self, delta: int) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        self.stop_playback()
+        count = len(anim.aframes)
+        current = self.current_step()
+        target = (current + delta) % count if anim.playback_type in ops.REPEATING_MODES else max(0, min(current + delta, count - 1))
+        self.seek_step(target)
+
+    def step_tick(self, delta: int) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        self.stop_playback()
+        total = ops.total_ticks(anim)
+        self.seek_tick((self.tick + delta) % total)
+
+    def toggle_play(self) -> None:
+        anim = self.animation()
+        if self.is_playing or not anim or not anim.aframes:
+            self.is_playing = False
+            self.timer.Stop()
+        else:
+            self.is_playing = True
+            self.player = ops.Player(anim, self.repeat)
+            start = self.current_step()
+            last = len(anim.aframes) - 1
+            if anim.playback_type == "forward" and start >= last:
+                start = 0
+            self.player.start(start)
+            self.tick = self.player.position()
+            self._play_clock = (time.monotonic(), 0)
+            self.timer.Start(10)
+        self.refresh(inspector=not self.is_playing)
+
+    def _on_timer(self, _event: wx.TimerEvent) -> None:
+        anim = self.animation()
+        if not anim or not self.player or not anim.aframes:
+            self.stop_playback()
+            return
+        started, done = self._play_clock
+        due = int((time.monotonic() - started) * ops.tick_rate(anim) * self.speed)
+        running = True
+        while done < due and running:
+            running = self.player.advance()
+            done += 1
+        self._play_clock = (started, done)
+        tick = self.player.position()
+        if tick != self.tick or not running:
+            self.tick = tick
+            self.sequence.ensure_tick_visible(tick)
+            if not running:
+                self.is_playing = False
+                self.timer.Stop()
+            self.refresh(inspector=not self.is_playing)
+
+    def _on_repeat(self, event: wx.CommandEvent) -> None:
+        self.repeat = event.IsChecked()
+        if self.player:
+            self.player.repeat = self.repeat
+
+    def _on_speed(self, _event: wx.CommandEvent) -> None:
+        self.speed = SPEEDS[max(0, self.speed_choice.GetSelection())][1]
+        if self.is_playing:
+            self._play_clock = (time.monotonic(), 0)
+
+    # ================================================================== selection
+    def _sequence_select(self, selection: Set[int], current: int) -> None:
+        self.selection = set(selection)
+        anim = self.animation()
+        if anim and 0 <= current < len(anim.aframes):
+            start = ops.step_starts(anim)[current]
+            if not (start <= self.tick < start + ops.hold(anim.aframes[current])):
+                self.tick = start
+            if self.is_playing and self.player:
+                self.player.start(current)  # keep playing from the clicked step
+                self._play_clock = (time.monotonic(), 0)
+        self.refresh()
+
+    def select_steps(self, indices: List[int]) -> None:
+        self.selection = set(indices)
+        if indices:
+            self.seek_step(indices[0])
+        else:
+            self.refresh()
+
+    def _pick_step_on_stage(self, index: int, additive: bool) -> None:
+        if additive:
+            self.selection.symmetric_difference_update({index})
+            self.refresh()
+        else:
+            self.selection = {index}
+            self.seek_step(index)
+
+    # ================================================================== step edits
+    def insert_frame(self, frame_id: str, index: int) -> None:
+        anim = self.animation()
+        if not anim:
+            anim = ops.new_animation(self.project)
+            self.selected_animation_id = anim.id
+            self.refresh_animations()
+        if not self.project.get_frame(frame_id):
+            return
+        new = ops.insert_steps(anim, index, [ops.new_step(frame_id)])
+        self.selection = set(new)
+        self.tick = ops.step_starts(anim)[new[0]]
+        self.sequence.ensure_tick_visible(self.tick)
+        self._commit()
+
+    def insert_frame_after_current(self, frame_id: str) -> None:
+        current = self.current_step()
+        self.insert_frame(frame_id, current + 1 if current >= 0 else 0)
+
+    def delete_steps(self) -> None:
+        anim = self.animation()
+        targets = self._targets()
+        if not anim or not targets:
+            return
+        removed = ops.delete_steps(anim, targets)
+        self.selection = set()
+        if anim.aframes:
+            index = min(targets[0], len(anim.aframes) - 1)
+            self.tick = ops.step_starts(anim)[index]
+        self._commit()
+        app_services.show_status(f"Deleted {removed} step(s)")
+
+    def move_steps(self, indices: List[int], insert_at: int, copy: bool) -> None:
+        anim = self.animation()
+        if not anim or not indices:
+            return
+        if copy:
+            new = ops.paste_steps(anim, insert_at, ops.copy_steps(anim, indices))
+        else:
+            new = ops.move_steps(anim, indices, insert_at)
+        if not new:
+            return
+        self.selection = set(new)
+        self.tick = ops.step_starts(anim)[new[0]]
+        self._commit()
+
+    def reverse_steps(self) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        ops.reverse_steps(anim, sorted(self.selection))
+        self._commit()
+
+    def change_hold(self, delta: int) -> None:
+        anim = self.animation()
+        targets = self._targets()
+        if anim and targets:
+            ops.change_hold(anim, targets, delta)
+            self._commit()
+
+    def set_hold(self, ticks: int) -> None:
+        anim = self.animation()
+        targets = self._targets()
+        if anim and targets:
+            ops.set_hold(anim, targets, ticks)
+            self._commit()
+
+    def flip_selected(self, axis: str) -> None:
+        anim = self.animation()
+        targets = self._targets()
+        if anim and targets:
+            ops.toggle_flip(anim, targets, axis)
+            self._commit()
+
+    def rotate_selected(self, degrees: int) -> None:
+        anim = self.animation()
+        targets = self._targets()
+        if anim and targets:
+            ops.rotate_steps(anim, targets, degrees)
+            self._commit()
+
+    def nudge_selected(self, dx: int, dy: int) -> None:
+        anim = self.animation()
+        targets = self._targets()
+        if anim and targets:
+            mx, my = self._mirror()
+            ops.nudge(anim, targets, -dx if mx else dx, -dy if my else dy)
+            self.refresh()
+
+    def _on_step_field(self, field: str, value: Any) -> None:
+        anim = self.animation()
+        targets = sorted(self.selection)
+        if not anim or not targets:
+            return
+        if field == "hold":
+            ops.set_hold(anim, targets, int(value))
+        elif field in ("x", "y"):
+            af = anim.aframes[targets[0]]
+            x, y = af.offset
+            af.offset = (int(value), int(y)) if field == "x" else (int(x), int(value))
+        elif field in ("flip_x", "flip_y"):
+            ops.set_flip(anim, targets, field[-1], bool(value))
+        elif field == "rotate":
+            ops.rotate_steps(anim, targets, int(value))
+        self._commit()
+
+    def _pick_frame_for_selection(self) -> None:
+        from ui.scene_editor.inspector import SourcePickerDialog
+
+        anim = self.animation()
+        targets = sorted(self.selection)
+        if not anim or not targets:
+            return
+        current = ("frame", anim.aframes[targets[0]].frame_id)
+        with SourcePickerDialog(self, self.project, current, allow_none=False, kinds=("frame",), title="Choose Frame") as dlg:
+            if dlg.ShowModal() != wx.ID_OK or not dlg.result:
+                return
+            frame_id = dlg.result[1]
+        for i in targets:
+            anim.aframes[i].frame_id = str(frame_id)
+        self._commit()
+
+    def _open_frame_of_step(self, index: int) -> None:
+        steps = self._steps()
+        if 0 <= index < len(steps) and self.on_edit_frame and self.project.get_frame(steps[index].frame_id):
+            self.stop_playback()
+            self.on_edit_frame(steps[index].frame_id)
+
+    # ---- drags
+    def _stage_drag_begin(self) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        if not self.selection:
+            self.selection = {self.current_step()}
+        self._drag_bases = {i: tuple(anim.aframes[i].offset) for i in self.selection if i < len(anim.aframes)}
+
+    def _stage_drag(self, dx: int, dy: int) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        for i, (x, y) in self._drag_bases.items():
+            if i < len(anim.aframes):
+                anim.aframes[i].offset = (int(x) + dx, int(y) + dy)
+        self.refresh(sequence=False)
+        app_services.show_status(f"Offset moved by {dx:+d}, {dy:+d}")
+
+    def _stage_drag_end(self, moved: bool) -> None:
+        self._drag_bases = {}
+        if moved:
+            self._commit()
+        else:
+            self.refresh()
+
+    def _hold_drag_begin(self, index: int) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        targets = sorted(self.selection) or [index]
+        self._hold_bases = {i: ops.hold(anim.aframes[i]) for i in targets if i < len(anim.aframes)}
+
+    def _hold_drag(self, delta: int) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        for i, base in self._hold_bases.items():
+            anim.aframes[i].duration_frames = max(1, base + delta)
+        self.refresh(stage=False)
+        first = next(iter(self._hold_bases), None)
+        if first is not None:
+            app_services.show_status(f"Hold: {ops.hold(anim.aframes[first])} tick(s)")
+
+    # ================================================================== context menu
+    def _sequence_menu(self, index: int, pos: wx.Point) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        menu = wx.Menu()
+
+        def add(label: str, handler: Callable[[], None], enabled: bool = True, target: Optional[wx.Menu] = None) -> None:
+            item = (target or menu).Append(wx.ID_ANY, label)
+            item.Enable(enabled)
+            self.Bind(wx.EVT_MENU, lambda e: handler(), item)
+
+        has = index >= 0
+        if has:
+            holds = wx.Menu()
+            for ticks in HOLD_PRESETS:
+                add(f"{ticks} tick{'s' if ticks != 1 else ''}", lambda t=ticks: self.set_hold(t), target=holds)
+            menu.AppendSubMenu(holds, "Hold")
+            add("Flip H\tH", lambda: self.flip_selected("x"))
+            add("Flip V\tV", lambda: self.flip_selected("y"))
+            add("Rotate 90° CW\tR", lambda: self.rotate_selected(90))
+            add("Rotate 90° CCW\tShift+R", lambda: self.rotate_selected(-90))
+            add("Reset offset", self._reset_offsets)
+            menu.AppendSeparator()
+            add("Swap frame…", self._pick_frame_for_selection)
+            add("Edit frame in Frames tab", lambda: self._open_frame_of_step(index), len(self.selection) <= 1)
+            menu.AppendSeparator()
+            add("Duplicate", self.edit_duplicate)
+            add("Copy", self.edit_copy)
+        add("Paste", self.edit_paste, bool(_STEP_CLIPBOARD))
+        if has:
+            add("Reverse order", self.reverse_steps, len(self.selection) > 1)
+            menu.AppendSeparator()
+            add("Delete", self.delete_steps)
+        self.sequence.PopupMenu(menu, pos)
+        menu.Destroy()
+
+    def _reset_offsets(self) -> None:
+        anim = self.animation()
+        for i in self._targets():
+            if anim and i < len(anim.aframes):
+                anim.aframes[i].offset = (0, 0)
+        self._commit()
+
+    # ================================================================== edit menu
+    def edit_copy(self) -> None:
+        anim = self.animation()
+        if anim and self._targets():
+            _STEP_CLIPBOARD[:] = ops.copy_steps(anim, self._targets())
+            app_services.show_status(f"Copied {len(_STEP_CLIPBOARD)} step(s)")
+
+    def edit_cut(self) -> None:
+        self.edit_copy()
+        self.delete_steps()
+
+    def edit_paste(self) -> None:
+        anim = self.animation()
+        if not anim or not _STEP_CLIPBOARD:
+            return
+        targets = self._targets()
+        index = targets[-1] + 1 if targets else len(anim.aframes)
+        new = ops.paste_steps(anim, index, _STEP_CLIPBOARD)
+        self.selection = set(new)
+        self.tick = ops.step_starts(anim)[new[0]]
+        self.refresh()
+
+    def edit_duplicate(self) -> None:
+        anim = self.animation()
+        if not anim or not self._targets():
+            return
+        new = ops.duplicate_steps(anim, self._targets())
+        self.selection = set(new)
+        self.tick = ops.step_starts(anim)[new[0]]
+        self.refresh()
+
+    def edit_select_all(self) -> None:
+        anim = self.animation()
+        if anim:
+            self.selection = set(range(len(anim.aframes)))
+            self.refresh()
+
+    # ================================================================== GIF
+    def export_gif(self) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            app_services.show_status("Select an animation with steps to export a GIF")
+            return
+        with wx.FileDialog(self, "Export GIF", defaultFile=f"{anim.name}.gif", wildcard="GIF files (*.gif)|*.gif",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+        try:
+            count = export_gif(self.project, anim, path, self.project.active_mapping, self._mirror())
+        except Exception as exc:  # disk full, permissions, Pillow missing …
+            wx.MessageBox(f"Could not write the GIF:\n{exc}", "Export GIF", wx.OK | wx.ICON_ERROR, self)
+            return
+        app_services.show_status(f"Exported {count} frame(s) to {path}")
+
+    # ================================================================== keyboard
+    def _on_toggle_collision(self, checked: bool) -> None:
+        self.stage.show_collision = checked
+        self.stage.Refresh(False)
+
+    def _on_toggle_points(self, checked: bool) -> None:
+        self.stage.show_points = checked
+        self.stage.Refresh(False)
+
+    def _on_char_hook(self, event: wx.KeyEvent) -> None:
+        if not self.IsShownOnScreen() or app_services.text_entry_has_focus():
+            event.Skip()
+            return
+        if event.CmdDown() or event.ControlDown() or event.AltDown():
+            event.Skip()
+            return
+        code = event.GetKeyCode()
+        shift = event.ShiftDown()
+        focus = wx.Window.FindFocus()
+        if focus is self.browser.list and code in (wx.WXK_UP, wx.WXK_DOWN, wx.WXK_DELETE, wx.WXK_BACK, wx.WXK_F2):
+            event.Skip()
+            return
+        if code in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self.toggle_play()
+        elif code in (ord(","), ord("<")):
+            self.step_tick(-1) if shift else self.step(-1)
+        elif code in (ord("."), ord(">")):
+            self.step_tick(1) if shift else self.step(1)
+        elif code == wx.WXK_HOME:
+            self.seek_step(0)
+        elif code == wx.WXK_END:
+            self.seek_step(len(self._steps()) - 1)
+        elif code == ord("["):
+            self.change_hold(-1)
+        elif code == ord("]"):
+            self.change_hold(1)
+        elif code == ord("H"):
+            self.flip_selected("x")
+        elif code == ord("V"):
+            self.flip_selected("y")
+        elif code == ord("R"):
+            self.rotate_selected(-90 if shift else 90)
+        elif code in (wx.WXK_DELETE, wx.WXK_BACK):
+            self.delete_steps()
+        elif code == wx.WXK_ESCAPE:
+            self.selection = set()
+            self.refresh()
+        elif code in (wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_UP, wx.WXK_DOWN) and focus is self.stage:
+            step = 8 if shift else 1
+            self.nudge_selected({wx.WXK_LEFT: -step, wx.WXK_RIGHT: step}.get(code, 0),
+                                {wx.WXK_UP: -step, wx.WXK_DOWN: step}.get(code, 0))
+            app_services.request_checkpoint()
+        elif code in (wx.WXK_LEFT, wx.WXK_RIGHT) and focus is self.sequence:
+            if shift:
+                self._extend_selection(-1 if code == wx.WXK_LEFT else 1)
+            else:
+                self.step(-1 if code == wx.WXK_LEFT else 1)
+                current = self.current_step()
+                self.selection = {current} if current >= 0 else set()
+                self.refresh()
+        else:
+            event.Skip()
+
+    def _extend_selection(self, delta: int) -> None:
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            return
+        current = self.current_step()
+        target = max(0, min(current + delta, len(anim.aframes) - 1))
+        self.selection |= {current, target}
+        self.seek_step(target)

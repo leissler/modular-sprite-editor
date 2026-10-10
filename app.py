@@ -15,7 +15,7 @@ import wx.lib.agw.flatnotebook as fnb
 
 from models import FModule, Project, generate_id
 from ui import app_services
-from ui.animation_editor import AnimationEditorPanel
+from ui.animation_editor.panel import AnimationEditorPanel
 from ui.frame_editor import FrameEditorPanel
 from ui.mapping_editor import MappingEditorPanel
 from ui.module_editor import ModuleEditorPanel
@@ -30,7 +30,7 @@ TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
 TAB_HINTS = {
     "Modules": "Drag: select rect  •  Shift+drag: pivot  •  Space/Alt/Middle-drag: pan  •  Wheel: zoom",
     "Frames": "Drag parts from the palette  •  Arrows: nudge (Shift = 8 px)  •  H/V: flip  •  R: rotate  •  Space/Alt-drag: pan",
-    "Animations": "Enter: play/pause  •  , / .: step  •  Drag canvas: move frame offset  •  Arrows: nudge offset",
+    "Animations": "Drag frames into the sequence  •  Enter: play  •  , / .: step  •  [ / ]: hold  •  Drag a step's right edge: hold  •  Drag the stage: offset",
     "Timeline": "Drag from the Library onto the stage  •  Enter: play  •  , / .: step  •  K: key  •  Auto-Key edits set keys at the playhead",
     "Mappings": "Drag a source module onto a target slot  •  Right-click a target slot to reset or hide it",
 }
@@ -194,7 +194,7 @@ class MainFrame(wx.Frame):
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        self.animation_editor.timeline.on_edit_frame = self.switch_to_frame_editor
+        self.animation_editor.on_edit_frame = self.switch_to_frame_editor
 
         app_services.install(
             checkpoint=self.history_checkpoint,
@@ -353,8 +353,7 @@ class MainFrame(wx.Frame):
             self.frame_editor.refresh_choices()
             self.frame_editor.refresh_frames(self.frame_editor.selected_frame_id)
         elif page_idx == 2:
-            self.animation_editor.refresh_choices()
-            self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
+            self.animation_editor.on_tab_activated()
         elif page_idx == 3:
             self.timeline_editor.on_tab_activated()
         elif page_idx == 4:
@@ -723,7 +722,7 @@ class MainFrame(wx.Frame):
 
     def on_export_gif(self, event: wx.CommandEvent) -> None:
         self.select_tab(2)
-        self.animation_editor.on_export_gif(event)
+        self.animation_editor.export_gif()
 
     def on_shortcuts(self, _: wx.CommandEvent) -> None:
         with ShortcutsDialog(self) as dlg:
@@ -798,8 +797,7 @@ class MainFrame(wx.Frame):
         self.frame_editor.refresh_choices()
         if last_frame_id:
             self.frame_editor.select_frame_by_id(last_frame_id)
-        self.animation_editor.refresh_choices()
-        self.animation_editor.refresh_animations(self.animation_editor.selected_animation_id)
+        self.animation_editor.refresh_library()
         self.history_checkpoint()
         self.set_status(f"Created {created} reference frame(s).")
 

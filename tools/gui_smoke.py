@@ -181,44 +181,194 @@ def run():
     ae = frame.animation_editor
 
     def animations():
+        import tempfile
+        from ui.animation_editor import ops as aops
+        from ui.animation_editor.render import export_gif
+
         frame.select_tab(2)
-        pump()
+        pump(5)
         if not proj.animations:
-            return
+            ae.new_animation()
         anim = max(proj.animations, key=lambda a: len(a.aframes))
-        ae.refresh_animations(anim.id)
-        ae.on_select_animation(None)
+        ae.select_animation(anim.id)
         pump()
-        check(ae.get_selected_anim() is anim, "animation selected")
+        check(ae.animation() is anim, "animation selected")
+        check(ae.browser.list.selected_animation() is anim, "list follows the selection")
+
+        # Playhead, onion skin, playback through the runtime-like player
         ae.onion_choice.SetSelection(3)
-        ae.on_onion_changed(None)
+        ae.seek_step(1)
+        check(ae.current_step() == 1, "seek to step")
+        check(len(ae.stage.ghost_layers) >= 1, "onion ghosts present")
         ae.step(1)
-        pump()
-        check(len(ae.canvas.ghost_layers) >= 1, "onion ghosts present")
-        ae.canvas.Refresh()
-        ae.canvas.Update()
-        ae.on_play(None)
-        pump()
-        ae.on_play(None)
-        off = anim.aframes[ae.current_index].offset
-        ae._nudge_offset(wx.WXK_RIGHT, 1)
-        check(anim.aframes[ae.current_index].offset == (off[0] + 1, off[1]), "nudge offset")
+        check(ae.current_step() == 2, "next step")
+        ae.toggle_play()
+        pump(5)
+        ae.toggle_play()
+        check(not ae.is_playing, "playback stopped")
+
+        # Offsets: nudge, stage drag, undo
+        ae.select_steps([0])
+        off = anim.aframes[0].offset
+        ae.nudge_selected(1, 0)
+        check(anim.aframes[0].offset == (off[0] + 1, off[1]), "nudge offset")
         frame.history_checkpoint()
         frame.on_undo(None)
         pump()
-        a2 = proj.get_animation(anim.id)
-        check(a2.aframes[ae.current_index].offset == off, "undo offset nudge")
-        ae.chk_mirror_x.SetValue(True)
-        ae.on_toggle_global_flip(None)
-        ae.canvas.fit_to_content()
-        ae.on_duplicate_animation(None)
-        check(any(a.name.endswith("copy") for a in proj.animations), "duplicate animation")
-        frame.on_undo(None)
-        ae.anim_filter.SetValue(anim.name[:2])
-        pump()
-        ae.anim_filter.SetValue("")
+        anim = proj.get_animation(anim.id)
+        check(anim.aframes[0].offset == off, "undo offset nudge")
+        ae.select_steps([0, 1])
+        bases = [anim.aframes[i].offset for i in (0, 1)]
+        ae._stage_drag_begin()
+        ae._stage_drag(3, -2)
+        ae._stage_drag_end(True)
+        check([anim.aframes[i].offset for i in (0, 1)] == [(x + 3, y - 2) for x, y in bases], "stage drag moves the selection")
 
-    step("animations: select/onion/play/nudge/undo/mirror/dup/filter", animations)
+        # Holds: keys and edge drag
+        ae.select_steps([0])
+        before = aops.hold(anim.aframes[0])
+        ae.change_hold(1)
+        check(anim.aframes[0].duration_frames == before + 1, "] lengthens the hold")
+        ae._hold_drag_begin(0)
+        ae._hold_drag(2)
+        ae._commit()
+        check(anim.aframes[0].duration_frames == before + 3, "edge drag sets the hold")
+
+        # Steps: insert from the library, move, copy/paste, flip, delete
+        count = len(anim.aframes)
+        ae.insert_frame(proj.frames[0].id, 0)
+        check(len(anim.aframes) == count + 1 and anim.aframes[0].frame_id == proj.frames[0].id, "insert frame from library")
+        ae.move_steps([0], 3, False)
+        check(anim.aframes[2].frame_id == proj.frames[0].id, "move step")
+        ae.move_steps([2], 0, True)
+        check(len(anim.aframes) == count + 2, "alt-drag copies")
+        ae.select_steps([0])
+        flipped = anim.aframes[0].flip_x
+        ae.flip_selected("x")
+        check(anim.aframes[0].flip_x != flipped, "flip step")
+        ae.edit_select_all()
+        ae.edit_copy()
+        ae.select_steps([len(anim.aframes) - 1])
+        ae.edit_paste()
+        check(len(anim.aframes) == 2 * (count + 2), "paste steps")
+        ae.edit_select_all()
+        ae.edit_duplicate()
+        ae.delete_steps()
+        check(len(anim.aframes) == 2 * (count + 2), "delete duplicated steps")
+
+        # Whole animation: mirror twice is identity
+        offsets = [af.offset for af in anim.aframes]
+        ae._on_animation_tool("mirror_x")
+        ae._on_animation_tool("mirror_x")
+        check([af.offset for af in anim.aframes] == offsets, "mirror whole animation twice")
+
+        # Settings through the inspector
+        ae._on_animation_field("playback", "ping_pong")
+        ae._on_animation_field("fps", 20)
+        check(anim.playback_type == "ping_pong" and anim.fps == 20, "playback settings")
+        ae.toggle_play()
+        pump(5)
+        ae.toggle_play()
+
+        # GIF export (pixel-exact renderer, one cycle)
+        path = os.path.join(tempfile.mkdtemp(), "smoke.gif")
+        frames_written = export_gif(proj, anim, path, proj.active_mapping, (True, False))
+        check(frames_written > 0 and os.path.getsize(path) > 0, "GIF export")
+
+        # Animations: new / rename / duplicate / delete, filter
+        n = len(proj.animations)
+        ae.new_animation()
+        pump()
+        new_anim = ae.animation()
+        ae._rename_animation(new_anim.id, "Smoke anim")
+        check(new_anim.name == "Smoke anim", "rename animation")
+        ae.insert_frame(proj.frames[0].id, 0)
+        ae.duplicate_animation()
+        check(len(proj.animations) == n + 2, "new + duplicate animation")
+        ae.delete_animation()
+        ae.select_animation(new_anim.id)
+        ae.delete_animation()
+        check(len(proj.animations) == n, "delete animations")
+        ae.browser.search.SetValue(anim.name[:3])
+        pump()
+        check(anim in ae._view, "filter keeps matches")
+        ae.browser.search.SetValue("")
+        ae.mirror_choice.SetSelection(1)
+        ae._refresh_stage()
+        ae.stage.fit_to_content()
+        for _ in range(8):
+            frame.on_undo(None)
+        pump()
+
+    step("animations: select/onion/play/nudge/drag/hold/steps/mirror/gif/new/delete/undo", animations)
+
+    def animation_mouse():
+        from ui.animation_editor import ops as aops
+
+        def mouse(widget, kind, x, y, shift=False, alt=False, left=True):
+            evt = wx.MouseEvent(kind)
+            evt.SetPosition(wx.Point(int(x), int(y)))
+            evt.SetLeftDown(left)
+            evt.SetShiftDown(shift)
+            evt.SetAltDown(alt)
+            handler = {wx.wxEVT_LEFT_DOWN: "_on_left_down", wx.wxEVT_MOTION: "_on_motion", wx.wxEVT_LEFT_UP: "_on_left_up"}[kind]
+            getattr(widget, handler)(evt)
+            pump(1)
+
+        frame.select_tab(2)
+        anim = max(proj.animations, key=lambda a: len(a.aframes))
+        ae.select_animation(anim.id)
+        ae.sequence.tick_w = 40.0
+        ae.sequence.set_scroll(0)
+        pump()
+        sq = ae.sequence
+        y = 28 + 30  # inside the cells row
+
+        def centre(i):
+            r = sq.cell_rect(i)
+            return r.x + r.width // 2
+
+        mouse(sq, wx.wxEVT_LEFT_DOWN, centre(2), y)
+        mouse(sq, wx.wxEVT_LEFT_UP, centre(2), y, left=False)
+        check(ae.selection == {2} and ae.current_step() == 2, "click selects a step")
+        mouse(sq, wx.wxEVT_LEFT_DOWN, centre(4), y, shift=True)
+        mouse(sq, wx.wxEVT_LEFT_UP, centre(4), y, shift=True, left=False)
+        check(ae.selection == {2, 3, 4}, "shift-click selects a range")
+
+        # Drag step 0's right edge two ticks to the right
+        before = aops.hold(anim.aframes[0])
+        edge = sq.cell_rect(0)
+        ex = edge.x + edge.width
+        mouse(sq, wx.wxEVT_LEFT_DOWN, ex, y)
+        mouse(sq, wx.wxEVT_MOTION, ex + 2 * sq.tick_w, y)
+        mouse(sq, wx.wxEVT_LEFT_UP, ex + 2 * sq.tick_w, y, left=False)
+        check(aops.hold(anim.aframes[0]) == before + 2, "edge drag changes the hold")
+
+        # Drag step 1 behind step 3
+        moving = anim.aframes[1]
+        mouse(sq, wx.wxEVT_LEFT_DOWN, centre(1), y)
+        target = sq.cell_rect(3)
+        mouse(sq, wx.wxEVT_MOTION, target.x + target.width - 3, y)
+        mouse(sq, wx.wxEVT_LEFT_UP, target.x + target.width - 3, y, left=False)
+        check(anim.aframes[3] is moving, "drag reorders steps")
+
+        # Ruler scrub
+        mouse(sq, wx.wxEVT_LEFT_DOWN, sq.x_of_tick(5) + 2, 8)
+        mouse(sq, wx.wxEVT_LEFT_UP, sq.x_of_tick(5) + 2, 8, left=False)
+        check(ae.tick == 5, "ruler scrubs the playhead")
+
+        # Animation list: rename in place and drag to reorder
+        lst = ae.browser.list
+        lst.begin_rename()
+        if lst._editor:
+            lst._editor.SetValue("Renamed in place")
+            lst._finish_rename(True, anim.id)
+        check(anim.name == "Renamed in place", "rename in the list")
+        for _ in range(4):
+            frame.on_undo(None)
+        pump()
+
+    step("animations: mouse in the sequence and the list", animation_mouse)
 
     # ---- Timeline (scene editor)
     te = frame.timeline_editor

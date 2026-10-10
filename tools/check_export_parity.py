@@ -1,8 +1,9 @@
 """Check that the RetroAnimator export places every pixel where the editor canvas draws it.
 
 Renders each frame (and every animation step variant: offset / flip / rotation) with the editor's
-own AnimationCanvas into an offscreen bitmap, composites the exported parts at their handles, and
-compares the sets of opaque pixels. Needs wxPython (no window is shown).
+own animation stage into an offscreen bitmap, composites the exported parts at their handles, and
+compares the sets of opaque pixels. Also checks the stage's mirror preview against the pixel-exact
+step renderer used by thumbnails and GIF export. Needs wxPython (no window is shown).
 
 Usage:
     python3 tools/check_export_parity.py PROJECT_JSON [...]
@@ -26,14 +27,15 @@ import wx  # noqa: E402
 from PIL import Image  # noqa: E402
 
 from models import Frame, Project  # noqa: E402
-from ui.canvas import AnimationCanvas  # noqa: E402
+from ui.animation_editor.render import StepRenderer  # noqa: E402
+from ui.animation_editor.stage import AnimationStage  # noqa: E402
 
 BACKGROUND = (1, 254, 3)
 Pixels = Set[Tuple[int, int]]
 
 
 def canvas_pixels(
-    canvas: AnimationCanvas,
+    canvas: AnimationStage,
     frame: Frame,
     offset: Tuple[float, float] = (0.0, 0.0),
     flip_x: bool = False,
@@ -103,7 +105,7 @@ def export_pixels(export_dir: str, payload: Dict) -> Pixels:
 
 def check_project(path: str, canvas_parent: wx.Window) -> Tuple[int, int, List[str]]:
     project = Project.from_json(path)
-    canvas = AnimationCanvas(canvas_parent, project)
+    canvas = AnimationStage(canvas_parent, project)
     canvas.apply_key_colour = True
     problems: List[str] = []
     checked = 0
@@ -138,18 +140,46 @@ def check_project(path: str, canvas_parent: wx.Window) -> Tuple[int, int, List[s
             aframes = [af for af in anim.aframes if project.get_frame(af.frame_id)]
             for idx, (af, step) in enumerate(zip(aframes, steps)):
                 frame = project.get_frame(af.frame_id)
+                canvas.mirror = (False, False)
+                offset, flip_x, flip_y, rotation = canvas.step_transform(af)
                 compare(
                     f"animation '{anim.name}' step {idx + 1}",
                     frame,
                     step["FrameID"],
-                    offset=(float(af.offset[0]), float(af.offset[1])),
-                    flip_x=bool(af.flip_x),
-                    flip_y=bool(af.flip_y),
-                    rotation=float(getattr(af, "rotation_degrees", 0.0)),
+                    offset=offset,
+                    flip_x=flip_x,
+                    flip_y=flip_y,
+                    rotation=rotation,
                 )
+
+    # Mirror preview: the stage must match the step renderer (thumbnails, GIF export).
+    renderer = StepRenderer()
+    for anim in project.animations:
+        for idx, af in enumerate(anim.aframes):
+            frame = project.get_frame(af.frame_id)
+            if frame is None or any(fm.ref_type == "module" and fm.ref_id in shape_ids for fm in frame.fmodules):
+                continue
+            for mirror in ((True, False), (False, True), (True, True)):
+                canvas.mirror = mirror
+                offset, flip_x, flip_y, rotation = canvas.step_transform(af)
+                expected = canvas_pixels(canvas, frame, offset, flip_x, flip_y, rotation)
+                actual = renderer_pixels(renderer, project, af, mirror)
+                checked += 1
+                if expected != actual:
+                    problems.append(
+                        f"animation '{anim.name}' step {idx + 1} mirrored {mirror}: "
+                        f"{len(expected - actual)} pixel(s) missing, {len(actual - expected)} extra"
+                    )
 
     canvas.Destroy()
     return checked, len(problems), problems
+
+
+def renderer_pixels(renderer: StepRenderer, project: Project, af, mirror: Tuple[bool, bool]) -> Pixels:
+    image, hx, hy = renderer.render(project, af, None, mirror)
+    alpha = image.getchannel("A").load()
+    w, h = image.size
+    return {(hx + x, hy + y) for y in range(h) for x in range(w) if alpha[x, y]}
 
 
 def main(argv: List[str]) -> int:

@@ -56,21 +56,32 @@ class EasingPreview(wx.Panel):
 class SourcePickerDialog(wx.Dialog):
     """Searchable list of everything an object can show."""
 
-    def __init__(self, parent: wx.Window, project: Project, current: Tuple[str, Optional[str]], allow_none: bool = True):
-        super().__init__(parent, title="Choose Source", size=(420, 520), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    def __init__(
+        self,
+        parent: wx.Window,
+        project: Project,
+        current: Tuple[str, Optional[str]],
+        allow_none: bool = True,
+        kinds: Tuple[str, ...] = ("animation", "frame", "module"),
+        title: str = "Choose Source",
+    ):
+        super().__init__(parent, title=title, size=(420, 520), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.project = project
         self.items: List[Tuple[str, Optional[str], str]] = []
         if allow_none:
             self.items.append(("none", None, "Group (no image)"))
-        self.items += [("animation", a.id, a.name) for a in project.animations]
-        self.items += [("frame", f.id, f.name) for f in project.frames]
-        self.items += [("module", m.id, m.name) for m in project.modules]
+        if "animation" in kinds:
+            self.items += [("animation", a.id, a.name) for a in project.animations]
+        if "frame" in kinds:
+            self.items += [("frame", f.id, f.name) for f in project.frames]
+        if "module" in kinds:
+            self.items += [("module", m.id, m.name) for m in project.modules]
         self.visible: List[int] = []
         self.result: Optional[Tuple[str, Optional[str]]] = None
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.search = wx.SearchCtrl(self, style=wx.TE_PROCESS_ENTER)
-        self.search.SetDescriptiveText("Search animations, frames, modules")
+        self.search.SetDescriptiveText("Search " + ", ".join(k + "s" for k in kinds))
         self.search.ShowCancelButton(True)
         self.listing = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.listing.InsertColumn(0, "Name", width=270)

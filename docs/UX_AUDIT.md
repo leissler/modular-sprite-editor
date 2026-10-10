@@ -29,7 +29,7 @@ not implemented yet.
 | X14 | Big lists (165 modules, 207 frames, 171 animations) have no filter. | Navigation | done: search filter on module list, module palette, frame list, frame palette, animation list |
 | X15 | Debug leftovers: frame flips append to `safe_debug.txt` in the CWD; `print("DEBUG: Save As triggered")`. | Hygiene | done |
 | X16 | Every paint rescales every module bitmap (and frame canvases re-mirror/rotate images each paint). Dragging large frames is sluggish. | Performance | done: scaled-bitmap cache keyed by zoom/flip/rotation |
-| X17 | Several renderers disagree: thumbnails and GIF export ignore nested frames and per-part rotation; GIF export ignores shape modules and mappings. | Correctness | open (see §7) |
+| X17 | Several renderers disagree: thumbnails and GIF export ignore nested frames and per-part rotation; GIF export ignores shape modules and mappings. | Correctness | partly done: the Animations tab (list icons, sequence thumbnails) and GIF export now render through the parity-checked RetroAnimator renderer; frame/module palettes still use `ThumbnailGenerator` (see §7) |
 | X18 | One "Transparency" checkbox mixed two jobs (checkerboard *and* hiding the sheet's key colour); turning it off in a composition tab painted opaque pink boxes over the parts behind them, and the Timeline used it differently. | Inconsistency | done: **Backdrop** (Checker / Colour, a shared preview colour; Timeline: the scene colour) in every view bar; key colour always hidden except via **Show key colour** in Modules; **Part bounds** overlay in Frames, Animations and Timeline outlines each part's rectangle instead |
 | X19 | Switching to the Timeline took ~0.5 s and typing in a module filter ~2 s per key: macOS builds a mask for every bitmap added to a masked `wx.ImageList`. | Performance | done: thumbnail image lists use `mask=False` |
 
@@ -55,15 +55,25 @@ not implemented yet.
 | F5 | README promises onion skinning, which does not exist. | done: Animations ghost previous/next animation step (with their offsets); Frames ghost the previous/next frame of the (filtered) frame list |
 | F6 | Two `on_frame_list_context_menu` definitions (the first is dead). | done |
 
-## 4. Animations tab
+## 4. Animations tab — redesigned (`animation-redesign` branch)
 
-| # | Finding | Status |
+A first pass grouped the old controls (A1–A4: view bar, Enter/`,`/`.`, duration badges, onion skin). The redesign
+then replaced `ui/animation_editor.py`, `ui/components/timeline_control.py` and `AnimationCanvas` with
+`ui/animation_editor/`, laid out like the Timeline tab (list | stage | inspector, full-width sequence below). The file
+format is unchanged.
+
+| # | Finding in the old editor | Redesign |
 |---|---------|--------|
-| A1 | Two centred rows mix per-frame properties, animation properties and view toggles ("Trajectory", "Mirror X/Y", "Col", "Pts"). | done: grouped into *Frame*, *Animation* and a canvas view bar |
-| A2 | No play/pause or step shortcut (README claims Space / ←→). | done: Enter = play/pause, `,` / `.` = step, ←→ in the strip |
-| A3 | Frame strip shows no duration; holds are invisible. | done: duration badge per cell + total length (ticks / seconds) |
-| A4 | No onion skin. | done: previous/next ghosts |
-| A5 | AFrame rotation is only reachable from the context menu. | open |
+| A1 | Animation list showed names only; nothing told you how long an animation is or how it plays. Adding a frame appended it at the end and needed a selected animation (otherwise a modal message). | List rows with a first-step thumbnail, *steps · ticks · seconds · mode*; rename in place, drag to reorder. Frames drop exactly where they should go in the sequence (or onto the stage / double-click: after the current step); with no animation one is created. |
+| A2 | Equal-width strip cells, holds only as a `×N` badge, no time ruler; reorder via OS drag & drop or *Move Left/Right*; single selection; Edit ▸ Copy/Paste/Duplicate/Select All did nothing in this tab. | **Sequence on a tick ruler**: a step is as wide as its hold, longer holds show a hold bar; drag the right edge to retime, drag to reorder, Alt+drag copies; click / Shift / Cmd multi-select; copy/paste/duplicate/select all; `[` `]` change holds; a colour stripe marks repeated frames (cycles). |
+| A3 | "Selected Frame" and "Animation" boxes in one dense row under the strip; Flip X/Y checkboxes (H/V elsewhere); step rotation only as a whole-animation menu entry (A5). | Contextual inspector: **Animation** (name, playback in plain words, repeat count only when it repeats, tick rate with ms / 60 Hz frames, length, timeline usage, whole-animation Mirror H/V, rotate, reverse, GIF) and **Step** / **N steps selected** (frame swap, hold, offset, ↺/↻ rotation, Flip H/V). H/V/R keys as in Frames. |
+| A4 | Preview played "backward" once and stopped, while the SGDK runtime repeats it; a timer per step; no slow motion. | `ops.Player` advances tick by tick like the runtime's `ms_anim_player_tick`, plus the animation's repeat count (which the runtime ignores); the Repeat toggle restarts finished previews; playhead moves through holds; speed ¼× / ½× / 1× / 2×. |
+| A5 | Mirror preview kept a step's rotation, which is wrong for 90°/270° steps (64 of 260 synthetic variants differed once checked). | Stage mirror reverses the rotation for an odd number of mirror axes; `tools/check_export_parity.py` now checks the mirror preview against the step renderer for every step. |
+| A6 | GIF export ignored nested frames, part rotation, shape modules and the preview mapping, and confirmed with a modal dialog. Strip thumbnails ignored nested frames and part rotation. | GIF export and every thumbnail use the parity-checked renderer; the GIF plays one cycle in playback order (reversed / ping-pong); status bar instead of a dialog. |
+| A7 | Steps with hold 0 (35 in PoP) showed `×0` but flashed for 10 ms in the preview; the exporters play them as one tick. | Timing treats them as one tick everywhere (`ops.hold`); the cell flags `×0` in red and the inspector explains it. |
+
+Not done (needs a format change, see `docs/ANIMATION.md`): step events / markers, loop-from step and follow-up
+animation, hardware budget overlay.
 
 ## 5. Timeline tab — redesigned (`timeline-redesign` branch)
 
