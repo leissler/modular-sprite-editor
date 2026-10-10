@@ -322,7 +322,9 @@ def run():
         ae.sequence.set_scroll(0)
         pump()
         sq = ae.sequence
-        y = 28 + 30  # inside the cells row
+        from ui.animation_editor.sequence import CELL_TOP
+
+        y = CELL_TOP + 30  # inside the cells row
 
         def centre(i):
             r = sq.cell_rect(i)
@@ -369,6 +371,58 @@ def run():
         pump()
 
     step("animations: mouse in the sequence and the list", animation_mouse)
+
+    def animation_events_loop_next():
+        import time as _time
+
+        from ui.animation_editor import ops as aops
+
+        frame.select_tab(2)
+        anims = sorted(proj.animations, key=lambda a: -len(a.aframes))
+        anim, other = anims[0], anims[1]
+        ae.select_animation(anim.id)
+        ae.select_steps([0, 1])
+        ae._on_event_field("add", "smoke_hit", 0)
+        etype = aops.event_type_by_name(proj, "smoke_hit")
+        check(etype is not None and all(any(e.type_id == etype.id for e in anim.aframes[i].events) for i in (0, 1)),
+              "event added to the selected steps (type created from its name)")
+        ae._on_event_field("value", etype.id, 5)
+        check(anim.aframes[0].events[-1].value == 5, "event value")
+        check(ae.inspector._event_spins.get(etype.id) is not None, "inspector shows the event row")
+        ae.select_steps([1])
+        ae._on_event_field("remove", etype.id, None)
+        check(not any(e.type_id == etype.id for e in anim.aframes[1].events), "event removed")
+
+        # Loop from: the intro plays once, edits keep the loop point on its step
+        ae._on_animation_field("playback", "loop")
+        ae._on_animation_field("loop_start", 2)
+        check(anim.loop_start == 2, "loop from")
+        anchor = anim.aframes[2]
+        ae.insert_frame(proj.frames[0].id, 0)
+        check(anim.aframes[anim.loop_start] is anchor, "insert keeps the loop point on its step")
+
+        # Follow-up: a short Play-once animation hands over to another one when it ends
+        ae._on_animation_field("playback", "forward")
+        ae._on_animation_field("fps", 60)
+        ae._on_animation_field("next", other.id)
+        check(anim.next_animation_id == other.id, "then play")
+        ae.chk_repeat.SetValue(False)
+        ae.repeat = False
+        ae.seek_step(len(anim.aframes) - 1)
+        ae.toggle_play()
+        deadline = _time.monotonic() + 3.0
+        while _time.monotonic() < deadline and ae.selected_animation_id == anim.id:
+            pump(1)
+            _time.sleep(0.02)
+        check(ae.selected_animation_id == other.id, "playback continues with the follow-up animation")
+        ae.stop_playback()
+        ae.chk_repeat.SetValue(True)
+        ae.repeat = True
+        for _ in range(12):
+            frame.on_undo(None)
+        pump()
+
+    step("animations: events, loop from, follow-up", animation_events_loop_next)
 
 
     # ---- Timeline (scene editor)

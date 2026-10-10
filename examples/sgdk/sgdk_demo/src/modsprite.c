@@ -244,6 +244,27 @@ static void ms_anim_apply_step(MS_AnimPlayer *player, u16 step_index)
     player->step_index = step_index;
     step = &ms_anim_steps[anim->first_step + player->step_index];
     player->ticks_left = (s16)((step->duration_ticks > 0) ? step->duration_ticks : 1);
+    player->step_started = TRUE;
+}
+
+/* A pass is complete; TRUE when the animation's repeat count is used up. */
+static u8 ms_anim_cycle_done(MS_AnimPlayer *player, const MS_Animation *anim)
+{
+    if (player->cycles < 0xFFFFu)
+        player->cycles++;
+    return (anim->loop_count > 0 && player->cycles >= anim->loop_count) ? TRUE : FALSE;
+}
+
+/* The animation ended: its follow-up takes over, otherwise playback stops on the current step. */
+static void ms_anim_finish(MS_AnimPlayer *player, const MS_Animation *anim)
+{
+    if (anim->next_animation != MS_NO_ANIMATION && anim->next_animation < MS_ANIMATION_COUNT)
+    {
+        ms_anim_player_init(player, anim->next_animation);
+        return;
+    }
+    player->finished = TRUE;
+    player->ticks_left = 1;
 }
 
 void ms_init(void)
@@ -332,6 +353,9 @@ void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index)
     player->ticks_left = 1;
     player->direction = 1;
     player->finished = FALSE;
+    player->step_started = FALSE;
+    player->reserved0 = 0;
+    player->cycles = 0;
 
     if (animation_index >= MS_ANIMATION_COUNT)
         return;
@@ -365,7 +389,8 @@ void ms_anim_player_tick(MS_AnimPlayer *player)
     if (!anim)
         return;
     count = anim->step_count;
-    if (count == 0)
+    player->step_started = FALSE;
+    if (count == 0 || player->finished)
         return;
 
     if (player->ticks_left > 1)
@@ -378,8 +403,7 @@ void ms_anim_player_tick(MS_AnimPlayer *player)
     {
         if ((player->step_index + 1) >= count)
         {
-            player->finished = TRUE;
-            player->ticks_left = 1;
+            ms_anim_finish(player, anim);
             return;
         }
         ms_anim_apply_step(player, player->step_index + 1);
@@ -389,7 +413,14 @@ void ms_anim_player_tick(MS_AnimPlayer *player)
     if (anim->playback == MS_PLAY_BACKWARD)
     {
         if (player->step_index == 0)
+        {
+            if (ms_anim_cycle_done(player, anim))
+            {
+                ms_anim_finish(player, anim);
+                return;
+            }
             ms_anim_apply_step(player, count - 1);
+        }
         else
             ms_anim_apply_step(player, player->step_index - 1);
         return;
@@ -419,6 +450,11 @@ void ms_anim_player_tick(MS_AnimPlayer *player)
         {
             if (player->step_index == 0)
             {
+                if (ms_anim_cycle_done(player, anim))
+                {
+                    ms_anim_finish(player, anim);
+                    return;
+                }
                 player->direction = 1;
                 ms_anim_apply_step(player, (count > 1) ? 1 : 0);
             }
@@ -430,7 +466,87 @@ void ms_anim_player_tick(MS_AnimPlayer *player)
         return;
     }
 
-    ms_anim_apply_step(player, (u16)((player->step_index + 1) % count));
+    /* MS_PLAY_LOOP: later passes start at loop_start, the steps before it play once. */
+    if ((player->step_index + 1) >= count)
+    {
+        if (ms_anim_cycle_done(player, anim))
+        {
+            ms_anim_finish(player, anim);
+            return;
+        }
+        ms_anim_apply_step(player, (anim->loop_start < count) ? anim->loop_start : 0);
+        return;
+    }
+    ms_anim_apply_step(player, (u16)(player->step_index + 1));
+}
+
+static const MS_AnimStep *ms_anim_current_step(const MS_AnimPlayer *player)
+{
+    const MS_Animation *anim;
+
+    if (!player)
+        return NULL;
+    anim = ms_current_animation(player->animation_index);
+    if (!anim || player->step_index >= anim->step_count)
+        return NULL;
+    return &ms_anim_steps[anim->first_step + player->step_index];
+}
+
+u16 ms_anim_player_event_count(const MS_AnimPlayer *player)
+{
+    const MS_AnimStep *step = ms_anim_current_step(player);
+    return step ? step->event_count : 0;
+}
+
+const MS_StepEvent *ms_anim_player_event(const MS_AnimPlayer *player, u16 index)
+{
+    const MS_AnimStep *step = ms_anim_current_step(player);
+    u32 at;
+
+    if (!step || index >= step->event_count)
+        return NULL;
+    at = (u32)step->first_event + (u32)index;
+    if (at >= MS_STEP_EVENT_COUNT)
+        return NULL;
+    return &ms_step_events[at];
+}
+
+s16 ms_anim_player_event_value(const MS_AnimPlayer *player, u16 event_type, s16 fallback)
+{
+    u16 i;
+    u16 count = ms_anim_player_event_count(player);
+
+    for (i = 0; i < count; i++)
+    {
+        const MS_StepEvent *event = ms_anim_player_event(player, i);
+        if (event && event->type == event_type)
+            return event->value;
+    }
+    return fallback;
+}
+
+u8 ms_anim_player_has_event(const MS_AnimPlayer *player, u16 event_type)
+{
+    u16 i;
+    u16 count = ms_anim_player_event_count(player);
+
+    for (i = 0; i < count; i++)
+    {
+        const MS_StepEvent *event = ms_anim_player_event(player, i);
+        if (event && event->type == event_type)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+u8 ms_anim_player_event_started(const MS_AnimPlayer *player, u16 event_type)
+{
+    return (player && player->step_started && ms_anim_player_has_event(player, event_type)) ? TRUE : FALSE;
+}
+
+const char *ms_event_name(u16 event_type)
+{
+    return ms_event_name_data(event_type);
 }
 
 void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y)

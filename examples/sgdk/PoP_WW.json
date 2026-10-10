@@ -1,5 +1,5 @@
 {
-  "format_version": 2,
+  "format_version": 3,
   "name": "New Project",
   "images": [
     {
@@ -37934,7 +37934,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2004",
@@ -37945,9 +37946,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3001",
@@ -37965,9 +37969,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3003",
@@ -37985,7 +37992,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2000",
@@ -37996,7 +38004,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2004",
@@ -38007,9 +38016,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3005",
@@ -38027,7 +38039,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20DF",
@@ -38038,7 +38051,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E1",
@@ -38049,7 +38063,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E3",
@@ -38060,9 +38075,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3007",
@@ -38080,7 +38098,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x209B",
@@ -38091,7 +38110,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x209D",
@@ -38102,7 +38122,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x209F",
@@ -38113,7 +38134,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A1",
@@ -38124,7 +38146,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A3",
@@ -38135,9 +38158,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3008",
@@ -38155,7 +38181,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x209C",
@@ -38166,7 +38193,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x209E",
@@ -38177,7 +38205,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A0",
@@ -38188,7 +38217,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A2",
@@ -38199,7 +38229,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A4",
@@ -38210,9 +38241,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3009",
@@ -38230,7 +38264,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C2",
@@ -38241,9 +38276,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x300A",
@@ -38261,7 +38299,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C3",
@@ -38272,9 +38311,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x300B",
@@ -38292,7 +38334,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BF",
@@ -38303,9 +38346,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x300D",
@@ -38323,7 +38369,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -38334,9 +38381,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x300E",
@@ -38354,7 +38404,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202A",
@@ -38365,9 +38416,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x300F",
@@ -38385,7 +38439,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -38396,9 +38451,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3010",
@@ -38416,7 +38474,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202A",
@@ -38427,9 +38486,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3011",
@@ -38447,9 +38509,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3012",
@@ -38467,9 +38532,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3013",
@@ -38487,7 +38555,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2022",
@@ -38498,7 +38567,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2024",
@@ -38509,7 +38579,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -38520,9 +38591,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3014",
@@ -38540,7 +38614,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2023",
@@ -38551,7 +38626,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2025",
@@ -38562,7 +38638,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202A",
@@ -38573,9 +38650,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3015",
@@ -38593,7 +38673,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D7",
@@ -38604,7 +38685,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D9",
@@ -38615,7 +38697,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20DB",
@@ -38626,7 +38709,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -38637,9 +38721,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3016",
@@ -38657,7 +38744,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D8",
@@ -38668,7 +38756,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20DA",
@@ -38679,7 +38768,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20DC",
@@ -38690,7 +38780,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202A",
@@ -38701,9 +38792,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3017",
@@ -38721,7 +38815,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2096",
@@ -38732,7 +38827,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2097",
@@ -38743,7 +38839,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2098",
@@ -38754,9 +38851,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3018",
@@ -38774,9 +38874,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x301A",
@@ -38794,7 +38897,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205B",
@@ -38805,7 +38909,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205C",
@@ -38816,7 +38921,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205C",
@@ -38827,7 +38933,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205D",
@@ -38838,9 +38945,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x301B",
@@ -38858,7 +38968,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205C",
@@ -38869,7 +38980,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205D",
@@ -38880,9 +38992,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x301C",
@@ -38900,7 +39015,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205F",
@@ -38911,7 +39027,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2060",
@@ -38922,7 +39039,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -38933,9 +39051,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x301F",
@@ -38953,7 +39074,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2061",
@@ -38964,7 +39086,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2061",
@@ -38975,9 +39098,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3020",
@@ -38995,7 +39121,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2061",
@@ -39006,7 +39133,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2061",
@@ -39017,9 +39145,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3021",
@@ -39037,9 +39168,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3023",
@@ -39057,7 +39191,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -39068,7 +39203,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -39079,9 +39215,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3024",
@@ -39099,7 +39238,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x203F",
@@ -39110,7 +39250,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -39121,7 +39262,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -39132,9 +39274,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3025",
@@ -39152,7 +39297,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x203F",
@@ -39163,7 +39309,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2029",
@@ -39174,7 +39321,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202B",
@@ -39185,7 +39333,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202C",
@@ -39196,7 +39345,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202D",
@@ -39207,7 +39357,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202E",
@@ -39218,7 +39369,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202E",
@@ -39229,7 +39381,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202E",
@@ -39240,7 +39393,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202E",
@@ -39251,7 +39405,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202E",
@@ -39262,9 +39417,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3026",
@@ -39282,7 +39440,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BD",
@@ -39293,7 +39452,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BC",
@@ -39304,7 +39464,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C4",
@@ -39315,7 +39476,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C5",
@@ -39326,7 +39488,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C6",
@@ -39337,7 +39500,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C7",
@@ -39348,7 +39512,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204B",
@@ -39359,7 +39524,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -39370,7 +39536,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -39381,7 +39548,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2004",
@@ -39392,9 +39560,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3027",
@@ -39412,7 +39583,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BD",
@@ -39423,7 +39595,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BC",
@@ -39434,7 +39607,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C8",
@@ -39445,7 +39619,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C9",
@@ -39456,7 +39631,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CA",
@@ -39467,7 +39643,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204B",
@@ -39478,7 +39655,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -39489,7 +39667,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -39500,7 +39679,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2004",
@@ -39511,9 +39691,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3028",
@@ -39531,7 +39714,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BD",
@@ -39542,7 +39726,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BC",
@@ -39553,7 +39738,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CB",
@@ -39564,7 +39750,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205B",
@@ -39575,7 +39762,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CC",
@@ -39586,7 +39774,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CD",
@@ -39597,7 +39786,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CE",
@@ -39608,7 +39798,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20C9",
@@ -39619,7 +39810,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CA",
@@ -39630,7 +39822,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204B",
@@ -39641,7 +39834,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -39652,7 +39846,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -39663,7 +39858,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2004",
@@ -39674,9 +39870,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3029",
@@ -39694,7 +39893,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BD",
@@ -39705,7 +39905,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BC",
@@ -39716,7 +39917,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CB",
@@ -39727,7 +39929,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205B",
@@ -39738,7 +39941,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CF",
@@ -39749,7 +39953,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204E",
@@ -39760,7 +39965,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2050",
@@ -39771,9 +39977,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x302A",
@@ -39791,7 +40000,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BD",
@@ -39802,7 +40012,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20BC",
@@ -39813,7 +40024,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CB",
@@ -39824,7 +40036,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205B",
@@ -39835,7 +40048,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20CF",
@@ -39846,7 +40060,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204E",
@@ -39857,7 +40072,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2050",
@@ -39868,9 +40084,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x302B",
@@ -39888,9 +40107,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x302D",
@@ -39908,7 +40130,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2048",
@@ -39919,7 +40142,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2049",
@@ -39930,7 +40154,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204A",
@@ -39941,7 +40166,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204B",
@@ -39952,7 +40178,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204C",
@@ -39963,7 +40190,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2028",
@@ -39974,9 +40202,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x302E",
@@ -39994,7 +40225,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204C",
@@ -40005,7 +40237,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204B",
@@ -40016,7 +40249,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x204A",
@@ -40027,7 +40261,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2049",
@@ -40038,7 +40273,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2048",
@@ -40049,7 +40285,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2050",
@@ -40060,9 +40297,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x302F",
@@ -40080,7 +40320,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E5",
@@ -40091,7 +40332,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E6",
@@ -40102,7 +40344,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E7",
@@ -40113,7 +40356,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E8",
@@ -40124,7 +40368,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20E5",
@@ -40135,9 +40380,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3030",
@@ -40155,9 +40403,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3031",
@@ -40175,7 +40426,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x201A",
@@ -40186,7 +40438,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x201D",
@@ -40197,7 +40450,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2020",
@@ -40208,9 +40462,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3032",
@@ -40228,7 +40485,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x201E",
@@ -40239,7 +40497,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x201C",
@@ -40250,7 +40509,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x201B",
@@ -40261,7 +40521,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2019",
@@ -40272,7 +40533,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2017",
@@ -40283,9 +40545,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x303F",
@@ -40303,7 +40568,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2055",
@@ -40314,9 +40580,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3040",
@@ -40334,9 +40603,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3044",
@@ -40354,7 +40626,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D2",
@@ -40365,7 +40638,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D3",
@@ -40376,7 +40650,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D4",
@@ -40387,9 +40662,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3045",
@@ -40407,7 +40685,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D3",
@@ -40418,7 +40697,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D2",
@@ -40429,7 +40709,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20D1",
@@ -40440,9 +40721,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3047",
@@ -40460,7 +40744,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A6",
@@ -40471,7 +40756,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A8",
@@ -40482,7 +40768,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AA",
@@ -40493,7 +40780,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AA",
@@ -40504,9 +40792,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3048",
@@ -40524,7 +40815,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AE",
@@ -40535,7 +40827,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AF",
@@ -40546,7 +40839,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B0",
@@ -40557,7 +40851,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AD",
@@ -40568,9 +40863,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x304C",
@@ -40588,7 +40886,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x203A",
@@ -40599,7 +40898,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x203B",
@@ -40610,7 +40910,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x203C",
@@ -40621,9 +40922,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x304D",
@@ -40641,7 +40945,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2006",
@@ -40652,7 +40957,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2007",
@@ -40663,7 +40969,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2008",
@@ -40674,7 +40981,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2009",
@@ -40685,7 +40993,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2008",
@@ -40696,7 +41005,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2007",
@@ -40707,7 +41017,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2006",
@@ -40718,7 +41029,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2005",
@@ -40729,9 +41041,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x304E",
@@ -40749,7 +41064,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2041",
@@ -40760,7 +41076,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2043",
@@ -40771,7 +41088,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2045",
@@ -40782,7 +41100,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2046",
@@ -40793,7 +41112,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2047",
@@ -40804,7 +41124,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2044",
@@ -40815,7 +41136,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2042",
@@ -40826,9 +41148,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3051",
@@ -40846,7 +41171,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2072",
@@ -40857,7 +41183,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2074",
@@ -40868,7 +41195,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2076",
@@ -40879,7 +41207,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2078",
@@ -40890,7 +41219,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207A",
@@ -40901,7 +41231,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207C",
@@ -40912,7 +41243,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207E",
@@ -40923,7 +41255,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2078",
@@ -40934,7 +41267,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207A",
@@ -40945,7 +41279,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207C",
@@ -40956,7 +41291,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207E",
@@ -40967,7 +41303,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2078",
@@ -40978,7 +41315,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207A",
@@ -40989,7 +41327,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207C",
@@ -41000,7 +41339,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207E",
@@ -41011,7 +41351,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2080",
@@ -41022,7 +41363,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2082",
@@ -41033,7 +41375,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2084",
@@ -41044,7 +41387,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2086",
@@ -41055,7 +41399,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2088",
@@ -41066,7 +41411,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2082",
@@ -41077,7 +41423,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208A",
@@ -41088,9 +41435,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3052",
@@ -41108,7 +41458,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2073",
@@ -41119,7 +41470,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2075",
@@ -41130,7 +41482,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2077",
@@ -41141,7 +41494,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2079",
@@ -41152,7 +41506,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207B",
@@ -41163,7 +41518,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207D",
@@ -41174,7 +41530,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207F",
@@ -41185,7 +41542,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2079",
@@ -41196,7 +41554,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207B",
@@ -41207,7 +41566,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207D",
@@ -41218,7 +41578,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207F",
@@ -41229,7 +41590,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2079",
@@ -41240,7 +41602,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207B",
@@ -41251,7 +41614,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207D",
@@ -41262,7 +41626,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x207F",
@@ -41273,7 +41638,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2081",
@@ -41284,7 +41650,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2083",
@@ -41295,7 +41662,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2085",
@@ -41306,7 +41674,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2087",
@@ -41317,7 +41686,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2089",
@@ -41328,7 +41698,8 @@
           ],
           "flip_x": true,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x206F",
@@ -41339,7 +41710,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x206F",
@@ -41350,7 +41722,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x206E",
@@ -41361,7 +41734,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2070",
@@ -41372,9 +41746,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3055",
@@ -41392,7 +41769,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20EA",
@@ -41403,7 +41781,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20EB",
@@ -41414,7 +41793,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20EC",
@@ -41425,9 +41805,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3056",
@@ -41445,7 +41828,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20ED",
@@ -41456,7 +41840,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20ED",
@@ -41467,9 +41852,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3057",
@@ -41487,9 +41875,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3058",
@@ -41507,7 +41898,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x200B",
@@ -41518,7 +41910,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x200C",
@@ -41529,7 +41922,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x200A",
@@ -41540,9 +41934,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3059",
@@ -41560,7 +41957,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x200D",
@@ -41571,7 +41969,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x200F",
@@ -41582,7 +41981,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2010",
@@ -41593,7 +41993,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205A",
@@ -41604,9 +42005,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x305A",
@@ -41624,7 +42028,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2054",
@@ -41635,9 +42040,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x305C",
@@ -41655,7 +42063,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x206D",
@@ -41666,7 +42075,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x206D",
@@ -41677,7 +42087,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x206F",
@@ -41688,7 +42099,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2070",
@@ -41699,9 +42111,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x305D",
@@ -41719,7 +42134,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B3",
@@ -41730,7 +42146,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B4",
@@ -41741,7 +42158,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B6",
@@ -41752,7 +42170,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B7",
@@ -41763,7 +42182,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B8",
@@ -41774,7 +42194,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20B5",
@@ -41785,7 +42206,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A7",
@@ -41796,7 +42218,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20A9",
@@ -41807,7 +42230,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AB",
@@ -41818,7 +42242,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x20AC",
@@ -41829,9 +42254,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3061",
@@ -41849,9 +42277,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3064",
@@ -41869,7 +42300,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208E",
@@ -41880,7 +42312,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208B",
@@ -41891,7 +42324,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208C",
@@ -41902,7 +42336,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208B",
@@ -41913,7 +42348,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208C",
@@ -41924,7 +42360,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208B",
@@ -41935,7 +42372,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208C",
@@ -41946,7 +42384,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208B",
@@ -41957,7 +42396,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208C",
@@ -41968,7 +42408,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208E",
@@ -41979,7 +42420,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x208D",
@@ -41990,9 +42432,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3063",
@@ -42010,7 +42455,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2054",
@@ -42021,7 +42467,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2056",
@@ -42032,7 +42479,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2057",
@@ -42043,7 +42491,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2058",
@@ -42054,7 +42503,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2059",
@@ -42065,7 +42515,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2059",
@@ -42076,7 +42527,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2059",
@@ -42087,7 +42539,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2059",
@@ -42098,7 +42551,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2059",
@@ -42109,7 +42563,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2059",
@@ -42120,9 +42575,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x306E",
@@ -42140,7 +42598,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2033",
@@ -42151,7 +42610,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2031",
@@ -42162,7 +42622,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202F",
@@ -42173,7 +42634,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2032",
@@ -42184,7 +42646,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x202F",
@@ -42195,9 +42658,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x306A",
@@ -42215,7 +42681,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2090",
@@ -42226,7 +42693,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2090",
@@ -42237,7 +42705,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2091",
@@ -42248,7 +42717,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2092",
@@ -42259,7 +42729,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2093",
@@ -42270,7 +42741,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2094",
@@ -42281,9 +42753,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x3042",
@@ -42301,9 +42776,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     },
     {
       "id": "0x301D",
@@ -42321,7 +42799,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x205F",
@@ -42332,7 +42811,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2060",
@@ -42343,7 +42823,8 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         },
         {
           "frame_id": "0x2026",
@@ -42354,9 +42835,12 @@
           ],
           "flip_x": false,
           "flip_y": false,
-          "rotation_degrees": 0.0
+          "rotation_degrees": 0.0,
+          "events": []
         }
-      ]
+      ],
+      "loop_start": 0,
+      "next_animation_id": null
     }
   ],
   "timeline_scenes": [
@@ -42724,5 +43208,6 @@
         0
       ]
     }
-  ]
+  ],
+  "event_types": []
 }

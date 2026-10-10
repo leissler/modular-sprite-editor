@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from models import AFrame, Animation, Project, generate_id
+from contextlib import contextmanager
+from typing import Iterator
+
+from models import AFrame, Animation, EventType, Project, StepEvent, generate_id
 
 # (label, playback_type). Labels say what the game does; "backward" repeats like the SGDK runtime.
 PLAYBACK_MODES: List[Tuple[str, str]] = [
@@ -67,6 +70,32 @@ def describe_length(anim: Animation) -> str:
 
 def playback_label(playback_type: str) -> str:
     return next((label for label, key in PLAYBACK_MODES if key == playback_type), "Loop")
+
+
+def loop_start(anim: Animation) -> int:
+    """Step that later loop passes start at (0 = the whole animation loops)."""
+    if anim.playback_type != "loop" or not anim.aframes:
+        return 0
+    return max(0, min(int(anim.loop_start or 0), len(anim.aframes) - 1))
+
+
+def can_finish(anim: Animation) -> bool:
+    """Whether playback ever ends (so a follow-up animation can start)."""
+    return anim.playback_type == "forward" or int(anim.loop_count or 0) > 0
+
+
+@contextmanager
+def keep_loop_start(anim: Optional[Animation]) -> Iterator[None]:
+    """Keep "loop from" on the same step while steps are inserted, moved or deleted."""
+    anchor = anim.aframes[anim.loop_start] if anim and 0 < anim.loop_start < len(anim.aframes) else None
+    old = anim.loop_start if anim else 0
+    yield
+    if not anim or not anim.loop_start:
+        return
+    if anchor is not None and any(af is anchor for af in anim.aframes):
+        anim.loop_start = next(i for i, af in enumerate(anim.aframes) if af is anchor)
+    else:
+        anim.loop_start = max(0, min(old, len(anim.aframes) - 1))
 
 
 # ---------------------------------------------------------------------------- playback preview
@@ -152,11 +181,11 @@ class Player:
                     self._enter(1)
                 else:
                     self._enter(self.step - 1)
-        else:  # loop
+        else:  # loop: later passes start at loop_start (the intro before it plays once)
             if self.step + 1 >= count:
                 if self._cycle_done():
                     return self._finish()
-                self._enter(0)
+                self._enter(loop_start(self.anim))
             else:
                 self._enter(self.step + 1)
         return True
@@ -353,3 +382,87 @@ def scene_usage(project: Project, anim_id: str) -> int:
         if (obj.source_type == "animation" and obj.source_id == anim_id)
         or any(k.source_type == "animation" and k.source_id == anim_id for k in obj.keyframes)
     )
+
+
+# ---------------------------------------------------------------------------- events
+EVENT_COLOURS: List[Tuple[int, int, int]] = [
+    (255, 110, 100), (110, 200, 255), (130, 220, 120), (255, 200, 80),
+    (200, 140, 255), (255, 150, 210), (120, 230, 210), (220, 220, 120),
+]
+
+
+def event_type_by_name(project: Project, name: str) -> Optional[EventType]:
+    key = name.strip().lower()
+    return next((t for t in project.event_types if t.name.strip().lower() == key), None)
+
+
+def ensure_event_type(project: Project, name: str) -> Optional[EventType]:
+    """The event type with this name; typing a new name creates it (with the next marker colour)."""
+    name = name.strip()
+    if not name:
+        return None
+    found = event_type_by_name(project, name)
+    if found:
+        return found
+    colour = EVENT_COLOURS[len(project.event_types) % len(EVENT_COLOURS)]
+    created = EventType(id=generate_id("evt"), name=name, color=colour)
+    project.event_types.append(created)
+    return created
+
+
+def add_event(anim: Animation, indices: Iterable[int], type_id: str, value: int = 0) -> int:
+    """Add an event to the steps that do not have it yet. Returns how many steps changed."""
+    changed = 0
+    for i in _valid(anim, indices):
+        events = anim.aframes[i].events
+        if not any(e.type_id == type_id for e in events):
+            events.append(StepEvent(type_id=type_id, value=int(value)))
+            changed += 1
+    return changed
+
+
+def remove_event(anim: Animation, indices: Iterable[int], type_id: str) -> int:
+    changed = 0
+    for i in _valid(anim, indices):
+        af = anim.aframes[i]
+        kept = [e for e in af.events if e.type_id != type_id]
+        changed += len(af.events) - len(kept)
+        af.events = kept
+    return changed
+
+
+def set_event_value(anim: Animation, indices: Iterable[int], type_id: str, value: int) -> None:
+    for i in _valid(anim, indices):
+        for e in anim.aframes[i].events:
+            if e.type_id == type_id:
+                e.value = int(value)
+
+
+def events_on(anim: Animation, indices: Iterable[int]) -> List[Tuple[str, int, int]]:
+    """(type id, value of the first step that has it, how many of the steps have it), in first-seen order."""
+    seen: Dict[str, List[int]] = {}
+    for i in _valid(anim, indices):
+        for e in anim.aframes[i].events:
+            if e.type_id not in seen:
+                seen[e.type_id] = [int(e.value), 0]
+            seen[e.type_id][1] += 1
+    return [(type_id, value, count) for type_id, (value, count) in seen.items()]
+
+
+def event_usage(project: Project, type_id: str) -> int:
+    return sum(1 for anim in project.animations for af in anim.aframes for e in af.events if e.type_id == type_id)
+
+
+def delete_event_type(project: Project, type_id: str) -> int:
+    """Remove an event type and every use of it. Returns how many step events were removed."""
+    removed = 0
+    for anim in project.animations:
+        removed += remove_event(anim, range(len(anim.aframes)), type_id)
+    project.event_types = [t for t in project.event_types if t.id != type_id]
+    return removed
+
+
+def follow_up_references(project: Project, anim_id: str) -> List[Animation]:
+    """Animations that continue with this one."""
+    return [a for a in project.animations if a.next_animation_id == anim_id]
+

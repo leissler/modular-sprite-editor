@@ -83,8 +83,20 @@ For convenience you can also run `out/rom.bin` if present.
 
 - `ms_draw_module(index, x, y)`
 - `ms_draw_frame(index, x, y)`
-- `ms_anim_player_*()` for animation playback/render
+- `ms_anim_player_*()` for animation playback/render. The player follows the editor exactly
+  (`tests/test_runtime_player.py`): *Loop* plays the steps before `loop_start` once and then loops the rest,
+  repeat counts end an animation, and an animation that ends continues with its follow-up
+  (`player.animation_index` changes; `player.finished` is set only when there is none).
+- Animation events (editor: Animations ▸ step ▸ Events; `MS_EVENT_<NAME>` in `inc/modsprite_data.h`):
+  - `ms_anim_player_has_event(&player, MS_EVENT_HIT_ON)` — active while the step shows (hit windows,
+    invulnerability, cancel windows)
+  - `ms_anim_player_event_started(&player, MS_EVENT_SFX)` — only on the tick the step starts (sounds, spawns,
+    footsteps); `ms_anim_player_event_value(&player, MS_EVENT_SFX, 0)` gives the step's value
+  - The demo prints a step's events on the status line when the step starts.
 - `ms_scene_player_*()` for scene playback/render
+
+Blob version 2 (2026-10-11) added step events, loop-from, follow-up animation and repeat count; regenerate the
+data with the exporter after updating.
 
 The generated blob includes all modules/frames/animations/scenes from the input JSON for each baked mapping.
 

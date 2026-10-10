@@ -67,6 +67,73 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(positions, [0, 1, 2, 0])
 
 
+class TestLoopFromAndFollowUp(unittest.TestCase):
+    def test_loop_from_plays_the_intro_once(self):
+        anim = _anim((1, 1, 2))
+        anim.loop_start = 1
+        shown, _ = _play(anim, 9)
+        self.assertEqual(shown, [0, 1, 2, 2, 1, 2, 2, 1, 2])
+
+    def test_loop_from_only_applies_to_loop(self):
+        anim = _anim((1, 1, 1), "ping_pong")
+        anim.loop_start = 2
+        self.assertEqual(ops.loop_start(anim), 0)
+
+    def test_can_finish(self):
+        self.assertTrue(ops.can_finish(_anim(mode="forward")))
+        self.assertFalse(ops.can_finish(_anim(mode="loop")))
+        self.assertTrue(ops.can_finish(_anim(mode="loop", loops=2)))
+
+    def test_edits_keep_loop_from_on_its_step(self):
+        anim = _anim((1, 1, 1, 1))
+        anim.loop_start = 2
+        anchor = anim.aframes[2]
+        with ops.keep_loop_start(anim):
+            ops.insert_steps(anim, 0, [ops.new_step("new")])
+        self.assertIs(anim.aframes[anim.loop_start], anchor)
+        with ops.keep_loop_start(anim):
+            ops.move_steps(anim, [anim.loop_start], 0)
+        self.assertEqual(anim.loop_start, 0)
+        anim.loop_start = 3
+        with ops.keep_loop_start(anim):
+            ops.delete_steps(anim, [3, 4])
+        self.assertEqual(anim.loop_start, 2)  # its step is gone: clamp
+
+
+class TestEvents(unittest.TestCase):
+    def test_typing_a_new_name_creates_the_type_once(self):
+        project = Project()
+        a = ops.ensure_event_type(project, "hit_on")
+        self.assertIs(ops.ensure_event_type(project, " HIT_ON "), a)
+        self.assertEqual(len(project.event_types), 1)
+        self.assertIsNone(ops.ensure_event_type(project, "  "))
+
+    def test_add_remove_values_usage(self):
+        project = Project()
+        anim = _anim((1, 1, 1))
+        project.animations.append(anim)
+        sfx = ops.ensure_event_type(project, "sfx")
+        self.assertEqual(ops.add_event(anim, [0, 1], sfx.id, 12), 2)
+        self.assertEqual(ops.add_event(anim, [1, 2], sfx.id), 1)  # step 1 already has it
+        ops.set_event_value(anim, [0, 1, 2], sfx.id, 7)
+        self.assertEqual(ops.events_on(anim, [0, 2]), [(sfx.id, 7, 2)])
+        self.assertEqual(ops.event_usage(project, sfx.id), 3)
+        self.assertEqual(ops.remove_event(anim, [0], sfx.id), 1)
+        self.assertEqual(ops.delete_event_type(project, sfx.id), 2)
+        self.assertEqual(project.event_types, [])
+        self.assertTrue(all(not af.events for af in anim.aframes))
+
+    def test_events_travel_with_copied_steps(self):
+        project = Project()
+        anim = _anim((1, 1))
+        hit = ops.ensure_event_type(project, "hit")
+        ops.add_event(anim, [0], hit.id, 2)
+        ops.duplicate_steps(anim, [0])
+        self.assertEqual([(e.type_id, e.value) for e in anim.aframes[1].events], [(hit.id, 2)])
+        anim.aframes[1].events[0].value = 9
+        self.assertEqual(anim.aframes[0].events[0].value, 2)  # a real copy
+
+
 class TestStepEdits(unittest.TestCase):
     def test_move_steps_keeps_order(self):
         anim = _anim((1, 1, 1, 1, 1))

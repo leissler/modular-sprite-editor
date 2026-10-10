@@ -82,6 +82,45 @@ class TestFormatMigration(unittest.TestCase):
         migrated_out = migrated_project.to_dict()
         self.assertEqual(legacy_out, migrated_out)
 
+    def test_v2_to_v3_adds_event_and_loop_fields(self):
+        v2 = {"format_version": 2, "name": "v2", "images": [], "modules": [], "frames": [],
+              "animations": [{"id": "a1", "name": "anim", "aframes": [{"frame_id": "f1", "duration_frames": 2}]}]}
+        migrated, notes = migrate_project_dict(v2)
+        self.assertEqual(migrated["format_version"], 3)
+        self.assertEqual(migrated["event_types"], [])
+        anim = migrated["animations"][0]
+        self.assertEqual((anim["loop_start"], anim["next_animation_id"]), (0, None))
+        self.assertEqual(anim["aframes"][0]["events"], [])
+        self.assertEqual(anim["aframes"][0]["duration_frames"], 2)  # untouched
+        self.assertEqual(notes, [])
+
+    def test_v3_events_loop_and_follow_up_round_trip(self):
+        from models import AFrame, Animation, EventType, StepEvent
+
+        project = Project()
+        project.event_types.append(EventType(id="ev_hit", name="hit_on", color=(255, 80, 80)))
+        idle = Animation(id="a_idle", name="idle")
+        attack = Animation(id="a_atk", name="attack", playback_type="forward", loop_start=1, next_animation_id="a_idle")
+        attack.aframes = [AFrame(frame_id="f", duration_frames=1, events=[StepEvent("ev_hit", 3)]),
+                          AFrame(frame_id="f", duration_frames=2)]
+        project.animations += [idle, attack]
+        again = Project.from_dict(json.loads(json.dumps(project.to_dict())))
+        self.assertEqual(again.event_types[0].name, "hit_on")
+        a = again.get_animation("a_atk")
+        self.assertEqual((a.loop_start, a.next_animation_id), (1, "a_idle"))
+        self.assertEqual([(e.type_id, e.value) for e in a.aframes[0].events], [("ev_hit", 3)])
+        self.assertEqual(a.aframes[1].events, [])
+
+    def test_loop_start_keeps_the_intro_out_of_later_passes(self):
+        from models import AFrame, Animation
+
+        project = Project()
+        anim = Animation(id="a", name="a", playback_type="loop", loop_start=1)
+        anim.aframes = [AFrame(frame_id=f"f{i}", duration_frames=1) for i in range(3)]
+        project.animations.append(anim)
+        shown = [project.sample_animation_frame("a", t + 0.5)[1] for t in range(9)]
+        self.assertEqual(shown, [0, 1, 2, 1, 2, 1, 2, 1, 2])
+
     def test_current_version_is_idempotent(self):
         migrated, _ = migrate_project_dict(_legacy_project_dict())
         again, notes = migrate_project_dict(migrated)

@@ -65,6 +65,13 @@ class AnimationInspector(wx.ScrolledWindow):
         self.on_step_change: Optional[Callable[[str, Any], None]] = None  # hold / x / y / flip_x / flip_y / rotate
         self.on_pick_frame: Optional[Callable[[], None]] = None
         self.on_open_frame: Optional[Callable[[], None]] = None
+        self.on_event_change: Optional[Callable[[str, str, Any], None]] = None  # (add|remove|value, name or type id, value)
+        self.on_manage_events: Optional[Callable[[], None]] = None
+        self._event_rows_key: Any = None
+        self._event_names_key: Any = None
+        self._event_spins: dict = {}
+        self._next_ids: List[Optional[str]] = [None]
+        self._next_key: Any = None
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.hint = wx.StaticText(self, label="")
@@ -86,6 +93,21 @@ class AnimationInspector(wx.ScrolledWindow):
         self.loops.SetToolTip("How many times a looping animation repeats before it stops. 0 = forever.")
         self.loops_info = wx.StaticText(p, label="times (0 = forever)")
         self.loops_label = _row(grid, p, "Repeat", _hbox(self.loops, self.loops_info))
+        self.loop_from = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(64, -1))
+        self.loop_from.SetToolTip("Later passes start at this step; the steps before it play once (an intro).")
+        self.loop_from_info = wx.StaticText(p, label="step")
+        self.loop_from_info.SetToolTip("Steps before it play once (an intro), then the loop repeats from here")
+        self.loop_from_label = _row(grid, p, "Loop from", _hbox(self.loop_from, self.loop_from_info))
+        self.next_anim = wx.Choice(p, choices=["— nothing —"])
+        self.next_anim.SetToolTip(
+            "When this animation ends, continue with another one (e.g. attack → idle).\n"
+            "Only animations that end can continue: Play once, or a repeat count above 0."
+        )
+        self.next_info = wx.StaticText(p, label="")
+        self.next_info.SetForegroundColour(wx.Colour(150, 156, 170))
+        _row(grid, p, "Then play", self.next_anim)
+        grid.Add((0, 0))
+        grid.Add(self.next_info, 0)
         self.fps = wx.SpinCtrl(p, min=1, max=60, initial=10, size=(64, -1))
         self.fps.SetToolTip(
             "Ticks per second: one tick of hold lasts 1/rate seconds.\n"
@@ -148,6 +170,28 @@ class AnimationInspector(wx.ScrolledWindow):
         self.flip_h.SetToolTip("Mirror this step's frame horizontally in place (H)")
         self.flip_v.SetToolTip("Mirror this step's frame vertically in place (V)")
         _row(grid, p, "Mirror", _hbox(self.flip_h, self.flip_v, gap=2))
+        self.events_box = wx.BoxSizer(wx.VERTICAL)
+        self.events_empty = wx.StaticText(p, label="none")
+        self.events_empty.SetForegroundColour(wx.Colour(150, 156, 170))
+        self.events_box.Add(self.events_empty, 0, wx.BOTTOM, 2)
+        self.events_rows = wx.BoxSizer(wx.VERTICAL)
+        self.events_box.Add(self.events_rows, 0, wx.EXPAND)
+        self.event_name = wx.ComboBox(p, choices=[], style=wx.TE_PROCESS_ENTER)
+        self.event_name.SetHint("event name")
+        self.event_name.SetToolTip("Pick an event or type a new name (it is added to the project's event list)")
+        self.btn_add_event = wx.Button(p, label="Add", style=wx.BU_EXACTFIT)
+        add_row = wx.BoxSizer(wx.HORIZONTAL)
+        add_row.Add(self.event_name, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        add_row.Add(self.btn_add_event, 0, wx.ALIGN_CENTER_VERTICAL)
+        self.events_box.Add(add_row, 0, wx.EXPAND | wx.TOP, 2)
+        self.btn_manage_events = wx.Button(p, label="Event types…", style=wx.BU_EXACTFIT)
+        self.btn_manage_events.SetToolTip("Rename, recolour or delete the project's event types")
+        self.events_box.Add(self.btn_manage_events, 0, wx.TOP, 2)
+        events_label = _row(grid, p, "Events", self.events_box)
+        events_label.SetToolTip(
+            "Game events on this step: they fire when the step starts and are active while it shows "
+            "(hit windows, sounds, spawns, footsteps). The value is up to the game (e.g. which sound)."
+        )
         self.step_hint = wx.StaticText(p, label="")
         self.step_hint.SetForegroundColour(wx.Colour(150, 156, 170))
         grid.Add((0, 0))
@@ -158,7 +202,9 @@ class AnimationInspector(wx.ScrolledWindow):
         for ctrl in (self.playback, self.frame_btn, self.flip_h, self.flip_v, self.btn_mirror_h, self.btn_mirror_v,
                      self.btn_rot_ccw, self.btn_rot_cw, self.btn_reverse, self.rot_ccw, self.rot_cw, self.btn_edit_frame):
             ctrl.SetMinSize((40, -1))
-        for spin in (self.loops, self.fps, self.hold, self.off_x, self.off_y):
+        self.next_anim.SetMinSize((60, -1))
+        self.event_name.SetMinSize((60, -1))
+        for spin in (self.loops, self.fps, self.hold, self.off_x, self.off_y, self.loop_from):
             spin.SetMinSize((56, -1))
         self._bind()
         self.show(None, None, [])
@@ -190,6 +236,19 @@ class AnimationInspector(wx.ScrolledWindow):
 
         self.frame_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_pick_frame and self.on_pick_frame())
         self.btn_edit_frame.Bind(wx.EVT_BUTTON, lambda e: self.on_open_frame and self.on_open_frame())
+        self.loop_from.Bind(wx.EVT_SPINCTRL, lambda e: anim("loop_start", self.loop_from.GetValue() - 1))
+        self.next_anim.Bind(wx.EVT_CHOICE, lambda e: anim("next", self._next_ids[max(0, self.next_anim.GetSelection())]))
+
+        def add_event(_event=None) -> None:
+            name = self.event_name.GetValue().strip()
+            if name and self.on_event_change:
+                self.on_event_change("add", name, 0)
+                self.event_name.SetValue("")
+
+        self.btn_add_event.Bind(wx.EVT_BUTTON, add_event)
+        self.event_name.Bind(wx.EVT_TEXT_ENTER, add_event)
+        self.event_name.Bind(wx.EVT_COMBOBOX, add_event)
+        self.btn_manage_events.Bind(wx.EVT_BUTTON, lambda e: self.on_manage_events and self.on_manage_events())
         self.hold.Bind(wx.EVT_SPINCTRL, lambda e: step("hold", self.hold.GetValue()))
         self.hold.Bind(wx.EVT_TEXT_ENTER, lambda e: step("hold", self.hold.GetValue()))
         for spin, field in ((self.off_x, "x"), (self.off_y, "y")):
@@ -238,6 +297,12 @@ class AnimationInspector(wx.ScrolledWindow):
         self.loops.SetValue(int(anim.loop_count or 0))
         for ctrl in (self.loops, self.loops_info, self.loops_label):
             ctrl.Show(repeating)
+        looping = anim.playback_type == "loop" and len(anim.aframes) > 1
+        self.loop_from.SetRange(1, max(1, len(anim.aframes)))
+        self.loop_from.SetValue(ops.loop_start(anim) + 1)
+        for ctrl in (self.loop_from, self.loop_from_info, self.loop_from_label):
+            ctrl.Show(looping)
+        self._fill_next(anim)
         rate = ops.tick_rate(anim)
         self.fps.SetValue(rate)
         self.tick_ms.SetLabel(f"1 tick = {1000.0 / rate:.0f} ms  ·  {60.0 / rate:g} frames at 60 Hz")
@@ -289,6 +354,75 @@ class AnimationInspector(wx.ScrolledWindow):
         self.step_hint.Wrap(190)
         if first.duration_frames < 1 and single:
             self.hold_info.SetLabel("ticks (stored as 0: plays as 1)")
+        self._fill_events(anim, indices)
+
+
+    def _fill_next(self, anim: Animation) -> None:
+        others = [a for a in self.project.animations if a.id != anim.id] if self.project else []
+        key = tuple((a.id, a.name) for a in others)
+        if key != self._next_key:
+            self._next_key = key
+            self._next_ids = [None] + [a.id for a in others]
+            self.next_anim.SetItems(["— nothing —"] + [_short(a.name, 34) for a in others])
+        target = anim.next_animation_id if anim.next_animation_id in self._next_ids else None
+        self.next_anim.SetSelection(self._next_ids.index(target))
+        can_end = ops.can_finish(anim)
+        self.next_anim.Enable(can_end or target is not None)
+        if not can_end:
+            self.next_info.SetLabel("This animation never ends: choose Play once or a repeat count.")
+        elif target is not None:
+            self.next_info.SetLabel("Starts when this one ends.")
+        else:
+            self.next_info.SetLabel("")
+        self.next_info.Wrap(200)
+        self.next_info.Show(bool(self.next_info.GetLabel()))
+
+    def _fill_events(self, anim: Animation, indices: List[int]) -> None:
+        project = self.project
+        names = tuple(t.name for t in project.event_types) if project else ()
+        if names != self._event_names_key:
+            self._event_names_key = names
+            typed = self.event_name.GetValue()
+            self.event_name.SetItems(list(names))
+            self.event_name.SetValue(typed)
+        events = ops.events_on(anim, indices)
+        rows_key = tuple((type_id, count, len(indices)) for type_id, _value, count in events) + (
+            tuple((t.id, t.name, tuple(t.color)) for t in project.event_types) if project else (),
+        )
+        if rows_key != self._event_rows_key:
+            self._event_rows_key = rows_key
+            self._rebuild_event_rows(events, len(indices))
+        for type_id, value, _count in events:
+            spin = self._event_spins.get(type_id)
+            if spin is not None and not spin.HasFocus():
+                spin.SetValue(int(value))
+        self.events_empty.Show(not events)
+
+    def _rebuild_event_rows(self, events: List[Tuple[str, int, int]], selected: int) -> None:
+        parent = self.step_panel
+        self.events_rows.Clear(delete_windows=True)
+        self._event_spins = {}
+        for type_id, value, count in events:
+            etype = self.project.get_event_type(type_id) if self.project else None
+            swatch = wx.Panel(parent, size=(10, 10))
+            swatch.SetBackgroundColour(wx.Colour(*(etype.color if etype else (160, 160, 160))))
+            label = (etype.name if etype else "(deleted type)") + (f"  ({count}/{selected})" if count < selected else "")
+            name = wx.StaticText(parent, label=_short(label, 18))
+            spin = wx.SpinCtrl(parent, min=-32768, max=32767, initial=int(value), size=(56, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+            spin.SetMinSize((50, -1))
+            spin.SetToolTip("Value for the game (e.g. sound or object number); applies to all selected steps that have this event")
+            remove = wx.Button(parent, label="×", size=(26, -1), style=wx.BU_EXACTFIT)
+            remove.SetToolTip("Remove this event from the selected steps")
+            for evt in (wx.EVT_SPINCTRL, wx.EVT_TEXT_ENTER):
+                spin.Bind(evt, lambda e, t=type_id, s=spin: self.on_event_change and self.on_event_change("value", t, s.GetValue()))
+            remove.Bind(wx.EVT_BUTTON, lambda e, t=type_id: self.on_event_change and self.on_event_change("remove", t, None))
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            row.Add(swatch, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+            row.Add(name, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+            row.Add(spin, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+            row.Add(remove, 0, wx.ALIGN_CENTER_VERTICAL)
+            self.events_rows.Add(row, 0, wx.EXPAND | wx.BOTTOM, 2)
+            self._event_spins[type_id] = spin
 
 
 def _short(text: str, limit: int = 26) -> str:

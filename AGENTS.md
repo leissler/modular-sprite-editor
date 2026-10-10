@@ -115,7 +115,7 @@ docs/                      UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
 
 ## File format
 
-Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **2**, constant
+Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **3**, constant
 `PROJECT_FORMAT_VERSION`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
@@ -166,7 +166,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   key of the layer. Put scene logic in `ops.py` (testable without a display), not in the widgets.
 - **Animations:** holds are ticks at `Animation.fps`; anything below 1 plays as 1 (`ops.hold`), like the exporters.
   Playback preview goes through `ops.Player`, which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop
-  backwards repeats; ping-pong does not repeat its end steps); keep them in sync. Thumbnails and GIF export
+  backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts, follow-up animation);
+  `tests/test_runtime_player.py` compiles the C player and compares both tick by tick — keep them in sync.
+  Step events reference `Project.event_types` by id (order = `MS_EVENT_*` number); wrap structural step edits in
+  `ops.keep_loop_start(anim)` so "loop from" stays on its step. Thumbnails and GIF export
   render through `render.StepRenderer` (the parity-checked renderer), not `ThumbnailGenerator`. The stage's
   mirror preview reverses a step's rotation for an odd number of mirror axes (`AnimationStage.step_transform`).
 - **Destructive actions** confirm when they break references (count the references) and stay undoable.

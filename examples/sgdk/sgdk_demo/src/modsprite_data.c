@@ -4,8 +4,8 @@
 #include "resources.h"
 
 #define MS_BLOB_MAGIC 0x4D534231u
-#define MS_BLOB_VERSION 1u
-#define MS_BLOB_HEADER_SIZE 114u
+#define MS_BLOB_VERSION 2u
+#define MS_BLOB_HEADER_SIZE 126u
 #define MS_VARIANT_DEF_COUNT 164u
 
 enum
@@ -29,7 +29,9 @@ enum
     MS_SEC_SCENE_IDS = 16,
     MS_SEC_SCENE_NAMES = 17,
     MS_SEC_STRINGS = 18,
-    MS_SEC_COUNT = 19
+    MS_SEC_STEP_EVENTS = 19,
+    MS_SEC_EVENT_NAMES = 20,
+    MS_SEC_COUNT = 21
 };
 
 const SpriteDefinition *const ms_variant_defs[] = {
@@ -211,6 +213,8 @@ u16 ms_anim_step_count = 0;
 u16 ms_scene_sample_count = 0;
 u16 ms_animation_record_count = 0;
 u16 ms_scene_record_count = 0;
+u16 ms_event_type_count = 0;
+u16 ms_step_event_count = 0;
 
 const MS_Part *ms_parts = NULL;
 const MS_RenderFrame *ms_render_frames = NULL;
@@ -220,6 +224,7 @@ const MS_AnimStep *ms_anim_steps = NULL;
 const MS_Animation *ms_animations = NULL;
 const u16 *ms_scene_samples = NULL;
 const MS_Scene *ms_scenes = NULL;
+const MS_StepEvent *ms_step_events = NULL;
 
 static const u8 *g_blob = NULL;
 static u32 g_blob_size = 0;
@@ -238,6 +243,7 @@ static const u8 *g_animation_id_offsets = NULL;
 static const u8 *g_animation_name_offsets = NULL;
 static const u8 *g_scene_id_offsets = NULL;
 static const u8 *g_scene_name_offsets = NULL;
+static const u8 *g_event_name_offsets = NULL;
 
 static u16 ms_read_be16(const u8 *ptr)
 {
@@ -263,6 +269,8 @@ static void ms_reset_data(void)
     ms_scene_sample_count = 0;
     ms_animation_record_count = 0;
     ms_scene_record_count = 0;
+    ms_event_type_count = 0;
+    ms_step_event_count = 0;
 
     ms_parts = NULL;
     ms_render_frames = NULL;
@@ -272,6 +280,7 @@ static void ms_reset_data(void)
     ms_animations = NULL;
     ms_scene_samples = NULL;
     ms_scenes = NULL;
+    ms_step_events = NULL;
 
     g_mapping_id_offsets = NULL;
     g_mapping_name_offsets = NULL;
@@ -283,6 +292,7 @@ static void ms_reset_data(void)
     g_animation_name_offsets = NULL;
     g_scene_id_offsets = NULL;
     g_scene_name_offsets = NULL;
+    g_event_name_offsets = NULL;
     g_strings_base = 0;
     g_strings_size = 0;
     g_data_ready = FALSE;
@@ -375,6 +385,8 @@ void ms_data_init(void)
     ms_scene_sample_count = ms_read_be16(ptr); ptr += 2;
     ms_animation_record_count = ms_read_be16(ptr); ptr += 2;
     ms_scene_record_count = ms_read_be16(ptr); ptr += 2;
+    ms_event_type_count = ms_read_be16(ptr); ptr += 2;
+    ms_step_event_count = ms_read_be16(ptr); ptr += 2;
     ms_part_count = ms_read_be32(ptr); ptr += 4;
 
     for (i = 0; i < MS_SEC_COUNT; i++)
@@ -405,6 +417,8 @@ void ms_data_init(void)
     g_animation_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ANIMATION_NAMES]);
     g_scene_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_IDS]);
     g_scene_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_NAMES]);
+    ms_step_events = (const MS_StepEvent *)(g_blob + g_section_offsets[MS_SEC_STEP_EVENTS]);
+    g_event_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_EVENT_NAMES]);
 
     g_strings_base = g_section_offsets[MS_SEC_STRINGS];
 
@@ -433,3 +447,4 @@ const char *ms_animation_id(u16 index) { return ms_lookup_string(g_animation_id_
 const char *ms_animation_name_data(u16 index) { return ms_lookup_string(g_animation_name_offsets, ms_animation_count, index); }
 const char *ms_scene_id(u16 index) { return ms_lookup_string(g_scene_id_offsets, ms_scene_count, index); }
 const char *ms_scene_name_data(u16 index) { return ms_lookup_string(g_scene_name_offsets, ms_scene_count, index); }
+const char *ms_event_name_data(u16 index) { return ms_lookup_string(g_event_name_offsets, ms_event_type_count, index); }

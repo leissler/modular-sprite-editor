@@ -48,6 +48,35 @@ class AnimRecord:
     step_count: int
     fps: int
     playback: int
+    loop_start: int = 0  # exported step index later loop passes start at
+    next_animation: int = 0xFFFF  # animation index to continue with when this one ends (0xFFFF = none)
+    loop_count: int = 0  # 0 = repeat forever
+
+
+NO_ANIMATION = 0xFFFF
+BLOB_VERSION = 2  # 2: step events, loop-from step, follow-up animation, repeat count
+BLOB_SECTION_COUNT = 21
+BLOB_HEADER_SIZE = 4 + 2 + 2 + 13 * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
+
+
+def _event_symbols(names: Sequence[str]) -> List[str]:
+    """C identifiers for event names: MS_EVENT_HIT_ON, unique, never starting with a digit."""
+    used: Dict[str, int] = {}
+    out: List[str] = []
+    for name in names:
+        core = "".join(ch if ch.isalnum() else "_" for ch in str(name).upper()).strip("_") or "EVENT"
+        while "__" in core:
+            core = core.replace("__", "_")
+        if core[0].isdigit():
+            core = "E" + core
+        symbol = f"MS_EVENT_{core}"
+        if symbol in used:
+            used[symbol] += 1
+            symbol = f"{symbol}_{used[symbol]}"
+        else:
+            used[symbol] = 1
+        out.append(symbol)
+    return out
 
 
 @dataclass(frozen=True)
@@ -82,8 +111,11 @@ class SGDKBakeContext:
         self.module_render_frames: List[int] = []
         self.frame_render_frames: List[int] = []
 
-        self.anim_steps: List[Tuple[int, int]] = []
+        self.anim_steps: List[Tuple[int, int, int, int]] = []  # (render frame, ticks, first event, event count)
         self.anim_records: List[AnimRecord] = []
+        self.step_events: List[Tuple[int, int]] = []  # (event type index, value)
+        self.event_type_index: Dict[str, int] = {t.id: i for i, t in enumerate(project.event_types)}
+        self.event_symbols: List[str] = _event_symbols([t.name for t in project.event_types])
 
         self.scene_samples: List[int] = []
         self.scene_records: List[SceneRecord] = []
@@ -786,12 +818,15 @@ class SGDKBakeContext:
                 frame_render_by_id[frame.id] = render_idx
 
             # 3) Animations.
+            animation_index = {a.id: i for i, a in enumerate(self.project.animations)}
             for anim in self.project.animations:
                 first_step = len(self.anim_steps)
                 source_fps = int(anim.fps) if int(anim.fps) > 0 else 10
+                exported_step_of: List[int] = []  # editor step index -> exported step index (-1: skipped)
                 for af in anim.aframes:
                     frame = self.project.get_frame(af.frame_id)
                     if not frame:
+                        exported_step_of.append(-1)
                         continue
 
                     off = (float(af.offset[0]), float(af.offset[1]))
@@ -809,20 +844,37 @@ class SGDKBakeContext:
                         1,
                         int(round((max(1.0, float(af.duration_frames)) / float(source_fps)) * 60.0)),
                     )
-                    self.anim_steps.append((render_idx, duration_ticks))
+                    first_event = len(self.step_events)
+                    for event in getattr(af, "events", []) or []:
+                        type_index = self.event_type_index.get(event.type_id)
+                        if type_index is None:
+                            continue  # event type no longer exists
+                        self.step_events.append((type_index, max(-32768, min(32767, int(event.value)))))
+                    event_count = min(255, len(self.step_events) - first_event)
+                    exported_step_of.append(len(self.anim_steps) - first_step)
+                    self.anim_steps.append((render_idx, duration_ticks, first_event, event_count))
 
                 step_count = len(self.anim_steps) - first_step
                 if step_count <= 0:
                     first_step = len(self.anim_steps)
-                    self.anim_steps.append((empty_render, 1))
+                    self.anim_steps.append((empty_render, 1, 0, 0))
                     step_count = 1
 
+                # "Loop from" points at an editor step; use the first exported step at or after it.
+                loop_start = 0
+                if str(anim.playback_type) == "loop" and int(getattr(anim, "loop_start", 0) or 0) > 0:
+                    later = [i for i in exported_step_of[int(anim.loop_start):] if i >= 0]
+                    loop_start = later[0] if later else 0
+                next_id = getattr(anim, "next_animation_id", None)
                 self.anim_records.append(
                     AnimRecord(
                         first_step=first_step,
                         step_count=step_count,
                         fps=source_fps,
                         playback=self._playback_code(str(anim.playback_type)),
+                        loop_start=loop_start,
+                        next_animation=animation_index.get(next_id, NO_ANIMATION) if next_id else NO_ANIMATION,
+                        loop_count=max(0, min(0xFFFF, int(anim.loop_count or 0))),
                     )
                 )
 
@@ -892,6 +944,8 @@ class SGDKBakeContext:
             "scene_ids",
             "scene_names",
             "strings",
+            "step_events",
+            "event_names",
         ]
 
         strings_blob = bytearray()
@@ -915,6 +969,7 @@ class SGDKBakeContext:
         anim_names_rel = append_string_list([anim.name for anim in self.project.animations])
         scene_ids_rel = append_string_list([scene.id for scene in self.project.timeline_scenes])
         scene_names_rel = append_string_list([scene.name for scene in self.project.timeline_scenes])
+        event_names_rel = append_string_list([t.name for t in self.project.event_types])
 
         parts_raw = bytearray()
         for variant_index, px, py, hflip, vflip in self.parts:
@@ -932,15 +987,27 @@ class SGDKBakeContext:
         for idx in self.frame_render_frames:
             frame_render_raw.extend(self._be16(int(idx)))
 
+        if len(self.step_events) > 0xFFFF:
+            raise RuntimeError(f"Too many animation step events for the blob: {len(self.step_events)} > 65535")
         anim_steps_raw = bytearray()
-        for frame_index, duration_ticks in self.anim_steps:
-            anim_steps_raw.extend(struct.pack(">HH", int(frame_index), int(duration_ticks)))
+        for frame_index, duration_ticks, first_event, event_count in self.anim_steps:
+            anim_steps_raw.extend(
+                struct.pack(">HHHBB", int(frame_index), int(duration_ticks), int(first_event) & 0xFFFF, int(event_count), 0)
+            )
 
         animations_raw = bytearray()
         for rec in self.anim_records:
             animations_raw.extend(
-                struct.pack(">IHHBB", int(rec.first_step), int(rec.step_count), int(rec.fps), int(rec.playback), 0)
+                struct.pack(
+                    ">IHHBBHHH",
+                    int(rec.first_step), int(rec.step_count), int(rec.fps), int(rec.playback), 0,
+                    int(rec.loop_start), int(rec.next_animation), int(rec.loop_count),
+                )
             )
+
+        step_events_raw = bytearray()
+        for type_index, value in self.step_events:
+            step_events_raw.extend(struct.pack(">Hh", int(type_index), int(value)))
 
         scene_samples_raw = bytearray()
         for idx in self.scene_samples:
@@ -963,7 +1030,7 @@ class SGDKBakeContext:
             )
 
         blob = bytearray()
-        header_size = 114
+        header_size = BLOB_HEADER_SIZE
         blob.extend(b"\0" * header_size)
 
         def append_section(name: str, data: bytes, align: int = 2) -> None:
@@ -979,6 +1046,7 @@ class SGDKBakeContext:
         append_section("animations", bytes(animations_raw))
         append_section("scene_samples", bytes(scene_samples_raw))
         append_section("scenes", bytes(scenes_raw))
+        append_section("step_events", bytes(step_events_raw))
         append_section("strings", bytes(strings_blob), align=1)
 
         strings_base = section_offsets["strings"]
@@ -999,10 +1067,11 @@ class SGDKBakeContext:
         append_section("animation_names", build_string_offset_section(anim_names_rel))
         append_section("scene_ids", build_string_offset_section(scene_ids_rel))
         append_section("scene_names", build_string_offset_section(scene_names_rel))
+        append_section("event_names", build_string_offset_section(event_names_rel))
 
         header = bytearray()
         header.extend(b"MSB1")
-        header.extend(self._be16(1))
+        header.extend(self._be16(BLOB_VERSION))
         header.extend(self._be16(0))
         header.extend(self._be16(len(self.variants)))
         header.extend(self._be16(len(self.project.modules)))
@@ -1015,6 +1084,8 @@ class SGDKBakeContext:
         header.extend(self._be16(len(self.scene_samples)))
         header.extend(self._be16(len(self.anim_records)))
         header.extend(self._be16(len(self.scene_records)))
+        header.extend(self._be16(len(self.project.event_types)))
+        header.extend(self._be16(len(self.step_events)))
         header.extend(self._be32(len(self.parts)))
 
         for section in section_names:
@@ -1055,6 +1126,9 @@ typedef struct __attribute__((packed))
 {
     u16 frame_index;
     u16 duration_ticks;
+    u16 first_event;
+    u8 event_count;
+    u8 reserved0;
 } MS_AnimStep;
 
 typedef struct __attribute__((packed))
@@ -1064,7 +1138,18 @@ typedef struct __attribute__((packed))
     u16 fps;
     u8 playback;
     u8 reserved0;
+    u16 loop_start;      /* MS_PLAY_LOOP: later passes start at this step */
+    u16 next_animation;  /* continue with this animation when it ends, MS_NO_ANIMATION = none */
+    u16 loop_count;      /* repeats before it ends, 0 = forever */
 } MS_Animation;
+
+typedef struct __attribute__((packed))
+{
+    u16 type;   /* MS_EVENT_* */
+    s16 value;  /* free parameter, e.g. which sound */
+} MS_StepEvent;
+
+#define MS_NO_ANIMATION 0xFFFFu
 
 typedef struct __attribute__((packed))
 {
@@ -1092,6 +1177,8 @@ extern u16 ms_anim_step_count;
 extern u16 ms_scene_sample_count;
 extern u16 ms_animation_record_count;
 extern u16 ms_scene_record_count;
+extern u16 ms_event_type_count;
+extern u16 ms_step_event_count;
 
 #define MS_VARIANT_COUNT (ms_variant_count)
 #define MS_PART_COUNT (ms_part_count)
@@ -1105,6 +1192,8 @@ extern u16 ms_scene_record_count;
 #define MS_SCENE_SAMPLE_COUNT (ms_scene_sample_count)
 #define MS_ANIMATION_RECORD_COUNT (ms_animation_record_count)
 #define MS_SCENE_RECORD_COUNT (ms_scene_record_count)
+#define MS_EVENT_TYPE_COUNT (ms_event_type_count)
+#define MS_STEP_EVENT_COUNT (ms_step_event_count)
 
 extern const SpriteDefinition *const ms_variant_defs[];
 extern const MS_Part *ms_parts;
@@ -1115,6 +1204,7 @@ extern const MS_AnimStep *ms_anim_steps;
 extern const MS_Animation *ms_animations;
 extern const u16 *ms_scene_samples;
 extern const MS_Scene *ms_scenes;
+extern const MS_StepEvent *ms_step_events;
 
 void ms_data_init(void);
 u8 ms_data_is_ready(void);
@@ -1129,9 +1219,15 @@ const char *ms_animation_id(u16 index);
 const char *ms_animation_name_data(u16 index);
 const char *ms_scene_id(u16 index);
 const char *ms_scene_name_data(u16 index);
+const char *ms_event_name_data(u16 index);
+
+/* Animation events (project event types, in the editor's order). */
+@EVENT_DEFINES@
 
 #endif
 """
+        defines = "\n".join(f"#define {symbol} {i}u" for i, symbol in enumerate(self.event_symbols))
+        text = text.replace("@EVENT_DEFINES@", defines or "/* none */")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
@@ -1158,8 +1254,8 @@ const char *ms_scene_name_data(u16 index);
 #include "resources.h"
 
 #define MS_BLOB_MAGIC 0x4D534231u
-#define MS_BLOB_VERSION 1u
-#define MS_BLOB_HEADER_SIZE 114u
+#define MS_BLOB_VERSION {BLOB_VERSION}u
+#define MS_BLOB_HEADER_SIZE {BLOB_HEADER_SIZE}u
 #define MS_VARIANT_DEF_COUNT {len(self.variants)}u
 
 enum
@@ -1183,7 +1279,9 @@ enum
     MS_SEC_SCENE_IDS = 16,
     MS_SEC_SCENE_NAMES = 17,
     MS_SEC_STRINGS = 18,
-    MS_SEC_COUNT = 19
+    MS_SEC_STEP_EVENTS = 19,
+    MS_SEC_EVENT_NAMES = 20,
+    MS_SEC_COUNT = 21
 }};
 
 const SpriteDefinition *const ms_variant_defs[] = {{
@@ -1202,6 +1300,8 @@ u16 ms_anim_step_count = 0;
 u16 ms_scene_sample_count = 0;
 u16 ms_animation_record_count = 0;
 u16 ms_scene_record_count = 0;
+u16 ms_event_type_count = 0;
+u16 ms_step_event_count = 0;
 
 const MS_Part *ms_parts = NULL;
 const MS_RenderFrame *ms_render_frames = NULL;
@@ -1211,6 +1311,7 @@ const MS_AnimStep *ms_anim_steps = NULL;
 const MS_Animation *ms_animations = NULL;
 const u16 *ms_scene_samples = NULL;
 const MS_Scene *ms_scenes = NULL;
+const MS_StepEvent *ms_step_events = NULL;
 
 static const u8 *g_blob = NULL;
 static u32 g_blob_size = 0;
@@ -1229,6 +1330,7 @@ static const u8 *g_animation_id_offsets = NULL;
 static const u8 *g_animation_name_offsets = NULL;
 static const u8 *g_scene_id_offsets = NULL;
 static const u8 *g_scene_name_offsets = NULL;
+static const u8 *g_event_name_offsets = NULL;
 
 static u16 ms_read_be16(const u8 *ptr)
 {{
@@ -1254,6 +1356,8 @@ static void ms_reset_data(void)
     ms_scene_sample_count = 0;
     ms_animation_record_count = 0;
     ms_scene_record_count = 0;
+    ms_event_type_count = 0;
+    ms_step_event_count = 0;
 
     ms_parts = NULL;
     ms_render_frames = NULL;
@@ -1263,6 +1367,7 @@ static void ms_reset_data(void)
     ms_animations = NULL;
     ms_scene_samples = NULL;
     ms_scenes = NULL;
+    ms_step_events = NULL;
 
     g_mapping_id_offsets = NULL;
     g_mapping_name_offsets = NULL;
@@ -1274,6 +1379,7 @@ static void ms_reset_data(void)
     g_animation_name_offsets = NULL;
     g_scene_id_offsets = NULL;
     g_scene_name_offsets = NULL;
+    g_event_name_offsets = NULL;
     g_strings_base = 0;
     g_strings_size = 0;
     g_data_ready = FALSE;
@@ -1366,6 +1472,8 @@ void ms_data_init(void)
     ms_scene_sample_count = ms_read_be16(ptr); ptr += 2;
     ms_animation_record_count = ms_read_be16(ptr); ptr += 2;
     ms_scene_record_count = ms_read_be16(ptr); ptr += 2;
+    ms_event_type_count = ms_read_be16(ptr); ptr += 2;
+    ms_step_event_count = ms_read_be16(ptr); ptr += 2;
     ms_part_count = ms_read_be32(ptr); ptr += 4;
 
     for (i = 0; i < MS_SEC_COUNT; i++)
@@ -1396,6 +1504,8 @@ void ms_data_init(void)
     g_animation_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ANIMATION_NAMES]);
     g_scene_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_IDS]);
     g_scene_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_NAMES]);
+    ms_step_events = (const MS_StepEvent *)(g_blob + g_section_offsets[MS_SEC_STEP_EVENTS]);
+    g_event_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_EVENT_NAMES]);
 
     g_strings_base = g_section_offsets[MS_SEC_STRINGS];
 
@@ -1424,6 +1534,7 @@ const char *ms_animation_id(u16 index) {{ return ms_lookup_string(g_animation_id
 const char *ms_animation_name_data(u16 index) {{ return ms_lookup_string(g_animation_name_offsets, ms_animation_count, index); }}
 const char *ms_scene_id(u16 index) {{ return ms_lookup_string(g_scene_id_offsets, ms_scene_count, index); }}
 const char *ms_scene_name_data(u16 index) {{ return ms_lookup_string(g_scene_name_offsets, ms_scene_count, index); }}
+const char *ms_event_name_data(u16 index) {{ return ms_lookup_string(g_event_name_offsets, ms_event_type_count, index); }}
 """
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")

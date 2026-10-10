@@ -19,7 +19,8 @@ def generate_id(prefix: str) -> str:
 # Native project file format version (top-level "format_version" key).
 # 1 = unversioned files written before versioning existed.
 # 2 = legacy fields canonicalized (see migrate_project_dict).
-PROJECT_FORMAT_VERSION = 2
+# 3 = animation step events (+ project event types), loop-from step and follow-up animation (additive).
+PROJECT_FORMAT_VERSION = 3
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -93,6 +94,16 @@ def _migrate_v1_to_v2(data: Dict[str, Any], notes: List[str]) -> None:
         notes.append(f"Converted {converted_shapes} legacy line/triangle shape module(s) to percentage points.")
 
 
+def _migrate_v2_to_v3(data: Dict[str, Any], notes: List[str]) -> None:
+    """Additive: write the new fields with their defaults so v3 files always carry them."""
+    data.setdefault("event_types", [])
+    for anim in data.get("animations", []) or []:
+        anim.setdefault("loop_start", 0)
+        anim.setdefault("next_animation_id", None)
+        for af in anim.get("aframes", []) or []:
+            af.setdefault("events", [])
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -116,6 +127,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
 
     if version < 2:
         _migrate_v1_to_v2(migrated, notes)
+    if version < 3:
+        _migrate_v2_to_v3(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes
@@ -291,6 +304,41 @@ class PointType:
         )
 
 @dataclass
+class EventType:
+    """A project-wide animation event (e.g. "hit_on", "sfx", "footstep"); steps reference it by id."""
+
+    id: str
+    name: str
+    color: Tuple[int, int, int]  # RGB, for markers in the editor
+
+    def to_dict(self) -> Dict:
+        return {"id": self.id, "name": self.name, "color": list(self.color)}
+
+    @staticmethod
+    def from_dict(data: Dict) -> "EventType":
+        return EventType(
+            id=data["id"],
+            name=str(data.get("name", "")),
+            color=tuple(int(v) for v in data.get("color", (255, 200, 80)))[:3],  # type: ignore[arg-type]
+        )
+
+
+@dataclass
+class StepEvent:
+    """An event on an animation step: fires when the step starts and is active while it shows."""
+
+    type_id: str
+    value: int = 0  # optional parameter, e.g. which sound or which object to spawn
+
+    def to_dict(self) -> Dict:
+        return {"type_id": self.type_id, "value": int(self.value)}
+
+    @staticmethod
+    def from_dict(data: Dict) -> "StepEvent":
+        return StepEvent(type_id=str(data["type_id"]), value=int(data.get("value", 0)))
+
+
+@dataclass
 class CollisionRect:
     id: str
     type_id: str
@@ -424,6 +472,7 @@ class AFrame:
     flip_x: bool = False
     flip_y: bool = False
     rotation_degrees: float = 0.0
+    events: List[StepEvent] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         return {
@@ -433,6 +482,7 @@ class AFrame:
             "flip_x": self.flip_x,
             "flip_y": self.flip_y,
             "rotation_degrees": self.rotation_degrees,
+            "events": [e.to_dict() for e in self.events],
         }
 
     def clone(self) -> "AFrame":
@@ -459,6 +509,7 @@ class AFrame:
             flip_x=bool(data.get("flip_x", False)),
             flip_y=bool(data.get("flip_y", False)),
             rotation_degrees=float(data.get("rotation_degrees", 0.0)),
+            events=[StepEvent.from_dict(e) for e in data.get("events", []) or []],
         )
 
 
@@ -470,6 +521,10 @@ class Animation:
     loop_count: Optional[int] = 0
     fps: int = 10
     aframes: List[AFrame] = field(default_factory=list)
+    # "Loop" playback: the first pass plays every step, later passes start at this step (an intro plays once).
+    loop_start: int = 0
+    # When the animation ends (Play once, or after its repeat count), continue with this animation.
+    next_animation_id: Optional[str] = None
 
     def to_dict(self) -> Dict:
         return {
@@ -479,6 +534,8 @@ class Animation:
             "loop_count": self.loop_count,
             "fps": self.fps,
             "aframes": [af.to_dict() for af in self.aframes],
+            "loop_start": self.loop_start,
+            "next_animation_id": self.next_animation_id,
         }
 
     def clone(self) -> "Animation":
@@ -493,6 +550,8 @@ class Animation:
             loop_count=data.get("loop_count"),
             aframes=[AFrame.from_dict(af) for af in data.get("aframes", [])],
             fps=data.get("fps", 10),
+            loop_start=max(0, int(data.get("loop_start", 0) or 0)),
+            next_animation_id=data.get("next_animation_id") or None,
         )
 
 
@@ -2858,7 +2917,8 @@ class Project:
     mappings: List[ModuleMapping] = field(default_factory=list)
     collision_types: List[CollisionType] = field(default_factory=list)
     point_types: List[PointType] = field(default_factory=list)
-    
+    event_types: List[EventType] = field(default_factory=list)
+
     # Runtime state (not serialized)
     active_mapping: Optional[ModuleMapping] = field(default=None, init=False)
     load_notes: List[str] = field(default_factory=list, init=False)
@@ -2874,6 +2934,9 @@ class Project:
 
     def get_animation(self, animation_id: str) -> Optional[Animation]:
         return next((a for a in self.animations if a.id == animation_id), None)
+
+    def get_event_type(self, type_id: str) -> Optional[EventType]:
+        return next((t for t in self.event_types if t.id == type_id), None)
 
     def get_timeline_scene(self, scene_id: str) -> Optional[TimelineScene]:
         return next((scene for scene in self.timeline_scenes if scene.id == scene_id), None)
@@ -2981,7 +3044,12 @@ class Project:
                 if local_time >= total:
                     local_time = total - (local_time - total) - 1e-6
         else:
-            local_time = local_time % total if total > 0.0 else 0.0
+            # Loop: the first pass plays every step, later passes start at loop_start.
+            intro = sum(durations[: max(0, min(int(anim.loop_start or 0), len(durations) - 1))])
+            if local_time >= total and 0.0 < intro < total:
+                local_time = intro + (local_time - total) % (total - intro)
+            else:
+                local_time = local_time % total if total > 0.0 else 0.0
 
         cursor = 0.0
         for idx, af in enumerate(anim.aframes):
@@ -3220,6 +3288,7 @@ class Project:
             "mappings": [m.to_dict() for m in self.mappings],
             "collision_types": [ct.to_dict() for ct in self.collision_types],
             "point_types": [pt.to_dict() for pt in self.point_types],
+            "event_types": [et.to_dict() for et in self.event_types],
         }
 
     def to_json(self, path: str) -> None:
@@ -3249,7 +3318,8 @@ class Project:
         mappings = [ModuleMapping.from_dict(m) for m in data.get("mappings", [])]
         collision_types = [CollisionType.from_dict(ct) for ct in data.get("collision_types", [])]
         point_types = [PointType.from_dict(pt) for pt in data.get("point_types", [])]
-        
+        event_types = [EventType.from_dict(et) for et in data.get("event_types", [])]
+
         project = Project(
             name=data.get("name", "New Project"),
             images=images,
@@ -3260,6 +3330,7 @@ class Project:
             mappings=mappings,
             collision_types=collision_types,
             point_types=point_types,
+            event_types=event_types,
         )
         project.load_notes = notes
         return project

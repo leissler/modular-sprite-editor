@@ -8,11 +8,15 @@ string ids. Unknown keys are ignored on load (and dropped when the editor saves)
 | `format_version` | Meaning |
 |---|---|
 | missing / `1` | Files written before versioning existed. |
-| `2` | Current. Legacy fields canonicalised (see below). Added 2026-10-09. |
+| `2` | Legacy fields canonicalised (see below). Added 2026-10-09. |
+| `3` | Current. Animation step events + project event types, loop-from step, follow-up animation. Added 2026-10-11. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
-warning. Older builds of the editor can read v2 files (the only new key is `format_version`).
+warning. v3 is additive: builds that only know v2 open v3 files with a warning and drop the new keys on save.
+
+v2 → v3 adds, with their defaults: top-level `event_types: []`, per animation `loop_start: 0` and
+`next_animation_id: null`, per step `events: []`. Nothing else changes.
 
 v1 → v2 canonicalises:
 
@@ -39,11 +43,15 @@ On 2026-10-09 the following were migrated (originals in
 Only `PoP_SoT.json` changed content (348 `duration_ms` → `duration_frames`); all migrations were verified to
 load to identical projects before and after.
 
-## Schema (v2)
+On 2026-10-11 the same 17 files were migrated to v3 (originals in
+`~/Downloads/ModularSpriteEditor_format_v2_backup_2026-10-11.zip`); each was checked to equal its original
+except for the added default keys.
+
+## Schema (v3)
 
 ```jsonc
 {
-  "format_version": 2,
+  "format_version": 3,
   "name": "New Project",
   "images": [
     {"id": "img_…", "file_path": "modules_POP.bmp",      // relative to the project file
@@ -76,9 +84,12 @@ load to identical projects before and after.
      "playback_type": "loop",                            // forward | backward | loop | ping_pong
      "loop_count": 0,                                    // 0 = infinite
      "fps": 10,                                          // ticks per second
+     "loop_start": 0,                                    // loop playback: later passes start at this step
+     "next_animation_id": null,                          // continue with this animation when it ends
      "aframes": [
        {"frame_id": "frm_…", "duration_frames": 1,       // ticks
-        "offset": [x, y], "flip_x": false, "flip_y": false, "rotation_degrees": 0.0}
+        "offset": [x, y], "flip_x": false, "flip_y": false, "rotation_degrees": 0.0,
+        "events": [{"type_id": "evt_…", "value": 0}]}   // fire when the step starts, active while it shows
      ]}
   ],
   "timeline_scenes": [
@@ -110,9 +121,16 @@ load to identical projects before and after.
              "mod_c": null}}                             // hide; missing key = original
   ],
   "collision_types": [{"id": "ctype_…", "name": "Hurt", "color": [255, 0, 0]}],
-  "point_types":     [{"id": "ptype_…", "name": "Hand", "color": [0, 255, 0]}]
+  "point_types":     [{"id": "ptype_…", "name": "Hand", "color": [0, 255, 0]}],
+  "event_types":     [{"id": "evt_…", "name": "hit_on", "color": [255, 110, 100]}]   // order = export number
 }
 ```
+
+Animation playback notes: an animation *ends* when it is `forward` (Play once) and reaches its last step, or
+after `loop_count` passes in the repeating modes (`loop`, `ping_pong`, `backward`); then `next_animation_id`
+takes over. `loop_start` only applies to `loop`: the first pass plays every step, later passes start at that
+step. A step's events fire when the step starts and stay active while it shows; `value` is a free number for the
+game (which sound, which object). The SGDK exporter numbers event types in list order (`MS_EVENT_<NAME>`).
 
 Timeline evaluation notes: a segment's easing is the `easing` of its *end* key. With `path_mode: "spline"`,
 a segment with an explicit handle (`path_out` of its start key or `path_in` of its end key) is a cubic Bézier;

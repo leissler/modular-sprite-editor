@@ -72,9 +72,9 @@ format is unchanged.
 | A5 | Mirror preview kept a step's rotation, which is wrong for 90°/270° steps (64 of 260 synthetic variants differed once checked). | Stage mirror reverses the rotation for an odd number of mirror axes; `tools/check_export_parity.py` now checks the mirror preview against the step renderer for every step. |
 | A6 | GIF export ignored nested frames, part rotation, shape modules and the preview mapping, and confirmed with a modal dialog. Strip thumbnails ignored nested frames and part rotation. | GIF export and every thumbnail use the parity-checked renderer; the GIF plays one cycle in playback order (reversed / ping-pong); status bar instead of a dialog. |
 | A7 | Steps with hold 0 (35 in PoP) showed `×0` but flashed for 10 ms in the preview; the exporters play them as one tick. | Timing treats them as one tick everywhere (`ops.hold`); the cell flags `×0` in red and the inspector explains it. |
+| A8 | Game data (hit windows, sounds, spawns, intro + loop, `attack → idle`) had to be encoded in frame names or game code. | Format v3: step **events** from a project-wide list (chips above the steps, inspector rows with a value, typing a new name creates it), **Loop from** a step (intro shaded, ↺ marker), **Then play** a follow-up animation (shown after the last step, the preview hands over like the game). Exported to the SGDK blob and runtime. |
 
-Not done (needs a format change, see `docs/ANIMATION.md`): step events / markers, loop-from step and follow-up
-animation, hardware budget overlay.
+Also added later: the hardware budget overlay (X20).
 
 ## 5. Timeline tab — redesigned (`timeline-redesign` branch)
 

@@ -216,6 +216,8 @@ class AnimationEditorPanel(wx.Panel):
         ins.on_step_change = self._on_step_field
         ins.on_pick_frame = self._pick_frame_for_selection
         ins.on_open_frame = lambda: self._open_frame_of_step(self.current_step())
+        ins.on_event_change = self._on_event_field
+        ins.on_manage_events = self.manage_event_types
 
     # ================================================================== main-window interface
     def get_active_canvas(self):
@@ -439,14 +441,20 @@ class AnimationEditorPanel(wx.Panel):
         if not anim:
             return
         uses = ops.scene_usage(self.project, anim.id)
+        followers = ops.follow_up_references(self.project, anim.id)
         message = f"Delete animation '{anim.name}'?"
         if uses:
             message += f"\n\nIt is shown by {uses} timeline object(s); they will show nothing."
+        if followers:
+            names = ", ".join(f"'{a.name}'" for a in followers[:3]) + (" …" if len(followers) > 3 else "")
+            message += f"\n\n{len(followers)} animation(s) continue with it ({names}); they will simply end."
         if wx.MessageBox(message, "Delete Animation", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
             return
         position = self._view.index(anim) if anim in self._view else 0
         self.stop_playback()
         self.project.animations.remove(anim)
+        for follower in followers:
+            follower.next_animation_id = None
         remaining = [a for a in self._view if a is not anim]
         neighbour = remaining[min(position, len(remaining) - 1)] if remaining else None
         self.selected_animation_id = neighbour.id if neighbour else None
@@ -512,6 +520,10 @@ class AnimationEditorPanel(wx.Panel):
             anim.playback_type = str(value)
         elif field == "loops":
             anim.loop_count = max(0, int(value))
+        elif field == "loop_start":
+            anim.loop_start = max(0, min(int(value), max(0, len(anim.aframes) - 1)))
+        elif field == "next":
+            anim.next_animation_id = str(value) if value else None
         elif field == "fps":
             anim.fps = max(1, int(value))
         if self.is_playing:
@@ -618,6 +630,13 @@ class AnimationEditorPanel(wx.Panel):
             if not running:
                 self.is_playing = False
                 self.timer.Stop()
+                follow = self.project.get_animation(anim.next_animation_id) if anim.next_animation_id else None
+                if follow is not None and follow.aframes:
+                    # Like the game: when this one ends, its follow-up animation takes over.
+                    self.select_animation(follow.id)
+                    self.toggle_play()
+                    app_services.show_status(f"'{anim.name}' ended → '{follow.name}'")
+                    return
             self.refresh(inspector=not self.is_playing)
 
     def _on_repeat(self, event: wx.CommandEvent) -> None:
@@ -667,7 +686,8 @@ class AnimationEditorPanel(wx.Panel):
             self.refresh_animations()
         if not self.project.get_frame(frame_id):
             return
-        new = ops.insert_steps(anim, index, [ops.new_step(frame_id)])
+        with ops.keep_loop_start(anim):
+            new = ops.insert_steps(anim, index, [ops.new_step(frame_id)])
         self.selection = set(new)
         self.tick = ops.step_starts(anim)[new[0]]
         self.sequence.ensure_tick_visible(self.tick)
@@ -682,7 +702,8 @@ class AnimationEditorPanel(wx.Panel):
         targets = self._targets()
         if not anim or not targets:
             return
-        removed = ops.delete_steps(anim, targets)
+        with ops.keep_loop_start(anim):
+            removed = ops.delete_steps(anim, targets)
         self.selection = set()
         if anim.aframes:
             index = min(targets[0], len(anim.aframes) - 1)
@@ -694,10 +715,11 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.animation()
         if not anim or not indices:
             return
-        if copy:
-            new = ops.paste_steps(anim, insert_at, ops.copy_steps(anim, indices))
-        else:
-            new = ops.move_steps(anim, indices, insert_at)
+        with ops.keep_loop_start(anim):
+            if copy:
+                new = ops.paste_steps(anim, insert_at, ops.copy_steps(anim, indices))
+            else:
+                new = ops.move_steps(anim, indices, insert_at)
         if not new:
             return
         self.selection = set(new)
@@ -708,7 +730,8 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.animation()
         if not anim:
             return
-        ops.reverse_steps(anim, sorted(self.selection))
+        with ops.keep_loop_start(anim):
+            ops.reverse_steps(anim, sorted(self.selection))
         self._commit()
 
     def change_hold(self, delta: int) -> None:
@@ -857,6 +880,19 @@ class AnimationEditorPanel(wx.Panel):
             add("Swap frame…", self._pick_frame_for_selection)
             add("Edit frame in Frames tab", lambda: self._open_frame_of_step(index), len(self.selection) <= 1)
             menu.AppendSeparator()
+            if anim.playback_type == "loop" and len(anim.aframes) > 1:
+                add("Loop from this step", lambda: self._on_animation_field("loop_start", index),
+                    index != ops.loop_start(anim))
+            events = wx.Menu()
+            for etype in self.project.event_types:
+                add(etype.name, lambda t=etype.id: self._on_event_field("add_id", t, 0), target=events)
+            if self.project.event_types:
+                events.AppendSeparator()
+            add("New event…", self._new_event_for_selection, target=events)
+            menu.AppendSubMenu(events, "Add event")
+            if any(af.events for af in (anim.aframes[i] for i in self._targets())):
+                add("Remove events", self._remove_all_events)
+            menu.AppendSeparator()
             add("Duplicate", self.edit_duplicate)
             add("Copy", self.edit_copy)
         add("Paste", self.edit_paste, bool(_STEP_CLIPBOARD))
@@ -873,6 +909,50 @@ class AnimationEditorPanel(wx.Panel):
             if anim and i < len(anim.aframes):
                 anim.aframes[i].offset = (0, 0)
         self._commit()
+
+    # ================================================================== events
+    def _on_event_field(self, action: str, key: str, value: Any) -> None:
+        """Inspector / menu: add (by name, or by type id), remove or set the value of an event on the steps."""
+        anim = self.animation()
+        targets = self._targets()
+        if not anim or not targets:
+            return
+        if action == "add":
+            etype = ops.ensure_event_type(self.project, str(key))
+            if etype is None:
+                return
+            added = ops.add_event(anim, targets, etype.id, int(value or 0))
+            app_services.show_status(f"Event '{etype.name}' on {added} step(s)")
+        elif action == "add_id":
+            ops.add_event(anim, targets, str(key), int(value or 0))
+        elif action == "remove":
+            ops.remove_event(anim, targets, str(key))
+        elif action == "value":
+            ops.set_event_value(anim, targets, str(key), int(value))
+        self.selection = set(targets)
+        self._commit()
+
+    def _new_event_for_selection(self) -> None:
+        with wx.TextEntryDialog(self, "Name of the new event (e.g. hit_on, sfx, footstep):", "New Event") as dlg:
+            if dlg.ShowModal() == wx.ID_OK and dlg.GetValue().strip():
+                self._on_event_field("add", dlg.GetValue().strip(), 0)
+
+    def _remove_all_events(self) -> None:
+        anim = self.animation()
+        if not anim:
+            return
+        for i in self._targets():
+            anim.aframes[i].events = []
+        self._commit()
+
+    def manage_event_types(self) -> None:
+        from ui.animation_editor.events_dialog import EventTypesDialog
+
+        with EventTypesDialog(self, self.project) as dlg:
+            dlg.ShowModal()
+            changed = dlg.changed
+        if changed:
+            self._commit()
 
     # ================================================================== edit menu
     def edit_copy(self) -> None:
@@ -891,7 +971,8 @@ class AnimationEditorPanel(wx.Panel):
             return
         targets = self._targets()
         index = targets[-1] + 1 if targets else len(anim.aframes)
-        new = ops.paste_steps(anim, index, _STEP_CLIPBOARD)
+        with ops.keep_loop_start(anim):
+            new = ops.paste_steps(anim, index, _STEP_CLIPBOARD)
         self.selection = set(new)
         self.tick = ops.step_starts(anim)[new[0]]
         self.refresh()
@@ -900,7 +981,8 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.animation()
         if not anim or not self._targets():
             return
-        new = ops.duplicate_steps(anim, self._targets())
+        with ops.keep_loop_start(anim):
+            new = ops.duplicate_steps(anim, self._targets())
         self.selection = set(new)
         self.tick = ops.step_starts(anim)[new[0]]
         self.refresh()

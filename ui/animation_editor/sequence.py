@@ -27,10 +27,12 @@ COL_PLAYHEAD = wx.Colour(255, 92, 92)
 COL_HOLD = wx.Colour(96, 100, 112)
 COL_DROP = wx.Colour(140, 210, 255)
 COL_WARN = wx.Colour(255, 110, 90)
+COL_LOOP = wx.Colour(120, 210, 140)
 
 LABEL_STEPS = (1, 2, 5, 10, 20, 50, 100, 200, 500)
 RULER_H = 22
-CELL_TOP = RULER_H + 6
+EVENT_LANE = 12  # coloured event chips between the ruler and the cells
+CELL_TOP = RULER_H + EVENT_LANE + 4
 THUMB = 56
 CELL_H = THUMB + 22
 LEFT_PAD = 10
@@ -221,6 +223,7 @@ class SequenceWidget(wx.Panel):
             if r.x > w or r.x + r.width < 0:
                 continue
             self._paint_cell(dc, index, af, r)
+        self._paint_loop_and_follow_up(dc, anim, starts, w)
         # Playhead through the middle of the tick being shown
         if anim.aframes:
             px = int(self.x_of_tick(self.tick + 0.5))
@@ -326,10 +329,54 @@ class SequenceWidget(wx.Panel):
             dc.DrawRectangle(bx, r.y + 4, tw + 4, th)
             dc.SetTextForeground(COL_SELECTED)
             dc.DrawText(badge, bx + 2, r.y + 4)
+        self._paint_events(dc, af, r)
         # Frame identity stripe: same colour = same frame.
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(frame_colour(af.frame_id)))
         dc.DrawRectangle(r.x + 2, r.y + r.height - 3, r.width - 4, 2)
+
+    def _paint_events(self, dc: wx.DC, af, r: wx.Rect) -> None:
+        """Event chips in the lane above the cell: one per event, labelled while there is room."""
+        if not af.events or not self.project:
+            return
+        x = r.x + 1
+        right = r.x + r.width
+        y = CELL_TOP - EVENT_LANE - 2
+        for event in af.events:
+            etype = self.project.get_event_type(event.type_id)
+            colour = wx.Colour(*(etype.color if etype else (150, 150, 150)))
+            label = (etype.name if etype else "?") + (f"={event.value}" if event.value else "")
+            tw, th = dc.GetTextExtent(label)
+            width = tw + 8 if x + tw + 8 <= right else 8
+            if x + width > right:
+                break
+            dc.SetPen(wx.TRANSPARENT_PEN)
+            dc.SetBrush(wx.Brush(colour))
+            dc.DrawRoundedRectangle(x, y, width, EVENT_LANE, 3)
+            if width > 8:
+                dc.SetTextForeground(wx.Colour(20, 20, 24))
+                dc.DrawText(label, x + 4, y + (EVENT_LANE - th) // 2)
+            x += width + 2
+
+    def _paint_loop_and_follow_up(self, dc: wx.DC, anim: Animation, starts: List[int], width: int) -> None:
+        loop_from = ops.loop_start(anim)
+        if loop_from > 0 and anim.aframes:
+            # The intro before the loop point plays once: shade it, mark where later passes start.
+            x = int(self.x_of_tick(starts[loop_from]))
+            intro_x = int(self.x_of_tick(0))
+            dc.SetPen(wx.TRANSPARENT_PEN)
+            dc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 90)))
+            dc.DrawRectangle(intro_x, CELL_TOP, max(0, x - intro_x), CELL_H)
+            dc.SetPen(wx.Pen(COL_LOOP, 2))
+            dc.DrawLine(x, RULER_H - 8, x, CELL_TOP + CELL_H + 4)
+            dc.SetTextForeground(COL_LOOP)
+            dc.DrawText("↺ loop", x + 4, RULER_H - 2 - dc.GetTextExtent("↺ loop")[1] // 2 + 6)
+        follow = self.project.get_animation(anim.next_animation_id) if self.project and anim.next_animation_id else None
+        if follow is not None and anim.aframes:
+            end_x = int(self.x_of_tick(ops.total_ticks(anim))) + 8
+            label = f"then → {follow.name}"
+            dc.SetTextForeground(COL_LOOP if ops.can_finish(anim) else COL_TEXT_DIM)
+            dc.DrawText(label, end_x, CELL_TOP + CELL_H // 2 - dc.GetTextExtent(label)[1] // 2)
 
     # ------------------------------------------------------------------ mouse
     def _capture(self) -> None:

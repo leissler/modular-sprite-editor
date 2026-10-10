@@ -82,6 +82,9 @@ class AnimationList(wx.VListBox):
         dc.SetFont(small)
         dc.SetTextForeground(COL_TEXT_DIM)
         meta = f"{ops.describe_length(anim)} · {ops.playback_label(anim.playback_type)}"
+        follow = self.project.get_animation(anim.next_animation_id) if anim.next_animation_id else None
+        if follow is not None:
+            meta += f" → {follow.name}"
         dc.DrawText(_fit(dc, meta, rect.width - (x - rect.x) - 6), x, rect.y + ROW_H - 19)
         if self.drop_index == n or (self.drop_index == len(self.view) and n == len(self.view) - 1):
             line_y = rect.y if self.drop_index == n else rect.y + rect.height - 2

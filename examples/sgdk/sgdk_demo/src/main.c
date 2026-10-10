@@ -247,6 +247,48 @@ static void demo_cycle_mapping(s16 delta)
     g_ui_dirty = TRUE;
 }
 
+/* Show the events of a step on the status line when the step starts. */
+static void demo_report_events(const MS_AnimPlayer *player)
+{
+    char msg[64];
+    char number[8];
+    u16 i;
+    u16 count;
+    u16 len;
+
+    if (!player->step_started)
+        return;
+    count = ms_anim_player_event_count(player);
+    if (count == 0)
+        return;
+    strcpy(msg, "Event:");
+    len = (u16)strlen(msg);
+    for (i = 0; i < count; i++)
+    {
+        const MS_StepEvent *event = ms_anim_player_event(player, i);
+        const char *name;
+        u16 n;
+
+        if (!event)
+            continue;
+        name = ms_event_name(event->type);
+        if ((u16)(len + 1 + 12 + 1 + 6 + 1) >= (u16)sizeof(msg))
+            break;
+        msg[len++] = ' ';
+        for (n = 0; name[n] && n < 12; n++)
+            msg[len++] = name[n];
+        if (event->value != 0)
+        {
+            msg[len++] = '=';
+            sprintf(number, "%d", (s16)event->value);
+            for (n = 0; number[n] && n < 6; n++)
+                msg[len++] = number[n];
+        }
+        msg[len] = '\0';
+    }
+    demo_set_status(msg);
+}
+
 static void demo_sync_players(void)
 {
     ms_set_mapping(g_mapping_index);
@@ -665,7 +707,17 @@ int main(void)
             if (MS_ANIMATION_COUNT > 0)
             {
                 if (!g_pause)
+                {
+                    u16 before = g_anim_player.animation_index;
                     ms_anim_player_tick(&g_anim_player);
+                    if (g_anim_player.animation_index != before)
+                    {
+                        /* The animation ended and its follow-up took over. */
+                        g_index_animation = g_anim_player.animation_index;
+                        demo_set_status("Continues with follow-up");
+                    }
+                    demo_report_events(&g_anim_player);
+                }
                 ms_draw_anim_player(&g_anim_player, SPRITE_DRAW_X, SPRITE_DRAW_Y);
             }
         }

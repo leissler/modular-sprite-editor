@@ -41,10 +41,12 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
    Animations and Timeline outlines the VDP sprites, marks scanlines over the sprite / pixel limit in red and shows
    sprites, tiles and the busiest line; the Animations inspector names the worst step. Still missing: other
    consoles, and tile dedupe / DMA-per-step numbers.
-2. **No animation events / markers.** Hit-active windows, sound cues, spawn points, cancel windows, footsteps are
-   per-step game data that today must be encoded in frame names or roles.
-3. **No loop ranges or chaining.** Retro animations often play an intro once and then loop a sub-range, or hand
-   over to another animation when done (`attack → idle`).
+2. **Animation events (done, format v3).** Steps carry events from a project-wide list (name, colour, export
+   number) with an optional value; they fire when the step starts and are active while it shows. The SGDK runtime
+   answers `ms_anim_player_has_event` / `_event_started` / `_event_value`.
+3. **Loop-from step and follow-up animation (done, format v3).** "Loop from" plays an intro once and then loops
+   the rest; an animation that ends (Play once, or after its repeat count) hands over to its "Then play"
+   animation — in the editor preview and in the SGDK runtime, which are tested to step identically.
 4. **Palette is invisible.** The SGDK exporter quantises to a master palette, but the editor never shows which
    palette/line a part uses, cannot preview palette swaps (Mega Drive: 4 lines × 16 colours) and has no palette
    cycling.
@@ -66,15 +68,18 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 - Next: SNES / GBA / NES profiles (different sprite shapes and limits), unique-tile counting with flip dedupe,
   tiles to stream (DMA) per animation step, and a per-project target (would be **format v3**, additive).
 
-### 2. Step events / markers (high value, low effort)
-- Data: `AFrame.events: List[str]` (free tags like `hit_on`, `sfx:slash`, `spawn:dust`) — additive, **format v3**.
-- UI: a small tag row under the frame strip; events shown as markers on strip cells; copy events with steps.
-- Export: SGDK blob gets an event table per step (string table indices); role tables gain an event column.
+### 2. Step events (done)
+- Data (format v3): `Project.event_types` (id, name, colour; order = export number), `AFrame.events`
+  (`type_id`, `value`). Typing a new name in the inspector creates the type; *Event types…* renames, recolours and
+  deletes. Events travel with copied / duplicated steps and show as coloured chips above the steps.
+- Export: blob v2 with a per-step event range and an event table; `MS_EVENT_<NAME>` defines in the generated
+  header. Not yet: events in the RetroAnimator export and in the role tables.
 
-### 3. Loop range and follow-up animation (high value, low effort)
-- Data: `Animation.loop_start: int = 0`, `Animation.next_animation_id: Optional[str]`.
-- Playback: play steps once, then loop `[loop_start, end]`; when a `forward` animation ends, continue with
-  `next_animation_id`. Preview in the editor and the SGDK player (`MS_PLAY_LOOP_FROM`, `next` index).
+### 3. Loop-from step and follow-up animation (done)
+- Data (format v3): `Animation.loop_start`, `Animation.next_animation_id`; scenes honour `loop_start` too.
+- Runtime: `MS_Animation.loop_start / next_animation / loop_count`; `ms_anim_player_tick` loops from
+  `loop_start`, counts passes and hands over to the follow-up. `tests/test_runtime_player.py` compiles the C player
+  and checks it against the editor preview tick by tick.
 
 ### 4. Timing tools (medium value, low effort)
 - Done in the redesign: duration-scaled cells, edge-drag holds, multi-select edits, step rotation, preview speed.
