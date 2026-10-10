@@ -8,7 +8,7 @@ Shows only what applies to the current selection:
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 import wx
 
@@ -154,6 +154,7 @@ class SceneInspector(wx.ScrolledWindow):
         self.frame = 0
         self.auto_key = True
         self.selected_key_count = 0
+        self.selected_key_ids: Set[str] = set()
         self._updating = False
         self._parent_ids: List[Optional[str]] = []
 
@@ -430,7 +431,7 @@ class SceneInspector(wx.ScrolledWindow):
     def _key_here(self) -> Optional[TimelineKeyframe]:
         if not self.obj or not self.scene:
             return None
-        return ops.key_at_frame(self.obj, self.frame, self.scene.fps)
+        return ops.key_at_frame(self.obj, self.frame, self.scene.fps, self.selected_key_ids)
 
     def show_context(
         self,
@@ -440,6 +441,7 @@ class SceneInspector(wx.ScrolledWindow):
         frame: int,
         auto_key: bool = True,
         selected_key_count: int = 0,
+        selected_key_ids: Optional[Iterable[str]] = None,
     ) -> None:
         self.project = project
         self.scene = scene
@@ -447,6 +449,7 @@ class SceneInspector(wx.ScrolledWindow):
         self.frame = frame
         self.auto_key = auto_key
         self.selected_key_count = selected_key_count
+        self.selected_key_ids = set(selected_key_ids or ())
         self._updating = True
         try:
             self.Freeze()
@@ -517,7 +520,16 @@ class SceneInspector(wx.ScrolledWindow):
         state = scene.evaluate_object_state(project, obj.id, ops.time_of(self.frame, fps)) or {}
         self.transform_panel.GetChildren()[0].SetLabel(f"TRANSFORM AT FRAME {self.frame}")
         self.key_button.SetValue(key is not None)
-        if key:
+        stack = ops.keys_at_frame(obj, self.frame, fps)
+        if key and len(stack) > 1:
+            # Old files can hold several keys on one frame: show the one that edits will change.
+            state = dict(state, x=key.x, y=key.y, rotation_degrees=key.rotation_degrees,
+                         flip_x=key.flip_x, flip_y=key.flip_y, visible=key.visible)
+            self.key_state.SetLabel(
+                f"{len(stack)} keys on this frame (this is #{stack.index(key) + 1}). "
+                "Click the key again for the next one; delete the one you don't need."
+            )
+        elif key:
             self.key_state.SetLabel("Key at this frame")
         elif self.auto_key:
             self.key_state.SetLabel("Between keys — edits add a key (Auto-Key)")

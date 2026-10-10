@@ -26,6 +26,7 @@ COL_OUTSIDE = wx.Colour(28, 28, 30)
 COL_PLAYHEAD = wx.Colour(255, 92, 92)
 COL_KEY = wx.Colour(196, 204, 220)
 COL_KEY_SELECTED = wx.Colour(255, 176, 64)
+COL_KEY_STACK = wx.Colour(255, 120, 90)
 COL_TWEEN = wx.Colour(88, 120, 186)
 COL_TWEEN_EASED = wx.Colour(132, 96, 186)
 COL_HOLD = wx.Colour(110, 110, 118)
@@ -92,6 +93,7 @@ class TimelineWidget(wx.Panel):
         self._press_frame = 0
         self._key_origins: Dict[Tuple[str, str], int] = {}
         self._keys_moved = False
+        self._stack_cycle: Optional[Tuple[str, str]] = None  # (object id, next key id) on a plain re-click
         self._marquee_base: Selection = {}
         self._marquee_rect: Optional[wx.Rect] = None
         self._drop_target: Optional[Tuple[str, Optional[str], Optional[str], int]] = None
@@ -247,14 +249,16 @@ class TimelineWidget(wx.Panel):
         if not (0 <= row < len(self.rows)) or pos.x < self.left_w or not self.scene:
             return None
         obj = self.rows[row][0]
-        best = None
-        best_d = max(6.0, min(10.0, self.frame_w / 2.0 + 2))
-        for key in obj.keyframes:
-            frame = ops.frame_of(key.time, self.scene.fps)
+        fps = self.scene.fps
+        best_frame, best_d = None, max(6.0, min(10.0, self.frame_w / 2.0 + 2))
+        for frame in ops.key_frames(obj, fps):
             d = abs(self.frame_center_x(frame) - pos.x)
             if d <= best_d:
-                best, best_d = (obj.id, key.id, frame), d
-        return best
+                best_frame, best_d = frame, d
+        if best_frame is None:
+            return None
+        key = ops.key_at_frame(obj, best_frame, fps, self.selection.get(obj.id))
+        return (obj.id, key.id, best_frame) if key else None
 
     def _segment_at(self, pos: wx.Point) -> Optional[Tuple[str, str]]:
         row = self.row_at(pos.y)
@@ -373,6 +377,11 @@ class TimelineWidget(wx.Panel):
             obj_id, key_id, frame = key
             additive = event.ShiftDown() or event.CmdDown()
             selected = key_id in self.selection.get(obj_id, set())
+            self._stack_cycle = None
+            stack_obj = self.scene.get_object(obj_id)
+            stack = [k.id for k in ops.keys_at_frame(stack_obj, frame, self.scene.fps)] if stack_obj else []
+            if selected and not additive and len(stack) > 1:
+                self._stack_cycle = (obj_id, stack[(stack.index(key_id) + 1) % len(stack)])
             if additive:
                 new_sel = {k: set(v) for k, v in self.selection.items()}
                 if selected:
@@ -462,6 +471,10 @@ class TimelineWidget(wx.Panel):
             return
         if mode == "keys" and self._keys_moved and self.on_move_keys_end:
             self.on_move_keys_end()
+        elif mode == "keys-pending" and self._stack_cycle and self.on_select_keys:
+            # Clicking a selected key that shares its frame with others picks the next one.
+            obj_id, next_id = self._stack_cycle
+            self.on_select_keys({obj_id: {next_id}}, False)
         elif mode == "marquee-pending":
             # A plain click on a track: select that layer, clear keys, move the playhead.
             if self.on_select_keys:
@@ -477,6 +490,7 @@ class TimelineWidget(wx.Panel):
         self._marquee_rect = None
         self._drop_target = None
         self._key_origins = {}
+        self._stack_cycle = None
         self.Refresh(False)
         self._update_cursor(pos)
 
@@ -827,8 +841,12 @@ class TimelineWidget(wx.Panel):
                     dc.SetTextForeground(wx.Colour(230, 230, 240))
                     dc.DrawText(label, int((x0 + x1 - tw) / 2), mid - th // 2)
 
-        # keys
+        # keys (selected last so they stay visible when keys share a frame)
+        stack_sizes: Dict[int, int] = {}
         for key in keys:
+            frame = ops.frame_of(key.time, fps)
+            stack_sizes[frame] = stack_sizes.get(frame, 0) + 1
+        for key in sorted(keys, key=lambda k: k.id in selected_keys):
             frame = ops.frame_of(key.time, fps)
             cx = self.frame_center_x(frame)
             selected = key.id in selected_keys
@@ -847,6 +865,11 @@ class TimelineWidget(wx.Panel):
                     wx.Point(int(cx), mid - r), wx.Point(int(cx + r), mid),
                     wx.Point(int(cx), mid + r), wx.Point(int(cx - r), mid),
                 ])
+        # Several keys on one frame (old files): flag them so they are not mistaken for one key.
+        dc.SetTextForeground(COL_KEY_STACK)
+        for frame, count in stack_sizes.items():
+            if count > 1:
+                dc.DrawText(f"×{count}", int(self.frame_center_x(frame) + 6), y)
 
 
 class TimelineView(wx.Panel):

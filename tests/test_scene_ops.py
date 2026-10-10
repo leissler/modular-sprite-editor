@@ -29,6 +29,20 @@ class TestTime(unittest.TestCase):
 
 
 class TestKeys(unittest.TestCase):
+    def test_keys_sharing_a_frame_resolve_to_the_selected_one(self):
+        # Files from the old editor can hold two keys at the same time.
+        project, scene = _scene(fps=60)
+        obj = ops.add_object(project, scene, "none", None, 0)
+        first = obj.keyframes[0]
+        second = ops.ensure_key(project, scene, obj, 10)
+        second.time = first.time
+        stack = ops.keys_at_frame(obj, 0, 60)
+        self.assertEqual([k.id for k in stack], [k.id for k in obj.sorted_keyframes()])
+        self.assertIs(ops.key_at_frame(obj, 0, 60), stack[0])
+        self.assertIs(ops.key_at_frame(obj, 0, 60, {stack[1].id}), stack[1])
+        self.assertIs(ops.key_at_frame(obj, 0, 60, {"elsewhere"}), stack[0])
+        self.assertIsNone(ops.key_at_frame(obj, 5, 60))
+
     def test_ensure_key_uses_interpolated_pose_and_keeps_segment_easing(self):
         project, scene = _scene()
         obj = ops.add_object(project, scene, "none", None, 0, (0, 0))

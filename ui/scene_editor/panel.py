@@ -402,7 +402,11 @@ class SceneEditorPanel(wx.Panel):
             )
             self.timeline_view.sync_scrollbars()
         if inspector:
-            self.inspector.show_context(self.project, scene, self.obj(), self.frame, self.auto_key, self._selected_key_count())
+            obj = self.obj()
+            self.inspector.show_context(
+                self.project, scene, obj, self.frame, self.auto_key, self._selected_key_count(),
+                self.selection.get(obj.id) if obj else None,
+            )
         self._update_transport()
 
     def _update_transport(self) -> None:
@@ -638,11 +642,17 @@ class SceneEditorPanel(wx.Panel):
             self.selection = {obj.id: {key.id}}
             self._commit()
 
+    def _key_here(self, obj: TimelineObject) -> Optional[TimelineKeyframe]:
+        scene = self.scene()
+        if not scene:
+            return None
+        return ops.key_at_frame(obj, self.frame, scene.fps, self.selection.get(obj.id))
+
     def toggle_key_at_playhead(self) -> None:
         scene, obj = self.scene(), self.obj()
         if not scene or not obj:
             return
-        key = ops.key_at_frame(obj, self.frame, scene.fps)
+        key = self._key_here(obj)
         if key:
             if len(obj.keyframes) == 1:
                 app_services.show_status("A layer needs at least one key")
@@ -678,7 +688,7 @@ class SceneEditorPanel(wx.Panel):
         """Auto-Key on (or a key at the playhead): edit that key. Off between keys: edit every key."""
         scene = self.scene()
         fps = scene.fps
-        key = ops.key_at_frame(obj, self.frame, fps)
+        key = self._key_here(obj)
         if key is None and self.auto_key:
             key = ops.ensure_key(self.project, scene, obj, self.frame)
         targets = [key] if key else list(obj.keyframes)
@@ -751,7 +761,7 @@ class SceneEditorPanel(wx.Panel):
         if self._drag["bases"] is None:
             if not (lx or ly):
                 return
-            key = ops.key_at_frame(obj, self.frame, scene.fps)
+            key = self._key_here(obj)
             if key is None and self.auto_key:
                 key = ops.ensure_key(self.project, scene, obj, self.frame)
             self._drag["bases"] = {k.id: (k.x, k.y) for k in ([key] if key else obj.keyframes)}
@@ -835,7 +845,7 @@ class SceneEditorPanel(wx.Panel):
 
     def _reset_handles(self) -> None:
         scene, obj = self.scene(), self.obj()
-        key = ops.key_at_frame(obj, self.frame, scene.fps) if scene and obj else None
+        key = self._key_here(obj) if scene and obj else None
         if key:
             key.path_in = None
             key.path_out = None
@@ -881,14 +891,14 @@ class SceneEditorPanel(wx.Panel):
                 for key_id in key_ids:
                     changed += bool(target and ops.set_segment_easing(target, key_id, easing))
         elif obj:
-            start = ops.key_at_frame(obj, self.frame, scene.fps) or ops.key_before_or_at(obj, self.frame, scene.fps)
+            start = self._key_here(obj) or ops.key_before_or_at(obj, self.frame, scene.fps)
             changed += bool(start and ops.set_segment_easing(obj, start.id, easing))
         if changed:
             self._commit()
 
     def _on_swap_field(self, field: str, value: Any) -> None:
         scene, obj = self.scene(), self.obj()
-        key = ops.key_at_frame(obj, self.frame, scene.fps) if scene and obj else None
+        key = self._key_here(obj) if scene and obj else None
         if not key:
             return
         if field == "source":

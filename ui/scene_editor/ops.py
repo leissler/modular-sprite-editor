@@ -55,8 +55,23 @@ def set_scene_fps(scene: TimelineScene, fps: int) -> None:
 
 
 # --------------------------------------------------------------------------- keys
-def key_at_frame(obj: TimelineObject, frame: int, fps: int) -> Optional[TimelineKeyframe]:
-    return next((k for k in obj.keyframes if frame_of(k.time, fps) == frame), None)
+def keys_at_frame(obj: TimelineObject, frame: int, fps: int) -> List[TimelineKeyframe]:
+    """Keys that land on one frame, in evaluation order. More than one only happens with files from the
+    old editor, whose free snapping could put keys at the same (or a sub-frame) time."""
+    return [k for k in obj.sorted_keyframes() if frame_of(k.time, fps) == frame]
+
+
+def key_at_frame(
+    obj: TimelineObject, frame: int, fps: int, prefer: Optional[Iterable[str]] = None
+) -> Optional[TimelineKeyframe]:
+    """The key on this frame; when several share it, the preferred (selected) one, else the first."""
+    stack = keys_at_frame(obj, frame, fps)
+    if prefer:
+        preferred = set(prefer)
+        chosen = next((k for k in stack if k.id in preferred), None)
+        if chosen:
+            return chosen
+    return stack[0] if stack else None
 
 
 def key_frames(obj: TimelineObject, fps: int) -> List[int]:

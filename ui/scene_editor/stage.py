@@ -295,7 +295,10 @@ class StageCanvas(FrameCanvas):
                 for px, py in points:
                     gc.DrawEllipse(px - 1.5, py - 1.5, 3, 3)
 
-        for index, key in enumerate(keys):
+        # Selected keys last, so a key sitting on top of another one cannot hide the highlight.
+        order = sorted(range(len(keys)), key=lambda i: keys[i].id in self.selected_key_ids)
+        for index in order:
+            key = keys[index]
             frame = ops.frame_of(key.time, fps)
             parent = parent_at(frame)
             sx, sy = self.world_to_screen(ops.apply(parent, float(key.x), float(key.y)))
