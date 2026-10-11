@@ -144,4 +144,5 @@ Not stored in the file: the active (preview) mapping, view state, grid size, zoo
 - **Import:** AuroraGT `.sprite` text (`AuroraSpriteParser`), RetroAnimator JSON (`RetroAnimatorParser`,
   `ProjectType: "RetroAnimator"`).
 - **Export:** RetroAnimator JSON with baked part PNGs (`RetroAnimatorExporter`, bakes the active mapping);
-  SGDK resources + binary blob (`examples/sgdk/tools/export_sgdk_example.py`); animated GIF (Animations tab).
+  SGDK binary blob with tiles, palette, frames, animations, scenes, hitboxes and points
+  (`examples/sgdk/tools/export_sgdk_example.py`); animated GIF (Animations tab).

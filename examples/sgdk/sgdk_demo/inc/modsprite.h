@@ -34,13 +34,23 @@ typedef struct
 {
     u16 render_calls;
     u16 parts_submitted;
-    u16 hw_sprites_estimated;
-    u16 add_failures;
+    u16 hw_sprites;       /* hardware sprites used this frame */
+    u16 sprites_dropped;  /* pieces that did not fit into the sprite table */
 } MS_FrameProfile;
 
+/* All tiles stay in VRAM: ms_init() loads them once at TILE_USER_INDEX with the palette in PAL1;
+   ms_init_ex() picks the place (e.g. after a game's background tiles). Drawing then only writes
+   the sprite table, which ms_end_frame() queues for DMA (SYS_doVBlankProcess() sends it). */
 void ms_init(void);
+void ms_init_ex(u16 tile_index, u16 palette);
+u8 ms_tiles_fit(void);          /* FALSE when the tiles did not fit below the font in VRAM */
+u16 ms_tile_base(void);
+u16 ms_tiles_used(void);
+void ms_set_sprite_limit(u16 limit);  /* 80 in H40 (default), 64 in H32 */
 void ms_begin_frame(void);
 void ms_end_frame(void);
+/* Add a sprite of your own to this frame's list (drawn above what is added later). */
+u8 ms_add_hw_sprite(s16 x, s16 y, u8 size, u16 attribute);
 
 void ms_set_mapping(u16 mapping_index);
 u16 ms_get_mapping(void);
@@ -61,6 +71,19 @@ s16 ms_anim_player_event_value(const MS_AnimPlayer *player, u16 event_type, s16 
 u16 ms_anim_player_event_count(const MS_AnimPlayer *player);
 const MS_StepEvent *ms_anim_player_event(const MS_AnimPlayer *player, u16 index);
 const char *ms_event_name(u16 event_type);
+
+/* Hitboxes and points (relative to the position the frame is drawn at). The count is returned and
+   *out points at the first one. The animation player's are those of the step being shown. */
+u16 ms_frame_hitboxes(u16 frame_index, const MS_Hitbox **out);
+u16 ms_frame_points(u16 frame_index, const MS_Point **out);
+u16 ms_anim_player_hitboxes(const MS_AnimPlayer *player, const MS_Hitbox **out);
+u16 ms_anim_player_points(const MS_AnimPlayer *player, const MS_Point **out);
+/* First one of a type (MS_HITBOX_* / MS_POINT_*) and role (MS_ROLE_*, MS_NO_ROLE = any role), or NULL. */
+const MS_Hitbox *ms_find_hitbox(const MS_Hitbox *boxes, u16 count, u16 type, u16 role);
+const MS_Point *ms_find_point(const MS_Point *points, u16 count, u16 type, u16 role);
+const char *ms_hitbox_type_name(u16 type);
+const char *ms_point_type_name(u16 type);
+const char *ms_role_name(u16 role);
 
 void ms_scene_player_init(MS_ScenePlayer *player, u16 scene_index);
 void ms_scene_player_tick(MS_ScenePlayer *player);

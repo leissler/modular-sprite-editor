@@ -14,7 +14,8 @@ enum
 #define UI_TEXT_COL 1
 #define UI_TEXT_WIDTH 39
 #define UI_TEXT_LINES 14
-#define PROFILE_UI_PERIOD 4
+#define PROFILE_UI_PERIOD 30   /* refresh the numbers twice a second */
+#define UI_LINES_PER_FRAME 1   /* text lines redrawn per frame: drawing many in one frame drops it */
 #define SPRITE_DRAW_X 160
 #define SPRITE_DRAW_Y 168
 #define HUD_TOGGLE_BUTTONS (BUTTON_MODE | BUTTON_Z)
@@ -27,34 +28,39 @@ static u16 g_index_frame = 0;
 static u16 g_index_animation = 0;
 static u16 g_index_scene = 0;
 static u16 g_prev_pad = 0;
+/* START is also a modifier: it cycles the mapping on release, unless another button was pressed while held. */
+static u8 g_start_chord = FALSE;
 static u8 g_pause = FALSE;
 static u8 g_minimal_hud = FALSE;
 static u8 g_id_edit_mode = FALSE;
 static u16 g_id_cursor = 0;
 static char g_id_edit[ID_EDIT_MAX + 1];
 static char g_status_line[40];
-static char g_ui_cache[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];
-static u8 g_ui_cache_valid = FALSE;
+static char g_ui_cache[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];   /* what is on screen */
+static char g_ui_target[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];  /* what should be */
+static u8 g_ui_pending = FALSE;  /* the targets changed and the screen does not show all of them yet */
 static u8 g_ui_dirty = TRUE;
 static u16 g_profile_ui_counter = 0;
 
 static MS_FrameProfile g_frame_profile;
 static MS_FrameProfile g_disp_frame_profile;
-static u32 g_render_subticks = 0;
-static u32 g_render_us = 0;
-static u32 g_update_subticks = 0;
-static u32 g_update_us = 0;
+static u16 g_render_lines = 0;
+static u16 g_update_lines = 0;
 static u32 g_fps = 0;
 static u16 g_cpu_load = 0;
-static u32 g_disp_render_subticks = 0;
 static u32 g_disp_render_us = 0;
-static u32 g_disp_update_subticks = 0;
 static u32 g_disp_update_us = 0;
 static u32 g_disp_fps = 0;
 static u16 g_disp_cpu_load = 0;
 
 static MS_AnimPlayer g_anim_player;
 static MS_ScenePlayer g_scene_player;
+
+/* Hitbox / point overlay (START+A): corner marks for boxes (PAL2) and a cross for points (PAL3). */
+static u8 g_show_markers = FALSE;
+static u16 g_marker_tile = 0;
+static u16 g_shown_boxes = 0;
+static u16 g_shown_points = 0;
 
 static const char *const g_unit_names[] = {
     "Module",
@@ -158,33 +164,50 @@ static void demo_ui_format_padded(char *dst, const char *src)
     dst[UI_TEXT_WIDTH] = '\0';
 }
 
-static void demo_ui_draw_line(u16 row, const char *src)
-{
-    char padded[UI_TEXT_WIDTH + 1];
-
-    if (row >= UI_TEXT_LINES)
-        return;
-
-    demo_ui_format_padded(padded, src);
-    if (!g_ui_cache_valid || strcmp(g_ui_cache[row], padded) != 0)
-    {
-        VDP_drawText(padded, UI_TEXT_COL, row);
-        strcpy(g_ui_cache[row], padded);
-    }
-}
-
 static void demo_ui_present(char lines[UI_TEXT_LINES][UI_TEXT_WIDTH + 1])
 {
     u16 row;
 
     for (row = 0; row < UI_TEXT_LINES; row++)
-        demo_ui_draw_line(row, lines[row]);
-    g_ui_cache_valid = TRUE;
+        demo_ui_format_padded(g_ui_target[row], lines[row]);
+    g_ui_pending = TRUE;
 }
 
-static u32 demo_subticks_to_us(u32 subticks)
+/* Draw a few changed lines per frame (the cache starts empty, so every line is drawn once); nothing to
+   compare once the screen shows all targets. */
+static void demo_ui_flush(u16 max_lines)
 {
-    return (u32)(((subticks * 625u) + 24u) / 48u);
+    u16 row;
+
+    if (!g_ui_pending)
+        return;
+    for (row = 0; row < UI_TEXT_LINES; row++)
+    {
+        if (strcmp(g_ui_cache[row], g_ui_target[row]) != 0)
+        {
+            if (max_lines == 0)
+                return;
+            VDP_drawText(g_ui_target[row], UI_TEXT_COL, row);
+            strcpy(g_ui_cache[row], g_ui_target[row]);
+            max_lines--;
+        }
+    }
+    g_ui_pending = FALSE;
+}
+
+/* Timing in scanlines from the VDP's V counter (getSubTick() only advances per scanline and jumps around vblank).
+   The 8-bit counter wraps from 255 to 0, so spans shorter than a frame come out right modulo 256. */
+static u16 demo_lines_since(u16 start)
+{
+    return (u16)((GET_VCOUNTER - start) & 0xFF);
+}
+
+static u32 demo_lines_to_us(u16 lines)
+{
+    /* One scanline is 64 us on PAL and 63.56 us on NTSC. */
+    if (IS_PAL_SYSTEM)
+        return (u32)lines * 64u;
+    return ((u32)lines * 6356u + 50u) / 100u;
 }
 
 static void demo_apply_bg_color(void)
@@ -214,11 +237,6 @@ static u16 demo_mapping_count(void)
     if (MS_MAPPING_COUNT == 0)
         return 1;
     return (u16)MS_MAPPING_COUNT;
-}
-
-static const char *demo_mapping_id(u16 mapping_index)
-{
-    return ms_mapping_id(mapping_index);
 }
 
 static const char *demo_mapping_name(u16 mapping_index)
@@ -426,114 +444,179 @@ static void demo_apply_id_jump(void)
     demo_set_status(msg);
 }
 
+/* Five 8×8 marks in colour 1: box corners (top-left, top-right, bottom-left, bottom-right), point cross. */
+static void demo_init_markers(void)
+{
+    u32 tiles[5 * 8];
+    u16 t, row, col;
+
+    for (t = 0; t < 5; t++)
+    {
+        for (row = 0; row < 8; row++)
+        {
+            u32 line = 0;
+            for (col = 0; col < 8; col++)
+            {
+                u8 on;
+                if (t == 0) on = (row == 0 || col == 0);
+                else if (t == 1) on = (row == 0 || col == 7);
+                else if (t == 2) on = (row == 7 || col == 0);
+                else if (t == 3) on = (row == 7 || col == 7);
+                else on = ((row == 3 && col <= 6) || (col == 3 && row <= 6));
+                if (on)
+                    line |= 1ul << ((7 - col) * 4);
+            }
+            tiles[t * 8 + row] = line;
+        }
+    }
+    g_marker_tile = ms_tile_base() + ms_tiles_used();
+    VDP_loadTileData(tiles, g_marker_tile, 5, DMA);
+    PAL_setColor(PAL2 * 16 + 1, RGB24_TO_VDPCOLOR(0xFF4040));
+    PAL_setColor(PAL3 * 16 + 1, RGB24_TO_VDPCOLOR(0x40FF60));
+}
+
+/* Marks go into the sprite list before the character, so they show on top of it. */
+static void demo_draw_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Point *points, u16 point_count, s16 ox, s16 oy)
+{
+    u16 i;
+
+    g_shown_boxes = box_count;
+    g_shown_points = point_count;
+    if (!g_show_markers)
+        return;
+    for (i = 0; i < point_count; i++)
+        ms_add_hw_sprite(ox + points[i].x - 3, oy + points[i].y - 3, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL3, TRUE, FALSE, FALSE, g_marker_tile + 4));
+    for (i = 0; i < box_count; i++)
+    {
+        s16 x0 = ox + boxes[i].x;
+        s16 y0 = oy + boxes[i].y;
+        s16 x1 = x0 + boxes[i].w - 8;
+        s16 y1 = y0 + boxes[i].h - 8;
+        ms_add_hw_sprite(x0, y0, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 0));
+        ms_add_hw_sprite(x1, y0, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 1));
+        ms_add_hw_sprite(x0, y1, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 2));
+        ms_add_hw_sprite(x1, y1, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 3));
+    }
+}
+
+/* Small text writers: sprintf with 32-bit numbers divides in software on the 68000 and made one HUD
+   refresh take most of a frame; 16-bit division is a single instruction. */
+static char *put_str(char *dst, const char *src)
+{
+    while (src && *src)
+        *dst++ = *src++;
+    *dst = '\0';
+    return dst;
+}
+
+static char *put_u16(char *dst, u16 value)
+{
+    char digits[5];
+    u16 n = 0;
+
+    do
+    {
+        digits[n++] = (char)('0' + (value % 10));
+        value /= 10;
+    } while (value);
+    while (n)
+        *dst++ = digits[--n];
+    *dst = '\0';
+    return dst;
+}
+
+static u16 clamp_u16(u32 value)
+{
+    return value > 0xFFFFu ? 0xFFFFu : (u16)value;
+}
+
 static void draw_ui(void)
 {
     char lines[UI_TEXT_LINES][UI_TEXT_WIDTH + 1];
-    char line[40];
-    char line2[40];
-    const char *id;
-    const char *name;
-    const char *mapping_id;
-    const char *mapping_name;
+    char *p;
+    const MS_FrameProfile *prof = &g_disp_frame_profile;
     u16 count;
     u16 index;
-    u16 mapping_count;
-    u16 i;
     u16 row;
 
     if (!g_ui_dirty)
         return;
 
-    count = demo_unit_count(g_unit);
-    index = *demo_unit_index_ptr(g_unit);
-    id = demo_unit_id(g_unit, index);
-    name = demo_unit_name(g_unit, index);
-    mapping_count = demo_mapping_count();
-    mapping_id = demo_mapping_id(g_mapping_index);
-    mapping_name = demo_mapping_name(g_mapping_index);
-
     for (row = 0; row < UI_TEXT_LINES; row++)
         lines[row][0] = '\0';
 
+    p = put_str(lines[0], "FPS:");
+    p = put_u16(p, clamp_u16(g_disp_fps));
+    p = put_str(p, " CPU:");
+    p = put_u16(p, g_disp_cpu_load);
+    p = put_str(p, "% Draw:");
+    p = put_u16(p, clamp_u16(g_disp_render_us));
+    p = put_str(p, "us Upload:");
+    p = put_u16(p, clamp_u16(g_disp_update_us));
+    put_str(p, "us");
     if (g_minimal_hud)
     {
-        sprintf(line, "FPS:%lu CPU:%u%%", g_disp_fps, g_disp_cpu_load);
-        strcpy(lines[0], line);
-        sprintf(line, "Draw:%luus End:%luus", g_disp_render_us, g_disp_update_us);
-        strcpy(lines[1], line);
         demo_ui_present(lines);
         g_ui_dirty = FALSE;
         return;
     }
 
-    strcpy(lines[0], "Modular Sprite SGDK Selector");
+    count = demo_unit_count(g_unit);
+    index = *demo_unit_index_ptr(g_unit);
 
     if (!g_id_edit_mode)
     {
-        sprintf(line, "Unit:%s  Index:%u/%u", g_unit_names[g_unit], (u16)(index + 1), count);
-        strcpy(lines[1], line);
-        sprintf(line, "Map:%u/%u  ID:%s", (u16)(g_mapping_index + 1), mapping_count, mapping_id ? mapping_id : "");
-        strcpy(lines[2], line);
-        sprintf(line2, "MapName: %s", mapping_name ? mapping_name : "");
-        strcpy(lines[3], line2);
-        sprintf(line, "ID: %s", id ? id : "");
-        strcpy(lines[4], line);
-        sprintf(line2, "Name: %s", name ? name : "");
-        strcpy(lines[5], line2);
+        p = put_str(lines[1], g_unit_names[g_unit]);
+        p = put_str(p, " ");
+        p = put_u16(p, (u16)(index + 1));
+        p = put_str(p, "/");
+        put_u16(p, count);
+        p = put_str(lines[2], "Name: ");
+        put_str(p, demo_unit_name(g_unit, index));
+        p = put_str(lines[3], "ID: ");
+        put_str(p, demo_unit_id(g_unit, index));
+        p = put_str(lines[4], "Mapping ");
+        p = put_u16(p, (u16)(g_mapping_index + 1));
+        p = put_str(p, "/");
+        p = put_u16(p, demo_mapping_count());
+        p = put_str(p, ": ");
+        put_str(p, demo_mapping_name(g_mapping_index));
 
-        sprintf(line, "CPU:%u%% FPS:%lu Draw:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
-        strcpy(lines[6], line);
-        sprintf(
-            line2,
-            "Calls:%u Parts:%u HW:%u Fail:%u",
-            g_disp_frame_profile.render_calls,
-            g_disp_frame_profile.parts_submitted,
-            g_disp_frame_profile.hw_sprites_estimated,
-            g_disp_frame_profile.add_failures
-        );
-        strcpy(lines[7], line2);
-        sprintf(line, "FrameEnd:%lust/%luus", g_disp_update_subticks, g_disp_update_us);
-        strcpy(lines[8], line);
+        p = put_str(lines[6], "Parts:");
+        p = put_u16(p, prof->parts_submitted);
+        p = put_str(p, " Sprites:");
+        p = put_u16(p, prof->hw_sprites);
+        p = put_str(p, " Dropped:");
+        put_u16(p, prof->sprites_dropped);
+        p = put_str(lines[7], "Boxes:");
+        p = put_u16(p, g_shown_boxes);
+        p = put_str(p, " Points:");
+        p = put_u16(p, g_shown_points);
+        p = put_str(p, " Tiles:");
+        put_u16(p, ms_tiles_used());
 
-        strcpy(lines[9], "UP/DOWN unit  LEFT/RIGHT +/-1");
-        strcpy(lines[10], "X/Y +/-10     A pause   B reset");
-        strcpy(lines[11], "START map  START+UP/DN bg  C jump");
-        strcpy(lines[12], "MODE/Z or START+C minimal HUD");
+        put_str(lines[9], "UP/DOWN unit  LEFT/RIGHT +/-1");
+        put_str(lines[10], "X/Y +/-10     A pause   B reset");
+        put_str(lines[11], "START map  START+UP/DN bg  C jump");
+        put_str(lines[12], g_show_markers ? "START+A boxes ON  MODE/Z minimal HUD" : "START+A boxes  MODE/Z minimal HUD");
     }
     else
     {
-        strcpy(lines[1], "ID Jump Editor");
-        sprintf(line, "Target Unit: %s", g_unit_names[g_unit]);
-        strcpy(lines[2], line);
-        sprintf(line, "ID: %s", g_id_edit);
-        strcpy(lines[3], line);
-
-        for (i = 0; i < 39; i++)
-            line[i] = ' ';
-        line[39] = '\0';
+        put_str(lines[1], "ID Jump Editor");
+        p = put_str(lines[2], "Target Unit: ");
+        put_str(p, g_unit_names[g_unit]);
+        p = put_str(lines[3], "ID: ");
+        put_str(p, g_id_edit);
+        for (row = 0; row < 39; row++)
+            lines[4][row] = ' ';
+        lines[4][39] = '\0';
         if ((g_id_cursor + 4) < 39)
-            line[g_id_cursor + 4] = '^';
-        strcpy(lines[4], line);
-
-        sprintf(line, "CPU:%u%% FPS:%lu Draw:%lust/%luus", g_disp_cpu_load, g_disp_fps, g_disp_render_subticks, g_disp_render_us);
-        strcpy(lines[5], line);
-        sprintf(
-            line2,
-            "Calls:%u Parts:%u HW:%u Fail:%u",
-            g_disp_frame_profile.render_calls,
-            g_disp_frame_profile.parts_submitted,
-            g_disp_frame_profile.hw_sprites_estimated,
-            g_disp_frame_profile.add_failures
-        );
-        strcpy(lines[6], line2);
-        sprintf(line, "FrameEnd:%lust/%luus", g_disp_update_subticks, g_disp_update_us);
-        strcpy(lines[7], line);
-
-        strcpy(lines[9], "UP/DOWN char  LEFT/RIGHT cursor");
-        strcpy(lines[10], "A apply  B cancel  X clear  Y bksp");
+            lines[4][g_id_cursor + 4] = '^';
+        put_str(lines[9], "UP/DOWN char  LEFT/RIGHT cursor");
+        put_str(lines[10], "A apply  B cancel  X clear  Y bksp");
     }
 
-    strcpy(lines[13], g_status_line);
+    put_str(lines[13], g_status_line);
     demo_ui_present(lines);
     g_ui_dirty = FALSE;
 }
@@ -542,6 +625,7 @@ int main(void)
 {
     u16 pad;
     u16 press;
+    u16 release;
 
     VDP_setScreenWidth320();
     demo_apply_bg_color();
@@ -549,9 +633,12 @@ int main(void)
     JOY_setSupport(PORT_1, JOY_SUPPORT_6BTN);
     JOY_setSupport(PORT_2, JOY_SUPPORT_OFF);
     ms_init();
+    demo_init_markers();
     demo_sync_players();
     if (!ms_data_is_ready())
         demo_set_status("Error: blob load failed");
+    else if (!ms_tiles_fit())
+        demo_set_status("Error: tiles do not fit in VRAM");
     else
         demo_set_status("Ready with mapping <none>");
 
@@ -562,8 +649,13 @@ int main(void)
         JOY_update();
         pad = JOY_readJoypad(JOY_1);
         press = pad & ~g_prev_pad;
+        release = g_prev_pad & ~pad;
         g_prev_pad = pad;
         toggle_hud = demo_is_hud_toggle_pressed(pad, press);
+        if (press & BUTTON_START)
+            g_start_chord = FALSE;
+        if ((pad & BUTTON_START) && (press & ~BUTTON_START))
+            g_start_chord = TRUE;
 
         if (!g_id_edit_mode)
         {
@@ -607,19 +699,22 @@ int main(void)
                 demo_change_index(-10);
             if (press & BUTTON_Y)
                 demo_change_index(10);
-            if ((press & BUTTON_START) && !toggle_hud)
+            if ((release & BUTTON_START) && !g_start_chord)
             {
                 char msg[40];
-                if (!(press & BUTTON_UP) && !(press & BUTTON_DOWN))
-                {
-                    demo_cycle_mapping(1);
-                    demo_sync_players();
-                    sprintf(msg, "Mapping: %s", demo_mapping_name(g_mapping_index));
-                    demo_set_status(msg);
-                }
+                demo_cycle_mapping(1);
+                demo_sync_players();
+                sprintf(msg, "Mapping: %s", demo_mapping_name(g_mapping_index));
+                demo_set_status(msg);
             }
 
-            if (press & BUTTON_A)
+            if ((press & BUTTON_A) && (pad & BUTTON_START))
+            {
+                g_show_markers = !g_show_markers;
+                g_ui_dirty = TRUE;
+                demo_set_status(g_show_markers ? "Hitboxes and points shown" : "Hitboxes and points hidden");
+            }
+            else if (press & BUTTON_A)
             {
                 g_pause = !g_pause;
                 demo_set_status(g_pause ? "Paused" : "Playing");
@@ -691,7 +786,7 @@ int main(void)
 
         ms_begin_frame();
 
-        g_render_subticks = getSubTick();
+        g_render_lines = GET_VCOUNTER;
         if (g_unit == DEMO_UNIT_MODULE)
         {
             if (MS_MODULE_COUNT > 0)
@@ -700,7 +795,14 @@ int main(void)
         else if (g_unit == DEMO_UNIT_FRAME)
         {
             if (MS_FRAME_COUNT > 0)
+            {
+                const MS_Hitbox *boxes;
+                const MS_Point *points;
+                u16 nb = ms_frame_hitboxes(g_index_frame, &boxes);
+                u16 np = ms_frame_points(g_index_frame, &points);
+                demo_draw_markers(boxes, nb, points, np, SPRITE_DRAW_X, SPRITE_DRAW_Y);
                 ms_draw_frame(g_index_frame, SPRITE_DRAW_X, SPRITE_DRAW_Y);
+            }
         }
         else if (g_unit == DEMO_UNIT_ANIMATION)
         {
@@ -718,6 +820,13 @@ int main(void)
                     }
                     demo_report_events(&g_anim_player);
                 }
+                {
+                    const MS_Hitbox *boxes;
+                    const MS_Point *points;
+                    u16 nb = ms_anim_player_hitboxes(&g_anim_player, &boxes);
+                    u16 np = ms_anim_player_points(&g_anim_player, &points);
+                    demo_draw_markers(boxes, nb, points, np, SPRITE_DRAW_X, SPRITE_DRAW_Y);
+                }
                 ms_draw_anim_player(&g_anim_player, SPRITE_DRAW_X, SPRITE_DRAW_Y);
             }
         }
@@ -730,27 +839,24 @@ int main(void)
                 ms_draw_scene_player(&g_scene_player, SPRITE_DRAW_X, SPRITE_DRAW_Y);
             }
         }
-        g_render_subticks = getSubTick() - g_render_subticks;
-        g_render_us = demo_subticks_to_us(g_render_subticks);
+        g_render_lines = demo_lines_since(g_render_lines);
         ms_get_frame_profile(&g_frame_profile);
         g_fps = SYS_getFPS();
         g_cpu_load = SYS_getCPULoad();
         draw_ui();
-        g_update_subticks = getSubTick();
+        demo_ui_flush(UI_LINES_PER_FRAME);
+        g_update_lines = GET_VCOUNTER;
         ms_end_frame();
+        g_update_lines = demo_lines_since(g_update_lines);
         SYS_doVBlankProcess();
-        g_update_subticks = getSubTick() - g_update_subticks;
-        g_update_us = demo_subticks_to_us(g_update_subticks);
         g_profile_ui_counter++;
         if (g_profile_ui_counter >= PROFILE_UI_PERIOD)
         {
             g_profile_ui_counter = 0;
             g_disp_fps = g_fps;
             g_disp_cpu_load = g_cpu_load;
-            g_disp_render_subticks = g_render_subticks;
-            g_disp_render_us = g_render_us;
-            g_disp_update_subticks = g_update_subticks;
-            g_disp_update_us = g_update_us;
+            g_disp_render_us = demo_lines_to_us(g_render_lines);
+            g_disp_update_us = demo_lines_to_us(g_update_lines);
             g_disp_frame_profile = g_frame_profile;
             g_ui_dirty = TRUE;
         }

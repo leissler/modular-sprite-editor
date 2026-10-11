@@ -31,8 +31,9 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 **Runtime / export**
 - SGDK: modules, frames, animations (`frame_index + duration_ticks` steps) and scenes (pre-sampled per tick) in a
-  binary blob; flips become hardware H/V flags, other transforms are baked; per-mapping data sets; runtime HUD
-  estimates hardware sprites per frame.
+  binary blob; flips become hardware H/V flags, other transforms are baked; per-mapping data sets; hitboxes and
+  points per frame and step. The runtime keeps all tiles in VRAM and only writes the sprite table each frame
+  (about 7 % of a frame per character, measured in BlastEm); the demo HUD shows hardware sprites per frame.
 - RetroAnimator JSON with baked part images (active mapping baked).
 
 ## Gaps that matter for retro work

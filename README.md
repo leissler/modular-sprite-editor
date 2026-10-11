@@ -15,7 +15,7 @@ Construct complex character animations from individual body parts (modules). Def
 - The **Modules / Frames / Animations / Mappings** workflow is actively used and is the most complete part of the tool.
 - The **Timeline** (scene editor) was redesigned on the `timeline-redesign` branch and is still young: the file format is unchanged, but the UX may still evolve.
 - SGDK export and demo content lives in [`examples/sgdk`](examples/sgdk/README.md), including a blob-based runtime data path for Mega Drive tests.
-- Project files carry a `format_version` (currently 2); older files are upgraded on load. See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
+- Project files carry a `format_version` (currently 3); older files are upgraded on load. See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 
 ---
 

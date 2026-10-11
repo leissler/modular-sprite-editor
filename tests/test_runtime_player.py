@@ -46,27 +46,37 @@ typedef uint8_t u8; typedef int8_t s8; typedef uint16_t u16; typedef int16_t s16
 typedef uint32_t u32; typedef int32_t s32; typedef u8 bool;
 #define TRUE 1
 #define FALSE 0
+#define PAL0 0
 #define PAL1 1
+#define PAL2 2
+#define PAL3 3
 #define DMA 1
-#define HIDDEN 0
-#define VISIBLE 1
-#define SPR_FLAG_AUTO_VRAM_ALLOC 1
-#define SPR_FLAG_AUTO_TILE_UPLOAD 2
-#define TILE_ATTR(pal, prio, flipV, flipH) ((u16)(pal))
-typedef struct { const u16 *data; } Palette;
-typedef struct { u16 maxNumTile; u16 maxNumSprite; const Palette *palette; } SpriteDefinition;
-typedef struct { const SpriteDefinition *definition; } Sprite;
-void SPR_init(void);
-Sprite *SPR_addSpriteExSafe(const SpriteDefinition *def, s16 x, s16 y, u16 attr, u16 flags);
-void SPR_releaseSprite(Sprite *sprite);
-bool SPR_setDefinition(Sprite *sprite, const SpriteDefinition *def);
-void SPR_setHFlip(Sprite *sprite, bool value);
-void SPR_setVFlip(Sprite *sprite, bool value);
-void SPR_setPosition(Sprite *sprite, s16 x, s16 y);
-void SPR_setVisibility(Sprite *sprite, u16 value);
-void SPR_update(void);
-void PAL_setPalette(u16 index, const u16 *data, u16 mode);
+#define DMA_QUEUE 2
+#define TILE_USER_INDEX 16
+#define TILE_FONT_INDEX 1440
+#define TILE_ATTR_FULL(pal, prio, flipV, flipH, index) \
+    ((u16)(((flipH) << 11) + ((flipV) << 12) + ((pal) << 13) + ((prio) << 15) + (index)))
+#define SPRITE_SIZE(w, h) ((((w) - 1) << 2) | ((h) - 1))
+typedef struct { s16 y; u8 size; u8 link; u16 attribut; s16 x; } VDPSprite;
+extern VDPSprite vdpSpriteCache[80];
+void VDP_updateSprites(u16 num, u16 tm);
+void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm);
+void PAL_setPalette(u16 num, const u16 *pal, u16 tm);
+u16 VDP_getScreenWidth(void);
+u16 VDP_getScreenHeight(void);
 #endif
+"""
+
+# The SGDK functions the runtime calls, for host builds (sprite table in RAM, VRAM loads ignored).
+GENESIS_STUB_IMPL = r"""
+#include "genesis.h"
+VDPSprite vdpSpriteCache[80];
+u16 g_stub_sprites_sent = 0;
+void VDP_updateSprites(u16 num, u16 tm) { g_stub_sprites_sent = num; }
+void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm) {}
+void PAL_setPalette(u16 num, const u16 *pal, u16 tm) {}
+u16 VDP_getScreenWidth(void) { return 320; }
+u16 VDP_getScreenHeight(void) { return 224; }
 """
 
 
@@ -97,14 +107,15 @@ static const MS_Animation g_records[] = {{
 static const MS_StepEvent g_events[] = {{
 {event_rows}
 }};
-static Sprite g_sprite;
-
 u16 ms_variant_count = 0; u32 ms_part_count = 0; u16 ms_render_frame_count = 0;
 u16 ms_module_count = 0; u16 ms_frame_count = 0; u16 ms_animation_count = {len(anims)};
 u16 ms_scene_count = 0; u16 ms_mapping_count = 1; u16 ms_anim_step_count = {len(steps)};
 u16 ms_scene_sample_count = 0; u16 ms_animation_record_count = {len(anims)}; u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 2; u16 ms_step_event_count = {max(1, len(events))};
-const SpriteDefinition *const ms_variant_defs[] = {{ NULL }};
+u16 ms_tile_count = 0; u16 ms_piece_count = 0; u16 ms_hitbox_count = 0; u16 ms_point_count = 0;
+u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
+const MS_Variant *ms_variants = NULL; const MS_Piece *ms_pieces = NULL; const u32 *ms_tiles = NULL;
+const u16 *ms_palette = NULL; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL; const MS_RenderFrame *ms_render_frames = NULL;
 const u16 *ms_module_render_frames = NULL; const u16 *ms_frame_render_frames = NULL;
 const MS_AnimStep *ms_anim_steps = g_steps; const MS_Animation *ms_animations = g_records;
@@ -117,12 +128,8 @@ const char *ms_frame_id(u16 i) {{ return ""; }} const char *ms_frame_name_data(u
 const char *ms_animation_id(u16 i) {{ return ""; }} const char *ms_animation_name_data(u16 i) {{ return ""; }}
 const char *ms_scene_id(u16 i) {{ return ""; }} const char *ms_scene_name_data(u16 i) {{ return ""; }}
 const char *ms_event_name_data(u16 i) {{ return i == 0 ? "a" : "b"; }}
-void SPR_init(void) {{}}
-Sprite *SPR_addSpriteExSafe(const SpriteDefinition *d, s16 x, s16 y, u16 a, u16 f) {{ return &g_sprite; }}
-void SPR_releaseSprite(Sprite *s) {{}} bool SPR_setDefinition(Sprite *s, const SpriteDefinition *d) {{ return TRUE; }}
-void SPR_setHFlip(Sprite *s, bool v) {{}} void SPR_setVFlip(Sprite *s, bool v) {{}}
-void SPR_setPosition(Sprite *s, s16 x, s16 y) {{}} void SPR_setVisibility(Sprite *s, u16 v) {{}}
-void SPR_update(void) {{}} void PAL_setPalette(u16 i, const u16 *d, u16 m) {{}}
+const char *ms_hitbox_type_name_data(u16 i) {{ return ""; }} const char *ms_point_type_name_data(u16 i) {{ return ""; }}
+const char *ms_role_name_data(u16 i) {{ return ""; }}
 
 int main(void)
 {{
@@ -197,13 +204,15 @@ class TestRuntimePlayerMatchesEditor(unittest.TestCase):
             ctx = sg.SGDKBakeContext(project, [None], tmp_path)
             ctx._emit_header(tmp_path / "modsprite_data.h")
             (tmp_path / "harness.c").write_text(_c_harness(project, anims))
+            (tmp_path / "genesis_stub.c").write_text(GENESIS_STUB_IMPL)
             exe = tmp_path / "harness"
             demo = REPO_ROOT / "examples" / "sgdk" / "sgdk_demo"
             # modsprite.h includes "modsprite_data.h" from its own folder: keep it next to the fresh header.
             shutil.copy(demo / "inc" / "modsprite.h", tmp_path / "modsprite.h")
             build = subprocess.run(
                 ["cc", "-std=c99", "-w", f"-I{tmp_path}",
-                 str(demo / "src" / "modsprite.c"), str(tmp_path / "harness.c"), "-o", str(exe)],
+                 str(demo / "src" / "modsprite.c"), str(tmp_path / "harness.c"), str(tmp_path / "genesis_stub.c"),
+                 "-o", str(exe)],
                 capture_output=True, text=True,
             )
             self.assertEqual(build.returncode, 0, build.stderr[-2000:])

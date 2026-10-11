@@ -30,16 +30,25 @@ PartEntry = Tuple[int, int, int, int, int]
 
 @dataclass(frozen=True)
 class VariantMeta:
-    symbol: str
-    filename: str
     tile_w: int
     tile_h: int
+    first_piece: int
+    piece_count: int
 
 
 @dataclass(frozen=True)
 class RenderFrameSpan:
     first_part: int
     part_count: int
+    first_box: int = 0
+    box_count: int = 0
+    first_point: int = 0
+    point_count: int = 0
+
+
+PieceEntry = Tuple[int, int, int, int]  # (dx, dy, VDP size code, tile offset): one hardware sprite of a variant
+BoxEntry = Tuple[int, int, int, int, int, int]  # (type, role, x, y, w, h)
+PointEntry = Tuple[int, int, int, int]  # (type, role, x, y)
 
 
 @dataclass(frozen=True)
@@ -54,22 +63,30 @@ class AnimRecord:
 
 
 NO_ANIMATION = 0xFFFF
-BLOB_VERSION = 2  # 2: step events, loop-from step, follow-up animation, repeat count
-BLOB_SECTION_COUNT = 21
-BLOB_HEADER_SIZE = 4 + 2 + 2 + 13 * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
+NO_ROLE = 0xFFFF
+UNKNOWN_TYPE = 0xFF
+# 2: step events, loop-from step, follow-up animation, repeat count
+# 3: tiles, pieces and palette in the blob (VRAM-resident runtime, no SGDK sprite resources),
+#    hitboxes and points per render frame, type and role names, sprite count and bounds per render frame
+BLOB_VERSION = 3
+BLOB_COUNT_FIELDS = 20
+BLOB_SECTION_COUNT = 30
+BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
+SPRITE_BLOCK = 32  # largest Mega Drive sprite: 4×4 tiles (hardware_budget cuts parts the same way)
+TILE = 8
 
 
-def _event_symbols(names: Sequence[str]) -> List[str]:
-    """C identifiers for event names: MS_EVENT_HIT_ON, unique, never starting with a digit."""
+def _event_symbols(names: Sequence[str], prefix: str = "MS_EVENT_", fallback: str = "EVENT") -> List[str]:
+    """C identifiers for names: MS_EVENT_HIT_ON, unique, never starting with a digit."""
     used: Dict[str, int] = {}
     out: List[str] = []
     for name in names:
-        core = "".join(ch if ch.isalnum() else "_" for ch in str(name).upper()).strip("_") or "EVENT"
+        core = "".join(ch if ch.isalnum() else "_" for ch in str(name).upper()).strip("_") or fallback
         while "__" in core:
             core = core.replace("__", "_")
         if core[0].isdigit():
             core = "E" + core
-        symbol = f"MS_EVENT_{core}"
+        symbol = f"{prefix}{core}"
         if symbol in used:
             used[symbol] += 1
             symbol = f"{symbol}_{used[symbol]}"
@@ -102,10 +119,27 @@ class SGDKBakeContext:
 
         self.variant_lookup: Dict[Tuple[int, int, str], int] = {}
         self.variants: List[VariantMeta] = []
+        self.pieces: List[PieceEntry] = []
+        self.piece_lists: Dict[Tuple[int, int, int], Tuple[int, int]] = {}  # (variant, hflip, vflip) -> (first, count)
+        self.tile_data = bytearray()
+        self.piece_tiles_lookup: Dict[bytes, int] = {}
+        self.variant_blocks: List[List[PieceEntry]] = []  # unflipped hardware sprites of each variant
 
         self.parts: List[PartEntry] = []
+        self.boxes: List[BoxEntry] = []
+        self.points: List[PointEntry] = []
         self.render_frames: List[RenderFrameSpan] = []
-        self.render_frame_lookup: Dict[Tuple[PartEntry, ...], int] = {}
+        self.render_frame_lookup: Dict[Tuple[Any, ...], int] = {}
+        self.box_type_index: Dict[str, int] = {t.id: i for i, t in enumerate(project.collision_types)}
+        self.point_type_index: Dict[str, int] = {t.id: i for i, t in enumerate(project.point_types)}
+        self.box_type_symbols: List[str] = _event_symbols([t.name for t in project.collision_types], "MS_HITBOX_", "HITBOX")
+        self.point_type_symbols: List[str] = _event_symbols([t.name for t in project.point_types], "MS_POINT_", "POINT")
+        self.role_names: List[str] = sorted(
+            {str(item.role).strip() for f in project.frames for item in list(f.collision_rects) + list(f.control_points)
+             if str(getattr(item, "role", "") or "").strip()}
+        )
+        self.role_index: Dict[str, int] = {name: i for i, name in enumerate(self.role_names)}
+        self.role_symbols: List[str] = _event_symbols(self.role_names, "MS_ROLE_", "ROLE")
         self.transformed_frame_parts_cache: Dict[Tuple[Any, ...], Tuple[PartEntry, ...]] = {}
 
         self.module_render_frames: List[int] = []
@@ -184,30 +218,104 @@ class SGDKBakeContext:
         if found is not None:
             return found
 
-        idx = len(self.variants)
-        symbol = f"MS_VAR_{idx:04d}"
-        filename = f"var_{idx:04d}.png"
-
-        out_w = max(8, ((rgba.width + 7) // 8) * 8)
-        out_h = max(8, ((rgba.height + 7) // 8) * 8)
+        out_w = max(TILE, ((rgba.width + TILE - 1) // TILE) * TILE)
+        out_h = max(TILE, ((rgba.height + TILE - 1) // TILE) * TILE)
         padded = Image.new("RGBA", (out_w, out_h), (0, 0, 0, 0))
         padded.alpha_composite(rgba, (0, 0))
-
-        # SGDK 3.99 rescomp expects indexed source images for regular sprite assets
-        # unless RGB images embed palette tiles (which we do not want here).
         indexed = self._to_indexed_4bpp(padded)
-        indexed.save(self.output_gen_dir / filename)
+        pixels = indexed.tobytes()
+        alpha = rgba.getchannel("A")
 
+        # Hardware sprites of at most 32×32 on a 32 px grid, empty blocks skipped (as hardware_budget counts them).
+        blocks: List[PieceEntry] = []
+        for by in range(0, out_h, SPRITE_BLOCK):
+            for bx in range(0, out_w, SPRITE_BLOCK):
+                bw, bh = min(SPRITE_BLOCK, out_w - bx), min(SPRITE_BLOCK, out_h - by)
+                crop = alpha.crop((bx, by, min(bx + bw, rgba.width), min(by + bh, rgba.height)))
+                if crop.size[0] <= 0 or crop.size[1] <= 0 or not crop.getbbox():
+                    continue
+                tiles = self._block_tiles(pixels, out_w, bx, by, bw // TILE, bh // TILE)
+                offset = self.piece_tiles_lookup.get(tiles)
+                if offset is None:
+                    offset = len(self.tile_data) // 32
+                    self.tile_data.extend(tiles)
+                    self.piece_tiles_lookup[tiles] = offset
+                size_code = (((bw // TILE) - 1) << 2) | ((bh // TILE) - 1)
+                blocks.append((bx, by, size_code, offset))
+
+        idx = len(self.variants)
         self.variant_lookup[key] = idx
-        self.variants.append(
-            VariantMeta(
-                symbol=symbol,
-                filename=filename,
-                tile_w=out_w // 8,
-                tile_h=out_h // 8,
-            )
-        )
+        self.variants.append(VariantMeta(tile_w=out_w // TILE, tile_h=out_h // TILE, first_piece=0, piece_count=len(blocks)))
+        self.variant_blocks.append(blocks)
         return idx
+
+    def _piece_list(self, variant_index: int, hflip: bool, vflip: bool) -> Tuple[int, int]:
+        """The variant's hardware sprites for one flip combination: a flip mirrors the whole padded
+        variant, so the pieces swap places inside it. Each combination is laid out once, the runtime
+        only adds the part's position."""
+        key = (int(variant_index), int(bool(hflip)), int(bool(vflip)))
+        found = self.piece_lists.get(key)
+        if found is not None:
+            return found
+        meta = self.variants[variant_index]
+        pad_w, pad_h = meta.tile_w * TILE, meta.tile_h * TILE
+        first = len(self.pieces)
+        for bx, by, size_code, offset in self.variant_blocks[variant_index]:
+            w, h = (((size_code >> 2) & 3) + 1) * TILE, ((size_code & 3) + 1) * TILE
+            x = pad_w - bx - w if hflip else bx
+            y = pad_h - by - h if vflip else by
+            self.pieces.append((x, y, size_code, offset))
+        found = (first, len(self.pieces) - first)
+        self.piece_lists[key] = found
+        return found
+
+    def _finalize_pieces(self) -> None:
+        """Piece lists for every part (and the unflipped list of every variant, for tools)."""
+        for variant_index in range(len(self.variants)):
+            first, count = self._piece_list(variant_index, False, False)
+            meta = self.variants[variant_index]
+            self.variants[variant_index] = VariantMeta(meta.tile_w, meta.tile_h, first, count)
+        for variant_index, _x, _y, hflip, vflip in self.parts:
+            self._piece_list(variant_index, bool(hflip), bool(vflip))
+
+    def render_frame_extent(self, span: RenderFrameSpan) -> Tuple[int, int, int, int, int]:
+        """(hardware sprite count, min x, min y, max x, max y) of a render frame's pieces, relative to the
+        position it is drawn at; the runtime skips its per-sprite tests when all of it is on screen."""
+        count = 0
+        min_x = min_y = 0x7FFF
+        max_x = max_y = -0x8000
+        for variant_index, px, py, hflip, vflip in self.parts[span.first_part:span.first_part + span.part_count]:
+            first, n = self._piece_list(variant_index, bool(hflip), bool(vflip))
+            for dx, dy, size_code, _offset in self.pieces[first:first + n]:
+                x, y = int(px) + dx, int(py) + dy
+                min_x, min_y = min(min_x, x), min(min_y, y)
+                max_x = max(max_x, x + (((size_code >> 2) & 3) + 1) * TILE)
+                max_y = max(max_y, y + ((size_code & 3) + 1) * TILE)
+                count += 1
+        if not count:
+            return 0, 0, 0, 0, 0
+        return count, min_x, min_y, max_x, max_y
+
+    def packed_parts(self) -> List[Tuple[int, int, int, int, int]]:
+        """Parts as the runtime reads them: (first piece, piece count, flip bits, x, y)."""
+        out = []
+        for variant_index, x, y, hflip, vflip in self.parts:
+            first, count = self._piece_list(variant_index, bool(hflip), bool(vflip))
+            out.append((first, count, (1 if hflip else 0) | (2 if vflip else 0), x, y))
+        return out
+
+    @staticmethod
+    def _block_tiles(pixels: bytes, stride: int, bx: int, by: int, tiles_w: int, tiles_h: int) -> bytes:
+        """4 bpp tiles of a block in VDP sprite order: down each column, then the next column."""
+        out = bytearray()
+        for tx in range(tiles_w):
+            for ty in range(tiles_h):
+                for row in range(TILE):
+                    base = (by + ty * TILE + row) * stride + bx + tx * TILE
+                    line = pixels[base:base + TILE]
+                    for i in range(0, TILE, 2):
+                        out.append(((line[i] & 0x0F) << 4) | (line[i + 1] & 0x0F))
+        return bytes(out)
 
     @staticmethod
     def _rgb_distance_sq(a: Tuple[int, int, int], b: Tuple[int, int, int]) -> int:
@@ -226,15 +334,19 @@ class SGDKBakeContext:
 
             image = Image.open(path).convert("RGB")
             transparent = tuple(int(v) for v in asset.transparent_color) if asset.transparent_color else None
-            for px in image.getdata():
+            for count, px in image.getcolors(maxcolors=image.width * image.height) or []:
                 rgb = (int(px[0]), int(px[1]), int(px[2]))
                 if transparent is not None and rgb == transparent:
                     continue
-                counts[rgb] = counts.get(rgb, 0) + 1
+                counts[rgb] = counts.get(rgb, 0) + int(count)
 
         if not counts:
             return [(255, 255, 255)] + [(0, 0, 0)] * 14
 
+        self.palette_note = ""
+        if len(counts) > 15:
+            self.palette_note = (f"warning: the images use {len(counts)} colours; the Mega Drive palette holds 15 "
+                                 "(plus transparent), so similar colours were merged")
         if len(counts) <= 15:
             ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
             base = [rgb for rgb, _count in ordered]
@@ -276,15 +388,13 @@ class SGDKBakeContext:
     def _to_indexed_4bpp(self, rgba: Image.Image) -> Image.Image:
         alpha = rgba.getchannel("A")
         rgb = rgba.convert("RGB")
-        src_rgb = list(rgb.getdata())
+        src_rgb = rgb.tobytes()
         src_alpha = alpha.tobytes()
-        out_idx = bytearray(len(src_rgb))
-        for i in range(len(src_rgb)):
-            if src_alpha[i] == 0:
-                out_idx[i] = 0
-            else:
-                px = src_rgb[i]
-                nearest = self._nearest_master_palette_index((int(px[0]), int(px[1]), int(px[2])))
+        out_idx = bytearray(len(src_alpha))
+        for i in range(len(src_alpha)):
+            if src_alpha[i] != 0:
+                j = i * 3
+                nearest = self._nearest_master_palette_index((src_rgb[j], src_rgb[j + 1], src_rgb[j + 2]))
                 out_idx[i] = int(nearest + 1)
 
         palette = [0] * (256 * 3)
@@ -298,19 +408,62 @@ class SGDKBakeContext:
         out.putpalette(palette)
         return out
 
-    def _intern_render_frame(self, part_list: Sequence[PartEntry]) -> int:
-        key = tuple((int(p[0]), int(p[1]), int(p[2]), int(p[3]), int(p[4])) for p in part_list)
+    def _intern_render_frame(
+        self,
+        part_list: Sequence[PartEntry],
+        boxes: Sequence[BoxEntry] = (),
+        points: Sequence[PointEntry] = (),
+    ) -> int:
+        parts_key = tuple((int(p[0]), int(p[1]), int(p[2]), int(p[3]), int(p[4])) for p in part_list)
+        key = (parts_key, tuple(boxes), tuple(points))
         found = self.render_frame_lookup.get(key)
         if found is not None:
             return found
 
-        first = len(self.parts)
-        self.parts.extend(key)
-        span = RenderFrameSpan(first_part=first, part_count=len(key))
+        span = RenderFrameSpan(
+            first_part=len(self.parts), part_count=len(parts_key),
+            first_box=len(self.boxes), box_count=len(boxes),
+            first_point=len(self.points), point_count=len(points),
+        )
+        self.parts.extend(parts_key)
+        self.boxes.extend(boxes)
+        self.points.extend(points)
         idx = len(self.render_frames)
         self.render_frames.append(span)
         self.render_frame_lookup[key] = idx
         return idx
+
+    def _frame_markers(
+        self, frame: Frame, offset: Vec2, rotation_degrees: float, flip_x: bool, flip_y: bool
+    ) -> Tuple[Tuple[BoxEntry, ...], Tuple[PointEntry, ...]]:
+        """The frame's own hitboxes and points, moved like the frame (flip, then rotate, then offset)."""
+        a_mat = RetroAnimatorExporter._mat_mul(
+            RetroAnimatorExporter._rotation_matrix(rotation_degrees),
+            RetroAnimatorExporter._flip_matrix(flip_x, flip_y),
+        )
+
+        def move(x: float, y: float) -> Vec2:
+            tx, ty = RetroAnimatorExporter._mat_vec_mul(a_mat, (float(x), float(y)))
+            return (tx + float(offset[0]), ty + float(offset[1]))
+
+        boxes: List[BoxEntry] = []
+        for cr in frame.collision_rects:
+            x, y, w, h = (int(v) for v in cr.rect)
+            if w <= 0 or h <= 0:
+                continue
+            corners = [move(x, y), move(x + w, y + h)]
+            x0 = int(round(min(c[0] for c in corners)))
+            y0 = int(round(min(c[1] for c in corners)))
+            x1 = int(round(max(c[0] for c in corners)))
+            y1 = int(round(max(c[1] for c in corners)))
+            role = self.role_index.get(str(cr.role or "").strip(), NO_ROLE)
+            boxes.append((self.box_type_index.get(cr.type_id, UNKNOWN_TYPE), role, x0, y0, x1 - x0, y1 - y0))
+        points: List[PointEntry] = []
+        for cp in frame.control_points:
+            px, py = move(cp.x, cp.y)
+            role = self.role_index.get(str(cp.role or "").strip(), NO_ROLE)
+            points.append((self.point_type_index.get(cp.type_id, UNKNOWN_TYPE), role, int(round(px)), int(round(py))))
+        return tuple(boxes), tuple(points)
 
     @staticmethod
     def _effective_hw_flip(rotation_degrees: float, flip_x: bool, flip_y: bool) -> Optional[Tuple[bool, bool]]:
@@ -813,7 +966,8 @@ class SGDKBakeContext:
             # 2) Base frame render entries.
             for frame in self.project.frames:
                 parts = self._render_frame_parts(frame, self._identity_offset(), 0.0, False, False)
-                render_idx = self._intern_render_frame(parts)
+                boxes, points = self._frame_markers(frame, self._identity_offset(), 0.0, False, False)
+                render_idx = self._intern_render_frame(parts, boxes, points)
                 self.frame_render_frames.append(render_idx)
                 frame_render_by_id[frame.id] = render_idx
 
@@ -838,7 +992,8 @@ class SGDKBakeContext:
                         render_idx = frame_render_by_id.get(frame.id, empty_render)
                     else:
                         parts = self._render_frame_parts(frame, off, rot, fx, fy)
-                        render_idx = self._intern_render_frame(parts)
+                        boxes, points = self._frame_markers(frame, off, rot, fx, fy)
+                        render_idx = self._intern_render_frame(parts, boxes, points)
 
                     duration_ticks = max(
                         1,
@@ -907,6 +1062,8 @@ class SGDKBakeContext:
                     )
                 )
 
+        self._finalize_pieces()
+
     @staticmethod
     def _be16(value: int) -> bytes:
         return struct.pack(">H", int(value) & 0xFFFF)
@@ -946,7 +1103,18 @@ class SGDKBakeContext:
             "strings",
             "step_events",
             "event_names",
+            "variants",
+            "pieces",
+            "tiles",
+            "palette",
+            "boxes",
+            "points",
+            "box_type_names",
+            "point_type_names",
+            "role_names",
         ]
+        if len(section_names) != BLOB_SECTION_COUNT:
+            raise RuntimeError("Internal SGDK blob section list mismatch")
 
         strings_blob = bytearray()
 
@@ -970,14 +1138,41 @@ class SGDKBakeContext:
         scene_ids_rel = append_string_list([scene.id for scene in self.project.timeline_scenes])
         scene_names_rel = append_string_list([scene.name for scene in self.project.timeline_scenes])
         event_names_rel = append_string_list([t.name for t in self.project.event_types])
+        box_type_names_rel = append_string_list([t.name for t in self.project.collision_types])
+        point_type_names_rel = append_string_list([t.name for t in self.project.point_types])
+        role_names_rel = append_string_list(self.role_names)
 
         parts_raw = bytearray()
-        for variant_index, px, py, hflip, vflip in self.parts:
-            parts_raw.extend(struct.pack(">HhhBB", int(variant_index), int(px), int(py), int(hflip), int(vflip)))
+        for first_piece, piece_count, flip, px, py in self.packed_parts():
+            parts_raw.extend(struct.pack(">HBBhh", int(first_piece), int(piece_count), int(flip), int(px), int(py)))
 
         render_frames_raw = bytearray()
         for rf in self.render_frames:
-            render_frames_raw.extend(struct.pack(">IH", int(rf.first_part), int(rf.part_count)))
+            render_frames_raw.extend(
+                struct.pack(">IHHIIHHhhhh", int(rf.first_part), int(rf.part_count), int(rf.box_count), int(rf.first_box),
+                            int(rf.first_point), int(rf.point_count), *self.render_frame_extent(rf))
+            )
+
+        variants_raw = bytearray()
+        for v in self.variants:
+            variants_raw.extend(struct.pack(">HHBB", int(v.first_piece), int(v.piece_count), int(v.tile_w), int(v.tile_h)))
+
+        pieces_raw = bytearray()
+        for dx, dy, size_code, tile_offset in self.pieces:
+            pieces_raw.extend(struct.pack(">hhBBH", int(dx), int(dy), int(size_code), 0, int(tile_offset)))
+
+        palette_raw = bytearray(self._be16(0))  # index 0 is transparent
+        for r, g, b in self.master_palette_15:
+            # Same rounding as rescomp: 3 bits per channel, truncated.
+            palette_raw.extend(self._be16(((int(b) >> 5) << 9) | ((int(g) >> 5) << 5) | ((int(r) >> 5) << 1)))
+
+        boxes_raw = bytearray()
+        for box_type, role, x, y, w, h in self.boxes:
+            boxes_raw.extend(struct.pack(">BBHhhhh", int(box_type) & 0xFF, 0, int(role) & 0xFFFF, int(x), int(y), int(w), int(h)))
+
+        points_raw = bytearray()
+        for point_type, role, x, y in self.points:
+            points_raw.extend(struct.pack(">BBHhh", int(point_type) & 0xFF, 0, int(role) & 0xFFFF, int(x), int(y)))
 
         module_render_raw = bytearray()
         for idx in self.module_render_frames:
@@ -1047,6 +1242,12 @@ class SGDKBakeContext:
         append_section("scene_samples", bytes(scene_samples_raw))
         append_section("scenes", bytes(scenes_raw))
         append_section("step_events", bytes(step_events_raw))
+        append_section("variants", bytes(variants_raw))
+        append_section("pieces", bytes(pieces_raw))
+        append_section("tiles", bytes(self.tile_data), align=4)
+        append_section("palette", bytes(palette_raw))
+        append_section("boxes", bytes(boxes_raw))
+        append_section("points", bytes(points_raw))
         append_section("strings", bytes(strings_blob), align=1)
 
         strings_base = section_offsets["strings"]
@@ -1068,6 +1269,9 @@ class SGDKBakeContext:
         append_section("scene_ids", build_string_offset_section(scene_ids_rel))
         append_section("scene_names", build_string_offset_section(scene_names_rel))
         append_section("event_names", build_string_offset_section(event_names_rel))
+        append_section("box_type_names", build_string_offset_section(box_type_names_rel))
+        append_section("point_type_names", build_string_offset_section(point_type_names_rel))
+        append_section("role_names", build_string_offset_section(role_names_rel))
 
         header = bytearray()
         header.extend(b"MSB1")
@@ -1086,6 +1290,13 @@ class SGDKBakeContext:
         header.extend(self._be16(len(self.scene_records)))
         header.extend(self._be16(len(self.project.event_types)))
         header.extend(self._be16(len(self.step_events)))
+        header.extend(self._be16(len(self.tile_data) // 32))
+        header.extend(self._be16(len(self.pieces)))
+        header.extend(self._be16(len(self.boxes)))
+        header.extend(self._be16(len(self.points)))
+        header.extend(self._be16(len(self.project.collision_types)))
+        header.extend(self._be16(len(self.project.point_types)))
+        header.extend(self._be16(len(self.role_names)))
         header.extend(self._be32(len(self.parts)))
 
         for section in section_names:
@@ -1093,6 +1304,10 @@ class SGDKBakeContext:
 
         header.extend(self._be32(len(strings_blob)))
 
+        for limit, count, what in ((0xFFFF, len(self.pieces), "hardware sprite pieces"), (0xFFFF, len(self.boxes), "hitboxes"),
+                                   (0xFFFF, len(self.points), "points"), (0xFFFF, len(self.render_frames), "render frames")):
+            if count > limit:
+                raise RuntimeError(f"Too many {what} for the blob: {count} > {limit}")
         if len(header) != header_size:
             raise RuntimeError(f"Internal SGDK blob header size mismatch: {len(header)} != {header_size}")
 
@@ -1107,22 +1322,81 @@ class SGDKBakeContext:
 
 #include <genesis.h>
 
-typedef struct __attribute__((packed))
+/* Blob records: no padding, but every record starts on an even address (the blob keeps them aligned),
+   so the 68000 can read 16 / 32-bit fields with single word / long moves. */
+#define MS_RECORD __attribute__((packed, aligned(2)))
+
+/* A part shows the pieces first_piece .. first_piece + piece_count - 1 (already laid out for its flips)
+   at (x, y) from the position it is drawn at; flip: bit 0 = horizontal, bit 1 = vertical. */
+typedef struct MS_RECORD
 {
-    u16 variant_index;
+    u16 first_piece;
+    u8 piece_count;
+    u8 flip;
     s16 x;
     s16 y;
-    u8 hflip;
-    u8 vflip;
 } MS_Part;
 
-typedef struct __attribute__((packed))
+typedef struct MS_RECORD
 {
     u32 first_part;
     u16 part_count;
+    u16 hitbox_count;
+    u32 first_hitbox;
+    u32 first_point;
+    u16 point_count;
+    u16 sprite_count;  /* hardware sprites, inside min..max (relative to the draw position) */
+    s16 min_x;
+    s16 min_y;
+    s16 max_x;
+    s16 max_y;
 } MS_RenderFrame;
 
-typedef struct __attribute__((packed))
+/* A variant is one baked module image; it shows as one or more hardware sprites (pieces).
+   The runtime does not need it (parts point at their pieces); tools can use it. */
+typedef struct MS_RECORD
+{
+    u16 first_piece;
+    u16 piece_count;
+    u8 tile_w;  /* padded size in tiles: flips mirror the pieces inside it */
+    u8 tile_h;
+} MS_Variant;
+
+typedef struct MS_RECORD
+{
+    s16 x;            /* offset from the part's position */
+    s16 y;
+    u8 size;          /* VDP sprite size: SPRITE_SIZE(w, h) */
+    u8 reserved0;
+    u16 tile_offset;  /* first tile, from the runtime's tile base */
+} MS_Piece;
+
+/* Hitboxes and points of a frame, already moved like the frame (step offset, flips, rotation).
+   Coordinates are relative to the position the frame is drawn at. */
+typedef struct MS_RECORD
+{
+    u8 type;      /* MS_HITBOX_*, MS_UNKNOWN_TYPE if its type was deleted */
+    u8 reserved0;
+    u16 role;     /* MS_ROLE_*, MS_NO_ROLE */
+    s16 x;
+    s16 y;
+    s16 w;
+    s16 h;
+} MS_Hitbox;
+
+typedef struct MS_RECORD
+{
+    u8 type;      /* MS_POINT_* */
+    u8 reserved0;
+    u16 role;     /* MS_ROLE_*, MS_NO_ROLE */
+    s16 x;
+    s16 y;
+} MS_Point;
+
+#define MS_NO_ROLE 0xFFFFu
+#define MS_UNKNOWN_TYPE 0xFFu
+
+typedef struct MS_RECORD
 {
     u16 frame_index;
     u16 duration_ticks;
@@ -1131,7 +1405,7 @@ typedef struct __attribute__((packed))
     u8 reserved0;
 } MS_AnimStep;
 
-typedef struct __attribute__((packed))
+typedef struct MS_RECORD
 {
     u32 first_step;
     u16 step_count;
@@ -1143,7 +1417,7 @@ typedef struct __attribute__((packed))
     u16 loop_count;      /* repeats before it ends, 0 = forever */
 } MS_Animation;
 
-typedef struct __attribute__((packed))
+typedef struct MS_RECORD
 {
     u16 type;   /* MS_EVENT_* */
     s16 value;  /* free parameter, e.g. which sound */
@@ -1151,7 +1425,7 @@ typedef struct __attribute__((packed))
 
 #define MS_NO_ANIMATION 0xFFFFu
 
-typedef struct __attribute__((packed))
+typedef struct MS_RECORD
 {
     u32 first_sample;
     u16 sample_count;
@@ -1179,6 +1453,13 @@ extern u16 ms_animation_record_count;
 extern u16 ms_scene_record_count;
 extern u16 ms_event_type_count;
 extern u16 ms_step_event_count;
+extern u16 ms_tile_count;
+extern u16 ms_piece_count;
+extern u16 ms_hitbox_count;
+extern u16 ms_point_count;
+extern u16 ms_hitbox_type_count;
+extern u16 ms_point_type_count;
+extern u16 ms_role_count;
 
 #define MS_VARIANT_COUNT (ms_variant_count)
 #define MS_PART_COUNT (ms_part_count)
@@ -1194,8 +1475,14 @@ extern u16 ms_step_event_count;
 #define MS_SCENE_RECORD_COUNT (ms_scene_record_count)
 #define MS_EVENT_TYPE_COUNT (ms_event_type_count)
 #define MS_STEP_EVENT_COUNT (ms_step_event_count)
+#define MS_TILE_COUNT (ms_tile_count)
 
-extern const SpriteDefinition *const ms_variant_defs[];
+extern const MS_Variant *ms_variants;
+extern const MS_Piece *ms_pieces;
+extern const u32 *ms_tiles;
+extern const u16 *ms_palette;
+extern const MS_Hitbox *ms_hitboxes;
+extern const MS_Point *ms_points;
 extern const MS_Part *ms_parts;
 extern const MS_RenderFrame *ms_render_frames;
 extern const u16 *ms_module_render_frames;
@@ -1220,34 +1507,38 @@ const char *ms_animation_name_data(u16 index);
 const char *ms_scene_id(u16 index);
 const char *ms_scene_name_data(u16 index);
 const char *ms_event_name_data(u16 index);
+const char *ms_hitbox_type_name_data(u16 index);
+const char *ms_point_type_name_data(u16 index);
+const char *ms_role_name_data(u16 index);
 
 /* Animation events (project event types, in the editor's order). */
 @EVENT_DEFINES@
 
+/* Hitbox types and point types (the editor's lists, in order). */
+@TYPE_DEFINES@
+
+/* Roles of hitboxes and points (sorted by name). */
+@ROLE_DEFINES@
+
 #endif
 """
-        defines = "\n".join(f"#define {symbol} {i}u" for i, symbol in enumerate(self.event_symbols))
-        text = text.replace("@EVENT_DEFINES@", defines or "/* none */")
+        def define_lines(symbols: Sequence[str]) -> str:
+            return "\n".join(f"#define {symbol} {i}u" for i, symbol in enumerate(symbols)) or "/* none */"
+
+        text = text.replace("@EVENT_DEFINES@", define_lines(self.event_symbols))
+        text = text.replace("@TYPE_DEFINES@", define_lines(self.box_type_symbols) + "\n" + define_lines(self.point_type_symbols))
+        text = text.replace("@ROLE_DEFINES@", define_lines(self.role_symbols))
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
     def _emit_resources(self, path: Path) -> None:
-        lines: List[str] = []
-        for variant in self.variants:
-            lines.append(
-                f'SPRITE {variant.symbol} "gen/{variant.filename}" {variant.tile_w} {variant.tile_h} NONE'
-            )
-        lines.append('BIN MS_BLOB "gen/modsprite_blob.bin" 2 2 0 NONE FALSE')
+        # Tiles, pieces and palette live in the blob: the runtime loads them into VRAM once.
+        lines: List[str] = ['BIN MS_BLOB "gen/modsprite_blob.bin" 2 2 0 NONE FALSE']
         lines.append("")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\n".join(lines), encoding="utf-8")
 
     def _emit_data_c(self, path: Path) -> None:
-        variant_ptrs = [f"    &{v.symbol}," for v in self.variants]
-        if not variant_ptrs:
-            variant_ptrs = ["    NULL,"]
-        variant_body = "\n".join(variant_ptrs)
-
         text = f"""#include <genesis.h>
 #include <string.h>
 #include "modsprite_data.h"
@@ -1256,7 +1547,6 @@ const char *ms_event_name_data(u16 index);
 #define MS_BLOB_MAGIC 0x4D534231u
 #define MS_BLOB_VERSION {BLOB_VERSION}u
 #define MS_BLOB_HEADER_SIZE {BLOB_HEADER_SIZE}u
-#define MS_VARIANT_DEF_COUNT {len(self.variants)}u
 
 enum
 {{
@@ -1281,11 +1571,16 @@ enum
     MS_SEC_STRINGS = 18,
     MS_SEC_STEP_EVENTS = 19,
     MS_SEC_EVENT_NAMES = 20,
-    MS_SEC_COUNT = 21
-}};
-
-const SpriteDefinition *const ms_variant_defs[] = {{
-{variant_body}
+    MS_SEC_VARIANTS = 21,
+    MS_SEC_PIECES = 22,
+    MS_SEC_TILES = 23,
+    MS_SEC_PALETTE = 24,
+    MS_SEC_HITBOXES = 25,
+    MS_SEC_POINTS = 26,
+    MS_SEC_HITBOX_TYPE_NAMES = 27,
+    MS_SEC_POINT_TYPE_NAMES = 28,
+    MS_SEC_ROLE_NAMES = 29,
+    MS_SEC_COUNT = 30
 }};
 
 u16 ms_variant_count = 0;
@@ -1302,7 +1597,20 @@ u16 ms_animation_record_count = 0;
 u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0;
 u16 ms_step_event_count = 0;
+u16 ms_tile_count = 0;
+u16 ms_piece_count = 0;
+u16 ms_hitbox_count = 0;
+u16 ms_point_count = 0;
+u16 ms_hitbox_type_count = 0;
+u16 ms_point_type_count = 0;
+u16 ms_role_count = 0;
 
+const MS_Variant *ms_variants = NULL;
+const MS_Piece *ms_pieces = NULL;
+const u32 *ms_tiles = NULL;
+const u16 *ms_palette = NULL;
+const MS_Hitbox *ms_hitboxes = NULL;
+const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL;
 const MS_RenderFrame *ms_render_frames = NULL;
 const u16 *ms_module_render_frames = NULL;
@@ -1331,6 +1639,9 @@ static const u8 *g_animation_name_offsets = NULL;
 static const u8 *g_scene_id_offsets = NULL;
 static const u8 *g_scene_name_offsets = NULL;
 static const u8 *g_event_name_offsets = NULL;
+static const u8 *g_hitbox_type_name_offsets = NULL;
+static const u8 *g_point_type_name_offsets = NULL;
+static const u8 *g_role_name_offsets = NULL;
 
 static u16 ms_read_be16(const u8 *ptr)
 {{
@@ -1358,7 +1669,20 @@ static void ms_reset_data(void)
     ms_scene_record_count = 0;
     ms_event_type_count = 0;
     ms_step_event_count = 0;
+    ms_tile_count = 0;
+    ms_piece_count = 0;
+    ms_hitbox_count = 0;
+    ms_point_count = 0;
+    ms_hitbox_type_count = 0;
+    ms_point_type_count = 0;
+    ms_role_count = 0;
 
+    ms_variants = NULL;
+    ms_pieces = NULL;
+    ms_tiles = NULL;
+    ms_palette = NULL;
+    ms_hitboxes = NULL;
+    ms_points = NULL;
     ms_parts = NULL;
     ms_render_frames = NULL;
     ms_module_render_frames = NULL;
@@ -1380,24 +1704,12 @@ static void ms_reset_data(void)
     g_scene_id_offsets = NULL;
     g_scene_name_offsets = NULL;
     g_event_name_offsets = NULL;
+    g_hitbox_type_name_offsets = NULL;
+    g_point_type_name_offsets = NULL;
+    g_role_name_offsets = NULL;
     g_strings_base = 0;
     g_strings_size = 0;
     g_data_ready = FALSE;
-}}
-
-static u8 ms_safe_mul_u32(u32 a, u32 b, u32 *out)
-{{
-    if (!out)
-        return FALSE;
-    if (a == 0 || b == 0)
-    {{
-        *out = 0;
-        return TRUE;
-    }}
-    if (a > (0xFFFFFFFFu / b))
-        return FALSE;
-    *out = a * b;
-    return TRUE;
 }}
 
 static u8 ms_blob_range_ok(u32 offset, u32 size)
@@ -1406,28 +1718,6 @@ static u8 ms_blob_range_ok(u32 offset, u32 size)
         return FALSE;
     if (size > (g_blob_size - offset))
         return FALSE;
-    return TRUE;
-}}
-
-static u8 ms_validate_string_offsets(const u8 *offsets, u16 count)
-{{
-    u16 i;
-    u32 end;
-
-    if (count == 0)
-        return TRUE;
-    if (!offsets)
-        return FALSE;
-    if (g_strings_size == 0)
-        return FALSE;
-
-    end = g_strings_base + g_strings_size;
-    for (i = 0; i < count; i++)
-    {{
-        u32 off = ms_read_be32(offsets + ((u32)i * 4u));
-        if (off < g_strings_base || off >= end)
-            return FALSE;
-    }}
     return TRUE;
 }}
 
@@ -1474,6 +1764,13 @@ void ms_data_init(void)
     ms_scene_record_count = ms_read_be16(ptr); ptr += 2;
     ms_event_type_count = ms_read_be16(ptr); ptr += 2;
     ms_step_event_count = ms_read_be16(ptr); ptr += 2;
+    ms_tile_count = ms_read_be16(ptr); ptr += 2;
+    ms_piece_count = ms_read_be16(ptr); ptr += 2;
+    ms_hitbox_count = ms_read_be16(ptr); ptr += 2;
+    ms_point_count = ms_read_be16(ptr); ptr += 2;
+    ms_hitbox_type_count = ms_read_be16(ptr); ptr += 2;
+    ms_point_type_count = ms_read_be16(ptr); ptr += 2;
+    ms_role_count = ms_read_be16(ptr); ptr += 2;
     ms_part_count = ms_read_be32(ptr); ptr += 4;
 
     for (i = 0; i < MS_SEC_COUNT; i++)
@@ -1482,9 +1779,6 @@ void ms_data_init(void)
         ptr += 4;
     }}
     g_strings_size = ms_read_be32(ptr);
-
-    if (ms_variant_count > MS_VARIANT_DEF_COUNT)
-        ms_variant_count = MS_VARIANT_DEF_COUNT;
 
     ms_parts = (const MS_Part *)(g_blob + g_section_offsets[MS_SEC_PARTS]);
     ms_render_frames = (const MS_RenderFrame *)(g_blob + g_section_offsets[MS_SEC_RENDER_FRAMES]);
@@ -1506,6 +1800,15 @@ void ms_data_init(void)
     g_scene_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SCENE_NAMES]);
     ms_step_events = (const MS_StepEvent *)(g_blob + g_section_offsets[MS_SEC_STEP_EVENTS]);
     g_event_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_EVENT_NAMES]);
+    ms_variants = (const MS_Variant *)(g_blob + g_section_offsets[MS_SEC_VARIANTS]);
+    ms_pieces = (const MS_Piece *)(g_blob + g_section_offsets[MS_SEC_PIECES]);
+    ms_tiles = (const u32 *)(g_blob + g_section_offsets[MS_SEC_TILES]);
+    ms_palette = (const u16 *)(g_blob + g_section_offsets[MS_SEC_PALETTE]);
+    ms_hitboxes = (const MS_Hitbox *)(g_blob + g_section_offsets[MS_SEC_HITBOXES]);
+    ms_points = (const MS_Point *)(g_blob + g_section_offsets[MS_SEC_POINTS]);
+    g_hitbox_type_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_HITBOX_TYPE_NAMES]);
+    g_point_type_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_POINT_TYPE_NAMES]);
+    g_role_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ROLE_NAMES]);
 
     g_strings_base = g_section_offsets[MS_SEC_STRINGS];
 
@@ -1535,6 +1838,9 @@ const char *ms_animation_name_data(u16 index) {{ return ms_lookup_string(g_anima
 const char *ms_scene_id(u16 index) {{ return ms_lookup_string(g_scene_id_offsets, ms_scene_count, index); }}
 const char *ms_scene_name_data(u16 index) {{ return ms_lookup_string(g_scene_name_offsets, ms_scene_count, index); }}
 const char *ms_event_name_data(u16 index) {{ return ms_lookup_string(g_event_name_offsets, ms_event_type_count, index); }}
+const char *ms_hitbox_type_name_data(u16 index) {{ return ms_lookup_string(g_hitbox_type_name_offsets, ms_hitbox_type_count, index); }}
+const char *ms_point_type_name_data(u16 index) {{ return ms_lookup_string(g_point_type_name_offsets, ms_point_type_count, index); }}
+const char *ms_role_name_data(u16 index) {{ return ms_lookup_string(g_role_name_offsets, ms_role_count, index); }}
 """
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
@@ -1616,6 +1922,10 @@ def main() -> int:
         "mapping_count": len(mappings),
         "mappings": ", ".join(bake.mapping_names),
         "variants": len(bake.variants),
+        "hardware_sprite_pieces": len(bake.pieces),
+        "tiles": len(bake.tile_data) // 32,
+        "hitboxes": len(bake.boxes),
+        "points": len(bake.points),
         "parts": len(bake.parts),
         "render_frames": len(bake.render_frames),
         "modules": len(project.modules),
@@ -1629,6 +1939,8 @@ def main() -> int:
 
     for key, value in summary.items():
         print(f"{key}: {value}")
+    if getattr(bake, "palette_note", ""):
+        print(bake.palette_note)
 
     return 0
 

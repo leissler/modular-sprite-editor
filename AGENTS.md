@@ -112,9 +112,11 @@ ui/
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py
-examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py) + Mega Drive runtime demo
+examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one binary blob) + Mega Drive runtime
+                           (sgdk_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
-                           scene / animation / module / frame / mapping ops, export/canvas parity, migration)
+                           scene / animation / module / frame / mapping ops, export/canvas parity, migration,
+                           SGDK runtime: player, drawing, hitboxes / points)
 docs/                      UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
 ```
 
@@ -171,7 +173,15 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `wx.ImageList`s with `mask=False` (a masked list costs ~6 ms per `Add` on macOS).
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
-  `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part`; `tests/test_hardware_budget.py` compares them.
+  `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part` and its 32 px piece cut (`_ensure_variant`);
+  `tests/test_hardware_budget.py` compares them.
+- **SGDK runtime:** the exporter writes everything into `modsprite_blob.bin` (`_emit_blob`) and generates the C
+  record types and parser (`_emit_header`, `_emit_data_c`). Records are packed structs (`MS_RECORD`): when one
+  changes, update the struct, the `struct.pack` format and the size list in `tests/test_sgdk_runtime_draw.py`, and
+  bump `BLOB_VERSION`. Tiles stay in VRAM; drawing only writes `vdpSpriteCache` (no SGDK `SPR_*` engine).
+  `tests/test_sgdk_runtime_draw.py` compiles `modsprite.c` for the host and compares its sprite table, rasterised
+  like the VDP, with `FrameRenderer`. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
+  counter, not `getSubTick()` (it only advances per scanline and jumps around vblank).
 - **Preferences** go through `wx.Config.Get()`; because the main window is built before the app name is set, the
   store is named after the launched script (`app` for `python3 app.py`). Test scripts therefore get their own store,
   but must not leave preference changes behind anyway.
@@ -235,4 +245,5 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 | SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
 
 Previews now share one compositor (`ui/frame_render.py`); `tests/test_thumbnails.py` checks thumbnails against the
-canvas. The SGDK exporter still bakes on its own (it needs per-part hardware sprites, not a flat image).
+canvas. The SGDK exporter still bakes on its own (it needs per-part hardware sprites, not a flat image);
+`tests/test_sgdk_runtime_draw.py` checks what the Mega Drive runtime draws against `FrameRenderer`.

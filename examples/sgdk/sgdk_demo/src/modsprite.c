@@ -2,114 +2,60 @@
 #include <string.h>
 #include "modsprite.h"
 
-#define MS_RUNTIME_SPRITE_LIMIT 80u
+#define MS_DEFAULT_SPRITE_LIMIT 80u
 
 static u8 g_initialized = FALSE;
+static u8 g_tiles_fit = FALSE;
 static u16 g_active_mapping = 0;
 static MS_FrameProfile g_frame_profile = { 0, 0, 0, 0 };
-static Sprite *g_runtime_sprites[MS_RUNTIME_SPRITE_LIMIT];
-static u16 g_runtime_capacity = 0;
-static u16 g_runtime_used = 0;
-static u16 g_runtime_prev_used = 0;
-static u16 g_runtime_attr = TILE_ATTR(PAL1, FALSE, FALSE, FALSE);
-static u16 g_runtime_flags = SPR_FLAG_AUTO_VRAM_ALLOC | SPR_FLAG_AUTO_TILE_UPLOAD;
-
-static u16 ms_sat_add_u16(u16 value, u16 add)
-{
-    u32 sum = (u32)value + (u32)add;
-    if (sum > 0xFFFFu)
-        return 0xFFFFu;
-    return (u16)sum;
-}
+static u16 g_tile_base = TILE_USER_INDEX;
+static u16 g_palette = PAL1;
+static u16 g_sprite_limit = MS_DEFAULT_SPRITE_LIMIT;
+static u16 g_hw_count = 0;
+static u16 g_attr_base = TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, TILE_USER_INDEX);
+static s16 g_screen_w = 320;
+static s16 g_screen_h = 224;
 
 static u32 ms_mapping_module_base(void)
 {
-    return ((u32)g_active_mapping) * ((u32)MS_MODULE_COUNT);
+    return (u32)g_active_mapping * (u32)MS_MODULE_COUNT;
 }
 
 static u32 ms_mapping_frame_base(void)
 {
-    return ((u32)g_active_mapping) * ((u32)MS_FRAME_COUNT);
+    return (u32)g_active_mapping * (u32)MS_FRAME_COUNT;
 }
 
 static u32 ms_mapping_animation_base(void)
 {
-    return ((u32)g_active_mapping) * ((u32)MS_ANIMATION_COUNT);
+    return (u32)g_active_mapping * (u32)MS_ANIMATION_COUNT;
 }
 
 static u32 ms_mapping_scene_base(void)
 {
-    return ((u32)g_active_mapping) * ((u32)MS_SCENE_COUNT);
+    return (u32)g_active_mapping * (u32)MS_SCENE_COUNT;
 }
 
-static u16 ms_max_render_part_count(void)
+/* One hardware sprite into the sprite table cache; off-screen ones are skipped (a sprite at
+   x = -128 would also mask the sprites behind it on its lines). */
+static inline u8 ms_push_sprite(s16 x, s16 y, u8 size, u16 attribute)
 {
-    u16 i;
-    u16 max_parts = 0;
+    VDPSprite *sprite;
 
-    for (i = 0; i < MS_RENDER_FRAME_COUNT; i++)
+    if (x >= g_screen_w || y >= g_screen_h || x + (s16)((((size >> 2) & 3) + 1) << 3) <= 0 || y + (s16)(((size & 3) + 1) << 3) <= 0)
+        return TRUE;
+    if (g_hw_count >= g_sprite_limit)
     {
-        if (ms_render_frames[i].part_count > max_parts)
-            max_parts = ms_render_frames[i].part_count;
+        g_frame_profile.sprites_dropped++;
+        return FALSE;
     }
-
-    if (max_parts > MS_RUNTIME_SPRITE_LIMIT)
-        max_parts = MS_RUNTIME_SPRITE_LIMIT;
-    return max_parts;
-}
-
-static const SpriteDefinition *ms_seed_definition(void)
-{
-    const SpriteDefinition *best = NULL;
-    u16 i;
-
-    for (i = 0; i < MS_VARIANT_COUNT; i++)
-    {
-        const SpriteDefinition *def = ms_variant_defs[i];
-        if (!def)
-            continue;
-        if (!best)
-        {
-            best = def;
-            continue;
-        }
-        if (def->maxNumTile > best->maxNumTile)
-        {
-            best = def;
-            continue;
-        }
-        if ((def->maxNumTile == best->maxNumTile) && (def->maxNumSprite > best->maxNumSprite))
-            best = def;
-    }
-
-    return best;
-}
-
-static void ms_init_runtime_sprites(void)
-{
-    const SpriteDefinition *seed_def;
-    u16 target;
-    u16 i;
-
-    seed_def = ms_seed_definition();
-    if (!seed_def)
-        return;
-
-    target = ms_max_render_part_count();
-    for (i = 0; i < target; i++)
-    {
-        Sprite *sprite = SPR_addSpriteExSafe(
-            seed_def,
-            -128,
-            -128,
-            g_runtime_attr,
-            g_runtime_flags
-        );
-        if (!sprite)
-            break;
-        SPR_setVisibility(sprite, HIDDEN);
-        g_runtime_sprites[g_runtime_capacity++] = sprite;
-    }
+    sprite = &vdpSpriteCache[g_hw_count++];
+    sprite->y = y + 0x80;
+    sprite->size = size;
+    sprite->link = (u8)g_hw_count;
+    sprite->attribut = attribute;
+    sprite->x = x + 0x80;
+    return TRUE;
 }
 
 static const MS_Animation *ms_current_animation(u16 animation_index)
@@ -138,85 +84,64 @@ static const MS_Scene *ms_current_scene(u16 scene_index)
 
 static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
 {
-    s32 i;
-    u32 first;
-    u32 end;
+    const MS_RenderFrame *frame;
+    const MS_Part *part;
+    u16 n;
 
     if (render_index >= MS_RENDER_FRAME_COUNT)
         return;
+    frame = &ms_render_frames[render_index];
+    g_frame_profile.render_calls++;
+    g_frame_profile.parts_submitted += frame->part_count;
 
-    g_frame_profile.render_calls = ms_sat_add_u16(g_frame_profile.render_calls, 1u);
-
-    first = ms_render_frames[render_index].first_part;
-    end = first + ms_render_frames[render_index].part_count;
-
-    for (i = (s32)end - 1; i >= (s32)first; i--)
+    /* The last part is on top: it goes first into the sprite list. */
+    part = &ms_parts[frame->first_part + frame->part_count];
+    if (ox + frame->min_x >= 0 && oy + frame->min_y >= 0 && ox + frame->max_x <= g_screen_w
+        && oy + frame->max_y <= g_screen_h && g_hw_count + frame->sprite_count <= g_sprite_limit)
     {
-        const MS_Part *part;
-        const SpriteDefinition *def;
-        Sprite *sprite;
+        /* All on screen and under the limit: copy the pieces without per-sprite tests. */
+        VDPSprite *sprite = &vdpSpriteCache[g_hw_count];
+        u16 link = g_hw_count;
 
-        part = &ms_parts[(u32)i];
-        if (part->variant_index >= MS_VARIANT_COUNT)
-            continue;
-
-        def = ms_variant_defs[part->variant_index];
-        if (!def)
-            continue;
-
-        g_frame_profile.parts_submitted = ms_sat_add_u16(g_frame_profile.parts_submitted, 1u);
-        g_frame_profile.hw_sprites_estimated = ms_sat_add_u16(g_frame_profile.hw_sprites_estimated, def->maxNumSprite);
-
-        if (g_runtime_used >= g_runtime_capacity)
+        for (n = frame->part_count; n > 0; n--)
         {
-            if (g_runtime_capacity >= MS_RUNTIME_SPRITE_LIMIT)
-            {
-                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
-                continue;
-            }
-            sprite = SPR_addSpriteExSafe(def, -128, -128, g_runtime_attr, g_runtime_flags);
-            if (!sprite)
-            {
-                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
-                continue;
-            }
-            SPR_setVisibility(sprite, HIDDEN);
-            g_runtime_sprites[g_runtime_capacity++] = sprite;
-        }
+            const MS_Piece *piece;
+            u16 attribute, k;
+            s16 x, y;
 
-        sprite = g_runtime_sprites[g_runtime_used++];
-        if (!sprite)
-        {
-            sprite = SPR_addSpriteExSafe(def, -128, -128, g_runtime_attr, g_runtime_flags);
-            if (!sprite)
+            part--;
+            piece = &ms_pieces[part->first_piece];
+            attribute = g_attr_base | ((u16)part->flip << 11);
+            x = ox + part->x + 0x80;
+            y = oy + part->y + 0x80;
+            for (k = part->piece_count; k > 0; k--, piece++, sprite++)
             {
-                g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
-                continue;
-            }
-            SPR_setVisibility(sprite, HIDDEN);
-            g_runtime_sprites[g_runtime_used - 1] = sprite;
-        }
-        if (sprite->definition != def)
-        {
-            if (!SPR_setDefinition(sprite, def))
-            {
-                SPR_releaseSprite(sprite);
-                sprite = SPR_addSpriteExSafe(def, -128, -128, g_runtime_attr, g_runtime_flags);
-                if (!sprite)
-                {
-                    g_runtime_sprites[g_runtime_used - 1] = NULL;
-                    g_frame_profile.add_failures = ms_sat_add_u16(g_frame_profile.add_failures, 1u);
-                    continue;
-                }
-                g_runtime_sprites[g_runtime_used - 1] = sprite;
+                sprite->y = y + piece->y;
+                sprite->size = piece->size;
+                sprite->link = (u8)++link;
+                sprite->attribut = attribute + piece->tile_offset;
+                sprite->x = x + piece->x;
             }
         }
-
-        SPR_setPosition(sprite, ox + part->x, oy + part->y);
-        SPR_setHFlip(sprite, part->hflip ? TRUE : FALSE);
-        SPR_setVFlip(sprite, part->vflip ? TRUE : FALSE);
-        SPR_setVisibility(sprite, VISIBLE);
+        g_hw_count = link;
+        g_frame_profile.hw_sprites = g_hw_count;
+        return;
     }
+    for (n = frame->part_count; n > 0; n--)
+    {
+        const MS_Piece *piece;
+        u16 attribute, k;
+        s16 x, y;
+
+        part--;
+        piece = &ms_pieces[part->first_piece];
+        attribute = g_attr_base | ((u16)part->flip << 11);  /* bit 11 = H flip, bit 12 = V flip */
+        x = ox + part->x;
+        y = oy + part->y;
+        for (k = part->piece_count; k > 0; k--, piece++)
+            ms_push_sprite(x + piece->x, y + piece->y, piece->size, attribute + piece->tile_offset);
+    }
+    g_frame_profile.hw_sprites = g_hw_count;
 }
 
 static void ms_anim_apply_step(MS_AnimPlayer *player, u16 step_index)
@@ -269,18 +194,48 @@ static void ms_anim_finish(MS_AnimPlayer *player, const MS_Animation *anim)
 
 void ms_init(void)
 {
+    ms_init_ex(TILE_USER_INDEX, PAL1);
+}
+
+void ms_init_ex(u16 tile_index, u16 palette)
+{
     if (g_initialized)
         return;
 
     ms_data_init();
-    SPR_init();
-
-    if (MS_VARIANT_COUNT > 0 && ms_variant_defs[0] && ms_variant_defs[0]->palette)
-        PAL_setPalette(PAL1, ms_variant_defs[0]->palette->data, DMA);
-
+    g_tile_base = tile_index;
+    g_palette = palette & 3;
+    g_attr_base = TILE_ATTR_FULL(g_palette, FALSE, FALSE, FALSE, g_tile_base);
+    g_tiles_fit = FALSE;
+    if (ms_data_is_ready())
+    {
+        g_tiles_fit = ((u32)g_tile_base + (u32)MS_TILE_COUNT) <= (u32)TILE_FONT_INDEX;
+        if (g_tiles_fit && MS_TILE_COUNT > 0)
+            VDP_loadTileData(ms_tiles, g_tile_base, MS_TILE_COUNT, DMA);
+        PAL_setPalette(g_palette, ms_palette, DMA);
+    }
     ms_set_mapping(0);
-    ms_init_runtime_sprites();
     g_initialized = TRUE;
+}
+
+u8 ms_tiles_fit(void)
+{
+    return g_tiles_fit;
+}
+
+u16 ms_tile_base(void)
+{
+    return g_tile_base;
+}
+
+u16 ms_tiles_used(void)
+{
+    return (u16)MS_TILE_COUNT;
+}
+
+void ms_set_sprite_limit(u16 limit)
+{
+    g_sprite_limit = (limit > 0 && limit <= MS_DEFAULT_SPRITE_LIMIT) ? limit : MS_DEFAULT_SPRITE_LIMIT;
 }
 
 void ms_begin_frame(void)
@@ -290,25 +245,37 @@ void ms_begin_frame(void)
 
     g_frame_profile.render_calls = 0;
     g_frame_profile.parts_submitted = 0;
-    g_frame_profile.hw_sprites_estimated = 0;
-    g_frame_profile.add_failures = 0;
-    g_runtime_used = 0;
+    g_frame_profile.hw_sprites = 0;
+    g_frame_profile.sprites_dropped = 0;
+    g_hw_count = 0;
+    g_screen_w = (s16)VDP_getScreenWidth();
+    g_screen_h = (s16)VDP_getScreenHeight();
+}
+
+u8 ms_add_hw_sprite(s16 x, s16 y, u8 size, u16 attribute)
+{
+    u8 added = ms_push_sprite(x, y, size, attribute);
+    g_frame_profile.hw_sprites = g_hw_count;
+    return added;
 }
 
 void ms_end_frame(void)
 {
-    u16 i;
+    u16 count = g_hw_count;
 
-    if (g_runtime_used < g_runtime_prev_used)
+    if (count == 0)
     {
-        for (i = g_runtime_used; i < g_runtime_prev_used; i++)
-        {
-            if (g_runtime_sprites[i])
-                SPR_setVisibility(g_runtime_sprites[i], HIDDEN);
-        }
+        /* An empty list: one sprite parked above the screen. */
+        vdpSpriteCache[0].y = 0;
+        vdpSpriteCache[0].size = 0;
+        vdpSpriteCache[0].link = 0;
+        vdpSpriteCache[0].attribut = 0;
+        vdpSpriteCache[0].x = 1;
+        count = 1;
     }
-    g_runtime_prev_used = g_runtime_used;
-    SPR_update();
+    else
+        vdpSpriteCache[count - 1].link = 0;
+    VDP_updateSprites(count, DMA_QUEUE);
 }
 
 void ms_draw_module(u16 module_index, s16 x, s16 y)
@@ -568,6 +535,102 @@ void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y)
 
     step = &ms_anim_steps[anim->first_step + player->step_index];
     ms_draw_render_frame(step->frame_index, x, y);
+}
+
+static u16 ms_render_hitboxes(u16 render_index, const MS_Hitbox **out)
+{
+    const MS_RenderFrame *rf;
+
+    if (out)
+        *out = NULL;
+    if (render_index >= MS_RENDER_FRAME_COUNT)
+        return 0;
+    rf = &ms_render_frames[render_index];
+    if (out && rf->hitbox_count)
+        *out = &ms_hitboxes[rf->first_hitbox];
+    return rf->hitbox_count;
+}
+
+static u16 ms_render_points(u16 render_index, const MS_Point **out)
+{
+    const MS_RenderFrame *rf;
+
+    if (out)
+        *out = NULL;
+    if (render_index >= MS_RENDER_FRAME_COUNT)
+        return 0;
+    rf = &ms_render_frames[render_index];
+    if (out && rf->point_count)
+        *out = &ms_points[rf->first_point];
+    return rf->point_count;
+}
+
+static u16 ms_frame_render_index(u16 frame_index)
+{
+    if (frame_index >= MS_FRAME_COUNT)
+        return 0xFFFFu;
+    return ms_frame_render_frames[ms_mapping_frame_base() + frame_index];
+}
+
+u16 ms_frame_hitboxes(u16 frame_index, const MS_Hitbox **out)
+{
+    return ms_render_hitboxes(ms_frame_render_index(frame_index), out);
+}
+
+u16 ms_frame_points(u16 frame_index, const MS_Point **out)
+{
+    return ms_render_points(ms_frame_render_index(frame_index), out);
+}
+
+u16 ms_anim_player_hitboxes(const MS_AnimPlayer *player, const MS_Hitbox **out)
+{
+    const MS_AnimStep *step = ms_anim_current_step(player);
+    return ms_render_hitboxes(step ? step->frame_index : 0xFFFFu, out);
+}
+
+u16 ms_anim_player_points(const MS_AnimPlayer *player, const MS_Point **out)
+{
+    const MS_AnimStep *step = ms_anim_current_step(player);
+    return ms_render_points(step ? step->frame_index : 0xFFFFu, out);
+}
+
+const MS_Hitbox *ms_find_hitbox(const MS_Hitbox *boxes, u16 count, u16 type, u16 role)
+{
+    u16 i;
+
+    for (i = 0; boxes && i < count; i++)
+    {
+        if (boxes[i].type == type && (role == MS_NO_ROLE || boxes[i].role == role))
+            return &boxes[i];
+    }
+    return NULL;
+}
+
+const MS_Point *ms_find_point(const MS_Point *points, u16 count, u16 type, u16 role)
+{
+    u16 i;
+
+    for (i = 0; points && i < count; i++)
+    {
+        if (points[i].type == type && (role == MS_NO_ROLE || points[i].role == role))
+            return &points[i];
+    }
+    return NULL;
+}
+
+const char *ms_hitbox_type_name(u16 type)
+{
+    return ms_hitbox_type_name_data(type);
+}
+
+const char *ms_point_type_name(u16 type)
+{
+    return ms_point_type_name_data(type);
+}
+
+const char *ms_role_name(u16 role)
+{
+    return ms_role_name_data(role);
 }
 
 void ms_scene_player_init(MS_ScenePlayer *player, u16 scene_index)
