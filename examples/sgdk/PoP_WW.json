@@ -3949,19 +3949,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_9a9991c2",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -4101,19 +4089,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6d4d68fd",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -4277,19 +4253,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5931384b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -4429,19 +4393,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_3a11261b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -4605,19 +4557,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_55f0c32b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -4781,19 +4721,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d6da448f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -4945,19 +4873,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c8232de6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -5097,19 +5013,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_f4067187",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -5261,19 +5165,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ee77bfae",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -5425,19 +5317,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_114577e5",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -5673,19 +5553,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_3c77e0c6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -5945,19 +5813,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_9f10f477",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -6121,19 +5977,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e553b6b5",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -6297,19 +6141,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_795ab65c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -6473,19 +6305,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_0a5680b2",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -6649,19 +6469,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_52ae24fa",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -6813,19 +6621,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ba2add4d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -6977,19 +6773,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_06986da6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -7141,19 +6925,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_a385d3c8",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -7305,19 +7077,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_43933f07",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -7481,19 +7241,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_25f2e978",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -7645,19 +7393,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_224fcad8",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -7809,19 +7545,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_76646772",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -7973,19 +7697,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c2b5f3dc",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -8137,19 +7849,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b8c9eb75",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -8301,19 +8001,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b709c361",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -8453,19 +8141,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_8bec6b51",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -8605,19 +8281,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_a727ba9f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -8769,19 +8433,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6929e096",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -8921,19 +8573,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6b716cd0",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9097,19 +8737,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b813a338",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9237,19 +8865,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_12324dfe",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9389,19 +9005,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e03044c2",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9505,19 +9109,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_2257d4e3",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9657,19 +9249,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ed95731e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9797,19 +9377,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_95dacb14",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -9949,19 +9517,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_1727ffb1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10089,19 +9645,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ba69f0da",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10229,19 +9773,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e5498b2f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10357,19 +9889,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c9d6cedf",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10485,19 +10005,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_87ee9541",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10637,19 +10145,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_4c95d855",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10789,19 +10285,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d260d23f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -10917,19 +10401,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_9bca7208",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -11093,19 +10565,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_3d36c01c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -11269,19 +10729,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_65567739",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -11481,19 +10929,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d6d8242d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -11669,19 +11105,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_48c12cf0",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -11857,19 +11281,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e5b0b0bc",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -11985,19 +11397,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_716ea94b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -12113,19 +11513,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_bc526623",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -12253,19 +11641,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d0635098",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -12477,19 +11853,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6b9e572d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -12689,19 +12053,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_298a2a4c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -12853,19 +12205,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_3097e9b1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -13065,19 +12405,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_10eebf94",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -13229,19 +12557,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_dde3a292",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -13405,19 +12721,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_de774f80",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -13557,19 +12861,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_44536678",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -13733,19 +13025,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5329f061",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -13861,19 +13141,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_1f7ff918",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -14037,19 +13305,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ee779803",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -14201,19 +13457,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_76e52f41",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -14365,19 +13609,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_7e139ea3",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -14517,19 +13749,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ce5bd401",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -14669,19 +13889,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_cd688bc6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -14809,19 +14017,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_30945723",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -15009,19 +14205,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d281f625",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -15185,19 +14369,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_92a1927a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -15373,19 +14545,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_9eafbb50",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -15537,19 +14697,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b3163ad7",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -15701,19 +14849,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_674bbde7",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -15865,19 +15001,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c694cb0b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16017,19 +15141,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_3f637e07",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16145,19 +15257,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_60618f43",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16321,19 +15421,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_dbbf6ba1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16461,19 +15549,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b4561b1a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16637,19 +15713,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_4fe4fe2b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16789,19 +15853,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_722e602c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -16929,19 +15981,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_a9706cc0",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -17069,19 +16109,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_7c577a54",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -17221,19 +16249,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_59671bf1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -17373,19 +16389,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_11ad1723",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -17549,19 +16553,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_decbb2e7",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -17737,19 +16729,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_07588305",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -17913,19 +16893,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d26e5b82",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -18113,19 +17081,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c9a8f51b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -18241,19 +17197,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_9d4ce5d8",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -18405,19 +17349,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d44ec170",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -18581,19 +17513,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_a6719146",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -18745,19 +17665,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_53386218",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -18957,19 +17865,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_7695282a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -19121,19 +18017,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_65926648",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -19297,19 +18181,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_02162a2d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -19473,19 +18345,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c5341994",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -19649,19 +18509,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_cffc9d57",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -19813,19 +18661,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6bb1c36b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -20013,19 +18849,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b5b12b4b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -20165,19 +18989,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6e95720e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -20365,19 +19177,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5ca7cd6e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -20517,19 +19317,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ac592798",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -20693,19 +19481,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_8348869d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -20845,19 +19621,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_249b6007",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -21021,19 +19785,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_72651bc1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -21161,19 +19913,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_895f394d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -21325,19 +20065,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_f948e190",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -21489,19 +20217,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_48419ca8",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -21665,19 +20381,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_7c8969ff",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -21805,19 +20509,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_571caa97",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22017,19 +20709,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_61ca63c1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22193,19 +20873,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_0749b6dd",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22369,19 +21037,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_322314b2",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22533,19 +21189,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_86efc565",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22697,19 +21341,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d7e934d0",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22837,19 +21469,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_a97096c6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -22977,19 +21597,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_f50635c9",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -23105,19 +21713,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_7f825b53",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -23257,19 +21853,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_57e5d9ec",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -23433,19 +22017,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_404eb0d0",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -23597,19 +22169,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_18979bf4",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -23761,19 +22321,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_abf18d6d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -23997,19 +22545,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b63e2d94",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -24161,19 +22697,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_bbdffc8b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -24325,19 +22849,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_1d7895cd",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -24465,19 +22977,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5cf80b39",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -24605,19 +23105,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_dd973eec",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -24757,19 +23245,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_024615a5",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -24897,19 +23373,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_502efae3",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -25085,19 +23549,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ba793c00",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -25273,19 +23725,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_eb4b2814",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -25461,19 +23901,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e7c57648",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -25649,19 +24077,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b294d9c4",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -25813,19 +24229,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_66015f1a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -25977,19 +24381,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_cb42dfac",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -26141,19 +24533,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_72e2721b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -26317,19 +24697,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d4a8b75b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -26493,19 +24861,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c83c5268",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -26669,19 +25025,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_46cb663b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -26821,19 +25165,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_303e8f7d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -26973,19 +25305,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_50cfb7f6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -27149,19 +25469,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_9ebc38f7",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -27361,19 +25669,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c359cdef",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -27573,19 +25869,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_981f4f0c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -27761,19 +26045,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c28b6620",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -27949,19 +26221,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_09be7d2d",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -28113,19 +26373,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_168df414",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -28277,19 +26525,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_294b7443",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -28453,19 +26689,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_925a8936",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -28617,19 +26841,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_7ea4d813",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -28781,19 +26993,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ce4bd1ad",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -29005,19 +27205,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_a09ea82e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -29181,19 +27369,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_64dd3daa",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -29357,19 +27533,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b9f1eced",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -29533,19 +27697,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d0a2595a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -29709,19 +27861,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5b144d4a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -29885,19 +28025,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_8458dc8a",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -30061,19 +28189,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_fc4a7cd6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -30237,19 +28353,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_481f0151",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -30413,19 +28517,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_fdf5c65e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -30589,19 +28681,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_18428da5",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -30765,19 +28845,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_fa534d67",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -30917,19 +28985,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_62783b84",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -31069,19 +29125,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_f13d3dba",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -31221,19 +29265,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_73beb700",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -31361,19 +29393,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ae491e0f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -31513,19 +29533,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b5799c9b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -31689,19 +29697,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_d13dc661",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -31841,19 +29837,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_40820a1b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32017,19 +30001,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6db12e2c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32169,19 +30141,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_35736466",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32321,19 +30281,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_971d6665",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32473,19 +30421,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_42b4252c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32625,19 +30561,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_fe9d4e68",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32777,19 +30701,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_1ee06cc1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -32929,19 +30841,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_063c27ad",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -33081,19 +30981,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5ee81eb2",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -33221,19 +31109,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6aee6787",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -33373,19 +31249,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_08789698",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -33537,19 +31401,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_b835a645",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -33713,19 +31565,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_563ad9d6",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -33889,19 +31729,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_2ba586a0",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -34029,19 +31857,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_2f46d09e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -34205,19 +32021,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e67709c8",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -34381,19 +32185,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_65796a5b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -34557,19 +32349,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_06e1449f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -34733,19 +32513,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_fdcde2fc",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -34873,19 +32641,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_e9455d23",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35037,19 +32793,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_51228c18",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35165,19 +32909,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_662c2fca",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35317,19 +33049,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_879e881f",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35457,19 +33177,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5d635720",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35621,19 +33329,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_20de93b1",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35761,19 +33457,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_28b04c46",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -35949,19 +33633,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_44d66931",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36101,19 +33773,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_835c8472",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36241,19 +33901,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_56f26d28",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36381,19 +34029,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_5219cf43",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36533,19 +34169,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c6b4640e",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36685,19 +34309,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_6ffd9c61",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36801,19 +34413,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_ad73b2e7",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -36929,19 +34529,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_2df6b52c",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -37033,19 +34621,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_3370ea84",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -37197,19 +34773,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_0a41c5ff",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -37325,19 +34889,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_c325abbf",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -37549,19 +35101,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_8505fd71",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -37713,19 +35253,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_0ae6778b",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     },
     {
@@ -37901,19 +35429,7 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [
-        {
-          "id": "rc_006d4596",
-          "type_id": "default",
-          "rect": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "role": ""
-        }
-      ],
+      "collision_rects": [],
       "control_points": []
     }
   ],
