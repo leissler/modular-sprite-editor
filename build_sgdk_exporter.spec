@@ -11,7 +11,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['wx', 'tkinter'],
+    excludes=['wx', 'tkinter', 'numpy'],
     noarchive=False,
 )
 pyz = PYZ(a.pure, a.zipped_data)

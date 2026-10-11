@@ -21,6 +21,21 @@ import wx  # noqa: E402
 # Auto-answer modal dialogs.
 wx.MessageBox = lambda *a, **k: wx.YES  # type: ignore[assignment]
 
+# Synthetic drags hold no real mouse button. Report the button as held during them, like a real drag, so the
+# main window's checkpoint timer does not split them into several undo steps (MainFrame._on_checkpoint_timer).
+synthetic_button = [False]
+_real_mouse_state = wx.GetMouseState
+
+
+def _mouse_state():
+    state = _real_mouse_state()
+    if synthetic_button[0]:
+        state.SetLeftDown(True)
+    return state
+
+
+wx.GetMouseState = _mouse_state  # type: ignore[assignment]
+
 import app as app_mod  # noqa: E402
 from ui.project_history import project_fingerprint  # noqa: E402
 
@@ -257,6 +272,7 @@ def run():
             evt.SetLeftDown(left)
             evt.SetShiftDown(shift)
             evt.SetControlDown(cmd)
+            synthetic_button[0] = left and kind != wx.wxEVT_LEFT_UP
             handler(evt)
             pump(1)
 
@@ -475,6 +491,7 @@ def run():
             evt.SetShiftDown(shift)
             evt.SetAltDown(alt)
             handler = {wx.wxEVT_LEFT_DOWN: "_on_left_down", wx.wxEVT_MOTION: "_on_motion", wx.wxEVT_LEFT_UP: "_on_left_up"}[kind]
+            synthetic_button[0] = left and kind != wx.wxEVT_LEFT_UP
             getattr(widget, handler)(evt)
             pump(1)
 
