@@ -16,8 +16,8 @@ Primary testbeds (keep them working):
 | Project | Location | Size |
 |---|---|---|
 | Prince of Persia (WW) | `examples/sgdk/PoP_WW.json` (+ `modules_POP.bmp`), copy in `~/Downloads/PoP_WW.json` | 165 modules, 207 frames, 68 animations, 1 scene, 2 mappings |
-| Prince of Persia (SoT) | `~/Downloads/PoP_SoT.json` | 165 modules, 208 frames, 68 animations |
-| Sonic | `~/Downloads/sonic.json` | 65 modules, 38 frames, 171 animations |
+| Prince of Persia (SoT) | `~/Downloads/PoP_SoT.json` (not in the repo; mostly a duplicate of PoP_WW) | 165 modules, 208 frames, 68 animations |
+| Sonic | `examples/sonic/sonic.json` (+ `sonic.png`), copy in `~/Downloads/sonic.json` | 65 modules, 38 frames, 171 animations |
 
 ## Run, test, build
 
