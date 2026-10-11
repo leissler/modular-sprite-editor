@@ -67,7 +67,9 @@ class TestRetroAnimatorImport(unittest.TestCase):
                                 "ColorR": 40,
                                 "ColorG": 50,
                                 "ColorB": 60,
-                            }
+                            },
+                            # RetroAnimator's "no box": a box of no size. Not imported (and no type for it).
+                            "Default": {"X": 0, "Y": 0, "Width": 0, "Height": 0, "ColorR": 255, "ColorG": 0, "ColorB": 0},
                         },
                     },
                 },
@@ -112,6 +114,7 @@ class TestRetroAnimatorImport(unittest.TestCase):
             self.assertEqual(col_types, {"hurt", "block"})
             self.assertEqual(len(pose1.collision_rects), 1)
             self.assertEqual(pose1.collision_rects[0].rect, (-3, -9, 8, 10))
+            self.assertEqual([cr.rect for cr in pose2.collision_rects], [(4, -7, 2, 6)])
 
             anim = project.animations[0]
             self.assertEqual(anim.name, "idle")

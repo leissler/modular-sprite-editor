@@ -1529,9 +1529,12 @@ class AuroraSpriteParser:
                     if len(parts) >= 5:
                         try:
                             x1, y1, x2, y2 = map(int, parts[1:5])
+                            if x2 <= x1 or y2 <= y1:
+                                # "RC 0 0 0 0" marks a frame without a box; that is not a hitbox.
+                                continue
                             if not project.collision_types:
                                 project.collision_types.append(CollisionType(id="default", name="Default", color=(255, 0, 0)))
-                            
+
                             crect = CollisionRect(
                                 id=generate_id("rc"),
                                 type_id=project.collision_types[0].id,
@@ -1781,6 +1784,15 @@ class RetroAnimatorParser:
                     if not isinstance(col_data, dict):
                         continue
 
+                    rect = (
+                        RetroAnimatorParser._to_int(col_data.get("X"), 0),
+                        RetroAnimatorParser._to_int(col_data.get("Y"), 0),
+                        RetroAnimatorParser._to_int(col_data.get("Width"), 0),
+                        RetroAnimatorParser._to_int(col_data.get("Height"), 0),
+                    )
+                    if rect[2] <= 0 or rect[3] <= 0:
+                        # RetroAnimator stores a frame without a box as a box of no size; that is not a hitbox.
+                        continue
                     name = str(col_name)
                     if name not in collision_type_by_name:
                         ctype = CollisionType(
@@ -1796,16 +1808,7 @@ class RetroAnimatorParser:
                         collision_type_by_name[name] = ctype.id
 
                     frame.collision_rects.append(
-                        CollisionRect(
-                            id=generate_id("crect"),
-                            type_id=collision_type_by_name[name],
-                            rect=(
-                                RetroAnimatorParser._to_int(col_data.get("X"), 0),
-                                RetroAnimatorParser._to_int(col_data.get("Y"), 0),
-                                RetroAnimatorParser._to_int(col_data.get("Width"), 0),
-                                RetroAnimatorParser._to_int(col_data.get("Height"), 0),
-                            ),
-                        )
+                        CollisionRect(id=generate_id("crect"), type_id=collision_type_by_name[name], rect=rect)
                     )
 
             project.frames.append(frame)
