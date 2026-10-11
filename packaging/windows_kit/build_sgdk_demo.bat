@@ -10,7 +10,9 @@ if errorlevel 1 (
     echo Java was not found. SGDK's resource compiler needs it: install a Java runtime and try again.
     goto :end
 )
-"third_party\sgdk\bin\make.exe" debug
+rem SGDK's tools first on the PATH: GCC's link-time optimiser runs "make" again by name.
+set "PATH=%CD%\third_party\sgdk\bin;%PATH%"
+make debug
 if errorlevel 1 (
     echo.
     echo The build failed, see above. Is the folder path free of spaces?
