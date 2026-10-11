@@ -117,6 +117,18 @@ REM Windows
 build_windows.bat
 ```
 
+Releases come from the **Build And Release** GitHub workflow (Actions ▸ Run workflow, with a version). It builds
+the editor and the SGDK exporter (`export_sgdk`, the exporter as one executable) for all three platforms, tests
+every build (unit tests; the built editor drives every tab against both example projects with
+`--smoke-test PROJECT.json [LOG]`; the built exporter must write exactly what the Python one writes) and publishes
+`ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz` and `export_sgdk-*`. With *publish*
+off the run only builds and tests.
+
+The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
+`export_sgdk.exe`, the example projects and the SGDK demo with the SGDK it builds with, plus `export_to_sgdk.bat` /
+`build_sgdk_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI unpacks it and builds
+the PoP_WW and Sonic ROMs with those scripts.
+
 ### Tests & Tools
 ```bash
 python3 -m pytest -q                          # unit tests

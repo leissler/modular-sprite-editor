@@ -4,13 +4,13 @@ block_cipher = None
 
 a = Analysis(
     ['app.py'],
-    pathex=[],
+    pathex=['tools'],  # gui_smoke: the --smoke-test self-test
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['PIL._tkinter_finder'],
+    hiddenimports=['PIL._tkinter_finder', 'app', 'gui_smoke'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

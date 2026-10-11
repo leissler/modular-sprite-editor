@@ -15,7 +15,12 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PIL import Image
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+# The repo root; for the packaged exporter (export_sgdk.exe) the folder it sits in, which holds the same
+# examples/ layout, so the defaults below work there too.
+if getattr(sys, "frozen", False):
+    REPO_ROOT = Path(sys.executable).resolve().parent
+else:
+    REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 

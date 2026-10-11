@@ -136,8 +136,8 @@ class MainFrame(wx.Frame):
         self.history = ProjectHistory()
         self._last_dirty_state: Optional[bool] = None
 
-        # Config and Recent Files (Custom MRU)
-        self.config = wx.Config(APP_NAME)
+        # Config and Recent Files (Custom MRU); tests use their own preferences file (see SpriteEditorApp.OnInit)
+        self.config = wx.Config.Get() if os.environ.get("MSE_PREFERENCES_FILE") else wx.Config(APP_NAME)
         self.recent_files: list[str] = []
         self._load_recent_files()
 
@@ -849,6 +849,9 @@ class SpriteEditorApp(wx.App):
         self.SetVendorDisplayName(APP_NAME)
 
     def OnInit(self) -> bool:  # type: ignore[N802]
+        prefs = os.environ.get("MSE_PREFERENCES_FILE")
+        if prefs:  # tests keep their preferences in a file of their own
+            wx.Config.Set(wx.FileConfig(localFilename=prefs, style=wx.CONFIG_USE_LOCAL_FILE))
         frame = MainFrame()
 
         # Set Icon (Windows needs explicit setting for Taskbar/Window)
@@ -876,5 +879,26 @@ def main() -> None:
     app.MainLoop()
 
 
+def run_smoke_test(args: List[str]) -> None:
+    """`--smoke-test PROJECT.json [LOG]`: drive every tab against the project (tools/gui_smoke.py) and exit with
+    0 (pass) or 1, so the built executables can be tested. A windowed exe has no console: LOG gets the output."""
+    import atexit
+    import shutil
+    import tempfile
+
+    if len(args) > 1:
+        sys.stdout = sys.stderr = open(args[1], "w", encoding="utf-8", buffering=1)
+    # Preferences go to a throwaway file: the test must not change the user's settings.
+    prefs_dir = tempfile.mkdtemp(prefix="mse_smoke_")
+    atexit.register(shutil.rmtree, prefs_dir, True)
+    os.environ["MSE_PREFERENCES_FILE"] = os.path.join(prefs_dir, "preferences.ini")
+    sys.argv = [sys.argv[0]] + args[:1]
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
+    import gui_smoke  # noqa: F401  (runs the test and exits)
+
+
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:2] == ["--smoke-test"]:
+        run_smoke_test(sys.argv[2:])
+    else:
+        main()

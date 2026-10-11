@@ -29,7 +29,14 @@ python3 tools/gui_smoke.py [project]     # drives the real window (needs a displ
 python3 tools/check_export_parity.py PROJECT...   # RetroAnimator export vs editor canvas, pixel-exact
 python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project files to the current format
 ./build_macos.sh | ./build_linux.sh | build_windows.bat     # PyInstaller builds
+<built executable> --smoke-test PROJECT.json [LOG]          # gui_smoke inside a build (own preferences file)
 ```
+
+Releases: `.github/workflows/build-and-release.yml` (manual, with a version; *publish* off = build and test only)
+builds and tests the editor and the SGDK exporter (`build_sgdk_exporter.spec`) on all three platforms; the release
+gets both. It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
+editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, `packaging/windows_kit/`), and builds its ROMs on
+Windows with the vendored SGDK. Pin wxPython there to the version you test with.
 
 Known pre-existing test failure: `test_import_aurora.py` (repo root, stale) expects Aurora image ids to be
 file names; ids are generated on purpose.

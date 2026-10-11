@@ -4,13 +4,13 @@ block_cipher = None
 
 a = Analysis(
     ['app.py'],
-    pathex=[],
+    pathex=['tools'],  # gui_smoke: the --smoke-test self-test
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['wx.lib.agw.flatnotebook'],
+    hiddenimports=['wx.lib.agw.flatnotebook', 'app', 'gui_smoke'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

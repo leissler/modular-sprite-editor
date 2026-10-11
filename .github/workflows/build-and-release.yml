@@ -1,12 +1,23 @@
 name: Build And Release
 
+# Builds the editor and the SGDK exporter for macOS, Windows and Linux and tests every build: unit tests, the
+# built editor drives every tab against both example projects (--smoke-test), the built exporter must write
+# exactly what the Python exporter writes. The release gets the editor and the exporter for each platform.
+# On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
+# artifact): editor, exporter, examples and the SGDK demo, built into ROMs with the bundled SGDK.
+# With "publish" off it only builds and tests.
+
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag (example: 0.2)"
+        description: "Release tag (example: 0.4)"
         required: true
-        default: "0.2"
+        default: "0.4"
+      publish:
+        description: "Publish the GitHub release (off: build and test only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -18,119 +29,166 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-latest
-            python-version: "3.11"
-          - os: windows-latest
-            python-version: "3.11"
-          - os: ubuntu-latest
-            python-version: ""
+        # Linux on the oldest supported Ubuntu: the binary needs a glibc at least as new as the build's.
+        os: [macos-latest, windows-latest, ubuntu-22.04]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
-        if: runner.os != 'Linux'
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
-      - name: Install Linux system dependencies
+      - name: Install Linux system packages
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            python3-wxgtk4.0 \
-            libgtk-3-dev \
-            libnotify-dev \
-            libsdl2-dev \
-            libsm-dev \
-            libxtst-dev \
-            libxrender-dev \
-            libxext-dev \
-            libjpeg-dev \
-            libtiff-dev \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev
+          sudo apt-get install -y libgtk-3-0 libnotify4 libsdl2-2.0-0 libsm6 libxtst6 xvfb xauth
 
-      - name: Install dependencies
-        if: runner.os != 'Linux'
+      - name: Install Python packages
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # No Linux wheels on PyPI: wxPython's own build for this Ubuntu.
+            python -m pip install -f https://extras.wxpython.org/wxPython4/extras/linux/gtk3/ubuntu-22.04/ wxPython==4.2.5
+          else
+            python -m pip install wxPython==4.2.5
+          fi
+          python -m pip install Pillow pyinstaller pytest
 
-      - name: Install Linux Python dependencies
-        if: runner.os == 'Linux'
+      - name: Unit tests
+        shell: bash
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install Pillow pyinstaller
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a python -m pytest -q tests
+          else
+            python -m pytest -q tests
+          fi
 
-      - name: Build macOS app
+      - name: Build and test the SGDK exporter
+        shell: bash
+        run: |
+          python -m PyInstaller --clean --noconfirm --distpath dist/exporter --workpath build/exporter build_sgdk_exporter.spec
+          exe=dist/exporter/export_sgdk
+          if [ "$RUNNER_OS" = "Windows" ]; then exe=$exe.exe; fi
+          for project in examples/sgdk/PoP_WW.json examples/sonic/sonic.json; do
+            name=$(basename "$project" .json)
+            "$exe" --project-json "$project" --output-demo-dir "exporter-test/exe/$name" --mapping all
+            python examples/sgdk/tools/export_sgdk_example.py --project-json "$project" \
+              --output-demo-dir "exporter-test/py/$name" --mapping all > /dev/null
+            diff -r "exporter-test/exe/$name" "exporter-test/py/$name"
+          done
+          mkdir -p dist/release
+          case "$RUNNER_OS" in
+            macOS) (cd dist/exporter && zip -q ../release/export_sgdk-macos.zip export_sgdk) ;;
+            Linux) tar -czf dist/release/export_sgdk-linux.tar.gz -C dist/exporter export_sgdk ;;
+            Windows) python -m zipfile -c dist/release/export_sgdk-windows.zip dist/exporter/export_sgdk.exe ;;
+          esac
+
+      - name: Build and test macOS app
         if: runner.os == 'macOS'
         run: |
           python -m PyInstaller --clean --noconfirm --distpath dist/mac --workpath build/mac build_mac.spec
-          if [ -d "dist/mac/ModularSpriteEditor" ]; then
-            rm -rf dist/mac/ModularSpriteEditor
-          fi
-          cd dist/mac
-          ditto -c -k --sequesterRsrc --keepParent ModularSpriteEditor.app ModularSpriteEditor-macos.zip
+          rm -rf dist/mac/ModularSpriteEditor
+          mkdir -p test-results
+          for project in examples/sgdk/PoP_WW.json examples/sonic/sonic.json; do
+            log="test-results/smoke-$(basename "$project" .json).log"
+            dist/mac/ModularSpriteEditor.app/Contents/MacOS/ModularSpriteEditor --smoke-test "$PWD/$project" "$log" \
+              || { cat "$log"; exit 1; }
+            tail -n 1 "$log"
+          done
+          (cd dist/mac && ditto -c -k --sequesterRsrc --keepParent ModularSpriteEditor.app ../release/ModularSpriteEditor-macos.zip)
 
-      - name: Build Windows exe
+      - name: Build and test Linux binary
+        if: runner.os == 'Linux'
+        run: |
+          python -m PyInstaller --clean --noconfirm --distpath dist/linux --workpath build/linux build_linux.spec
+          mkdir -p test-results
+          for project in examples/sgdk/PoP_WW.json examples/sonic/sonic.json; do
+            log="test-results/smoke-$(basename "$project" .json).log"
+            xvfb-run -a dist/linux/ModularSpriteEditor --smoke-test "$PWD/$project" "$log" || { cat "$log"; exit 1; }
+            tail -n 1 "$log"
+          done
+          tar -czf dist/release/ModularSpriteEditor-linux.tar.gz -C dist/linux ModularSpriteEditor
+
+      - name: Build Windows exe and kit
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           python -m PyInstaller --clean --noconfirm --distpath dist/windows --workpath build/windows build_windows.spec
-          Compress-Archive -Path "dist/windows/ModularSpriteEditor.exe" -DestinationPath "dist/windows/ModularSpriteEditor-windows.zip" -Force
+          Compress-Archive -Path dist/windows/ModularSpriteEditor.exe -DestinationPath dist/release/ModularSpriteEditor-windows.zip
+          python tools/make_windows_kit.py dist/windows/ModularSpriteEditor.exe dist/exporter/export_sgdk.exe `
+            "dist/kit/ModularSpriteEditor-${{ github.event.inputs.version }}-windows-kit.zip" --version "${{ github.event.inputs.version }}"
 
-      - name: Build Linux binary
-        if: runner.os == 'Linux'
+      - name: Setup Java (SGDK's resource compiler)
+        if: runner.os == 'Windows'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Test the Windows exe and kit
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          python3 -m PyInstaller --clean --noconfirm --distpath dist/linux --workpath build/linux build_linux.spec
-          cd dist/linux
-          if [ -f "ModularSpriteEditor" ]; then
-            tar -czf ModularSpriteEditor-linux.tar.gz ModularSpriteEditor
-          elif [ -d "ModularSpriteEditor" ]; then
-            tar -czf ModularSpriteEditor-linux.tar.gz ModularSpriteEditor
-          else
-            echo "Linux build output not found"
-            exit 1
-          fi
+          # Unpack the kit like a user would and use only what is inside.
+          $results = New-Item -ItemType Directory -Force test-results
+          Expand-Archive (Get-Item dist/kit/*.zip) -DestinationPath C:\kittest
+          $kit = "C:\kittest\ModularSpriteEditor-windows"
+          foreach ($project in "examples\sgdk\PoP_WW.json", "examples\sonic\sonic.json") {
+            $log = Join-Path $results ("smoke-" + [IO.Path]::GetFileNameWithoutExtension($project) + ".log")
+            $run = Start-Process "$kit\ModularSpriteEditor.exe" -ArgumentList "--smoke-test", "$kit\$project", $log -Wait -PassThru
+            Get-Content $log -Tail 1
+            if ($run.ExitCode -ne 0) { Get-Content $log; exit 1 }
+          }
+          # The ROM from the data in the kit (PoP_WW), then export Sonic and build again.
+          cmd /c "$kit\build_sgdk_demo.bat"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item "$kit\examples\sgdk\sgdk_demo\out\debug\rom.bin" (Join-Path $results "rom-PoP_WW.bin")
+          cmd /c "$kit\export_to_sgdk.bat" "$kit\examples\sonic\sonic.json"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item "$kit\examples\sgdk\sgdk_demo\out\debug\rom.bin" (Join-Path $results "rom-sonic.bin")
+          Get-ChildItem $results
 
-      - name: Upload macOS artifact
-        if: runner.os == 'macOS'
+      - name: Upload release files
         uses: actions/upload-artifact@v4
         with:
-          name: ModularSpriteEditor-macos
-          path: dist/mac/ModularSpriteEditor-macos.zip
+          name: release-${{ runner.os }}
+          path: dist/release/*
 
-      - name: Upload Windows artifact
+      - name: Upload Windows kit (not released)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ModularSpriteEditor-windows
-          path: dist/windows/ModularSpriteEditor-windows.zip
+          name: windows-kit
+          path: dist/kit/*.zip
 
-      - name: Upload Linux artifact
-        if: runner.os == 'Linux'
+      - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ModularSpriteEditor-linux
-          path: dist/linux/ModularSpriteEditor-linux.tar.gz
+          name: test-results-${{ runner.os }}
+          path: test-results
+          if-no-files-found: ignore
 
   release:
     name: Publish Release
     needs: build
+    if: ${{ github.event.inputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
+      - name: Download release files
         uses: actions/download-artifact@v4
         with:
           path: release-assets
+          pattern: release-*
+          merge-multiple: true
 
       - name: Show assets
-        run: find release-assets -maxdepth 3 -type f -print
+        run: ls -l release-assets
 
       - name: Create/Update GitHub release
         uses: softprops/action-gh-release@v2
@@ -139,7 +197,4 @@ jobs:
           name: ${{ github.event.inputs.version }}
           generate_release_notes: true
           overwrite_files: true
-          files: |
-            release-assets/ModularSpriteEditor-macos/ModularSpriteEditor-macos.zip
-            release-assets/ModularSpriteEditor-windows/ModularSpriteEditor-windows.zip
-            release-assets/ModularSpriteEditor-linux/ModularSpriteEditor-linux.tar.gz
+          files: release-assets/*
