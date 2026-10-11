@@ -16,9 +16,9 @@ import wx.lib.agw.flatnotebook as fnb
 from models import FModule, Project, generate_id
 from ui import app_services
 from ui.animation_editor.panel import AnimationEditorPanel
-from ui.frame_editor import FrameEditorPanel
-from ui.mapping_editor import MappingEditorPanel
-from ui.module_editor import ModuleEditorPanel
+from ui.frame_editor.panel import FrameEditorPanel
+from ui.mapping_editor.panel import MappingEditorPanel
+from ui.module_editor.panel import ModuleEditorPanel
 from ui.project_history import ProjectHistory
 from ui.shortcuts_dialog import ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
@@ -28,11 +28,11 @@ TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
 
 # Shown in the status bar when a tab is activated.
 TAB_HINTS = {
-    "Modules": "Drag: select rect  •  Shift+drag: pivot  •  Space/Alt/Middle-drag: pan  •  Wheel: zoom",
-    "Frames": "Drag parts from the palette  •  Arrows: nudge (Shift = 8 px)  •  H/V: flip  •  R: rotate  •  Space/Alt-drag: pan",
+    "Modules": "Drag on the image: new module  •  Drag a module: move  •  Shift+drag: pivot  •  Cmd+drag: select several  •  Arrows: nudge",
+    "Frames": "Drag parts from the library  •  Drag empty space: select several  •  Arrows: nudge (Shift = 8 px)  •  H/V: flip  •  R: rotate",
     "Animations": "Drag frames into the sequence  •  Enter: play  •  , / .: step  •  [ / ]: hold  •  Drag a step's right edge: hold  •  Drag the stage: offset",
     "Timeline": "Drag from the Library onto the stage  •  Enter: play  •  , / .: step  •  K: key  •  Auto-Key edits set keys at the playhead",
-    "Mappings": "Drag a source module onto a target slot  •  Right-click a target slot to reset or hide it",
+    "Mappings": "Select modules, then click a replacement on the right (or drag it onto a row)  •  Delete: original  •  H: hide",
 }
 
 CHECKPOINT_INTERVAL_MS = 700
@@ -195,6 +195,9 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
         self.animation_editor.on_edit_frame = self.switch_to_frame_editor
+        self.module_editor.on_open_frame = self.switch_to_frame_editor
+        self.frame_editor.on_open_module = self.switch_to_module
+        self.mapping_editor.on_open_module = self.switch_to_module
 
         app_services.install(
             checkpoint=self.history_checkpoint,
@@ -349,16 +352,16 @@ class MainFrame(wx.Frame):
 
     def on_page_changed(self, event) -> None:
         page_idx = event.GetSelection()
-        if page_idx == 1:
-            self.frame_editor.refresh_choices()
-            self.frame_editor.refresh_frames(self.frame_editor.selected_frame_id)
+        if page_idx == 0:
+            self.module_editor.on_tab_activated()
+        elif page_idx == 1:
+            self.frame_editor.on_tab_activated()
         elif page_idx == 2:
             self.animation_editor.on_tab_activated()
         elif page_idx == 3:
             self.timeline_editor.on_tab_activated()
         elif page_idx == 4:
-            self.mapping_editor.refresh_list()
-            self.mapping_editor.visualizer.update_virtual_size()
+            self.mapping_editor.on_tab_activated()
 
         self._update_title()
         self._show_tab_hint()
@@ -379,6 +382,11 @@ class MainFrame(wx.Frame):
         """Navigates to the Frame Editor and selects the given frame."""
         self.book.SetSelection(1)
         self.frame_editor.select_frame_by_id(frame_id)
+
+    def switch_to_module(self, module_id: str) -> None:
+        """Navigates to the Modules tab and shows the given module on its image."""
+        self.book.SetSelection(0)
+        self.module_editor.select_module(module_id)
 
     # ------------------------------------------------------------------ recent files
     def _load_recent_files(self) -> None:

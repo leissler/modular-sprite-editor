@@ -8,7 +8,7 @@ import wx
 
 from models import Project
 from ui.components.frame_palette import FramePalette
-from ui.frame_editor import ModulePalette
+from ui.components.module_palette import ModulePalette
 from ui.utils import ThumbnailGenerator
 
 
@@ -104,16 +104,11 @@ class SceneLibrary(wx.Panel):
         self.search.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: self.search.SetValue(""))
         self.animations.on_activate = lambda anim_id: self._add("animation", anim_id)
         self.frames.on_frame_double_click = lambda frame_id: self._add("frame", frame_id)
-        self.modules.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self._on_module_activated)
+        self.modules.on_module_double_click = lambda module_id: self._add("module", module_id)
 
     def _add(self, source_type: str, source_id: str) -> None:
         if self.on_add:
             self.on_add(source_type, source_id)
-
-    def _on_module_activated(self, event: wx.ListEvent) -> None:
-        idx = event.GetIndex()
-        if 0 <= idx < len(self.modules.module_ids):
-            self._add("module", self.modules.module_ids[idx])
 
     def _apply_filter(self) -> None:
         text = self.search.GetValue()

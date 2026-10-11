@@ -68,9 +68,13 @@ def step(name, fn):
 def run():
     proj = None
 
+    saved_recent = list(frame.recent_files)
+
     def load():
         nonlocal proj
         frame.load_project(project_path)
+        frame.recent_files = saved_recent  # the smoke test must not reorder the user's recent files
+        frame._save_recent_files()
         proj = frame.project
         check(len(proj.frames) > 0, "frames loaded")
         check(not frame.history.is_dirty(), "clean after load")
@@ -95,19 +99,21 @@ def run():
     me = frame.module_editor
 
     def modules():
+        from ui.module_editor import ops as mops
+
         frame.select_tab(0)
         pump()
         img = proj.images[0]
-        me.select_image(img.id)
+        me.select_sheet(img.id)
         mod = next(m for m in proj.modules if m.image_id == img.id)
-        me.select_module(mod.id, center_view=True)
+        me.select_module(mod.id)
         pump()
-        check(me.spin_rect_w.GetValue() == mod.rect[2], "rect width shown")
+        check(me.selection == [mod.id], "module selected")
+        check(me.inspector.w.GetValue() == mod.rect[2], "rect width shown")
         before = tuple(mod.rect)
         frame.history_checkpoint()
-        me.spin_rect_x.SetValue(before[0] + 3)
-        me.on_geometry_spin(wx.CommandEvent())
-        check(tuple(mod.rect)[0] == before[0] + 3, "spin edits module rect")
+        me._on_field("x", before[0] + 3)
+        check(tuple(mod.rect)[0] == before[0] + 3, "inspector edits module rect")
         frame.on_undo(None)
         pump()
         restored = proj.get_module(mod.id)
@@ -116,27 +122,65 @@ def run():
         pump()
         check(proj.get_module(mod.id).rect[0] == before[0] + 3, "redo reapplies rect")
         frame.on_undo(None)
-        me.module_filter.SetValue(mod.name[:3])
         pump()
-        check(len(me._modules_view) >= 1, "module filter keeps matches")
-        me.module_filter.SetValue("")
+        me.modules.search.SetValue(mod.name[:3])
+        pump()
+        check(len(me.modules.list.rows) >= 1, "module filter keeps matches")
+        me.modules.search.SetValue("")
+        # Draw a new module on the sheet, set its pivot preset, trim it, nudge it, then undo it all
+        count = len(proj.modules)
+        me._create_from_canvas((0, 0, 24, 24))
+        new = proj.get_module(me.selection[0])
+        check(len(proj.modules) == count + 1 and new.image_id == img.id, "canvas drag creates a module")
+        me._on_preset((0.5, 1.0))
+        check(tuple(new.pivot) == (12, 24), "pivot preset")
+        me.trim_modules()
+        me.nudge(1, 0)
+        me.canvas.Refresh()
+        me.canvas.Update()
+        for _ in range(5):
+            frame.on_undo(None)
+        pump()
+        check(len(proj.modules) == count, "undo removes the new module")
+        # Detect sprites keeps existing modules (adds only new areas)
+        sheet = me._keyed_sheet()
+        if sheet is not None:
+            regions = mops.detect_regions(sheet.getchannel("A").tobytes(), sheet.width, sheet.height)
+            me._add_cut_modules(regions, False, "Detect sprites")
+            check(all(proj.get_module(m.id) for m in mops.modules_of_sheet(proj, img.id)), "detect keeps modules")
+            frame.on_undo(None)
+            pump()
+            check(len(proj.modules) == count, "undo detect")
+        me.select_sheet(mops.SHAPES_KEY)
+        me._create_from_canvas((0, 0, 16, 12))
+        shape = proj.get_module(me.selection[0])
+        check(shape is not None and shape.type != "MD_IMAGE", "shape drawn on the Shapes sheet")
+        frame.on_undo(None)
+        pump()
+        me.select_sheet(img.id)
+        me.edit_select_all()
+        check(len(me.selection) == len(mops.modules_of_sheet(proj, img.id)), "select all modules")
+        me.select_modules([])
 
-    step("modules: geometry spins + undo/redo + filter", modules)
+    step("modules: inspector + undo/redo + filter + draw/preset/trim + detect + shapes", modules)
 
     # ---- Frames
     fe = frame.frame_editor
 
     def frames():
+        from ui.frame_editor import ops as fops
+
         frame.select_tab(1)
         pump()
         target = next(f for f in proj.frames if f.fmodules)
         fe.select_frame_by_id(target.id)
         pump()
-        check(fe.canvas.frame is target, "frame shown on canvas")
+        check(fe.stage.frame is target, "frame shown on the stage")
         fe.edit_select_all()
-        check(len(fe.canvas.selected_fmodules) == len(target.fmodules), "select all parts")
+        check(len(fe.stage.selected_fmodules) == len(target.fmodules), "select all parts")
+        check(len(fe.contents.list.selected_ids()) == len(target.fmodules), "contents list follows the selection")
         pos_before = [fm.position for fm in target.fmodules]
-        fe._nudge_selection(1, 0)
+        fe.nudge(1, 0)
         check([fm.position for fm in target.fmodules] == [(x + 1, y) for x, y in pos_before], "nudge moves parts")
         frame.history_checkpoint()
         fe.edit_copy()
@@ -147,35 +191,154 @@ def run():
         pump()
         restored = proj.get_frame(target.id)
         check(len(restored.fmodules) == count, "undo removes pasted parts")
-        check(fe.canvas.frame is restored, "canvas re-bound to restored frame")
+        check(fe.stage.frame is restored, "stage re-bound to the restored frame")
         frame.on_undo(None)
         pump()
         check([fm.position for fm in proj.get_frame(target.id).fmodules] == pos_before, "undo nudge")
         n_frames = len(proj.frames)
-        fe.duplicate_selected_frame()
+        fe.duplicate_frame()
         check(len(proj.frames) == n_frames + 1, "duplicate frame")
         dup = proj.get_frame(fe.selected_frame_id)
         check(dup.id != target.id and all(fm.id not in {x.id for x in target.fmodules} for fm in dup.fmodules), "fresh ids")
-        fe.on_delete_frame(None)
+        fe.delete_frame()
         check(len(proj.frames) == n_frames, "delete frame")
-        for mode in ("collision", "point", "module"):
-            fe.set_edit_mode(mode)
+        for mode in ("hitboxes", "points", "parts"):
+            fe.set_mode(mode)
             pump()
+            fe.stage.Refresh()
+            fe.stage.Update()
+        fe.select_frame_by_id(target.id)
         fe.onion_choice.SetSelection(3)
-        fe.on_onion_changed(None)
+        fe._update_ghosts()
         pump()
-        fe.canvas.Refresh()
-        fe.canvas.Update()
-        fe.frame_filter.SetValue("stand")
+        fe.stage.Refresh()
+        fe.stage.Update()
+        fe.browser.search.SetValue("stand")
         pump()
-        check(all("stand" in f.name.lower() for f in fe._frame_view), "frame filter")
-        fe.frame_filter.SetValue("")
-        fe._toggle_flip("x")
-        fe._rotate_selected(90)
+        check(all("stand" in f.name.lower() for f in fe._view), "frame filter")
+        fe.browser.search.SetValue("")
+        pump()
+        fe.select_frame_by_id(target.id)
+        fe.set_selected([target.fmodules[0].id])
+        fe._flip("x")
+        fe._on_part_tool("rot_cw")
+        fe._on_part_tool("top")
         frame.on_undo(None)
         frame.on_undo(None)
+        frame.on_undo(None)
+        pump()
+        # Add a part from the library, a hitbox and a point, then undo them
+        fe.add_part("module", proj.modules[0].id, (0, 0))
+        check(len(proj.get_frame(target.id).fmodules) == count + 1, "library part added")
+        fe.set_mode("hitboxes")
+        f = proj.get_frame(target.id)
+        boxes = len(f.collision_rects)
+        fops.insert_items(proj, f, "hitboxes", [{"id": "x", "type_id": proj.collision_types[0].id, "rect": [0, 0, 8, 8]}])
+        fe.refresh()
+        fe.set_selected([f.collision_rects[-1].id])
+        fe._on_marker_field("role", "body")
+        check(f.collision_rects[-1].role == "body", "hitbox role from the inspector")
+        fe.set_mode("parts")
+        for _ in range(3):
+            frame.on_undo(None)
+        pump()
+        f = proj.get_frame(target.id)
+        check(len(f.fmodules) == count and len(f.collision_rects) == boxes, "undo part and hitbox")
+        fe.on_tab_activated()
 
-    step("frames: select/nudge/copy/paste/undo/dup/delete/modes/onion/filter", frames)
+    step("frames: select/nudge/copy/paste/undo/dup/delete/modes/onion/filter/flip/add/hitbox", frames)
+
+    def editors_mouse():
+        from ui.module_editor import ops as mops
+
+        def mouse(handler, kind, pos, shift=False, cmd=False, left=True):
+            evt = wx.MouseEvent(kind)
+            evt.SetPosition(wx.Point(int(pos[0]), int(pos[1])))
+            evt.SetLeftDown(left)
+            evt.SetShiftDown(shift)
+            evt.SetControlDown(cmd)
+            handler(evt)
+            pump(1)
+
+        def drag(widget, names, a, b, **keys):
+            down, move, up = (getattr(widget, n) for n in names)
+            mouse(down, wx.wxEVT_LEFT_DOWN, a, **keys)
+            mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            mouse(move, wx.wxEVT_MOTION, mid, **keys)
+            mouse(move, wx.wxEVT_MOTION, b, **keys)
+            mouse(up, wx.wxEVT_LEFT_UP, b, left=False, **keys)
+
+        # Modules: draw, move, resize, pivot, marquee, click to deselect
+        frame.select_tab(0)
+        pump()
+        img = proj.images[0]
+        me.select_sheet(img.id)
+        cv = me.canvas
+        cv.set_zoom_level(4.0)
+        rects = [tuple(m.rect) for m in mops.modules_of_sheet(proj, img.id)]
+        spot = next(((x, y) for y in range(0, img.height - 12, 4) for x in range(0, img.width - 12, 4)
+                     if not any(mops.overlaps((x - 2, y - 2, 16, 16), r) for r in rects)), None)
+        check(spot is not None, "free space on the sheet")
+        if spot is None:
+            return
+        cv.center_view((spot[0] + 5, spot[1] + 5))
+        pump()
+        names = ("_on_left_down", "_on_motion", "_on_left_up")
+        screen = lambda x, y: cv.world_to_screen((x + 0.5, y + 0.5))
+        count = len(proj.modules)
+        drag(cv, names, screen(*spot), screen(spot[0] + 7, spot[1] + 9))
+        new = proj.get_module(me.selection[0]) if me.selection else None
+        check(len(proj.modules) == count + 1 and new is not None and tuple(new.rect) == (spot[0], spot[1], 8, 10), f"drag draws a module {new.rect if new else None}")
+        if new is None:
+            return
+        drag(cv, names, screen(spot[0] + 3, spot[1] + 3), screen(spot[0] + 5, spot[1] + 4))
+        check(tuple(new.rect)[:2] == (spot[0] + 2, spot[1] + 1), f"drag moves the module {new.rect}")
+        x, y, w, h = new.rect
+        se = cv.world_to_screen((x + w, y + h))
+        drag(cv, names, se, (se[0] + 8, se[1] + 8))
+        check(tuple(new.rect)[2:] == (w + 2, h + 2), f"handle resizes the module {new.rect}")
+        mouse(cv._on_left_down, wx.wxEVT_LEFT_DOWN, screen(x + 1, y + 1), shift=True)
+        mouse(cv._on_left_up, wx.wxEVT_LEFT_UP, screen(x + 1, y + 1), shift=True, left=False)
+        check(tuple(new.pivot) == (1, 1), f"Shift+click sets the pivot {new.pivot}")
+        mouse(cv._on_left_down, wx.wxEVT_LEFT_DOWN, screen(spot[0] - 1, spot[1] - 1))
+        mouse(cv._on_left_up, wx.wxEVT_LEFT_UP, screen(spot[0] - 1, spot[1] - 1), left=False)
+        check(me.selection == [], "click on empty space deselects")
+        drag(cv, names, screen(spot[0] - 1, spot[1] - 1), screen(spot[0] + 4, spot[1] + 4), cmd=True)
+        check(me.selection == [new.id], "Cmd+drag selects with a marquee")
+        for _ in range(4):
+            frame.on_undo(None)
+        pump()
+        check(len(proj.modules) == count, "undo the drawn module")
+
+        # Frames: marquee, hitbox drag, click without drag
+        frame.select_tab(1)
+        pump()
+        target = max(proj.frames, key=lambda f: len(f.fmodules))
+        fe.select_frame_by_id(target.id)
+        st = fe.stage
+        st.fit_to_content()
+        pump()
+        fe.set_mode("parts")
+        w, h = st.GetClientSize()
+        fnames = ("on_left_down", "on_mouse_drag", "on_left_up")
+        drag(st, fnames, (3, 3), (w - 3, h - 3))
+        check(len(st.selected_fmodules) == len(target.fmodules), "marquee over the stage selects every part")
+        fe.set_mode("hitboxes")
+        boxes = len(target.collision_rects)
+        corner = (3, 3)
+        mouse(st.on_left_down, wx.wxEVT_LEFT_DOWN, corner)
+        mouse(st.on_left_up, wx.wxEVT_LEFT_UP, corner, left=False)
+        check(len(proj.get_frame(target.id).collision_rects) == boxes, "a click draws no empty hitbox")
+        drag(st, fnames, (10, 10), (10 + 6 * st.zoom, 10 + 5 * st.zoom))
+        f = proj.get_frame(target.id)
+        check(len(f.collision_rects) == boxes + 1 and f.collision_rects[-1].rect[2:] == (6, 5), "drag draws a hitbox")
+        check(fe.inspector.marker_panel.IsShown(), "the new hitbox shows in the inspector")
+        frame.on_undo(None)
+        pump()
+        check(len(proj.get_frame(target.id).collision_rects) == boxes, "undo the hitbox")
+        fe.set_mode("parts")
+
+    step("modules + frames: mouse on the canvases", editors_mouse)
 
     # ---- Animations
     ae = frame.animation_editor
@@ -577,13 +740,35 @@ def run():
         frame.on_preview_mapping_selected(proj.mappings[0].id)
         pump()
         check(proj.active_mapping is proj.mappings[0], "preview mapping set")
-        check(frame.mapping_editor.current_mapping is proj.mappings[0], "mapping editor synced")
+        mp = frame.mapping_editor
+        check(mp.current_mapping is proj.mappings[0], "mapping editor synced")
+        mapping = proj.mappings[0]
+        before = dict(mapping.map)
+        ids = mp.visible_module_ids()[:3]
+        mp.table.set_selected(ids)
+        mp._on_table_select()
+        mp.apply(None)
+        check(all(mapping.map.get(i, "x") is None for i in ids), "hide selected modules")
+        mp.apply(proj.modules[-1].id)
+        check(all(mapping.map.get(i) == proj.modules[-1].id or i == proj.modules[-1].id for i in ids), "replace selected modules")
+        mp.apply(None, reset=True)
+        frame.on_undo(None)
+        frame.on_undo(None)
+        frame.on_undo(None)
+        pump()
+        check(dict(proj.mappings[0].map) == before, "undo mapping edits")
+        mp.chk_changed.SetValue(True)
+        mp.refresh_table()
+        check(all(i in proj.mappings[0].map for i in mp.visible_module_ids()), "changed-only filter")
+        mp.chk_changed.SetValue(False)
+        mp.refresh_table()
         frame.select_tab(1)
         pump()
         frame.on_preview_mapping_selected(None)
         check(proj.active_mapping is None, "preview mapping cleared")
+        check(mp.current_mapping is None, "mapping editor follows the context bar")
 
-    step("mappings: global preview selector sync", mappings)
+    step("mappings: preview selector sync, hide/replace/reset, undo, filter", mappings)
 
     def dirty():
         frame.history_checkpoint()

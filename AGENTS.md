@@ -56,8 +56,26 @@ ui/
   base_canvas.py           BaseCanvas: pan/zoom model, integer zoom levels, fit, grid, checkerboard
   canvas.py                FrameCanvas (frame editing, collision/point modes, ghost layers, bitmap
                            caches, part bounds)
-  module_editor.py         Modules tab (ModuleCanvas + panel)
-  frame_editor.py          Frames tab (ModulePalette + panel)
+  frame_geometry.py        wx-free part bounds (module pivot/rotation, nested frames, mapping) — the one
+                           implementation FrameCanvas, the Frames ops and hit-testing share
+  module_editor/           Modules tab, redesigned from scratch:
+    ops.py                 wx-free: sheets (+ Shapes / missing-image pseudo sheets), usage counts, naming,
+                           pivots (packed-rotation aware, presets), grid slice, sprite detection (run-based
+                           connected components), trim, add/replace cut modules — unit-tested
+    canvas.py              SheetCanvas: the image with its modules; draw / move / resize / Shift+drag pivot /
+                           Cmd+drag marquee, snap, names, pivots, key-colour pick
+    inspector.py           ModuleInspector: sheet (file, key colour, slicing tools) or module(s)
+    dialogs.py             Grid slice / detect sprites (live counts, keep-or-replace) / folder import
+    panel.py               ModuleEditorPanel: Images + Modules lists, canvas, inspector, commands, keyboard
+  frame_editor/            Frames tab, redesigned from scratch:
+    ops.py                 wx-free: frames (new/duplicate/delete/move/references), items (paste with cycle
+                           check, nudge, delete, reorder), group flip, mirror/rotate frame, origin, hitbox /
+                           point copy to frames, types — unit-tested
+    stage.py               FrameStage (FrameCanvas): marquee, origin marker, drops, no empty click boxes
+    inspector.py           FrameInspector: frame tools, part(s), hitbox/point, types (inline)
+    library.py             PartLibrary: modules (per image) and frames to drag or double-click
+    roles.py               Tools ▸ Validate Roles / Inspect Compiled Role Tables
+    panel.py               FrameEditorPanel: Frames list + library, mode bar, stage, inspector + contents list
   animation_editor/        Animations tab, redesigned from scratch:
     ops.py                 wx-free: tick timing, Player (playback exactly like the SGDK runtime),
                            step edits (insert/move/copy/hold/flip/rotate/nudge/reverse), whole-animation
@@ -80,9 +98,14 @@ ui/
     inspector.py           SceneInspector: contextual sections (scene / object / playback / transform /
                            motion / swap), EasingPreview, SourcePickerDialog
     library.py             SceneLibrary: Animations / Frames / Modules palettes (drag or double-click)
-  mapping_editor.py        Mappings tab
-  components/              CanvasDisplayControls (shared view bar), FramePalette
-  collision_manager.py / point_manager.py   type lists (colour, visibility, active type)
+  mapping_editor/          Mappings tab, redesigned from scratch:
+    ops.py                 wx-free: states (original/replaced/hidden/missing), assign/reset, match by position
+                           between two images or by name, frames using modules (through nesting) — unit-tested
+    table.py               MapTable: module → replacement rows (drop target)
+    panel.py               MappingEditorPanel: mappings list, module map, Replace with picker, usage preview
+  components/              CanvasDisplayControls (shared view bar), FramePalette, ModulePalette (module grid,
+                           THUMBNAILS cache), ThumbList / Browser (thumbnail rows: rename, reorder, drag out),
+                           inspector_kit (section / row / spin helpers)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
                            to frame_render)
@@ -91,7 +114,7 @@ ui/
 tools/                     migrate_projects.py, gui_smoke.py
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py) + Mega Drive runtime demo
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
-                           scene ops, animation ops, export/canvas parity, migration)
+                           scene / animation / module / frame / mapping ops, export/canvas parity, migration)
 docs/                      UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
 ```
 
@@ -172,10 +195,16 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `ops.keep_loop_start(anim)` so "loop from" stays on its step. Thumbnails and GIF export
   render through `render.StepRenderer` (the parity-checked renderer), not `ThumbnailGenerator`. The stage's
   mirror preview reverses a step's rotation for an odd number of mirror axes (`AnimationStage.step_transform`).
+- **Modules / Frames / Mappings:** laid out like the animation editors (browser list with thumbnails | canvas
+  with view bar | contextual inspector). Panels keep selections by id (`ModuleEditorPanel.selection`,
+  the stage's `selected_*` lists, `MappingEditorPanel.selection`) and rebuild their lists from the data after
+  every edit; logic lives in each package's `ops.py`. Module pivots are stored for the module *as used*:
+  packed (`rotated`) modules convert with `ops.visual_pivot` / `ops.logical_pivot`. Part bounds come from
+  `ui/frame_geometry.py` only. Module thumbnails go through `components.module_palette.THUMBNAILS`.
 - **Destructive actions** confirm when they break references (count the references) and stay undoable.
-- **Lists** use Add / Duplicate / Delete buttons, Delete key, double-click/F2 rename, and a filter
-  (`wx.SearchCtrl`). Filtered lists keep a view list (`_frame_view`, `_anim_view`, `_modules_view`); never
-  index `project.frames[...]` with a list-control index.
+- **Lists** use Add / Duplicate / Delete buttons, Delete key, double-click/F2 rename, drag to reorder and a filter
+  (`wx.SearchCtrl`); new lists use `components.thumb_list.Browser` / `ThumbList`. Lists show a filtered view:
+  map rows to objects by id, never index `project.frames[...]` with a list index.
 - wx label gotcha: `&` in `StaticBox`/menu labels is a mnemonic — write `&&` for a literal ampersand.
 - Pixel art: scale images with `wx.IMAGE_QUALITY_NEAREST` on the image (GraphicsContext would smooth),
   keep zoom integral, and draw bitmaps at exactly their size.
@@ -200,7 +229,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 |---|---|---|---|---|---|
 | Frame/animation/timeline canvas | `ui/canvas.py` | yes | 90° steps | yes | yes |
 | All frame thumbnails, Animations tab, GIF export | `ui/frame_render.py` (RetroAnimator renderer, content-cached) | yes | yes | yes | yes |
-| Single-module thumbnails | `ui/utils.py` `ThumbnailGenerator` (module path) | n/a | n/a | yes | n/a |
+| Module thumbnails (lists, palettes, mapping table) | `ui/frame_render.py` `FrameRenderer.module` via `ModuleThumbnails` | n/a | n/a | yes | n/a |
+| Modules tab sheet | `FrameRenderer.sheet` (key colour cut in C, like the exporter) | n/a | n/a | n/a | n/a |
 | RetroAnimator export | `RetroAnimatorExporter` | yes | any (affine) | yes | yes |
 | SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
 

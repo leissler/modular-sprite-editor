@@ -5,7 +5,7 @@ Prince of Persia (`examples/sgdk/PoP_WW.json`, 165 modules / 207 frames / 68 ani
 Sonic (`~/Downloads/sonic.json`, 65 modules / 38 frames / 171 animations) testbeds.
 
 Status legend: **done** = implemented on branch `ux-declutter-consistency`, **open** = recommended,
-not implemented yet.
+not implemented yet. Sections 2–6 also describe the later from-scratch redesigns of every editor tab.
 
 ---
 
@@ -34,27 +34,37 @@ not implemented yet.
 | X19 | Switching to the Timeline took ~0.5 s and typing in a module filter ~2 s per key: macOS builds a mask for every bitmap added to a masked `wx.ImageList`. | Performance | done: thumbnail image lists use `mask=False` |
 | X20 | No way to see whether a frame or a scene fits the console's sprite hardware until it runs on a Mega Drive. | Retro workflow | done (Mega Drive): **Budget** in the view bars of Frames, Animations and Timeline — VDP sprite outlines, red scanlines over the sprite / pixel limit, a readout; `hardware_budget.py` mirrors the SGDK exporter's part placement (tested) |
 
-## 2. Modules tab
+## 2. Modules tab — redesigned (`editors-redesign` branch)
 
-| # | Finding | Status |
+A first pass tidied the old editor (M1–M6: properties box, numeric X/Y/W/H and pivot, one Slice ▾ menu, hints). The
+redesign then replaced `ui/module_editor.py` (2 300 lines) with `ui/module_editor/`, laid out like the animation
+editors: Images + Modules lists | sheet canvas | inspector. The file format is unchanged.
+
+| # | Finding in the old editor | Redesign |
 |---|---------|--------|
-| M1 | The shape-type choice + colour swatch sit *above* the module list and look like a list filter; their meaning ("type for the next module you create") is unclear. | done: moved into a "Module" properties box below the list |
-| M2 | Rect and pivot can only be changed by dragging; no numeric entry. For pixel-exact work this is the most common need. | done: X / Y / W / H and pivot X / Y spin controls |
-| M3 | "Grid Slice" box (tile W/H, Slice, Auto Modularize) plus "Auto Detect / Merge Gap" are always visible although rarely used. | done: one "Slice ▾" menu button (Grid Slice…, Auto Detect…, Auto Modularize…) |
-| M4 | Image list takes 1/3 of the sidebar even with a single image. | done: compact image list |
-| M5 | Pivot drag is Shift+drag, pan is Alt+drag; undocumented. | done: hints in status bar + shortcut sheet |
-| M6 | Duplicate methods (`refresh_images`, `show_optimization_dialog`), duplicate attribute inits. | done: removed |
+| M7 | Making a module took two steps (drag a selection, then *Add Module*); a click outside the selection threw away the pending one; the selected module and the pending selection looked alike. | Drag on empty space **is** the new module (undo removes it); click selects, drag moves, 8 handles resize, the pivot keeps its pixel while resizing. Optional grid **snap**, module **names** and all **pivots** on the sheet. |
+| M8 | One module at a time; no keyboard nudging; no duplicate; delete only one. | **Cmd+click / Cmd+drag** (marquee) select several; arrows nudge (Shift = 8 px); copy / paste — also onto **another image** to cut the same areas there; duplicate; delete with usage counts. |
+| M9 | Text-only module list (name / rect / pivot columns, sorted by name); nothing showed which modules are used. | Module rows with a **thumbnail**, size and **use count** (unused ones dimmed); rename in place, drag to reorder. Images list with thumbnails, size and module count; a **missing file** is flagged and **Locate…** relinks it; Reload after editing the image elsewhere. |
+| M10 | Shape modules were listed with every image, their type had to be chosen *before* drawing and was locked afterwards. | Shapes live on their own **Shapes** sheet: pick the shape and colour, drag to draw; the type can still be changed afterwards (point / arc parameters in %). |
+| M11 | Pivot: Shift+drag or numbers only. | 3×3 **pivot presets** (bottom = feet on y = 0), applied to all selected modules; packed (rotated) modules handled. **Trim** shrinks modules to their opaque pixels. |
+| M12 | Grid slice: tile size only, created empty tiles, always replaced every module of the image (breaking frames). Auto detect: a Python flood fill (seconds on a sheet) and also replaced everything. Keying the sheet looped over every pixel in Python. | Grid slice with offset, gap and **skip empty tiles**; detection works on pixel runs (**4 ms** for the PoP sheet, tested against the old flood fill); both show a live count and can **keep the existing modules and add only new areas**. The key colour is cut in C (same result as the exporter). |
+| M13 | Usage was only visible when deleting. | Inspector shows "used by N parts in M frames, K mapping entries", **Go to frame** and **New frame** (module on the origin). |
 
-## 3. Frames tab
+## 3. Frames tab — redesigned (`editors-redesign` branch)
 
-| # | Finding | Status |
+The first pass (F1–F6) moved the mode switch next to the canvas, added nudging, copy/paste and onion skin. The
+redesign replaced `ui/frame_editor.py`, `collision_manager.py` and `point_manager.py` with `ui/frame_editor/`:
+Frames + Library | mode bar, stage, view bar | inspector + contents list.
+
+| # | Finding in the old editor | Redesign |
 |---|---------|--------|
-| F1 | Edit-mode selector (Modules / Collision / Points) lives in the frame-list button row, far from the canvas it controls. "Role Tools" button sits in the same row. | done: mode + overlay toggles in a canvas toolbar; Role tools moved to Tools menu |
-| F2 | No keyboard nudge for parts, collision boxes or points (pixel-exact placement needs arrows). | done: arrows = 1 px, Shift+arrows = 8 px (one tile) |
-| F3 | No copy/paste/duplicate of parts between frames (core modular workflow). | done: Cmd+C / Cmd+V / Cmd+D, Cmd+A select all |
-| F4 | Paste / propagate collision & points and frame mirror/rotate are not undoable. | done (global history) |
-| F5 | README promises onion skinning, which does not exist. | done: Animations ghost previous/next animation step (with their offsets); Frames ghost the previous/next frame of the (filtered) frame list |
-| F6 | Two `on_frame_list_context_menu` definitions (the first is dead). | done |
+| F7 | Frame list was text only; nothing showed which frames are used or nested. | Rows with a **thumbnail** (preview mapping applied), part count, animations using it, "nested ×N" or *unused*; rename in place, drag to reorder, **drag a row onto the stage** to nest it. |
+| F8 | The module palette disappeared in Collision / Points mode (the side box switched to the type lists); one uniform scale made small modules tiny; frames could only be nested from the frame list. | A **library** that stays: Modules (per image, each fitted in its cell with its size) and Frames; drag onto the stage or double-click to add at the origin. |
+| F9 | No numbers for parts; overlapping parts were hard to reach; roles via modal text prompts from a context menu. | **Inspector** for the selection: part source (swap with the library pick, open it), position, flips, rotation, draw order; hitbox / point type, **role** and rect inline. A **contents list** (parts top-most first, drag to reorder; hitboxes; points) selects anything, including invisible items. Marquee selection on the stage. |
+| F10 | Frame tools (mirror, rotate, copy / propagate hitboxes and points) only in the frame list's context menu. | Frame section of the inspector: mirror H/V, rotate, **feet / centre on the origin**, usage; copying hitboxes or points to all frames asks *add* or *replace*. |
+| F11 | Type managers with their own +/- buttons, rename by double-click into an edit field. | Types inline in the inspector (Hitboxes / Points mode, nothing selected): colour, name, visible, use count, delete; the type for new boxes / points sits next to the mode buttons. |
+| F12 | A click without a drag in Collision mode left an invisible 0×0 box behind (the testbeds carry such boxes: one in every PoP_WW frame, 207 in all; 28 in PoP_SoT; 4 in Sonic); boxes or points of a deleted type were invisible and unreachable. | Clicks make no box; **Remove N empty boxes** in the types section cleans old ones (undoable); items of unknown types draw grey and can be retyped. |
+| F13 | Group flip, frame mirror / rotate and z-order logic lived in the panel (untested); bounds were computed in the canvas. | `ops.py` (tested) and one wx-free `ui/frame_geometry.py` for part bounds, shared with the canvas (export parity unchanged). |
 
 ## 4. Animations tab — redesigned (`animation-redesign` branch)
 
@@ -97,12 +107,16 @@ Spine, Aseprite). The file format is unchanged; every existing scene opens as be
 Known limits: one selected object at a time (keys can be multi-selected across layers); rotation tweens in
 90° steps; scale/opacity stay hidden (no hardware support on the main target).
 
-## 6. Mappings tab
+## 6. Mappings tab — redesigned (`editors-redesign` branch)
 
 | # | Finding | Status |
 |---|---------|--------|
-| P1 | An unmapped slot is labelled "None" although it renders the *original* module; "Clear All" says "map all to None" but actually resets to original. Hidden modules (value `null`) cannot be created from the UI. | done: "= original" vs "Hidden" states, right-click slot ▸ Reset / Hide, "Reset All" |
-| P2 | Duplicate `on_left_down` / `set_project` definitions. | done |
+| P1 | An unmapped slot is labelled "None" although it renders the *original* module; "Clear All" says "map all to None" but actually resets to original. Hidden modules (value `null`) cannot be created from the UI. | done (first pass): "= original" vs "Hidden" states, Reset / Hide, "Reset All" |
+| P2 | Duplicate `on_left_down` / `set_project` definitions. | done (first pass) |
+| P3 | Two horizontal strips with one slot per module (165 slots wide in PoP); drag a source module onto a slot; zoom slider; no filter. | A vertical **module map** (module → what it shows: replacement, *= original*, *Hidden*, *Missing*), filtered by name, image or *changed only*; multi-select rows, then **click a replacement** in the *Replace with* grid (or drag it onto a row); Delete = original, H = hide. |
+| P4 | Remapping a recoloured or re-dressed sheet meant one drag per module. | **Match ▾**: *same layout on another image* (every module → the module at the same rect) and *match names* (`_red` → `_blue`, live count). |
+| P5 | The frame preview showed every frame. | The preview shows the frames that contain the selected modules (also through nested frames), or all frames the mapping changes. |
+| P6 | Mapping list: plain names, deselecting cleared the preview mapping. | Rows with "N replaced · M hidden", rename in place, drag to reorder; the selection *is* the preview mapping and follows the context bar both ways. |
 
 ## 7. Recommended next steps (not done in this pass)
 
@@ -114,10 +128,9 @@ Known limits: one selected object at a time (keys can be multi-selected across l
 
 * **One shared compositor** (`Project`-level, PIL based) used by thumbnails, GIF export, onion skin and the
   RetroAnimator/SGDK exporters so nested frames, rotation, shapes and mappings render identically everywhere (X17).
-* Frame list thumbnails (small icons in the list).
 * Proportional-width (duration-scaled) cells in the animation strip, drag-to-change duration.
 * AFrame rotation control in the Animations tab (A5).
 * Per-project persisted view settings (grid size, zoom per tab) in `wx.Config`.
-* Delete key for the scene list; drag-reorder for scenes and mappings.
+* Delete key for the scene list; drag-reorder for scenes.
 * Remove the stale root-level `test_*.py` scripts or move them into `tests/` (one of them fails by design).
 * See `docs/ANIMATION.md` for the animation feature roadmap.

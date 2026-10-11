@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 import wx
 
-from models import Frame, ModuleMapping, Project, RetroAnimatorExporter as _RA
+from models import Frame, ImageAsset, Module, ModuleMapping, Project, RetroAnimatorExporter as _RA
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
@@ -36,6 +36,21 @@ def transform(
     return a, b
 
 
+def key_out(image: Any, colour: Optional[Tuple[int, int, int]]) -> Any:
+    """Make every pixel of the key colour transparent (same result as the exporter, done in C)."""
+    if not colour:
+        return image
+    from PIL import ImageChops
+
+    rgba = image.convert("RGBA")
+    r, g, b, a = rgba.split()
+    hits = [band.point([255 if v == int(c) else 0 for v in range(256)]) for band, c in zip((r, g, b), colour)]
+    is_key = ImageChops.multiply(ImageChops.multiply(hits[0], hits[1]), hits[2])
+    out = rgba.copy()
+    out.putalpha(ImageChops.subtract(a, is_key))
+    return out
+
+
 def mapping_key(mapping: Optional[ModuleMapping]) -> Any:
     return (mapping.id, tuple(sorted((k, v or "") for k, v in mapping.map.items()))) if mapping else None
 
@@ -51,6 +66,11 @@ def _module_key(project: Project, module_id: str, mapping: Optional[ModuleMappin
         asset.file_path if asset else None,
         tuple(asset.transparent_color) if asset and asset.transparent_color else None,
     )
+
+
+def module_signature(project: Project, module_id: str) -> Any:
+    """Everything that decides how a module looks (geometry, pixels source, key colour, shape), hashable."""
+    return _module_key(project, module_id, None)
 
 
 def frame_signature(project: Project, frame_id: str, mapping: Optional[ModuleMapping], _stack: Optional[Set[str]] = None) -> Any:
@@ -126,6 +146,33 @@ class FrameRenderer:
             self._results.popitem(last=False)
         return result
 
+    def module(self, project: Project, module: Module) -> Any:
+        """A module's pixels (RGBA, key colour removed, packed rotation undone), cached by content."""
+        content = _module_key(project, module.id, None)
+        if self._module_keys.get(module.id) != content:
+            self._modules.pop(module.id, None)
+            self._module_keys[module.id] = content
+        return _RA._load_module_rgba(project, module, self._images, self._modules)
+
+    def sheet(self, project: Project, asset: ImageAsset, keyed: bool = True) -> Any:
+        """A whole image asset as RGBA (with its key colour removed unless ``keyed`` is False), or None."""
+        import os
+
+        from PIL import Image as PILImage
+
+        if not asset or not os.path.exists(asset.file_path):
+            return None
+        key_colour = tuple(int(c) for c in asset.transparent_color) if (keyed and asset.transparent_color) else None
+        cache_key = f"{os.path.abspath(asset.file_path)}|key={key_colour}"
+        cached = self._images.get(cache_key)
+        if cached is None:
+            try:
+                cached = key_out(PILImage.open(asset.file_path).convert("RGBA"), key_colour)
+            except OSError:
+                return None
+            self._images[cache_key] = cached
+        return cached
+
 
 # One renderer for all thumbnail users, so every list shares its cache.
 SHARED = FrameRenderer()
@@ -145,8 +192,10 @@ def to_bitmap(image: Any, scale: float, background: Optional[Tuple[int, int, int
     return wx.Bitmap.FromBufferRGBA(tw, th, scaled.convert("RGBA").tobytes())
 
 
-def fit_bitmap(image: Any, width: int, height: int, background: Tuple[int, int, int]) -> wx.Bitmap:
-    """Centre an image in a box: whole-number upscaling when it fits, nearest-neighbour down otherwise."""
+def fit_bitmap(
+    image: Any, width: int, height: int, background: Tuple[int, int, int], max_scale: Optional[int] = None
+) -> wx.Bitmap:
+    """Centre an image in a box: whole-number upscaling when it fits (up to ``max_scale``), nearest-neighbour down otherwise."""
     from PIL import Image as PILImage
 
     width, height = max(1, int(width)), max(1, int(height))
@@ -156,6 +205,8 @@ def fit_bitmap(image: Any, width: int, height: int, background: Tuple[int, int, 
         margin = 2
         fit = min((width - margin) / max(1, w), (height - margin) / max(1, h))
         scale = max(1, int(fit)) if fit >= 1 else fit
+        if max_scale and scale > max_scale:
+            scale = max_scale
         tw, th = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
         scaled = image.resize((tw, th), PILImage.NEAREST) if (tw, th) != (w, h) else image
         canvas.alpha_composite(scaled, ((width - tw) // 2, (height - th) // 2))
@@ -163,3 +214,13 @@ def fit_bitmap(image: Any, width: int, height: int, background: Tuple[int, int, 
     wx_image = wx.Image(width, height)
     wx_image.SetData(rgb.tobytes())
     return wx_image.ConvertToBitmap()
+
+
+def to_wx_image(image: Any) -> wx.Image:
+    """PIL RGBA → wx.Image with alpha (full size, no scaling)."""
+    rgba = image.convert("RGBA")
+    w, h = rgba.size
+    out = wx.Image(w, h)
+    out.SetData(rgba.convert("RGB").tobytes())
+    out.SetAlpha(rgba.getchannel("A").tobytes())
+    return out

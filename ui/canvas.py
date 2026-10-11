@@ -12,6 +12,7 @@ import wx
 from hardware_budget import Budget, BudgetCalculator, HardwareProfile
 from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
+from ui.frame_geometry import orthogonal_cos_sin, part_bounds
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
 
 Color = Tuple[int, int, int]
@@ -25,13 +26,7 @@ GHOST_REFERENCE = (1.0, 1.0, 1.0, 0.35)
 SCALED_CACHE_PIXEL_BUDGET = 24_000_000
 
 
-def _orthogonal_cos_sin(degrees: float) -> Tuple[float, float]:
-    """cos/sin with exact values at 90° steps (avoids off-by-one pixels from float residue)."""
-    quarter = float(degrees) / 90.0
-    if abs(quarter - round(quarter)) < 1e-9:
-        return ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[int(round(quarter)) % 4]
-    rad = math.radians(float(degrees))
-    return math.cos(rad), math.sin(rad)
+_orthogonal_cos_sin = orthogonal_cos_sin
 
 
 def _mask_to_alpha(img: wx.Image) -> wx.Image:
@@ -1093,101 +1088,7 @@ class FrameCanvas(BaseCanvas):
         return sub_img
 
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
-        if fm.ref_type == "module":
-            ref_id = fm.ref_id
-            if self.project.active_mapping and ref_id in self.project.active_mapping.map:
-                 ref_id = self.project.active_mapping.map[ref_id]
-            
-            mod: Optional[Module] = None
-            if ref_id:
-                mod = self.project.get_module(ref_id)
-            
-            if mod:
-                w, h = mod.rect[2], mod.rect[3]
-                if getattr(mod, 'rotated', False):
-                    w, h = h, w
-
-                piv_x, piv_y = mod.pivot
-                
-                # Base corners relative to pivot
-                corners = [
-                    (0 - piv_x, 0 - piv_y),
-                    (w - piv_x, 0 - piv_y),
-                    (0 - piv_x, h - piv_y),
-                    (w - piv_x, h - piv_y)
-                ]
-                
-                # Apply Rotation
-                cos_a, sin_a = _orthogonal_cos_sin(fm.rotation_degrees)
-                
-                final_points = []
-                for cx, cy in corners:
-                    rx = cx * cos_a - cy * sin_a
-                    ry = cx * sin_a + cy * cos_a
-                    final_points.append((rx, ry))
-                    
-                # Find Bounds from corners
-                xs = [p[0] for p in final_points]
-                ys = [p[1] for p in final_points]
-                
-                return (
-                    min(xs) + fm.position[0],
-                    min(ys) + fm.position[1],
-                    max(xs) + fm.position[0],
-                    max(ys) + fm.position[1]
-                )
-        
-        elif fm.ref_type == "frame":
-            ref_frame = self.project.get_frame(fm.ref_id)
-            if ref_frame:
-                # Parent Transform Props
-                p_flip_x = fm.flip_x
-                p_flip_y = fm.flip_y
-                p_rot = fm.rotation_degrees
-                cos_a, sin_a = _orthogonal_cos_sin(p_rot)
-
-                min_x, min_y, max_x, max_y = 0, 0, 0, 0
-                first = True
-                
-                for child_fm in ref_frame.fmodules:
-                     # 1. Get Child Bounds in valid Frame Space
-                     cx0, cy0, cx1, cy1 = self._fmodule_bounds(child_fm)
-                     
-                     # 2. Transform corners by Parent Transform
-                     # Child bounds are relative to Frame Origin (0,0)
-                     child_corners = [
-                         (cx0, cy0), (cx1, cy0), (cx0, cy1), (cx1, cy1)
-                     ]
-                     
-                     for px, py in child_corners:
-                          # Flip
-                          if p_flip_x: px = -px
-                          if p_flip_y: py = -py
-                          
-                          # Rotate
-                          rx = px * cos_a - py * sin_a
-                          ry = px * sin_a + py * cos_a
-                          
-                          if first:
-                              min_x, min_y, max_x, max_y = rx, ry, rx, ry
-                              first = False
-                          else:
-                              min_x = min(min_x, rx)
-                              min_y = min(min_y, ry)
-                              max_x = max(max_x, rx)
-                              max_y = max(max_y, ry)
-                
-                if not first:
-                     return (min_x + fm.position[0], min_y + fm.position[1], max_x + fm.position[0], max_y + fm.position[1])
-
-        # Fallback
-        sz = 32
-        return (
-            fm.position[0] - sz / 2,
-            fm.position[1] - sz / 2,
-            fm.position[0] + sz / 2,
-            fm.position[1] + sz / 2,
-        )
+        return part_bounds(self.project, fm, self.project.active_mapping)
 
     def _get_width(self, fm: FModule) -> int:
         bounds = self._fmodule_bounds(fm)
@@ -1563,6 +1464,9 @@ class ModuleDropTarget(wx.TextDropTarget):
         if data.startswith("MODULE:"):
             mid = data.split(":", 1)[1]
             self.canvas.handle_dropped_module(mid, wx.Point(x, y), ref_type="module")
+            return True
+        elif data.startswith("FRAME:"):
+            self.canvas.handle_dropped_module(data.split(":", 1)[1], wx.Point(x, y), ref_type="frame")
             return True
         elif data.startswith("FRAME_REF:"):
             # FRAME_REF:<idx>:<id>

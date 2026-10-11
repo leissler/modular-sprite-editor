@@ -28,14 +28,18 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Filters** on all long lists (modules, frames, animations, palettes).
 
 ### 🛠️ Module Editor
-*   **Sprite Sheet Slicing**: Import sheets and define modules by drawing, numerically (X/Y/W/H), by grid slice, auto detect or auto modularize (console tile profiles).
-*   **Pivot Definition**: Shift+drag or type the pivot of every module.
-*   **Vector shape modules** (rects, arcs, triangles, lines, markers) rendered pixel-exact.
+*   **Cut directly on the sheet**: drag over a sprite to make a module; move, resize (8 handles, optional grid snap) and nudge it right there; Cmd+drag selects several.
+*   **Slicing tools**: grid slice (tile size, offset, gap, skip empty tiles), sprite detection (touching pixels, merge gap; milliseconds on a full sheet), auto modularize — each can keep the existing modules and add only new areas. Copy modules and paste them onto another image to cut the same areas there.
+*   **Pivots**: Shift+drag, type them, or a 3×3 preset (bottom centre = feet on the origin); **Trim** shrinks modules to their pixels.
+*   **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image; **modules list** with thumbnails, size and how often each is used.
+*   **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
 
 ### 🖼️ Frame Editor
-*   **Visual Assembly**: Drag modules (or other frames) onto the canvas to build keyframes.
+*   **Frames list with thumbnails** and usage; a **library** of modules (per image) and frames to drag onto the stage or double-click.
+*   **Parts / Hitboxes / Points** modes above the stage; the inspector edits the selection (position, flips, rotation, draw order, swap the source; hitbox type, role, rect) and the frame (mirror, rotate, put the feet on the origin).
+*   **Contents list** of the frame's parts (top-most first; drag to reorder), hitboxes or points; marquee selection on the stage.
 *   **Pixel-exact editing**: arrow-key nudging (Shift = 8 px tile), flip (H/V), 90° rotation (R), draw order, copy/paste/duplicate of parts between frames.
-*   **Collision & Points**: Hitboxes and utility points with semantic roles, compiled into per-animation lookup tables.
+*   **Hitboxes & points** with semantic roles (compiled into per-animation lookup tables); types managed inline (colour, visibility, usage).
 *   **Onion Skinning**: ghost the previous/next frame of the list.
 
 ### 🎮 Hardware Budget (Mega Drive)
@@ -58,6 +62,9 @@ Construct complex character animations from individual body parts (modules). Def
 
 ### 🎯 Mapping Editor
 *   **Module Variants**: Replace modules (e.g. "Clean Armor" → "Damaged Armor") or hide them (invisibility) without touching frames.
+*   **Module map**: every module with what it shows under the mapping; select rows and click a replacement (or drag it onto a row); filter by image or "changed only".
+*   **Bulk matching**: map a whole sheet onto a recoloured copy with the same layout, or by names (`_red` → `_blue`).
+*   **Preview** of the frames the selected modules appear in, drawn with the mapping.
 
 ---
 
@@ -131,11 +138,15 @@ python3 tools/migrate_projects.py --dry-run DIR   # upgrade project files to the
 | **Canvas** | Zoom at cursor (settles on whole pixel sizes) | `Mouse Wheel` / two-finger scroll / pinch |
 | | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` |
 | | Fit / Actual pixels / Grid | `Cmd+0` / `Cmd+Shift+0` / `Cmd+G` |
-| **Modules** | Move pivot | `Shift + Drag` |
+| **Modules** | New module / move / resize | Drag on the image / drag a module / drag a handle |
+| | Move pivot / select several | `Shift + Drag` / `Cmd + Drag` |
+| | Nudge 1 px / 8 px | `Arrows` / `Shift+Arrows` |
 | **Frames** | Nudge 1 px / 8 px | `Arrows` / `Shift+Arrows` |
 | | Flip / Rotate 90° | `H` `V` / `R` (`Shift+R` = CCW) |
 | | Draw order | `Cmd+↑/↓` (`Shift` = to front/back) |
 | | Copy / Paste / Duplicate / Select all | `Cmd+C` / `Cmd+V` / `Cmd+D` / `Cmd+A` |
+| | Select several parts | Drag on empty space |
+| **Mappings** | Original / hide the selected modules | `Delete` / `H` |
 | **Animations / Timeline** | Play/Pause | `Enter` |
 | | Previous/Next step (Animations) or frame (Timeline) | `,` / `.` (`←` / `→` in the sequence / timeline) |
 | **Animations** | Previous/Next tick, first/last step | `Shift+,` / `Shift+.`, `Home` / `End` |
