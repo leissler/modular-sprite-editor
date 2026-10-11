@@ -1,7 +1,8 @@
 ROM_NAME = modular_sprite_sgdk_demo
 
 ifeq ($(SGDK),)
-SGDK := $(CURDIR)/third_party/sgdk
+# Relative: on Windows $(CURDIR) is an MSYS path (/c/...) that SGDK's gcc.exe cannot open.
+SGDK := third_party/sgdk
 endif
 
 ifeq ($(wildcard $(SGDK)/makefile.gen),)
