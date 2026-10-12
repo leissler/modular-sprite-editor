@@ -366,6 +366,18 @@ def run():
 
         frame.select_tab(2)
         pump(5)
+        if sum(1 for a in proj.animations if len(a.aframes) >= 3) < 2 and len(proj.frames) >= 2:
+            # A project without animations (e.g. a sheet of whole sprites) gets two from its frames, so every
+            # animation check below has steps to work on.
+            from models import AFrame, Animation
+
+            frames = [f for f in proj.frames if f.fmodules] or proj.frames
+            for n, name in enumerate(("smoke test A", "smoke test B")):
+                steps = [AFrame(frame_id=f.id, duration_frames=4) for f in (frames[n:] + frames[:n])[:6]]
+                proj.animations.append(Animation(id=f"smoke_anim_{n}", name=name, aframes=steps))
+            frame.history_checkpoint()
+            ae.refresh_after_history()
+            pump()
         if not proj.animations:
             ae.new_animation()
         anim = max(proj.animations, key=lambda a: len(a.aframes))

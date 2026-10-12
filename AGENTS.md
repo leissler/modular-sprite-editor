@@ -18,6 +18,7 @@ Primary testbeds (keep them working):
 | Prince of Persia (WW) | `examples/sgdk/PoP_WW.json` (+ `modules_POP.bmp`), copy in `~/Downloads/PoP_WW.json` | 165 modules, 207 frames, 68 animations, 1 scene, 2 mappings |
 | Prince of Persia (SoT) | `~/Downloads/PoP_SoT.json` (not in the repo; mostly a duplicate of PoP_WW) | 165 modules, 208 frames, 68 animations |
 | Sonic | `examples/sonic/sonic.json` (+ `sonic.png`), copy in `~/Downloads/sonic.json` | 65 modules, 38 frames, 171 animations |
+| Adventurer | `examples/adventurer/adventurer.json` (+ `adventurer_sprite_sheet_v1.1.png`), copy in `~/Downloads/adventurer2.json` | 68 modules (32×32 grid slice), 15 frames of one whole sprite each: the Auto Modularize testbed |
 
 ## Run, test, build
 

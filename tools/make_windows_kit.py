@@ -18,7 +18,8 @@ from typing import List
 REPO = Path(__file__).resolve().parents[1]
 KIT_DIR = "ModularSpriteEditor-windows"  # the folder inside the zip
 PACKAGING = REPO / "packaging" / "windows_kit"
-EXAMPLES = ["examples/sgdk/PoP_WW.json", "examples/sgdk/modules_POP.bmp", "examples/sgdk/README.md", "examples/sonic/"]
+EXAMPLES = ["examples/sgdk/PoP_WW.json", "examples/sgdk/modules_POP.bmp", "examples/sgdk/README.md", "examples/sonic/",
+            "examples/adventurer/"]
 DEMO = "examples/sgdk/sgdk_demo/"
 SGDK = DEMO + "third_party/sgdk/"
 # What building the demo needs (Windows tools, headers, prebuilt libraries, boot code) and SGDK's license;

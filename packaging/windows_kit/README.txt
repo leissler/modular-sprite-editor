@@ -15,8 +15,12 @@ does not handle spaces in paths.
     examples\sgdk\PoP_WW.json    Prince of Persia: 165 modules, 207 frames, 68 animations,
                                  a timeline scene and 2 mappings (re-skins)
     examples\sonic\sonic.json    Sonic: 65 modules, 38 frames, 171 animations, hitboxes
+    examples\adventurer\adventurer.json
+                                 Adventurer: 15 frames, each one whole sprite
 - Tabs: Modules (cut the sprite sheet), Frames (assemble parts, hitboxes, points),
   Animations, Timeline (scenes), Mappings. Help > Keyboard & Mouse Shortcuts lists the controls.
+- Tools > Auto Modularize Image cuts whole sprites into hardware-sized parts they share, with a
+  preview of the Mega Drive cost (try it on the Adventurer sheet in the Modules tab).
 
 
 2. Run it on a Mega Drive (SGDK)

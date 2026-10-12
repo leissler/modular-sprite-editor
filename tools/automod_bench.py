@@ -12,6 +12,7 @@ packed on one image), runs auto-modularisation on it and reports, next to the fl
 
 Usage:
     python3 tools/automod_bench.py PROJECT.json... [--config NAME]...   (configs: see CONFIGS)
+    python3 tools/automod_bench.py examples/sonic/sonic.json examples/adventurer/adventurer.json examples/sgdk/PoP_WW.json
 """
 from __future__ import annotations
 

@@ -1,0 +1,1886 @@
+{
+  "format_version": 3,
+  "name": "Adventurer",
+  "images": [
+    {
+      "id": "img_30fdcc8e",
+      "file_path": "adventurer_sprite_sheet_v1.1.png",
+      "width": 416,
+      "height": 256,
+      "transparent_color": null
+    }
+  ],
+  "modules": [
+    {
+      "id": "mod_0ed89736",
+      "name": "Module 1",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_4b8b9576",
+      "name": "Module 10",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        288,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_27d3cffc",
+      "name": "Module 11",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        320,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_e6b9003d",
+      "name": "Module 12",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        352,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_e1b460a4",
+      "name": "Module 13",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        384,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_dd7aa13d",
+      "name": "Module 14",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_a534af0c",
+      "name": "Module 15",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_3f547838",
+      "name": "Module 16",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_c9737175",
+      "name": "Module 17",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_3173f01b",
+      "name": "Module 18",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_8d2a7162",
+      "name": "Module 19",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_61da1d84",
+      "name": "Module 2",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_1f55218c",
+      "name": "Module 20",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        192,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_8cbe425d",
+      "name": "Module 21",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        224,
+        32,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_d75a2566",
+      "name": "Module 27",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_53f3e64b",
+      "name": "Module 28",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_e32ecfc0",
+      "name": "Module 29",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_d15c96ee",
+      "name": "Module 3",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_b579502f",
+      "name": "Module 30",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_5814baa4",
+      "name": "Module 31",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_6981d3db",
+      "name": "Module 32",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_f5d82984",
+      "name": "Module 33",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        192,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_c607c762",
+      "name": "Module 34",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        224,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_5cba4a69",
+      "name": "Module 35",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        256,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_25b06fc8",
+      "name": "Module 36",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        288,
+        64,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_02872628",
+      "name": "Module 4",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_5c379fea",
+      "name": "Module 40",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_6e685d0a",
+      "name": "Module 41",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_f129f9ed",
+      "name": "Module 42",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_c5bb0135",
+      "name": "Module 43",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_a3f85b62",
+      "name": "Module 44",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_92d0d465",
+      "name": "Module 45",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_439f7c52",
+      "name": "Module 46",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        192,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_edaa2fdb",
+      "name": "Module 47",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        224,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_614fbbe5",
+      "name": "Module 48",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        256,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_21815f95",
+      "name": "Module 49",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        288,
+        96,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_2c3805a3",
+      "name": "Module 5",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_02b8da92",
+      "name": "Module 53",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_5e47546f",
+      "name": "Module 54",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_c70a1e3a",
+      "name": "Module 55",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_8c315941",
+      "name": "Module 56",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_7f2471cc",
+      "name": "Module 57",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_90eb9256",
+      "name": "Module 58",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_a8936463",
+      "name": "Module 59",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        192,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_342411a5",
+      "name": "Module 6",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_ec79e52d",
+      "name": "Module 60",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        224,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_48429351",
+      "name": "Module 61",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        256,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_ea3f3856",
+      "name": "Module 62",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        288,
+        128,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_ed1f418d",
+      "name": "Module 66",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        160,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_03adb958",
+      "name": "Module 67",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        160,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_f204d331",
+      "name": "Module 68",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        160,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_32ce9767",
+      "name": "Module 69",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        160,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_94abd166",
+      "name": "Module 7",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        192,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_e6030ec7",
+      "name": "Module 70",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        160,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_536f4b6a",
+      "name": "Module 71",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        160,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_c3cd5ae6",
+      "name": "Module 79",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        192,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_4c97936b",
+      "name": "Module 8",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        224,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_79038471",
+      "name": "Module 80",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        192,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_fe147c80",
+      "name": "Module 81",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        192,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_33a54d92",
+      "name": "Module 82",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        192,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_fa64b4cd",
+      "name": "Module 9",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        256,
+        0,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_44a3ef73",
+      "name": "Module 92",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        0,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_6eb79907",
+      "name": "Module 93",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        32,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_e2b0eba3",
+      "name": "Module 94",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        64,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_5c59fe50",
+      "name": "Module 95",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        96,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_dbd96416",
+      "name": "Module 96",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        128,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_caeb0493",
+      "name": "Module 97",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        160,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    },
+    {
+      "id": "mod_754b58c4",
+      "name": "Module 98",
+      "image_id": "img_30fdcc8e",
+      "rect": [
+        192,
+        224,
+        32,
+        32
+      ],
+      "pivot": [
+        16,
+        16
+      ],
+      "type": "MD_IMAGE",
+      "color": [
+        255,
+        255,
+        255
+      ],
+      "rotated": false,
+      "params": []
+    }
+  ],
+  "frames": [
+    {
+      "id": "frm_02ec67d7",
+      "name": "Frame 1",
+      "fmodules": [
+        {
+          "id": "fmod_ec22f543",
+          "ref_type": "module",
+          "ref_id": "mod_0ed89736",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_b60d2261",
+      "name": "Frame 2",
+      "fmodules": [
+        {
+          "id": "fmod_ec848bc2",
+          "ref_type": "module",
+          "ref_id": "mod_61da1d84",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_5ff07c86",
+      "name": "Frame 3",
+      "fmodules": [
+        {
+          "id": "fmod_7cb317dd",
+          "ref_type": "module",
+          "ref_id": "mod_d15c96ee",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_7c9f6bfc",
+      "name": "Frame 4",
+      "fmodules": [
+        {
+          "id": "fmod_67416d99",
+          "ref_type": "module",
+          "ref_id": "mod_02872628",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_6ee0993c",
+      "name": "Frame 5",
+      "fmodules": [
+        {
+          "id": "fmod_6b195347",
+          "ref_type": "module",
+          "ref_id": "mod_2c3805a3",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_13d34fb9",
+      "name": "Frame 6",
+      "fmodules": [
+        {
+          "id": "fmod_8f0dcbd7",
+          "ref_type": "module",
+          "ref_id": "mod_342411a5",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_e3eecd99",
+      "name": "Frame 7",
+      "fmodules": [
+        {
+          "id": "fmod_06f44263",
+          "ref_type": "module",
+          "ref_id": "mod_94abd166",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_f5b945a7",
+      "name": "Frame 8",
+      "fmodules": [
+        {
+          "id": "fmod_a466f57b",
+          "ref_type": "module",
+          "ref_id": "mod_4c97936b",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_9acf7458",
+      "name": "Frame 9",
+      "fmodules": [
+        {
+          "id": "fmod_fd7f2160",
+          "ref_type": "module",
+          "ref_id": "mod_fa64b4cd",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_80450303",
+      "name": "Frame 10",
+      "fmodules": [
+        {
+          "id": "fmod_b4b99bb0",
+          "ref_type": "module",
+          "ref_id": "mod_6e685d0a",
+          "position": [
+            5,
+            -16
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_2e664be0",
+      "name": "Frame 11",
+      "fmodules": [
+        {
+          "id": "fmod_7b0798d3",
+          "ref_type": "module",
+          "ref_id": "mod_5c379fea",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_9b415aa6",
+      "name": "Frame 12",
+      "fmodules": [
+        {
+          "id": "fmod_87310b37",
+          "ref_type": "module",
+          "ref_id": "mod_fe147c80",
+          "position": [
+            4,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_bc16a6ee",
+      "name": "Frame 13",
+      "fmodules": [
+        {
+          "id": "fmod_feb23a41",
+          "ref_type": "module",
+          "ref_id": "mod_79038471",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_37d4cd63",
+      "name": "Frame 14",
+      "fmodules": [
+        {
+          "id": "fmod_1a7e9f72",
+          "ref_type": "module",
+          "ref_id": "mod_5c59fe50",
+          "position": [
+            3,
+            -15
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    },
+    {
+      "id": "frm_84613c95",
+      "name": "Frame 15",
+      "fmodules": [
+        {
+          "id": "fmod_5b550f50",
+          "ref_type": "module",
+          "ref_id": "mod_dbd96416",
+          "position": [
+            1,
+            -16
+          ],
+          "flip_x": false,
+          "flip_y": false,
+          "rotation_degrees": 0.0
+        }
+      ],
+      "collision_rects": [],
+      "control_points": []
+    }
+  ],
+  "animations": [],
+  "mappings": [],
+  "collision_types": [],
+  "point_types": [],
+  "event_types": []
+}
