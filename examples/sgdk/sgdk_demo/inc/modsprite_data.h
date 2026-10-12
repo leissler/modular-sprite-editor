@@ -193,13 +193,20 @@ const char *ms_point_type_name_data(u16 index);
 const char *ms_role_name_data(u16 index);
 
 /* Animation events (project event types, in the editor's order). */
-/* none */
+#define MS_EVENT_HIT 0u
+#define MS_EVENT_FOOTSTEP 1u
 
 /* Hitbox types and point types (the editor's lists, in order). */
-#define MS_HITBOX_DEFAULT 0u
-#define MS_POINT_DEFAULT 0u
+#define MS_HITBOX_HURT 0u
+#define MS_HITBOX_ATTACK 1u
+#define MS_POINT_WEAPON 0u
+#define MS_POINT_GROUND 1u
 
 /* Roles of hitboxes and points (sorted by name). */
-/* none */
+#define MS_ROLE_BLADE 0u
+#define MS_ROLE_BLADE_TIP 1u
+#define MS_ROLE_BODY 2u
+#define MS_ROLE_FEET 3u
+#define MS_ROLE_HEAD 4u
 
 #endif

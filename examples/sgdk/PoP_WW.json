@@ -3949,8 +3949,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f2e251b5",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -29,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_090d6c12",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -24,
+            18,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_9c028ac0",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2002",
@@ -4089,8 +4120,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d693c73b",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_27e05924",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            23,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_83ca5b22",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2003",
@@ -4253,8 +4315,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_b7a60ab9",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_291729d4",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -24,
+            25,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2ccf8618",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2004",
@@ -4393,8 +4486,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_492c50f8",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_354a057b",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            23,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2fca66d9",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2005",
@@ -4557,8 +4681,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_0cb7c574",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_34205429",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            20,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_dc53ce82",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -28,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_252c94f5",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2006",
@@ -4721,8 +4883,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_75e31aca",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -29,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_730ae804",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -26,
+            13,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ff5e3338",
+          "type_id": "weapon",
+          "x": 16,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_427d5aa1",
+          "type_id": "ground",
+          "x": 6,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2007",
@@ -4873,8 +5073,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_59e718d1",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -30,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_87571a8d",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -26,
+            16,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_740e601d",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_2e7617f6",
+          "type_id": "ground",
+          "x": 11,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2008",
@@ -5013,8 +5251,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_fbf3dee8",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -31,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_0ccb720b",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -27,
+            20,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_36fc32db",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_41859672",
+          "type_id": "ground",
+          "x": 14,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2009",
@@ -5165,8 +5441,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_43146880",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -31,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_018b9645",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -26,
+            29,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_3639ab56",
+          "type_id": "weapon",
+          "x": 20,
+          "y": -14,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_0534143b",
+          "type_id": "ground",
+          "x": 19,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x200A",
@@ -5317,8 +5631,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c20410c9",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c2e1186d",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -23,
+            21,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5b0469b1",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -10,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_282d9172",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x200B",
@@ -5553,8 +5905,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_dd60646b",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_29871d9e",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -24,
+            13,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_3871a05a",
+          "type_id": "weapon",
+          "x": 10,
+          "y": -10,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_f152f870",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x200C",
@@ -5813,8 +6203,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_6996c6dc",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_77b2a2ab",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -25,
+            15,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_490ee485",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -12,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_a1c5595c",
+          "type_id": "ground",
+          "x": -8,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x200D",
@@ -5977,8 +6405,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_4da78f24",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -29,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_52b2d856",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -25,
+            21,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_db1c9d02",
+          "type_id": "weapon",
+          "x": 6,
+          "y": -42,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_ee1a13dd",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x200E",
@@ -6141,8 +6607,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_20b040bb",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -29,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_8b30f92d",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -25,
+            21,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e793bab6",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_87909398",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x200F",
@@ -6305,8 +6809,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_3cb8da38",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -30,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ae7d5854",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -25,
+            21,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_35b01401",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -40,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_a14c1830",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2010",
@@ -6469,8 +7011,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_691ae789",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ba419381",
+          "type_id": "hurt",
+          "rect": [
+            -14,
+            -25,
+            18,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_51ac6cfc",
+          "type_id": "weapon",
+          "x": -6,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_801e9a70",
+          "type_id": "ground",
+          "x": -3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2017",
@@ -6621,8 +7201,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_79460d1e",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_87e86fb9",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -16,
+            14,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d8b48632",
+          "type_id": "ground",
+          "x": 2,
+          "y": 6,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2018",
@@ -6773,8 +7384,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_26cb5bac",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_eef33ae2",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -17,
+            14,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f4102807",
+          "type_id": "ground",
+          "x": 2,
+          "y": 5,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2019",
@@ -6925,8 +7567,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_a82eed67",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -19,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_3af59e5a",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -14,
+            16,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_26c7149d",
+          "type_id": "ground",
+          "x": 1,
+          "y": 11,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x201A",
@@ -7077,8 +7750,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_196c8846",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -18,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_0a3dae33",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -13,
+            16,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6b62b0a5",
+          "type_id": "ground",
+          "x": 1,
+          "y": 11,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x201B",
@@ -7241,8 +7945,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c191a6b6",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -20,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d1473a78",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -15,
+            14,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6435dd89",
+          "type_id": "ground",
+          "x": 1,
+          "y": 11,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x201C",
@@ -7393,8 +8128,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_6dc62828",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_1a8a3486",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -17,
+            13,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6dd38360",
+          "type_id": "ground",
+          "x": 0,
+          "y": 9,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x201D",
@@ -7545,8 +8311,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_dddf9b80",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_3479c81d",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -16,
+            13,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_02677aa8",
+          "type_id": "ground",
+          "x": 0,
+          "y": 10,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x201E",
@@ -7697,8 +8494,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_bf98a8f0",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -23,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c8cf0a72",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -18,
+            14,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_55627471",
+          "type_id": "ground",
+          "x": 0,
+          "y": 4,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x201F",
@@ -7849,8 +8677,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e3caaf2e",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -24,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_527df9db",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -20,
+            13,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_1cedff3e",
+          "type_id": "ground",
+          "x": 0,
+          "y": 3,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2020",
@@ -8001,8 +8860,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_353dc614",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -23,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_4a9c79ad",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -19,
+            13,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e9a02bba",
+          "type_id": "ground",
+          "x": 0,
+          "y": 4,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2021",
@@ -8141,8 +9031,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_41ed5b95",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -24,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c2f0fb21",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -20,
+            15,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_316045ed",
+          "type_id": "ground",
+          "x": 0,
+          "y": 4,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2022",
@@ -8281,8 +9202,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_83fc9d9f",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_fbc04e75",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -17,
+            16,
+            17
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_b395e0c4",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2023",
@@ -8433,8 +9385,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e7a75944",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_288a25d3",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -17,
+            16,
+            17
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_1d76f6ae",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2024",
@@ -8573,8 +9556,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_ed0dc259",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_4c600a6d",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -18,
+            15,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6b0b77f6",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2025",
@@ -8737,8 +9751,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_faa0d06d",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_78709bce",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -18,
+            15,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7d3dedc2",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2026",
@@ -8865,8 +9910,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8d4cb537",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_84270801",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -22,
+            17,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f361eb95",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2027",
@@ -9005,8 +10081,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_3ecc00df",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5e1857f6",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -22,
+            17,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_1e75604c",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2028",
@@ -9109,8 +10216,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d51c8ee0",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -20,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d37e1f1e",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -17,
+            17,
+            17
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_77e62d7d",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2029",
@@ -9249,8 +10387,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_3a57e949",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -19,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d3002f8f",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -18,
+            14,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f241880d",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x202A",
@@ -9377,8 +10546,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_aed2a816",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -20,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_227e3e5e",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -17,
+            17,
+            17
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_4dc749e3",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x202B",
@@ -9517,8 +10717,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_4e9b2158",
+          "type_id": "hurt",
+          "rect": [
+            -23,
+            -17,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_52c1b332",
+          "type_id": "hurt",
+          "rect": [
+            -21,
+            -13,
+            26,
+            13
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_44773b26",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x202C",
@@ -9645,8 +10876,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_50a36cb6",
+          "type_id": "hurt",
+          "rect": [
+            -26,
+            -8,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_85155c9f",
+          "type_id": "hurt",
+          "rect": [
+            -21,
+            -11,
+            27,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0b71c131",
+          "type_id": "ground",
+          "x": -1,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x202D",
@@ -9773,8 +11035,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f307f467",
+          "type_id": "hurt",
+          "rect": [
+            -30,
+            -9,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2eada9d9",
+          "type_id": "hurt",
+          "rect": [
+            -25,
+            -9,
+            28,
+            13
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_bef4baaf",
+          "type_id": "ground",
+          "x": -3,
+          "y": 2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x202E",
@@ -9889,8 +11182,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_af283d6a",
+          "type_id": "hurt",
+          "rect": [
+            -31,
+            -7,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d7f5d9de",
+          "type_id": "hurt",
+          "rect": [
+            -26,
+            -7,
+            28,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_50b77647",
+          "type_id": "ground",
+          "x": -4,
+          "y": 2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x202F",
@@ -10005,8 +11329,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_34584076",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -7,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_43687777",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -7,
+            28,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8533e6cc",
+          "type_id": "ground",
+          "x": 11,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2030",
@@ -10145,8 +11500,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_85a2e102",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -8,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_550cdcfe",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -7,
+            28,
+            11
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6fe0c19d",
+          "type_id": "ground",
+          "x": 11,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2031",
@@ -10285,8 +11671,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_79127e67",
+          "type_id": "hurt",
+          "rect": [
+            -17,
+            -8,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_1da1fcc6",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -7,
+            28,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_a10baca8",
+          "type_id": "ground",
+          "x": 11,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2032",
@@ -10401,8 +11818,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2ccecb2a",
+          "type_id": "hurt",
+          "rect": [
+            -17,
+            -8,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_fbf991b6",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -7,
+            28,
+            11
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e1cb5cfc",
+          "type_id": "ground",
+          "x": 10,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2033",
@@ -10565,8 +12013,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_17837fc3",
+          "type_id": "hurt",
+          "rect": [
+            -17,
+            -7,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6f860d2e",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -7,
+            29,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8b649a51",
+          "type_id": "ground",
+          "x": 11,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2039",
@@ -10729,8 +12208,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7509de39",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -29,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d669e6f3",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            20,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2f8dba3f",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -34,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_4aff141c",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x203A",
@@ -10929,8 +12446,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_39efd609",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -29,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6c36e1b2",
+          "type_id": "hurt",
+          "rect": [
+            -17,
+            -26,
+            27,
+            26
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_89b20fc1",
+          "type_id": "attack",
+          "rect": [
+            -20,
+            -27,
+            22,
+            9
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_49a60c4c",
+          "type_id": "weapon",
+          "x": 10,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_88614d7b",
+          "type_id": "ground",
+          "x": -2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x203B",
@@ -11105,8 +12671,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8ecaefc3",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -29,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e1790d81",
+          "type_id": "hurt",
+          "rect": [
+            -17,
+            -26,
+            27,
+            26
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_4185df3c",
+          "type_id": "attack",
+          "rect": [
+            -18,
+            -24,
+            5,
+            5
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_acc47521",
+          "type_id": "weapon",
+          "x": 10,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_b8e50675",
+          "type_id": "ground",
+          "x": -2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x203C",
@@ -11281,8 +12896,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_5bebc844",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b9651c39",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -25,
+            26,
+            25
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_e3bb62e0",
+          "type_id": "attack",
+          "rect": [
+            -21,
+            -29,
+            5,
+            5
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e45cbbde",
+          "type_id": "weapon",
+          "x": 10,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_81ec1b7d",
+          "type_id": "ground",
+          "x": -2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x203D",
@@ -11397,8 +13061,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e5b0cc4c",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7498e18a",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ba2339ca",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x203E",
@@ -11513,8 +13208,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_380beb67",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -18,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_fdfd3acc",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -18,
+            19,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ace165cd",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x203F",
@@ -11641,8 +13367,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_1437e57c",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -16,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d1b2db8c",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -14,
+            19,
+            14
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_744dcd9e",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2040",
@@ -11853,8 +13610,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9f0805cd",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e92042a0",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            19,
+            24
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_527075e2",
+          "type_id": "attack",
+          "rect": [
+            -4,
+            -31,
+            19,
+            21
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_422d6006",
+          "type_id": "weapon",
+          "x": 2,
+          "y": -10,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_4885b2b5",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2041",
@@ -12053,8 +13859,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_bd5d950f",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2fb7413a",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            19,
+            24
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_447d6558",
+          "type_id": "attack",
+          "rect": [
+            -14,
+            -31,
+            15,
+            21
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7c9a605b",
+          "type_id": "weapon",
+          "x": -2,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_66e3909a",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2042",
@@ -12205,8 +14060,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c7a72251",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c1a6e8a0",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            19,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5a74f0db",
+          "type_id": "weapon",
+          "x": -2,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_63a71609",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2043",
@@ -12405,8 +14298,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_58f03906",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7a7cd1ad",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -23,
+            22,
+            23
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_9a70f7ce",
+          "type_id": "attack",
+          "rect": [
+            16,
+            -36,
+            13,
+            18
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6ce4c69f",
+          "type_id": "weapon",
+          "x": 22,
+          "y": -14,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_7c4c170c",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2044",
@@ -12557,8 +14499,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_a04fd0fd",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_81e55647",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -23,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_26e08317",
+          "type_id": "weapon",
+          "x": 22,
+          "y": -14,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_9d854ec4",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2045",
@@ -12721,8 +14701,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c365b71f",
+          "type_id": "hurt",
+          "rect": [
+            11,
+            -15,
+            7,
+            6
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b2c40c99",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -16,
+            26,
+            16
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_ff536aa5",
+          "type_id": "attack",
+          "rect": [
+            6,
+            -25,
+            17,
+            14
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_b0ba8a17",
+          "type_id": "weapon",
+          "x": 18,
+          "y": 0,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_acbb4fcd",
+          "type_id": "ground",
+          "x": 4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2046",
@@ -12861,8 +14890,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c7efc891",
+          "type_id": "hurt",
+          "rect": [
+            10,
+            -15,
+            7,
+            6
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6c2306d1",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -16,
+            27,
+            16
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_9b64dc60",
+          "type_id": "weapon",
+          "x": 18,
+          "y": 0,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_d2b435c6",
+          "type_id": "ground",
+          "x": 4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2047",
@@ -13025,8 +15092,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_749e6fdf",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_3cfa285b",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -21,
+            23,
+            21
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_9350b9bf",
+          "type_id": "weapon",
+          "x": 22,
+          "y": 0,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8200d9bb",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2048",
@@ -13141,8 +15246,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8aedfb7f",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -34,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_075cb51a",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -29,
+            12,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_18de3d55",
+          "type_id": "ground",
+          "x": 6,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2049",
@@ -13305,8 +15441,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_df2285a6",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_bec492d2",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -26,
+            12,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_61401636",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x204A",
@@ -13457,8 +15624,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_616bd8a4",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -13,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_f4df2df7",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -12,
+            18,
+            21
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5d91b6a0",
+          "type_id": "ground",
+          "x": -2,
+          "y": 9,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x204B",
@@ -13609,8 +15807,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7e321e29",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -18,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e84e73f7",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -17,
+            15,
+            19
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5d404f3e",
+          "type_id": "ground",
+          "x": 3,
+          "y": 2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x204C",
@@ -13749,8 +15978,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_22741a2e",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2dbac509",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -19,
+            18,
+            19
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5f8d58d2",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x204E",
@@ -13889,8 +16149,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d97b65e2",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -35,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e5edccb9",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -31,
+            14,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7818785d",
+          "type_id": "ground",
+          "x": 10,
+          "y": -5,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2050",
@@ -14017,8 +16308,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_180b65fe",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -35,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_cca01220",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -32,
+            12,
+            30
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2611aed4",
+          "type_id": "ground",
+          "x": 4,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2052",
@@ -14205,8 +16527,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d606784d",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b70b2881",
+          "type_id": "hurt",
+          "rect": [
+            -15,
+            -23,
+            18,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7106a452",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8a55cb3b",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2053",
@@ -14369,8 +16729,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_b61b279b",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_54182c17",
+          "type_id": "hurt",
+          "rect": [
+            -15,
+            -23,
+            18,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2e42311b",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2054",
@@ -14545,8 +16936,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_5c02e7e9",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_61730a24",
+          "type_id": "hurt",
+          "rect": [
+            -15,
+            -23,
+            18,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_eaad3787",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_85e5cb6d",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2055",
@@ -14697,8 +17126,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7fd5e60f",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_9ffd2f7f",
+          "type_id": "hurt",
+          "rect": [
+            -15,
+            -23,
+            18,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_43374baf",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2056",
@@ -14849,8 +17309,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_0e8aed32",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -27,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_44a383f1",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_660e13fa",
+          "type_id": "weapon",
+          "x": 0,
+          "y": -36,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_23ac5b43",
+          "type_id": "ground",
+          "x": 6,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2057",
@@ -15001,8 +17499,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_744ee916",
+          "type_id": "hurt",
+          "rect": [
+            -13,
+            -17,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e4b1c14d",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -17,
+            23,
+            16
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7b6f02ae",
+          "type_id": "weapon",
+          "x": 8,
+          "y": 0,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8d102732",
+          "type_id": "ground",
+          "x": 8,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2058",
@@ -15141,8 +17677,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_1536ad9d",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -8,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b566db8a",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -10,
+            28,
+            10
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e7be2263",
+          "type_id": "weapon",
+          "x": 16,
+          "y": 0,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_6cf9c297",
+          "type_id": "ground",
+          "x": 10,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2059",
@@ -15257,8 +17831,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_668e2904",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -7,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2f804ec6",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -6,
+            27,
+            10
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_1f2109e7",
+          "type_id": "weapon",
+          "x": 18,
+          "y": 6,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_6f56ee56",
+          "type_id": "ground",
+          "x": 10,
+          "y": 2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x205A",
@@ -15421,8 +18033,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f7ef0658",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_da73a315",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -25,
+            17,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_194b29c1",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -34,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_d172c65b",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x205B",
@@ -15549,8 +18199,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e78162b9",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -23,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_a61c013a",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -21,
+            17,
+            21
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_61d00b39",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x205C",
@@ -15713,8 +18394,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_6c146907",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -21,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_1a464220",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -18,
+            24,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f3c2a75c",
+          "type_id": "ground",
+          "x": 0,
+          "y": 5,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x205D",
@@ -15853,8 +18565,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_35fbb9cc",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -22,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_637fd0bf",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -17,
+            15,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_605c355f",
+          "type_id": "ground",
+          "x": -2,
+          "y": 7,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x205E",
@@ -15981,8 +18724,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2656fd78",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -20,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_8a258995",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -16,
+            23,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6cc55dd3",
+          "type_id": "ground",
+          "x": 4,
+          "y": 6,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x205F",
@@ -16109,8 +18883,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_dc0ce53d",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_244199e8",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -18,
+            19,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_12dbca53",
+          "type_id": "ground",
+          "x": 6,
+          "y": 8,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2060",
@@ -16249,8 +19054,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_254d7ce6",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -20,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_bb00f18d",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -18,
+            15,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_eafc04df",
+          "type_id": "ground",
+          "x": 2,
+          "y": 5,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2061",
@@ -16389,8 +19225,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_06a2654e",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -25,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_635ba6fe",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -23,
+            15,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ac15666f",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x206C",
@@ -16553,8 +19420,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_82c8f9ec",
+          "type_id": "hurt",
+          "rect": [
+            -18,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5affce82",
+          "type_id": "hurt",
+          "rect": [
+            -18,
+            -23,
+            24,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5dd9d18a",
+          "type_id": "weapon",
+          "x": -16,
+          "y": -34,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_e25127d7",
+          "type_id": "ground",
+          "x": -1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x206D",
@@ -16729,8 +19634,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_b85bf94b",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -27,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7bd611c1",
+          "type_id": "hurt",
+          "rect": [
+            -15,
+            -25,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_4a33ae28",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8bdb9634",
+          "type_id": "ground",
+          "x": 1,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x206E",
@@ -16893,8 +19836,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9f094a2f",
+          "type_id": "hurt",
+          "rect": [
+            -20,
+            -9,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b5e494ab",
+          "type_id": "hurt",
+          "rect": [
+            -17,
+            -8,
+            29,
+            9
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e0225622",
+          "type_id": "weapon",
+          "x": -20,
+          "y": -14,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_ae8d7a2a",
+          "type_id": "ground",
+          "x": 6,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x206F",
@@ -17081,8 +20062,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8dffd52d",
+          "type_id": "hurt",
+          "rect": [
+            -23,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_4f4448c1",
+          "type_id": "hurt",
+          "rect": [
+            -20,
+            -13,
+            27,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_4c0fcca8",
+          "type_id": "weapon",
+          "x": -20,
+          "y": -20,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_2d0fbdd2",
+          "type_id": "ground",
+          "x": 2,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2070",
@@ -17197,8 +20216,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_4bb7fe00",
+          "type_id": "hurt",
+          "rect": [
+            -14,
+            -7,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_bae57b62",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -6,
+            29,
+            10
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_c35681dd",
+          "type_id": "weapon",
+          "x": 10,
+          "y": 6,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_cd8ef359",
+          "type_id": "ground",
+          "x": 12,
+          "y": 2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2071",
@@ -17349,8 +20406,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_88e7ef5f",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -26,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_0aa5a4bf",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            19,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2aa2d9b2",
+          "type_id": "weapon",
+          "x": 16,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_ff661c8f",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2072",
@@ -17513,8 +20608,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d1ac0571",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -24,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5b83d6bc",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -22,
+            26,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_25a78f38",
+          "type_id": "weapon",
+          "x": 26,
+          "y": -14,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_d9efd5f3",
+          "type_id": "ground",
+          "x": 4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2073",
@@ -17665,8 +20798,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2ba25eb5",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_294dc6aa",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -25,
+            21,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2e2c09ce",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_ab7f36cb",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2074",
@@ -17865,8 +21036,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_0400c419",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -22,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_57b66d58",
+          "type_id": "hurt",
+          "rect": [
+            -16,
+            -23,
+            33,
+            23
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_958b605a",
+          "type_id": "attack",
+          "rect": [
+            10,
+            -21,
+            14,
+            16
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0e650fa9",
+          "type_id": "weapon",
+          "x": 24,
+          "y": -20,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_fd96069f",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2075",
@@ -18017,8 +21237,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7cd1c27e",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -24,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_a3863747",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            20,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ca856b9b",
+          "type_id": "weapon",
+          "x": 4,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_145ea78c",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2076",
@@ -18181,8 +21439,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_46b1ae52",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_86da1b8b",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            23,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_9c4f1924",
+          "type_id": "weapon",
+          "x": 16,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_93cec860",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2077",
@@ -18345,8 +21641,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_cad1bc49",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_973f4f52",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -28,
+            13,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6ce7a3c9",
+          "type_id": "weapon",
+          "x": -14,
+          "y": -10,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_42947751",
+          "type_id": "ground",
+          "x": 0,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2078",
@@ -18509,8 +21843,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_18fa6c85",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -27,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_8da97870",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -25,
+            22,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_47fa1520",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_1c0a95a7",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2079",
@@ -18661,8 +22033,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7bc71732",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -31,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_55bbba06",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -29,
+            9,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_43f6f58f",
+          "type_id": "weapon",
+          "x": -12,
+          "y": -8,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_c0130ba7",
+          "type_id": "ground",
+          "x": 0,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x207A",
@@ -18849,8 +22259,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_acce7999",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_22176b58",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            22,
+            23
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_7d6224ae",
+          "type_id": "attack",
+          "rect": [
+            -8,
+            -23,
+            26,
+            14
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_130b2f1a",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -20,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8e50211a",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x207B",
@@ -18989,8 +22448,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_89e43702",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_af4898ee",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -29,
+            10,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_16106cb9",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -8,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_7ab00401",
+          "type_id": "ground",
+          "x": 2,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x207C",
@@ -19177,8 +22674,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f853d467",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2dad6421",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            22,
+            23
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_e98b2184",
+          "type_id": "attack",
+          "rect": [
+            8,
+            -18,
+            5,
+            5
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0c9e515c",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_29cba584",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x207D",
@@ -19317,8 +22863,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_828964b5",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7c44a7b6",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -30,
+            10,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_bbb019f9",
+          "type_id": "weapon",
+          "x": -8,
+          "y": -8,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8715216e",
+          "type_id": "ground",
+          "x": 0,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x207E",
@@ -19481,8 +23065,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_61dbc30c",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e6c3b531",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            21,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_3886153c",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -10,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_fe74d4d0",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x207F",
@@ -19621,8 +23243,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e27d4ef0",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -32,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_a498034d",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -30,
+            11,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7dc0dfd0",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -10,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_37c721a5",
+          "type_id": "ground",
+          "x": 0,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2080",
@@ -19785,8 +23445,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_80e7c6af",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_3a95646c",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -26,
+            16,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f355586e",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -24,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_50bbde13",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2081",
@@ -19913,8 +23611,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_61e56576",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -32,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_a95d78b7",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -29,
+            9,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8a92dbaf",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -6,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_fe31a7ce",
+          "type_id": "ground",
+          "x": 0,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2082",
@@ -20065,8 +23801,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_511afc99",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -29,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_8ce7bd4f",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -25,
+            20,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ff89a873",
+          "type_id": "weapon",
+          "x": 6,
+          "y": -8,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_eae23782",
+          "type_id": "ground",
+          "x": 8,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2083",
@@ -20217,8 +23991,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7d445f12",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ace88e97",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -27,
+            9,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_988a817c",
+          "type_id": "weapon",
+          "x": -10,
+          "y": -6,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_fb8a4d13",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2084",
@@ -20381,8 +24193,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c5f3d8fc",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -26,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c7b6717e",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -24,
+            22,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7a61904e",
+          "type_id": "weapon",
+          "x": 16,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_c70c6ffa",
+          "type_id": "ground",
+          "x": 10,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2085",
@@ -20509,8 +24359,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_723eccec",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_78393506",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -27,
+            8,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_39bff21d",
+          "type_id": "weapon",
+          "x": -8,
+          "y": -6,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_4a50ea2b",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2086",
@@ -20709,8 +24597,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_08f7b876",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_cb251ceb",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -22,
+            32,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f60be78a",
+          "type_id": "weapon",
+          "x": 26,
+          "y": -18,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_3d2358cd",
+          "type_id": "ground",
+          "x": 14,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2087",
@@ -20873,8 +24799,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_754175c5",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -29,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b8878ea3",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -26,
+            19,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_641c410a",
+          "type_id": "weapon",
+          "x": -2,
+          "y": -8,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_f3279176",
+          "type_id": "ground",
+          "x": 5,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2088",
@@ -21037,8 +25001,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e8efb783",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_65948ebd",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -25,
+            25,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_28e2d175",
+          "type_id": "weapon",
+          "x": 30,
+          "y": -24,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_c7a71d87",
+          "type_id": "ground",
+          "x": 14,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2089",
@@ -21189,8 +25191,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c4d00586",
+          "type_id": "hurt",
+          "rect": [
+            15,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ea831aad",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -23,
+            22,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_996e6af9",
+          "type_id": "weapon",
+          "x": 4,
+          "y": -8,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_6d66ebf8",
+          "type_id": "ground",
+          "x": 12,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x208A",
@@ -21341,8 +25381,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_06825fe1",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b502c82c",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -26,
+            16,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_82ddc9ee",
+          "type_id": "weapon",
+          "x": 20,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_df937701",
+          "type_id": "ground",
+          "x": 8,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x208B",
@@ -21469,8 +25547,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_63eddce0",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -13,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5fddbf04",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -12,
+            26,
+            13
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_eb0f570b",
+          "type_id": "ground",
+          "x": 10,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x208C",
@@ -21597,8 +25706,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_035c4954",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -12,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2bf0b5c4",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -12,
+            25,
+            13
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ebd57973",
+          "type_id": "ground",
+          "x": 10,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x208D",
@@ -21713,8 +25853,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_aeb94d93",
+          "type_id": "hurt",
+          "rect": [
+            -14,
+            -7,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_13978c6e",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -7,
+            28,
+            11
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6396cee6",
+          "type_id": "ground",
+          "x": 12,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x208E",
@@ -21853,8 +26024,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9ad6396e",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -12,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_67a6b504",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -8,
+            28,
+            10
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ce440995",
+          "type_id": "ground",
+          "x": 12,
+          "y": 1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x208F",
@@ -22017,8 +26219,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_a2f6a31f",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -27,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_693b5b73",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            20,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d9d555cb",
+          "type_id": "weapon",
+          "x": 6,
+          "y": -14,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_9828a288",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2090",
@@ -22169,8 +26409,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_6ae69090",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ae431ecc",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -24,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_3e6b6e31",
+          "type_id": "weapon",
+          "x": 20,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_a497928f",
+          "type_id": "ground",
+          "x": 2,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2091",
@@ -22321,8 +26599,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c5aadad7",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d54037ec",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -21,
+            24,
+            21
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_782524b2",
+          "type_id": "weapon",
+          "x": 2,
+          "y": -26,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_3fdf3d44",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2092",
@@ -22545,8 +26861,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_1697853e",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -24,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5210602f",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -21,
+            23,
+            21
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_61aac508",
+          "type_id": "attack",
+          "rect": [
+            -1,
+            -30,
+            26,
+            29
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_de974818",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_90d6836b",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2093",
@@ -22697,8 +27062,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f9113f53",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -19,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_99ad59e9",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -17,
+            22,
+            17
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_af09ae7d",
+          "type_id": "weapon",
+          "x": 20,
+          "y": -18,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_cbd86115",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2094",
@@ -22849,8 +27252,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_35f6e878",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -26,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c5f96160",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            20,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_9cd6dd98",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -24,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_182551ea",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2095",
@@ -22977,8 +27418,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8a054f55",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -16,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5b8d5617",
+          "type_id": "hurt",
+          "rect": [
+            -13,
+            -16,
+            23,
+            16
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ddb270e3",
+          "type_id": "ground",
+          "x": -8,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2096",
@@ -23105,8 +27577,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9b1fb6ac",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -10,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b65b1273",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -13,
+            21,
+            13
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_72beb92c",
+          "type_id": "ground",
+          "x": -2,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2097",
@@ -23245,8 +27748,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_416ea37d",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -9,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e67dc432",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -14,
+            13,
+            15
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8c38b17a",
+          "type_id": "ground",
+          "x": 2,
+          "y": -1,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2098",
@@ -23373,8 +27907,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d6ee19e9",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -13,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_02263b22",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -14,
+            18,
+            15
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_16fdcc6d",
+          "type_id": "ground",
+          "x": 8,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x2099",
@@ -23549,8 +28114,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_004e3b14",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_60ba51d3",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -25,
+            15,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_928a7946",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x209A",
@@ -23725,8 +28321,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_bce3910a",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6f991d0d",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -25,
+            15,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_342d35e3",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x209B",
@@ -23901,8 +28528,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_95f580e8",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7143bf60",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -25,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5347a4dc",
+          "type_id": "ground",
+          "x": 2,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x209C",
@@ -24077,8 +28735,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_cbbf14e6",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_f19d2f2a",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -25,
+            22,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f6bfe2fe",
+          "type_id": "ground",
+          "x": 2,
+          "y": -2,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x209D",
@@ -24229,8 +28918,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2fb5092b",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5f386433",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -24,
+            11,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_bea5480a",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x209E",
@@ -24381,8 +29101,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_960f3237",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_f117d3bb",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -24,
+            11,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_43930fdf",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x209F",
@@ -24533,8 +29284,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_75938bc0",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_a967758e",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -25,
+            16,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_95d4a16d",
+          "type_id": "ground",
+          "x": 3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A0",
@@ -24697,8 +29479,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_769b8c04",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7d9ef595",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -25,
+            16,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_142e3f9b",
+          "type_id": "ground",
+          "x": 3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A1",
@@ -24861,8 +29674,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_726840ce",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_38d89e3f",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -25,
+            21,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_9fc95349",
+          "type_id": "ground",
+          "x": 2,
+          "y": -3,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A2",
@@ -25025,8 +29869,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_1d19912b",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_970a6589",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -25,
+            21,
+            22
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_962320a5",
+          "type_id": "ground",
+          "x": 2,
+          "y": -3,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A3",
@@ -25165,8 +30040,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_1178b51a",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e2e96015",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -24,
+            14,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8b2e9def",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A4",
@@ -25305,8 +30211,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9e2cbecf",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b619a418",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -24,
+            14,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_6780cd89",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A5",
@@ -25469,8 +30406,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_dc0d85b6",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_08ee1ea5",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -27,
+            20,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f44bb6a8",
+          "type_id": "weapon",
+          "x": 16,
+          "y": -26,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_8b674bee",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A6",
@@ -25669,8 +30644,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_4c2af4b4",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_139b23fa",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -25,
+            23,
+            25
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_260a1a58",
+          "type_id": "attack",
+          "rect": [
+            0,
+            -36,
+            28,
+            34
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_45dac4a3",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_677ea25b",
+          "type_id": "ground",
+          "x": 4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A7",
@@ -25869,8 +30893,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_952968e2",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_4fdc312d",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -24,
+            23,
+            24
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_991a0ac5",
+          "type_id": "attack",
+          "rect": [
+            0,
+            -36,
+            28,
+            34
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_112aec43",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_7c644fe2",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A8",
@@ -26045,8 +31118,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_de737586",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b8bf22bc",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -25,
+            22,
+            25
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_89216082",
+          "type_id": "attack",
+          "rect": [
+            13,
+            -11,
+            9,
+            8
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_dbaadfc7",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_54035353",
+          "type_id": "ground",
+          "x": 3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20A9",
@@ -26221,8 +31343,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_86541e31",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5abd29f5",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -24,
+            23,
+            24
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_3e020aea",
+          "type_id": "attack",
+          "rect": [
+            13,
+            -11,
+            9,
+            8
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_62fd885c",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_58929637",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20AA",
@@ -26373,8 +31544,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_ace81c22",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_3f6475d0",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -25,
+            22,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_95c89ed5",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_dbd7209b",
+          "type_id": "ground",
+          "x": 3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20AB",
@@ -26525,8 +31734,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7774c952",
+          "type_id": "hurt",
+          "rect": [
+            7,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_1ef93a69",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            24,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_edd694fc",
+          "type_id": "weapon",
+          "x": 18,
+          "y": -2,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_4dddc895",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20AC",
@@ -26689,8 +31936,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_0e702a13",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_59ed6df3",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            20,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_007dab62",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -24,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_0c644b54",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20AD",
@@ -26841,8 +32126,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d598ed24",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_fde00df8",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            16,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_47832120",
+          "type_id": "weapon",
+          "x": 4,
+          "y": -24,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_3dfd2c58",
+          "type_id": "ground",
+          "x": -2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20AE",
@@ -26993,8 +32316,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f36a1435",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -30,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_618936b0",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -26,
+            16,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e157b1f5",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -12,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_ad62dada",
+          "type_id": "ground",
+          "x": -3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20AF",
@@ -27205,8 +32566,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_0062d4b1",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_68965ede",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -21,
+            30,
+            21
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_7f9d7537",
+          "type_id": "attack",
+          "rect": [
+            -14,
+            -25,
+            45,
+            13
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_4f35a261",
+          "type_id": "weapon",
+          "x": 34,
+          "y": -20,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_b1da01ea",
+          "type_id": "ground",
+          "x": 4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B0",
@@ -27369,8 +32779,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_50587255",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -25,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d138911d",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -23,
+            27,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_afaaf4d9",
+          "type_id": "weapon",
+          "x": 36,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_e5ac9a1d",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B1",
@@ -27533,8 +32981,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_268582ce",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_56c40bd6",
+          "type_id": "hurt",
+          "rect": [
+            -13,
+            -25,
+            24,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7719943c",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_5f75306e",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B2",
@@ -27697,8 +33183,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9c2610d8",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_635b1087",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            21,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5a29c0c0",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_3d0b1b04",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B3",
@@ -27861,8 +33385,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2c4e6b5d",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_590084e3",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            21,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_acb185d0",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_fb9b4840",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B4",
@@ -28025,8 +33587,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_acdef36e",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c0624bed",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            21,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_b68d6653",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_0153f0c1",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B5",
@@ -28189,8 +33789,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_0b213b32",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_59f7ae78",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -28,
+            21,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7d82c6b9",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_cfe23214",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B6",
@@ -28353,8 +33991,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_a830a840",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c616e7d1",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -28,
+            21,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f6453a9f",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_a26b977d",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B7",
@@ -28517,8 +34193,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2d57f79f",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_3f7211bd",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -28,
+            21,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d019de18",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_6d877cda",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B8",
@@ -28681,8 +34395,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7dd1fd18",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_642d8aab",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -28,
+            21,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_a9ba149b",
+          "type_id": "weapon",
+          "x": 8,
+          "y": -32,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_17c5ac46",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20B9",
@@ -28845,8 +34597,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_ef5324fe",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -26,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_fa223b22",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -24,
+            23,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5e986b40",
+          "type_id": "weapon",
+          "x": 14,
+          "y": -30,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_b592f5dd",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20BC",
@@ -28985,8 +34775,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9c13fc46",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -31,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6dbca39d",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -27,
+            15,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_5e8ec002",
+          "type_id": "ground",
+          "x": 6,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20BD",
@@ -29125,8 +34946,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_7fd45a0c",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -31,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_f09aae87",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -26,
+            16,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_62bfb294",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20BE",
@@ -29265,8 +35117,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_03e16c1d",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -30,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ec1abb50",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -25,
+            15,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_01d77f6c",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20BF",
@@ -29393,8 +35276,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f0fcaaf5",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -30,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_576d6464",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -25,
+            18,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_23c89546",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C0",
@@ -29533,8 +35447,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_ff4dd6ae",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_53d6f0c4",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -25,
+            16,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_b4c2706c",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C1",
@@ -29697,8 +35642,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_3a53b9a5",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -27,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_b606b4d5",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -25,
+            16,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_f63bc228",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C2",
@@ -29837,8 +35813,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d154497f",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -29,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_8bfe7201",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -25,
+            20,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7cef693a",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C3",
@@ -30001,8 +36008,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_05bc50cd",
+          "type_id": "hurt",
+          "rect": [
+            2,
+            -29,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_62558fb9",
+          "type_id": "hurt",
+          "rect": [
+            -9,
+            -26,
+            20,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_038005ed",
+          "type_id": "ground",
+          "x": 1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C4",
@@ -30141,8 +36179,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_ae236882",
+          "type_id": "hurt",
+          "rect": [
+            14,
+            -31,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_82408a95",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -28,
+            14,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_70d9bc8e",
+          "type_id": "ground",
+          "x": 12,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C5",
@@ -30281,8 +36350,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_685d7e41",
+          "type_id": "hurt",
+          "rect": [
+            16,
+            -30,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_0cf5ee77",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -27,
+            15,
+            27
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_40702c98",
+          "type_id": "ground",
+          "x": 12,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C6",
@@ -30421,8 +36521,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_48333faf",
+          "type_id": "hurt",
+          "rect": [
+            16,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2c2c202f",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -26,
+            18,
+            23
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_2a33e554",
+          "type_id": "ground",
+          "x": 11,
+          "y": -3,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C7",
@@ -30561,8 +36692,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_4de81021",
+          "type_id": "hurt",
+          "rect": [
+            19,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_dab83667",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -25,
+            17,
+            19
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_c16249d3",
+          "type_id": "ground",
+          "x": 14,
+          "y": -6,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C8",
@@ -30701,8 +36863,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_4ee45ad5",
+          "type_id": "hurt",
+          "rect": [
+            10,
+            -31,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2225733c",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -29,
+            11,
+            29
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_90d97a2e",
+          "type_id": "ground",
+          "x": 10,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20C9",
@@ -30841,8 +37034,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_9e8f3566",
+          "type_id": "hurt",
+          "rect": [
+            11,
+            -37,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_88af5823",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -34,
+            14,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_cc7480e8",
+          "type_id": "ground",
+          "x": 11,
+          "y": -8,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20CA",
@@ -30981,8 +37205,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_f927932e",
+          "type_id": "hurt",
+          "rect": [
+            17,
+            -39,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_fbadc2d0",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -36,
+            17,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_628c7686",
+          "type_id": "ground",
+          "x": 12,
+          "y": -12,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20CB",
@@ -31109,8 +37364,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c22e2e29",
+          "type_id": "hurt",
+          "rect": [
+            6,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_9ce3734b",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -25,
+            13,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_c551cf20",
+          "type_id": "ground",
+          "x": 6,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20CC",
@@ -31249,8 +37535,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8e707c96",
+          "type_id": "hurt",
+          "rect": [
+            11,
+            -38,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_5ff70e73",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -37,
+            15,
+            29
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_41cc4a7f",
+          "type_id": "ground",
+          "x": 6,
+          "y": -8,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20CD",
@@ -31401,8 +37718,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_a954b10e",
+          "type_id": "hurt",
+          "rect": [
+            10,
+            -40,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_da5a335f",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -39,
+            10,
+            30
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0fa16904",
+          "type_id": "ground",
+          "x": 8,
+          "y": -9,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20CE",
@@ -31565,8 +37913,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_822ec558",
+          "type_id": "hurt",
+          "rect": [
+            13,
+            -41,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e9c298ff",
+          "type_id": "hurt",
+          "rect": [
+            5,
+            -41,
+            11,
+            29
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_29cbb023",
+          "type_id": "ground",
+          "x": 9,
+          "y": -12,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20CF",
@@ -31729,8 +38108,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_28e3068b",
+          "type_id": "hurt",
+          "rect": [
+            3,
+            -36,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_07d8e372",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -36,
+            15,
+            33
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_bf086dcf",
+          "type_id": "ground",
+          "x": 8,
+          "y": -3,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D0",
@@ -31857,8 +38267,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_b3aac111",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_c1413f76",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            13,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_7b2f97be",
+          "type_id": "ground",
+          "x": -4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D1",
@@ -32021,8 +38462,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_c580f20f",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -26,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6350e2f5",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -26,
+            19,
+            26
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_b56e63e6",
+          "type_id": "weapon",
+          "x": 20,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_c778c47c",
+          "type_id": "ground",
+          "x": -2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D2",
@@ -32185,8 +38664,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_75d13c92",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -27,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_81753311",
+          "type_id": "hurt",
+          "rect": [
+            -12,
+            -28,
+            18,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_64dd7724",
+          "type_id": "weapon",
+          "x": 22,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_d6ad7b1d",
+          "type_id": "ground",
+          "x": -3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D3",
@@ -32349,8 +38866,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_5bcf8ee3",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -28,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_39eefbf9",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -25,
+            16,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8106960d",
+          "type_id": "weapon",
+          "x": 24,
+          "y": -24,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_4d4803ed",
+          "type_id": "ground",
+          "x": -2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D4",
@@ -32513,8 +39068,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_5c0ba8da",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -27,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_970e075d",
+          "type_id": "hurt",
+          "rect": [
+            -13,
+            -28,
+            20,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ae9f85b9",
+          "type_id": "weapon",
+          "x": 22,
+          "y": -22,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_e66a229d",
+          "type_id": "ground",
+          "x": -3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D5",
@@ -32641,8 +39234,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_cd3c76f2",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_f6679025",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -18,
+            20,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d27d9175",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D6",
@@ -32793,8 +39417,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_2b5269b1",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_e10fa88a",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -18,
+            20,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_bea96bb8",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D7",
@@ -32909,8 +39564,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_cc73cf57",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_9eca7f8a",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -19,
+            23,
+            19
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d3a647f9",
+          "type_id": "ground",
+          "x": 3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D8",
@@ -33049,8 +39735,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_d99e1e5c",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_2536e21c",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -19,
+            23,
+            19
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_ca7fd1e7",
+          "type_id": "ground",
+          "x": 3,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20D9",
@@ -33177,8 +39894,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_6b1c9e1b",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d680a604",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -18,
+            22,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_16acdc43",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20DA",
@@ -33329,8 +40077,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_df70bb60",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_bee74205",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -18,
+            22,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8084950e",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20DB",
@@ -33457,8 +40236,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_8c1c5dad",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_0b40b302",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -18,
+            16,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0c797089",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20DC",
@@ -33633,8 +40443,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_459ea3d4",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -21,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_99d1c79b",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -18,
+            16,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_e3d9edd1",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20DD",
@@ -33773,8 +40614,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_e8b340d8",
+          "type_id": "hurt",
+          "rect": [
+            4,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_03a22020",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -25,
+            17,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_144f6b01",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20DF",
@@ -33901,8 +40773,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_31f26755",
+          "type_id": "hurt",
+          "rect": [
+            0,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_23d894e7",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -25,
+            13,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0d354afd",
+          "type_id": "ground",
+          "x": 0,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20E1",
@@ -34029,8 +40932,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_ffd574d9",
+          "type_id": "hurt",
+          "rect": [
+            1,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_f07a24c6",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -25,
+            13,
+            25
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_55bafac5",
+          "type_id": "ground",
+          "x": 2,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20E3",
@@ -34169,8 +41103,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_b22a34d0",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -28,
+            6,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_072e9fc8",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -24,
+            18,
+            24
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_079e2479",
+          "type_id": "ground",
+          "x": -1,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20E5",
@@ -34309,8 +41274,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_82786bb0",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_7fa59a6c",
+          "type_id": "hurt",
+          "rect": [
+            -11,
+            -14,
+            26,
+            14
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_8c1e2125",
+          "type_id": "ground",
+          "x": 4,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20E6",
@@ -34413,7 +41409,30 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
+      "collision_rects": [
+        {
+          "id": "rc_a902ab9c",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_971e8216",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -13,
+            14,
+            13
+          ],
+          "role": "body"
+        }
+      ],
       "control_points": []
     },
     {
@@ -34529,8 +41548,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_59ece2c8",
+          "type_id": "hurt",
+          "rect": [
+            -1,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_ac3cd859",
+          "type_id": "hurt",
+          "rect": [
+            -5,
+            -16,
+            22,
+            18
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_b7a77d8d",
+          "type_id": "ground",
+          "x": 12,
+          "y": -6,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20E8",
@@ -34621,7 +41671,30 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
+      "collision_rects": [
+        {
+          "id": "rc_dcf09f45",
+          "type_id": "hurt",
+          "rect": [
+            -2,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_9aaadcf7",
+          "type_id": "hurt",
+          "rect": [
+            -6,
+            -13,
+            15,
+            13
+          ],
+          "role": "body"
+        }
+      ],
       "control_points": []
     },
     {
@@ -34773,8 +41846,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_50e86649",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_4b0f3783",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -17,
+            26,
+            19
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d2768dcd",
+          "type_id": "weapon",
+          "x": 4,
+          "y": -4,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_ffe4f32b",
+          "type_id": "ground",
+          "x": 10,
+          "y": -6,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20EA",
@@ -34889,8 +42000,39 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_48334f07",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_6b1dff51",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -13,
+            18,
+            12
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_4e7cd0e9",
+          "type_id": "weapon",
+          "x": 20,
+          "y": -12,
+          "role": "blade_tip"
+        }
+      ]
     },
     {
       "id": "0x20EB",
@@ -35101,8 +42243,57 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_688547a9",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -14,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_84543cab",
+          "type_id": "hurt",
+          "rect": [
+            -8,
+            -17,
+            21,
+            17
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_bdfdb299",
+          "type_id": "attack",
+          "rect": [
+            -29,
+            6,
+            37,
+            11
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_3daae432",
+          "type_id": "weapon",
+          "x": 12,
+          "y": -6,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_b8828f93",
+          "type_id": "ground",
+          "x": 8,
+          "y": 0,
+          "role": "feet"
+        }
+      ]
     },
     {
       "id": "0x20EC",
@@ -35253,8 +42444,50 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_85c798d1",
+          "type_id": "hurt",
+          "rect": [
+            -3,
+            -15,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_d312a529",
+          "type_id": "hurt",
+          "rect": [
+            -7,
+            -17,
+            16,
+            17
+          ],
+          "role": "body"
+        },
+        {
+          "id": "rc_40ca6a97",
+          "type_id": "attack",
+          "rect": [
+            -1,
+            1,
+            13,
+            13
+          ],
+          "role": "blade"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_d54ba0e6",
+          "type_id": "weapon",
+          "x": 14,
+          "y": 6,
+          "role": "blade_tip"
+        }
+      ]
     },
     {
       "id": "0x20ED",
@@ -35429,8 +42662,46 @@
           "rotation_degrees": 0.0
         }
       ],
-      "collision_rects": [],
-      "control_points": []
+      "collision_rects": [
+        {
+          "id": "rc_b0792baa",
+          "type_id": "hurt",
+          "rect": [
+            -4,
+            -20,
+            7,
+            7
+          ],
+          "role": "head"
+        },
+        {
+          "id": "rc_93fae8f9",
+          "type_id": "hurt",
+          "rect": [
+            -10,
+            -23,
+            23,
+            28
+          ],
+          "role": "body"
+        }
+      ],
+      "control_points": [
+        {
+          "id": "pt_0393a9e8",
+          "type_id": "weapon",
+          "x": 16,
+          "y": -12,
+          "role": "blade_tip"
+        },
+        {
+          "id": "pt_3f14bb3b",
+          "type_id": "ground",
+          "x": 4,
+          "y": 5,
+          "role": "feet"
+        }
+      ]
     }
   ],
   "animations": [
@@ -35639,7 +42910,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "footstep",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x209F",
@@ -35675,7 +42951,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "footstep",
+              "value": 0
+            }
+          ]
         }
       ],
       "loop_start": 0,
@@ -35722,7 +43003,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "footstep",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x20A0",
@@ -35758,7 +43044,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "footstep",
+              "value": 0
+            }
+          ]
         }
       ],
       "loop_start": 0,
@@ -38273,7 +45564,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x20A8",
@@ -38356,7 +45652,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x20B0",
@@ -38415,7 +45716,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x203B",
@@ -38581,7 +45887,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x2041",
@@ -38712,7 +46023,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x2076",
@@ -38748,7 +46064,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x207C",
@@ -38796,7 +46117,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x207C",
@@ -38844,7 +46170,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x207C",
@@ -39310,7 +46641,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x20EC",
@@ -39735,7 +47071,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x20A9",
@@ -40246,7 +47587,12 @@
           "flip_x": false,
           "flip_y": false,
           "rotation_degrees": 0.0,
-          "events": []
+          "events": [
+            {
+              "type_id": "hit",
+              "value": 0
+            }
+          ]
         },
         {
           "frame_id": "0x2093",
@@ -41113,25 +48459,62 @@
   ],
   "collision_types": [
     {
-      "id": "default",
-      "name": "Default",
+      "id": "hurt",
+      "name": "Hurt",
+      "color": [
+        80,
+        170,
+        255
+      ]
+    },
+    {
+      "id": "attack",
+      "name": "Attack",
       "color": [
         255,
-        0,
-        0
+        80,
+        80
       ]
     }
   ],
   "point_types": [
     {
-      "id": "ptype_37deb4f6",
-      "name": "Default",
+      "id": "weapon",
+      "name": "Weapon",
       "color": [
-        0,
         255,
-        0
+        210,
+        80
+      ]
+    },
+    {
+      "id": "ground",
+      "name": "Ground",
+      "color": [
+        120,
+        230,
+        120
       ]
     }
   ],
-  "event_types": []
+  "event_types": [
+    {
+      "id": "hit",
+      "name": "hit",
+      "color": [
+        255,
+        96,
+        80
+      ]
+    },
+    {
+      "id": "footstep",
+      "name": "footstep",
+      "color": [
+        120,
+        220,
+        140
+      ]
+    }
+  ]
 }

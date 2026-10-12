@@ -125,6 +125,9 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
   `ms_frame_hitboxes()` / `ms_frame_points()` / `ms_anim_player_points()` / `ms_find_point()` work the same way.
   Types are numbered in the editor's list order (`MS_HITBOX_<NAME>`, `MS_POINT_<NAME>`), roles alphabetically
   (`MS_ROLE_<NAME>`, `MS_NO_ROLE` for none); a box whose type was deleted has type `MS_UNKNOWN_TYPE`.
+  The Prince of Persia example has them: `MS_HITBOX_HURT` boxes `head` and `body` on every frame, an
+  `MS_HITBOX_ATTACK` box `blade` on the striking frames, points `blade_tip` (`MS_POINT_WEAPON`, in combat) and
+  `feet` (`MS_POINT_GROUND`), and the events `hit` (the step a blade strikes) and `footstep` (a run's landing).
 - `ms_scene_player_*()` for scene playback
 - `ms_set_mapping(index)` re-skins everything drawn afterwards. The players keep no mapping of their own, so
   several characters share one set of animations and differ only in the mapping they are drawn with, the way
