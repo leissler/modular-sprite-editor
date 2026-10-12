@@ -28,7 +28,8 @@
 .md-header { box-shadow: none; border-bottom: 1px solid #ffffff14; }
 .md-header__title { font-weight: 700; letter-spacing: -.02em; }
 .md-header__button.md-logo { padding: 0 .2rem; }
-.md-header__button.md-logo img { height: 1.9rem; image-rendering: pixelated; }
+/* The 32-pixel icon at exactly 1x: the pixel art stays sharp. */
+.md-header__button.md-logo img { width: 32px; height: 32px; image-rendering: pixelated; }
 .md-grid { max-width: 66rem; }
 .md-typeset { font-size: .84rem; line-height: 1.75; }
 .md-typeset h1, .md-typeset h2, .md-typeset h3 { font-weight: 700; letter-spacing: -.02em; }
@@ -79,9 +80,11 @@ body:has(.ms-home) .md-footer { background: #0f1013; }
 .ms-hero-art { margin: 0; }
 /* Flex items do not shrink below their content by default; the pixel images must, on phones. */
 .ms-hero > *, .ms-hero-art .ms-screen img, .ms-workflow .ms-step-art img, .ms-home figure.ms-pixel-panel > div { min-width: 0; }
-/* The scene at exactly 2x on its own stage colour; pixel art is never resized by a fraction. */
-.ms-hero-art .ms-screen { display: flex; justify-content: center; background: #16181c; border: 1px solid var(--ms-line); border-radius: .35rem; padding: 2.2rem 1rem; }
+/* A title screen: the logo over the scene, both at exactly 2x, on the stage colour; pixel art is never resized by a
+   fraction. */
+.ms-hero-art .ms-screen { display: flex; flex-direction: column; align-items: center; gap: 1.2rem; background: #16181c; border: 1px solid var(--ms-line); border-radius: .35rem; padding: 2.4rem 1rem 2.2rem; }
 .ms-home .ms-hero-art img { display: block; width: auto; max-width: 100%; height: auto; image-rendering: pixelated; border: 0; border-radius: 0; }
+.ms-home .ms-hero-art img.ms-title-logo { width: 310px; }
 .ms-hero-art figcaption { margin-top: .6rem; color: #7f8896; font-size: .6rem; text-align: left; max-width: none; }
 .ms-actions { display: flex; gap: .65rem; flex-wrap: wrap; margin: 1.6rem 0 1rem; }
 .ms-home .ms-button { display: inline-block; border: 1px solid #ffffff30; border-radius: .2rem; padding: .66rem 1rem; font-size: .75rem; font-weight: 700; line-height: 1.5; text-align: center; transition: background .18s, border-color .18s; }
@@ -138,6 +141,7 @@ body:has(.ms-home) .md-footer { background: #0f1013; }
 @media (min-width: 76.25em) { .md-sidebar { width: 12rem; } }
 @media (max-width: 60em) {
   .ms-hero { gap: 1.5rem; padding-left: .5rem; padding-right: .5rem; }
+  .ms-hero-art .ms-screen { padding-left: .4rem; padding-right: .4rem; }
   .ms-workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ms-feature, .ms-feature--flip, .ms-examples { gap: 1.7rem; }
   .ms-example-kind { display: none; }
