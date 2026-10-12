@@ -553,10 +553,21 @@ class SceneEditorPanel(wx.Panel):
                 self.frame = 0
             self.is_playing = True
             self._play_start = (time.monotonic(), self.frame)
-            self.timer.Start(max(8, int(1000 / max(1, scene.fps) / 2)))
+            self.timer.StartOnce(self._play_interval(scene))
         self._update_transport()
 
+    @staticmethod
+    def _play_interval(scene: TimelineScene) -> int:
+        return max(8, int(1000 / max(1, scene.fps) / 2))
+
     def _on_timer(self, _event: wx.TimerEvent) -> None:
+        self._play_frame()
+        # One-shot, re-armed after each frame (see animation_editor.panel.PLAY_INTERVAL_MS).
+        scene = self.scene()
+        if self.is_playing and scene:
+            self.timer.StartOnce(self._play_interval(scene))
+
+    def _play_frame(self) -> None:
         scene = self.scene()
         if not scene:
             self.stop_playback()

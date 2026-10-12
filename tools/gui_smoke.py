@@ -597,9 +597,9 @@ def run():
         pump()
         check(("smoke_hit=5", tuple(etype.color)) in ae.stage.events and ae.stage.event_flash == 0,
               "stage shows the paused step's events, not lit")
-        ae.toggle_play()  # starts on step 0: its events fire
+        ae.toggle_play()  # starts on step 0: its events fire (checked before pumping: the flash fades in 0.6 s)
+        check(ae.stage.event_flash > 0.5 and ae.sequence.flash_step == 0, "events light up when their step starts")
         pump()
-        check(ae.stage.event_flash > 0.5 or ae.sequence.flash_step == 0, "events light up when their step starts")
         check(ae.sequence.flash_step in (0, -1), "the sequence lights up the step that fired")
         ae.stop_playback()
         pump()

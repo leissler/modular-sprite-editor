@@ -26,6 +26,9 @@ MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
 SPEEDS: List[Tuple[str, float]] = [("1×", 1.0), ("½×", 0.5), ("¼×", 0.25), ("2×", 2.0)]
 HOLD_PRESETS = (1, 2, 3, 4, 6, 8)
 EVENT_FLASH_SECONDS = 0.6  # how long the events of a step that just started light up in the preview
+# Playback redraws at most this often. The timer is one-shot and re-armed after each frame: a periodic timer
+# whose frames take longer (slow machines) kept a timer message waiting on Windows, so wx.Yield never returned.
+PLAY_INTERVAL_MS = 10
 
 # Copied steps, shared between animations for the session.
 _STEP_CLIPBOARD: List[Dict[str, Any]] = []
@@ -646,10 +649,15 @@ class AnimationEditorPanel(wx.Panel):
             self._note_fired(anim, self.player.step)
             self.tick = self.player.position()
             self._play_clock = (time.monotonic(), 0)
-            self.timer.Start(10)
+            self.timer.StartOnce(PLAY_INTERVAL_MS)
         self.refresh(inspector=not self.is_playing)
 
     def _on_timer(self, _event: wx.TimerEvent) -> None:
+        self._play_frame()
+        if self.is_playing:
+            self.timer.StartOnce(PLAY_INTERVAL_MS)
+
+    def _play_frame(self) -> None:
         anim = self.animation()
         if not anim or not self.player or not anim.aframes:
             self.stop_playback()
