@@ -61,7 +61,7 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Readable tweens**: bars between keys show the easing by name (right-click a bar to change it), curved paths are edited on the stage, animation frame changes show as ticks.
 *   **Contextual inspector**: only what applies to the selection — scene, object, animation playback, transform at the playhead, motion to the next key, swap image at a key. An animation swapped in at a key plays from that key.
 *   **Root motion** follows the object: a mirrored fighter steps forward to the left.
-*   **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's mapping (top level: the preview mapping) or use one of their own, also in the SGDK export.
+*   **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's mapping (top level: the preview mapping) or use one of their own, also in the SGDK export. Example: the *Swordfight* scene in `examples/sgdk/PoP_WW.json`.
 
 ### 🎯 Mapping Editor
 *   **Module Variants**: Replace modules (e.g. "Clean Armor" → "Damaged Armor") or hide them (invisibility) without touching frames.

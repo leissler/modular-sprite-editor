@@ -55,7 +55,9 @@ On 2026-10-11 the same 17 files were migrated to v3 (originals in
 except for the added default keys.
 
 On 2026-10-12 the same files (with `examples/sonic/sonic.json` and `examples/adventurer/adventurer.json`; 18 in
-all) were migrated to v4 the same way (originals in `~/Downloads/ModularSpriteEditor_format_v3_backup_2026-10-12.zip`).
+all) were migrated to v4 the same way (originals in `~/Downloads/ModularSpriteEditor_format_v3_backup_2026-10-12.zip`);
+`examples/sgdk/PoP_WW.json` and `~/Downloads/PoP_WW.json` were saved as v4 with the new *Swordfight* scene, which
+replaced their disposable test scene.
 
 ## Schema (v4)
 

@@ -3,6 +3,6 @@
 #ifndef _RES_RESOURCES_H_
 #define _RES_RESOURCES_H_
 
-extern const u8 MS_BLOB[155838];
+extern const u8 MS_BLOB[187478];
 
 #endif // _RES_RESOURCES_H_
