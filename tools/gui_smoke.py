@@ -7,6 +7,7 @@ exits non-zero on any exception or failed check. Nothing is saved.
 Usage:
     python3 tools/gui_smoke.py [PROJECT_JSON]     (default: examples/sgdk/PoP_WW.json)
 """
+import faulthandler
 import os
 import sys
 import traceback
@@ -69,7 +70,11 @@ def check(cond, msg):
         print("CHECK FAILED:", msg)
 
 
+STEP_TIMEOUT = 180  # seconds; a step that hangs (e.g. a modal dialog) dumps the stacks and ends the run with 1
+
+
 def step(name, fn):
+    faulthandler.dump_traceback_later(STEP_TIMEOUT, exit=True, file=sys.stderr)
     try:
         fn()
         pump()
@@ -78,6 +83,8 @@ def step(name, fn):
         errors.append(name + "\n" + traceback.format_exc())
         print("FAIL", name)
         traceback.print_exc()
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
 def run():

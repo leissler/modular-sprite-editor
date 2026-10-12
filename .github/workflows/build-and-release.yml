@@ -26,6 +26,7 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30  # a run takes under 10; the smoke test ends a hung step itself after 3 minutes
     strategy:
       fail-fast: false
       matrix:
