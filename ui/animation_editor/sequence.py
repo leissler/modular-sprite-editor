@@ -57,6 +57,8 @@ class SequenceWidget(wx.Panel):
         self.renderer: Optional[StepRenderer] = None
         self.tick = 0
         self.step = -1
+        self.flash_step = -1  # a step whose events just fired in the preview ...
+        self.flash = 0.0  # ... and how bright its chips still are (1 -> 0)
         self.selected: Set[int] = set()
         self.tick_w = 72.0
         self.scroll_x = 0.0
@@ -330,28 +332,31 @@ class SequenceWidget(wx.Panel):
             dc.DrawRectangle(bx, r.y + 4, tw + 4, th)
             dc.SetTextForeground(COL_SELECTED)
             dc.DrawText(badge, bx + 2, r.y + 4)
-        self._paint_events(dc, af, r)
+        self._paint_events(dc, af, r, index)
         # Frame identity stripe: same colour = same frame.
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(frame_colour(af.frame_id)))
         dc.DrawRectangle(r.x + 2, r.y + r.height - 3, r.width - 4, 2)
 
-    def _paint_events(self, dc: wx.DC, af, r: wx.Rect) -> None:
-        """Event chips in the lane above the cell: one per event, labelled while there is room."""
+    def _paint_events(self, dc: wx.DC, af, r: wx.Rect, index: int) -> None:
+        """Event chips in the lane above the cell: one per event, labelled while there is room. The chips of
+        a step whose events just fired in the preview light up and fade."""
         if not af.events or not self.project:
             return
         x = r.x + 1
         right = r.x + r.width
         y = CELL_TOP - EVENT_LANE - 2
+        glow = self.flash if index == self.flash_step else 0.0
         for event in af.events:
             etype = self.project.get_event_type(event.type_id)
-            colour = wx.Colour(*(etype.color if etype else (150, 150, 150)))
+            rgb = etype.color if etype else (150, 150, 150)
+            colour = wx.Colour(*(int(c + (255 - c) * 0.6 * glow) for c in rgb))
             label = (etype.name if etype else "?") + (f"={event.value}" if event.value else "")
             tw, th = dc.GetTextExtent(label)
             width = tw + 8 if x + tw + 8 <= right else 8
             if x + width > right:
                 break
-            dc.SetPen(wx.TRANSPARENT_PEN)
+            dc.SetPen(wx.Pen(wx.WHITE, 2) if glow > 0.25 else wx.TRANSPARENT_PEN)
             dc.SetBrush(wx.Brush(colour))
             dc.DrawRoundedRectangle(x, y, width, EVENT_LANE, 3)
             if width > 8:

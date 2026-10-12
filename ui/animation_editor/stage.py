@@ -42,6 +42,9 @@ class AnimationStage(FrameCanvas):
         self._dots: List[Tuple[int, float, float]] = []
         self._drag_origin: Optional[Tuple[float, float]] = None
         self._drag_moved = (0, 0)
+        # Events of the step shown (label, colour): active while it shows; they flash when it starts in the preview.
+        self.events: List[Tuple[str, Tuple[int, int, int]]] = []
+        self.event_flash = 0.0  # 1 when the step just started, fading to 0
 
         # Callbacks (set by the panel)
         self.on_pick_step: Optional[Callable[[int, bool], None]] = None  # (index, additive)
@@ -80,6 +83,43 @@ class AnimationStage(FrameCanvas):
             self.frame_offset, self.render_flip_x, self.render_flip_y, self.render_rotation = (0.0, 0.0), False, False, 0.0
         self.ghost_layers = self._ghosts()
         self.Refresh(False)
+
+    def set_events(self, events: List[Tuple[str, Tuple[int, int, int]]], flash: float) -> None:
+        if events != self.events or abs(flash - self.event_flash) > 1e-3:
+            self.events = events
+            self.event_flash = flash
+            self.Refresh(False)
+
+    def _draw_budget_hud(self, gc: wx.GraphicsContext) -> None:
+        super()._draw_budget_hud(gc)
+        self._draw_events(gc)
+
+    def _draw_events(self, gc: wx.GraphicsContext) -> None:
+        """The shown step's events as chips in the top-right corner, glowing while they have just fired."""
+        if not self.events or not self.animation:
+            return
+        font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+        gc.SetFont(font, wx.Colour(20, 20, 24))
+        glow = max(0.0, min(1.0, self.event_flash))
+        # Fired chips pop: they start a third larger and shrink back while the glow fades.
+        gc.PushState()
+        gc.Translate(self.GetClientSize().width - 10.0, 10.0)
+        gc.Scale(1.0 + 0.35 * glow, 1.0 + 0.35 * glow)
+        x = 0.0
+        y = 0.0
+        for label, rgb in reversed(self.events):
+            tw, th = gc.GetTextExtent(label)
+            w, h = tw + 14, th + 8
+            x -= w
+            if glow > 0:
+                gc.SetPen(wx.Pen(wx.Colour(255, 255, 255, int(220 * glow)), int(round(2 + 3 * glow))))
+            else:
+                gc.SetPen(wx.Pen(wx.Colour(0, 0, 0, 120), 1))
+            gc.SetBrush(wx.Brush(wx.Colour(*(int(c + (255 - c) * 0.55 * glow) for c in rgb), 235)))
+            gc.DrawRoundedRectangle(x, y, w, h, h / 2)
+            gc.DrawText(label, x + 7, y + 4)
+            x -= 6
+        gc.PopState()
 
     def _step(self, index: int) -> Optional[AFrame]:
         if self.animation and 0 <= index < len(self.animation.aframes):

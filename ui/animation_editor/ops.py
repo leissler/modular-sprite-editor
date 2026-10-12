@@ -114,6 +114,7 @@ class Player:
         self.direction = 1
         self.cycles = 0
         self.finished = False
+        self.step_started = False  # True on the tick a step starts: its events fire (like the runtime's)
 
     def start(self, from_step: Optional[int] = None) -> None:
         count = len(self.anim.aframes)
@@ -130,6 +131,7 @@ class Player:
     def _enter(self, step: int) -> None:
         self.step = step
         self.ticks_left = hold(self.anim.aframes[step])
+        self.step_started = True
 
     def position(self) -> int:
         """Tick on the strip that is showing now."""
@@ -147,6 +149,7 @@ class Player:
     def advance(self) -> bool:
         """One tick. Returns False once playback has stopped."""
         count = len(self.anim.aframes)
+        self.step_started = False
         if count == 0 or self.finished:
             return False
         if self.ticks_left > 1:

@@ -25,6 +25,7 @@ MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
 ]
 SPEEDS: List[Tuple[str, float]] = [("1×", 1.0), ("½×", 0.5), ("¼×", 0.25), ("2×", 2.0)]
 HOLD_PRESETS = (1, 2, 3, 4, 6, 8)
+EVENT_FLASH_SECONDS = 0.6  # how long the events of a step that just started light up in the preview
 
 # Copied steps, shared between animations for the session.
 _STEP_CLIPBOARD: List[Dict[str, Any]] = []
@@ -43,6 +44,7 @@ class AnimationEditorPanel(wx.Panel):
         self.renderer = StepRenderer()
         self.player: Optional[ops.Player] = None
         self._play_clock: Tuple[float, int] = (0.0, 0)
+        self._fired: Optional[Tuple[str, int, float]] = None  # (animation id, step, when) whose events last fired
         self._drag_bases: Dict[int, Tuple[int, int]] = {}
         self._hold_bases: Dict[int, int] = {}
         self._fitted_id: Optional[str] = None
@@ -369,6 +371,39 @@ class AnimationEditorPanel(wx.Panel):
             ONION_MODES[max(0, self.onion_choice.GetSelection())][1],
             self.chk_path.GetValue(),
         )
+        self._refresh_events()
+
+    # ------------------------------------------------------------------ events in the preview
+    def _note_fired(self, anim: Animation, step: int) -> None:
+        """A step started while playing (the runtime's step_started): its events fire."""
+        if 0 <= step < len(anim.aframes) and anim.aframes[step].events:
+            self._fired = (anim.id, step, time.monotonic())
+
+    def _flash(self, anim: Optional[Animation], step: int) -> float:
+        fired = self._fired
+        if not self.is_playing or fired is None or anim is None or fired[0] != anim.id or fired[1] != step:
+            return 0.0
+        return max(0.0, 1.0 - (time.monotonic() - fired[2]) / EVENT_FLASH_SECONDS)
+
+    def _refresh_events(self) -> None:
+        """Event chips of the shown step on the stage (active while it shows), lit up while they have just fired;
+        the sequence lights up the chips of the step that fired."""
+        anim = self.animation()
+        step = self.current_step()
+        chips: List[Tuple[str, Tuple[int, int, int]]] = []
+        if anim and 0 <= step < len(anim.aframes):
+            for event in anim.aframes[step].events:
+                etype = self.project.get_event_type(event.type_id)
+                label = (etype.name if etype else "?") + (f"={event.value}" if event.value else "")
+                chips.append((label, tuple(etype.color) if etype else (150, 150, 150)))
+        self.stage.set_events(chips, self._flash(anim, step))
+        fired_step = self._fired[1] if self._fired and anim and self._fired[0] == anim.id else -1
+        glow = self._flash(anim, fired_step)
+        lit = fired_step if glow > 0 else -1
+        if lit != self.sequence.flash_step or abs(glow - self.sequence.flash) > 1e-3:
+            self.sequence.flash_step = lit
+            self.sequence.flash = glow
+            self.sequence.Refresh(False)
 
     def _update_transport(self) -> None:
         anim = self.animation()
@@ -564,6 +599,7 @@ class AnimationEditorPanel(wx.Panel):
         self.tick = max(0, min(int(tick), ops.total_ticks(anim) - 1))
         if self.is_playing and self.player:
             self.player.start(self.current_step())
+            self._note_fired(anim, self.player.step)
             self._play_clock = (time.monotonic(), 0)
         self.sequence.ensure_tick_visible(self.tick)
         self.refresh()
@@ -598,6 +634,7 @@ class AnimationEditorPanel(wx.Panel):
         if self.is_playing or not anim or not anim.aframes:
             self.is_playing = False
             self.timer.Stop()
+            self._fired = None
         else:
             self.is_playing = True
             self.player = ops.Player(anim, self.repeat)
@@ -606,6 +643,7 @@ class AnimationEditorPanel(wx.Panel):
             if anim.playback_type == "forward" and start >= last:
                 start = 0
             self.player.start(start)
+            self._note_fired(anim, self.player.step)
             self.tick = self.player.position()
             self._play_clock = (time.monotonic(), 0)
             self.timer.Start(10)
@@ -619,10 +657,15 @@ class AnimationEditorPanel(wx.Panel):
         started, done = self._play_clock
         due = int((time.monotonic() - started) * ops.tick_rate(anim) * self.speed)
         running = True
+        fired = -1
         while done < due and running:
             running = self.player.advance()
+            if self.player.step_started:
+                fired = self.player.step
             done += 1
         self._play_clock = (started, done)
+        if fired >= 0:
+            self._note_fired(anim, fired)
         tick = self.player.position()
         if tick != self.tick or not running:
             self.tick = tick
@@ -638,6 +681,8 @@ class AnimationEditorPanel(wx.Panel):
                     app_services.show_status(f"'{anim.name}' ended → '{follow.name}'")
                     return
             self.refresh(inspector=not self.is_playing)
+        elif self._fired is not None:
+            self._refresh_events()  # let a flash fade while the step holds
 
     def _on_repeat(self, event: wx.CommandEvent) -> None:
         self.repeat = event.IsChecked()

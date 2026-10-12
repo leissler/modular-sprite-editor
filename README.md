@@ -51,7 +51,7 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick; preview speed ½× / ¼× / 2×.
 *   **Stage**: drag to move the selected steps' offsets, motion path, onion skin, mirror preview, part bounds, collision boxes and points.
 *   **Animations list** with thumbnails, length and playback mode; contextual inspector for the animation and the selected step(s); whole-animation mirror / rotate / reverse.
-*   **Game data on animations**: step **events** (hit windows, sounds, spawns… from a project-wide list, with a value), **Loop from** a step (an intro plays once), and **Then play** a follow-up animation when one ends (`attack → idle`). The SGDK runtime plays them exactly like the editor preview.
+*   **Game data on animations**: step **events** (hit windows, sounds, spawns… from a project-wide list, with a value), **Loop from** a step (an intro plays once), and **Then play** a follow-up animation when one ends (`attack → idle`). The SGDK runtime plays them exactly like the editor preview; the stage shows the current step's events and lights them up the moment their step starts, when the game's `ms_anim_player_event_started` fires.
 *   **GIF Export** of one playback cycle, pixel-identical to the editor (nested frames, rotation, shapes, preview mapping).
 
 ### 🎬 Timeline (Scenes)

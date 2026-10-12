@@ -211,7 +211,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   Playback preview goes through `ops.Player`, which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop
   backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts, follow-up animation);
   `tests/test_runtime_player.py` compiles the C player and compares both tick by tick — keep them in sync.
-  Step events reference `Project.event_types` by id (order = `MS_EVENT_*` number); wrap structural step edits in
+  Step events reference `Project.event_types` by id (order = `MS_EVENT_*` number); `ops.Player.step_started` is the
+  runtime's `step_started` (compared in the same test) and drives the preview's event chips on the stage; wrap structural step edits in
   `ops.keep_loop_start(anim)` so "loop from" stays on its step. Thumbnails and GIF export
   render through `render.StepRenderer` (the parity-checked renderer), not `ThumbnailGenerator`. The stage's
   mirror preview reverses a step's rotation for an odd number of mirror axes (`AnimationStage.step_transform`).

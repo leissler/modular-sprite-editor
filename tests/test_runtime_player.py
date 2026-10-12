@@ -159,19 +159,14 @@ def _python_trace(project: Project, anims, start: int) -> str:
     index = start
     player = ops.Player(anims[index], repeat=False)
     player.start()
-    started = True
     for t in range(TICKS):
         if t > 0:
-            before = player.step
             running = player.advance()
-            started = player.step != before or (player.ticks_left == ops.hold(anims[index].aframes[player.step]) and running)
             if not running and anims[index].next_animation_id:
                 index = next(i for i, a in enumerate(anims) if a.id == anims[index].next_animation_id)
                 player = ops.Player(anims[index], repeat=False)
                 player.start()
-                started = True
-            elif not running:
-                started = False
+        started = player.step_started
         af = anims[index].aframes[player.step]
         has_a = any(e.type_id == "evt_0" for e in af.events)
         value_b = next((e.value for e in af.events if e.type_id == "evt_1"), 0)

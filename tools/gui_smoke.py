@@ -585,6 +585,22 @@ def run():
         ae._on_event_field("remove", etype.id, None)
         check(not any(e.type_id == etype.id for e in anim.aframes[1].events), "event removed")
 
+        # The preview shows the step's events on the stage; they light up when the step starts while playing
+        ae.seek_step(0)
+        pump()
+        check(("smoke_hit=5", tuple(etype.color)) in ae.stage.events and ae.stage.event_flash == 0,
+              "stage shows the paused step's events, not lit")
+        ae.toggle_play()  # starts on step 0: its events fire
+        pump()
+        check(ae.stage.event_flash > 0.5 or ae.sequence.flash_step == 0, "events light up when their step starts")
+        check(ae.sequence.flash_step in (0, -1), "the sequence lights up the step that fired")
+        ae.stop_playback()
+        pump()
+        check(ae.stage.event_flash == 0 and ae.sequence.flash_step == -1, "stopping ends the flash")
+        ae.seek_step(1)
+        pump()
+        check(not ae.stage.events, "a step without events shows none")
+
         # Loop from: the intro plays once, edits keep the loop point on its step
         ae._on_animation_field("playback", "loop")
         ae._on_animation_field("loop_start", 2)
