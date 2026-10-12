@@ -112,6 +112,26 @@ BACKDROP_COLOUR = "colour"
 DEFAULT_BACKDROP_COLOUR: Tuple[int, int, int] = (32, 32, 32)
 
 
+CHECKER_STEP = 8  # checkerboard tile size in screen pixels
+CHECKER_COLOURS = ((60, 60, 60), (80, 80, 80))
+
+
+def _checker_bitmap(width: int, height: int, scale: float = 1.0) -> wx.Bitmap:
+    """A checkerboard of CHECKER_STEP tiles (logical pixels), starting with a CHECKER_COLOURS[0] tile at the
+    top-left, made at the display's scale factor so its edges stay sharp on HiDPI screens."""
+    tile = max(1, int(round(CHECKER_STEP * scale)))
+    columns = -(-width // CHECKER_STEP)
+    bands = -(-height // CHECKER_STEP)
+    band = [
+        b"".join(bytes(CHECKER_COLOURS[(column + parity) % 2]) * tile for column in range(columns)) * tile
+        for parity in (0, 1)
+    ]
+    data = b"".join(band[index % 2] for index in range(bands))
+    bitmap = wx.Bitmap(wx.Image(columns * tile, bands * tile, data))
+    bitmap.SetScaleFactor(tile / CHECKER_STEP)
+    return bitmap
+
+
 class BaseCanvas(wx.Panel):
     """
     Shared canvas providing:
@@ -143,6 +163,7 @@ class BaseCanvas(wx.Panel):
         self._zoom_snap_call: Optional[wx.CallLater] = None
         self._zoom_snap_anchor: Optional[wx.Point] = None
         self._zoom_gesture_start: Optional[float] = None
+        self._checker: Optional[Tuple[float, wx.Bitmap]] = None  # (scale, bitmap): the backdrop in one call
         self._panning = False
         self._start = wx.Point()
         self._fit_pending = False
@@ -284,29 +305,19 @@ class BaseCanvas(wx.Panel):
 
     # --- Drawing Helpers ---
     def _draw_checkerboard(self, dc: wx.DC) -> None:
+        """8 px tiles anchored at the world origin, from a cached bitmap: one draw call instead of one per tile
+        (thousands of GDI calls made every repaint slow on Windows, so playback starved the event queue)."""
         size = self.GetClientSize()
-        step = 8
-        c1 = wx.Colour(60, 60, 60)
-        c2 = wx.Colour(80, 80, 80)
-
-        b1, b2 = wx.Brush(c1), wx.Brush(c2)
-        dc.SetPen(wx.TRANSPARENT_PEN)
-
-        # Get screen position of world origin (0, 0)
+        period = 2 * CHECKER_STEP
+        width, height = size.width + period, size.height + period
+        scale = self.GetContentScaleFactor()
+        cached = self._checker
+        if cached is None or cached[0] != scale or cached[1].GetScaledWidth() < width or cached[1].GetScaledHeight() < height:
+            cached = self._checker = (scale, _checker_bitmap(width, height, scale))
+        bitmap = cached[1]
         ox, oy = self.world_to_screen((0, 0))
-
-        # Visible tile range (screen x of tile ix is ox + ix * step).
-        first_ix = int((0 - ox) // step)
-        first_iy = int((0 - oy) // step)
-        last_ix = int((size.width - ox) // step)
-        last_iy = int((size.height - oy) // step)
-
-        for iy in range(first_iy, last_iy + 1):
-            sy = int(oy + iy * step)
-            for ix in range(first_ix, last_ix + 1):
-                sx = int(ox + ix * step)
-                dc.SetBrush(b1 if (ix + iy) % 2 == 0 else b2)
-                dc.DrawRectangle(sx, sy, step, step)
+        # Shift the pattern so its first tile lies at the world origin (tiles stay anchored while panning).
+        dc.DrawBitmap(bitmap, int(math.floor(ox)) % period - period, int(math.floor(oy)) % period - period)
 
     def _draw_grid(self, gc: wx.GraphicsContext) -> None:
         if not self.show_grid:
