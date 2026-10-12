@@ -86,13 +86,23 @@ class TestFormatMigration(unittest.TestCase):
         v2 = {"format_version": 2, "name": "v2", "images": [], "modules": [], "frames": [],
               "animations": [{"id": "a1", "name": "anim", "aframes": [{"frame_id": "f1", "duration_frames": 2}]}]}
         migrated, notes = migrate_project_dict(v2)
-        self.assertEqual(migrated["format_version"], 3)
+        self.assertEqual(migrated["format_version"], PROJECT_FORMAT_VERSION)
         self.assertEqual(migrated["event_types"], [])
         anim = migrated["animations"][0]
         self.assertEqual((anim["loop_start"], anim["next_animation_id"]), (0, None))
         self.assertEqual(anim["aframes"][0]["events"], [])
         self.assertEqual(anim["aframes"][0]["duration_frames"], 2)  # untouched
         self.assertEqual(notes, [])
+
+    def test_v3_to_v4_scene_objects_inherit_their_mapping(self):
+        v3 = {"format_version": 3, "name": "v3", "images": [], "modules": [], "frames": [], "mappings": [],
+              "timeline_scenes": [{"id": "s", "name": "scene", "fps": 10, "duration_seconds": 1.0, "objects": [
+                  {"id": "o", "name": "obj", "source_type": "none", "keyframes": [{"id": "k", "time": 0.0}]}]}]}
+        migrated, notes = migrate_project_dict(v3)
+        self.assertEqual(migrated["format_version"], 4)
+        self.assertIsNone(migrated["timeline_scenes"][0]["objects"][0]["mapping_id"])
+        self.assertEqual(notes, [])
+        self.assertIsNone(Project.from_dict(migrated).timeline_scenes[0].objects[0].mapping_id)
 
     def test_v3_events_loop_and_follow_up_round_trip(self):
         from models import AFrame, Animation, EventType, StepEvent

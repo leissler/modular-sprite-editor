@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from models import Frame, ModuleMapping, Project, generate_id
+from models import Frame, ModuleMapping, Project, TimelineObject, TimelineScene, generate_id
 
 ORIGINAL, HIDDEN, REPLACED, MISSING = "original", "hidden", "replaced", "missing"
 
@@ -147,10 +147,18 @@ def duplicate_mapping(project: Project, mapping_id: str) -> Optional[ModuleMappi
     return copy
 
 
+def scene_objects_using(project: Project, mapping_id: str) -> List[Tuple[TimelineScene, TimelineObject]]:
+    """Timeline objects drawn with this mapping of their own (children that inherit it are not counted)."""
+    return [(scene, obj) for scene in project.timeline_scenes for obj in scene.objects if obj.mapping_id == mapping_id]
+
+
 def delete_mapping(project: Project, mapping_id: str) -> None:
+    """Remove the mapping; timeline objects that used it inherit their mapping again."""
     project.mappings = [m for m in project.mappings if m.id != mapping_id]
     if project.active_mapping is not None and project.active_mapping.id == mapping_id:
         project.active_mapping = None
+    for _scene, obj in scene_objects_using(project, mapping_id):
+        obj.mapping_id = None
 
 
 def move_mapping(project: Project, mapping_id: str, before_id: Optional[str]) -> None:

@@ -192,5 +192,50 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(rows.index(copy), rows.index(b) + 1)
 
 
+
+class TestRootMotion(unittest.TestCase):
+    def _fighter(self, offset=(10.0, -2.0), step_flip=False, step_rotation=0.0):
+        from models import AFrame, Animation
+
+        project, scene = _scene(fps=10)
+        anim = Animation(id="a", name="step", fps=10)
+        anim.aframes = [AFrame(frame_id="f", duration_frames=1, offset=offset, flip_x=step_flip, rotation_degrees=step_rotation)]
+        project.animations.append(anim)
+        obj = ops.add_object(project, scene, "animation", "a", 0, (100.0, 0.0))
+        obj.use_source_root_motion = True
+        return project, scene, obj
+
+    def _world(self, project, scene, obj):
+        return ops.world_matrix(scene, ops.evaluate_states(project, scene, 0.0), obj.id)
+
+    def test_root_motion_follows_the_objects_mirror_and_rotation(self):
+        project, scene, obj = self._fighter()
+        self.assertEqual(self._world(project, scene, obj)[4:], (110.0, -2.0))
+        obj.keyframes[0].flip_x = True  # facing left: the step moves left
+        self.assertEqual(self._world(project, scene, obj)[4:], (90.0, -2.0))
+        obj.keyframes[0].flip_x = False
+        obj.keyframes[0].rotation_degrees = 90.0  # turned: so is the step's offset
+        self.assertEqual(self._world(project, scene, obj)[4:], (102.0, 10.0))
+
+    def test_step_flip_and_rotation_combine_like_a_mirrored_parent(self):
+        project, scene, obj = self._fighter(step_flip=True, step_rotation=90.0)
+        obj.keyframes[0].flip_x = True
+        a, b, c, d, _tx, _ty = self._world(project, scene, obj)
+        # flip · (rotate 90° · flip) = rotate -90°: a mirrored object turns its step the other way
+        self.assertEqual((a, b, c, d), (0.0, -1.0, 1.0, 0.0))
+
+    def test_reparent_keeps_world_pose_with_root_motion(self):
+        project, scene, obj = self._fighter(step_flip=True, step_rotation=90.0)
+        obj.keyframes[0].flip_x = True
+        parent = ops.add_object(project, scene, "none", None, 0, (30.0, 40.0))
+        parent.keyframes[0].rotation_degrees = 90.0
+        parent.keyframes[0].flip_y = True
+        before = self._world(project, scene, obj)
+        self.assertTrue(ops.move_layer(project, scene, obj.id, parent.id, None))
+        for v1, v2 in zip(before, self._world(project, scene, obj)):
+            self.assertAlmostEqual(v1, v2, places=6)
+
+
+
 if __name__ == "__main__":
     unittest.main()

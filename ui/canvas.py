@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 import wx
 
 from hardware_budget import Budget, BudgetCalculator, HardwareProfile
-from models import Frame, FModule, Module, Project, CollisionRect, ControlPoint, generate_id
+from models import Frame, FModule, Module, ModuleMapping, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
 from ui.frame_geometry import orthogonal_cos_sin, part_bounds
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
@@ -86,6 +86,8 @@ class FrameCanvas(BaseCanvas):
         self.render_flip_x = False
         self.render_flip_y = False
         self.render_rotation = 0.0
+        # (mapping,) while drawing_mapping() overrides the preview mapping, e.g. for a scene object with its own.
+        self._mapping_override: Optional[Tuple[Optional[ModuleMapping]]] = None
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
         self._asset_image_cache: dict[str, wx.Image] = {}
         # Zoomed/flipped/rotated module bitmaps, so paints during drags do not rescale images.
@@ -183,6 +185,23 @@ class FrameCanvas(BaseCanvas):
         finally:
             (self.frame, self.frame_offset, self.render_flip_x, self.render_flip_y,
              self.render_rotation, self._ghost_style) = saved
+
+    @property
+    def mapping(self) -> Optional[ModuleMapping]:
+        """The mapping parts are drawn with: the preview mapping unless drawing_mapping overrides it."""
+        if self._mapping_override is not None:
+            return self._mapping_override[0]
+        return self.project.active_mapping
+
+    @contextmanager
+    def drawing_mapping(self, mapping: Optional[ModuleMapping]) -> Iterator[None]:
+        """Temporarily draw, measure and hit-test with another mapping (``None`` = original modules)."""
+        saved = self._mapping_override
+        self._mapping_override = (mapping,)
+        try:
+            yield
+        finally:
+            self._mapping_override = saved
 
     def _draw_ghost_layers(self, gc: wx.GraphicsContext) -> None:
         for layer in self.ghost_layers:
@@ -360,8 +379,9 @@ class FrameCanvas(BaseCanvas):
         # Draw image content if module ref
         if fm.ref_type == "module":
              ref_id = fm.ref_id
-             if self.project.active_mapping and ref_id in self.project.active_mapping.map:
-                 ref_id = self.project.active_mapping.map[ref_id]
+             mapping = self.mapping
+             if mapping and ref_id in mapping.map:
+                 ref_id = mapping.map[ref_id]
              
              if not ref_id: return
 
@@ -468,7 +488,7 @@ class FrameCanvas(BaseCanvas):
         from ui.frame_render import transform
 
         a, b = transform(self.render_flip_x, self.render_flip_y, self.render_rotation, self.frame_offset)
-        return BUDGET.frame_budget(self.project, self.frame, self.project.active_mapping, self.budget_profile, a, b)
+        return BUDGET.frame_budget(self.project, self.frame, self.mapping, self.budget_profile, a, b)
 
     def _draw_budget(self, gc: wx.GraphicsContext, budget: Optional[Budget]) -> None:
         """Overlay (red scanlines, hardware sprite outlines); the readout follows in _draw_budget_hud."""
@@ -991,8 +1011,9 @@ class FrameCanvas(BaseCanvas):
             return True
 
         ref_id = fm.ref_id
-        if self.project.active_mapping and ref_id in self.project.active_mapping.map:
-            ref_id = self.project.active_mapping.map[ref_id]
+        mapping = self.mapping
+        if mapping and ref_id in mapping.map:
+            ref_id = mapping.map[ref_id]
         if not ref_id:
             return False
 
@@ -1088,7 +1109,7 @@ class FrameCanvas(BaseCanvas):
         return sub_img
 
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
-        return part_bounds(self.project, fm, self.project.active_mapping)
+        return part_bounds(self.project, fm, self.mapping)
 
     def _get_width(self, fm: FModule) -> int:
         bounds = self._fmodule_bounds(fm)

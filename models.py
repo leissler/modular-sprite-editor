@@ -20,7 +20,9 @@ def generate_id(prefix: str) -> str:
 # 1 = unversioned files written before versioning existed.
 # 2 = legacy fields canonicalized (see migrate_project_dict).
 # 3 = animation step events (+ project event types), loop-from step and follow-up animation (additive).
-PROJECT_FORMAT_VERSION = 3
+# 4 = timeline objects carry a module mapping (mapping_id, additive); an animation swapped in at a later
+#     key plays from that key instead of from the scene start.
+PROJECT_FORMAT_VERSION = 4
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -104,6 +106,13 @@ def _migrate_v2_to_v3(data: Dict[str, Any], notes: List[str]) -> None:
             af.setdefault("events", [])
 
 
+def _migrate_v3_to_v4(data: Dict[str, Any], notes: List[str]) -> None:
+    """Additive: timeline objects inherit their mapping (the preview mapping at the top level)."""
+    for scene in data.get("timeline_scenes", []) or []:
+        for obj in scene.get("objects", []) or []:
+            obj.setdefault("mapping_id", None)
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -129,6 +138,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
         _migrate_v1_to_v2(migrated, notes)
     if version < 3:
         _migrate_v2_to_v3(migrated, notes)
+    if version < 4:
+        _migrate_v3_to_v4(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes
@@ -557,6 +568,9 @@ class Animation:
 
 TIMELINE_SOURCE_TYPES = ("none", "module", "frame", "animation")
 TIMELINE_PATH_MODES = ("linear", "spline")
+# TimelineObject.mapping_id: None inherits (the parent's mapping; top-level objects use the preview /
+# exported mapping), TIMELINE_MAPPING_ORIGINAL draws the original modules, anything else is a mapping id.
+TIMELINE_MAPPING_ORIGINAL = "original"
 TIMELINE_EASINGS = (
     "step",
     "linear",
@@ -853,6 +867,7 @@ class TimelineObject:
     playback_mode: str = "loop"
     path_mode: str = "linear"
     use_source_root_motion: bool = False
+    mapping_id: Optional[str] = None
     keyframes: List[TimelineKeyframe] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -862,6 +877,7 @@ class TimelineObject:
             "parent_id": self.parent_id,
             "source_type": self.source_type,
             "source_id": self.source_id,
+            "mapping_id": self.mapping_id,
             "draw_order": self.draw_order,
             "playback_offset": self.playback_offset,
             "playback_speed": self.playback_speed,
@@ -903,6 +919,7 @@ class TimelineObject:
             playback_mode=playback_mode,
             path_mode=path_mode,
             use_source_root_motion=bool(data.get("use_source_root_motion", False)),
+            mapping_id=str(data.get("mapping_id")) if data.get("mapping_id") else None,
             keyframes=keyframes,
         )
 
@@ -937,6 +954,25 @@ class TimelineScene:
 
     def get_object(self, object_id: str) -> Optional[TimelineObject]:
         return next((obj for obj in self.objects if obj.id == object_id), None)
+
+    def object_mapping(
+        self, project: "Project", object_id: str, default: Optional["ModuleMapping"]
+    ) -> Optional["ModuleMapping"]:
+        """The mapping an object is drawn with: its own, else its nearest ancestor's, else ``default``
+        (the preview mapping in the editor, the mapping being baked in exporters). An id that no longer
+        exists counts as unset."""
+        seen: set = set()
+        obj = self.get_object(object_id)
+        while obj and obj.id not in seen:
+            seen.add(obj.id)
+            if obj.mapping_id == TIMELINE_MAPPING_ORIGINAL:
+                return None
+            if obj.mapping_id:
+                mapping = project.get_mapping(obj.mapping_id)
+                if mapping:
+                    return mapping
+            obj = self.get_object(obj.parent_id) if obj.parent_id else None
+        return default
 
     def create_object(
         self,
@@ -999,6 +1035,7 @@ class TimelineScene:
         scene_time: float,
         source_type: str,
         source_id: Optional[str],
+        started_at: float = 0.0,
     ) -> Dict[str, Any]:
         resolved_type = source_type if source_type in TIMELINE_SOURCE_TYPES else obj.source_type
         resolved_id = source_id if source_id is not None else obj.source_id
@@ -1019,11 +1056,11 @@ class TimelineScene:
         anim = project.get_animation(resolved_id)
         if not anim or not anim.aframes:
             return result
-        local_time = scene_time * obj.playback_speed + obj.playback_offset
+        local_time = (scene_time - started_at) * obj.playback_speed + obj.playback_offset
         source_fps = anim.fps if anim.fps > 0 else 10
         sampled = project.sample_animation_frame(
             anim.id,
-            local_time * float(source_fps),
+            round(local_time * float(source_fps), 6),  # (0.7 - 0.4) * 10 must reach tick 3, not 2.999…
             playback_override=obj.playback_mode,
         )
         if not sampled:
@@ -1039,9 +1076,12 @@ class TimelineScene:
 
     def _resolve_source_at_time(
         self, obj: TimelineObject, keyframes: List[TimelineKeyframe], time: float
-    ) -> Tuple[str, Optional[str]]:
+    ) -> Tuple[str, Optional[str], float]:
+        """(source type, source id, start time) at ``time``. An animation swapped in at a key plays from
+        that key; the object's own source and a swap on the first key play from the scene start."""
         resolved_type = obj.source_type if obj.source_type in TIMELINE_SOURCE_TYPES else "none"
         resolved_id = obj.source_id
+        started_at = 0.0
         if keyframes and float(time) <= float(keyframes[0].time):
             first = keyframes[0]
             if first.source_type is not None:
@@ -1053,8 +1093,8 @@ class TimelineScene:
                     resolved_id = first.source_id
             elif first.source_id is not None:
                 resolved_id = first.source_id
-            return (resolved_type, resolved_id)
-        for key in keyframes:
+            return (resolved_type, resolved_id, started_at)
+        for index, key in enumerate(keyframes):
             if float(key.time) > float(time):
                 break
             if key.source_type is not None:
@@ -1069,7 +1109,11 @@ class TimelineScene:
                     resolved_id = None
             elif key.source_id is not None:
                 resolved_id = key.source_id
-        return (resolved_type, resolved_id)
+            else:
+                continue
+            if index > 0:
+                started_at = float(key.time)
+        return (resolved_type, resolved_id, started_at)
 
     def evaluate_object_state(self, project: "Project", object_id: str, time: float) -> Optional[Dict[str, Any]]:
         obj = self.get_object(object_id)
@@ -1080,8 +1124,8 @@ class TimelineScene:
             return None
         if len(keyframes) == 1 or time <= keyframes[0].time:
             first = keyframes[0]
-            resolved_source_type, resolved_source_id = self._resolve_source_at_time(obj, keyframes, time)
-            sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id)
+            resolved_source_type, resolved_source_id, started_at = self._resolve_source_at_time(obj, keyframes, time)
+            sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id, started_at)
             key_source_offset = (float(first.source_offset[0]), float(first.source_offset[1]))
             sampled_source["source_offset"] = (
                 float(sampled_source["source_offset"][0]) + key_source_offset[0],
@@ -1123,8 +1167,8 @@ class TimelineScene:
                 prev_idx = idx + 1
         if time >= keyframes[-1].time:
             last = keyframes[-1]
-            resolved_source_type, resolved_source_id = self._resolve_source_at_time(obj, keyframes, time)
-            sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id)
+            resolved_source_type, resolved_source_id, started_at = self._resolve_source_at_time(obj, keyframes, time)
+            sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id, started_at)
             key_source_offset = (float(last.source_offset[0]), float(last.source_offset[1]))
             sampled_source["source_offset"] = (
                 float(sampled_source["source_offset"][0]) + key_source_offset[0],
@@ -1173,8 +1217,8 @@ class TimelineScene:
         else:
             pos_x = _timeline_lerp(prev_key.x, next_key.x, eased_t)
             pos_y = _timeline_lerp(prev_key.y, next_key.y, eased_t)
-        resolved_source_type, resolved_source_id = self._resolve_source_at_time(obj, keyframes, time)
-        sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id)
+        resolved_source_type, resolved_source_id, started_at = self._resolve_source_at_time(obj, keyframes, time)
+        sampled_source = self._sample_source(project, obj, time, resolved_source_type, resolved_source_id, started_at)
         key_source_offset = (float(prev_key.source_offset[0]), float(prev_key.source_offset[1]))
         sampled_source["source_offset"] = (
             float(sampled_source["source_offset"][0]) + key_source_offset[0],
@@ -2937,6 +2981,9 @@ class Project:
 
     def get_animation(self, animation_id: str) -> Optional[Animation]:
         return next((a for a in self.animations if a.id == animation_id), None)
+
+    def get_mapping(self, mapping_id: str) -> Optional[ModuleMapping]:
+        return next((m for m in self.mappings if m.id == mapping_id), None)
 
     def get_event_type(self, type_id: str) -> Optional[EventType]:
         return next((t for t in self.event_types if t.id == type_id), None)

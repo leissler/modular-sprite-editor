@@ -74,6 +74,18 @@ class TestMappingOps(unittest.TestCase):
         a.map["deleted_module"] = "head_blue"
         self.assertEqual(ops.drop_dead_entries(project, a), 1)
 
+    def test_deleting_a_mapping_lets_scene_objects_inherit_again(self):
+        project = _project()
+        guard = ops.new_mapping(project)
+        scene = project.create_timeline_scene("Fight")
+        user = scene.create_object("Guard", "frame", "hero")
+        user.mapping_id = guard.id
+        other = scene.create_object("Prince", "frame", "hero")
+        other.mapping_id = "original"
+        self.assertEqual([obj.id for _s, obj in ops.scene_objects_using(project, guard.id)], [user.id])
+        ops.delete_mapping(project, guard.id)
+        self.assertEqual((user.mapping_id, other.mapping_id), (None, "original"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -283,7 +283,7 @@ class SceneEditorPanel(wx.Panel):
 
     def on_active_mapping_changed(self) -> None:
         self.library.refresh()
-        self.stage.Refresh(False)
+        self.refresh(timeline=False)  # the stage, and the inspector's "Inherit (preview: …)"
 
     def stop_playback(self) -> None:
         if self.is_playing:
@@ -878,6 +878,8 @@ class SceneEditorPanel(wx.Panel):
             obj.playback_offset = ops.time_of(int(value), scene.fps)
         elif field == "root_motion":
             obj.use_source_root_motion = bool(value)
+        elif field == "mapping":
+            obj.mapping_id = value or None
         elif field == "path_mode":
             obj.path_mode = str(value)
         self._commit()

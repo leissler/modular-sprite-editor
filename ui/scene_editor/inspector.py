@@ -12,7 +12,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 import wx
 
-from models import Project, TimelineKeyframe, TimelineObject, TimelineScene, apply_timeline_easing
+from models import TIMELINE_MAPPING_ORIGINAL, Project, TimelineKeyframe, TimelineObject, TimelineScene, apply_timeline_easing
 from ui.scene_editor import ops
 
 SOURCE_TYPE_LABELS = {"none": "Group", "module": "Module", "frame": "Frame", "animation": "Animation"}
@@ -168,6 +168,7 @@ class SceneInspector(wx.ScrolledWindow):
         self.selected_key_ids: Set[str] = set()
         self._updating = False
         self._parent_ids: List[Optional[str]] = []
+        self._mapping_ids: List[Optional[str]] = []
 
         # Callbacks: field name -> value
         self.on_scene_change: Optional[Callable[[str, object], None]] = None
@@ -210,9 +211,15 @@ class SceneInspector(wx.ScrolledWindow):
         self.obj_source.SetToolTip("What this object shows. Click to choose another source.")
         self.obj_parent = wx.Choice(p)
         self.obj_parent.SetToolTip("Children follow their parent's position, rotation and flips")
+        self.obj_mapping = wx.Choice(p)
+        self.obj_mapping.SetToolTip(
+            "Module mapping this object and its children are drawn with (also in the SGDK export). "
+            "Inherit: the parent's mapping, or for top-level objects the preview mapping chosen in the bar above."
+        )
         _row(g, p, "Name", self.obj_name)
         _row(g, p, "Shows", self.obj_source)
         _row(g, p, "Parent", self.obj_parent)
+        _row(g, p, "Mapping", self.obj_mapping)
 
         # --- Playback (animation sources)
         self.playback_panel, g = _section(self, root, "Animation playback")
@@ -310,7 +317,7 @@ class SceneInspector(wx.ScrolledWindow):
 
         self.SetSizer(root)
         # Let popups/buttons shrink with the panel (macOS truncates their text natively).
-        for ctrl in (self.obj_source, self.obj_parent, self.pb_mode, self.ease_shape, self.ease_dir,
+        for ctrl in (self.obj_source, self.obj_parent, self.obj_mapping, self.pb_mode, self.ease_shape, self.ease_dir,
                      self.path_choice, self.swap_source, self.flip_h, self.flip_v):
             ctrl.SetMinSize((60, -1))
         for spin in (self.tr_x, self.tr_y, self.swap_off_x, self.swap_off_y):
@@ -359,6 +366,7 @@ class SceneInspector(wx.ScrolledWindow):
         text_commit(self.obj_name, lambda: self.on_object_change, "name")
         self.obj_source.Bind(wx.EVT_BUTTON, lambda e: self._pick_source("source"))
         self.obj_parent.Bind(wx.EVT_CHOICE, self._on_parent_choice)
+        self.obj_mapping.Bind(wx.EVT_CHOICE, self._on_mapping_choice)
         self.pb_mode.Bind(
             wx.EVT_CHOICE,
             lambda e: self._emit(self.on_object_change, "playback_mode", ("loop", "once", "ping_pong")[self.pb_mode.GetSelection()]),
@@ -395,6 +403,11 @@ class SceneInspector(wx.ScrolledWindow):
         idx = self.obj_parent.GetSelection()
         if 0 <= idx < len(self._parent_ids):
             self._emit(self.on_object_change, "parent", self._parent_ids[idx])
+
+    def _on_mapping_choice(self, _event: wx.CommandEvent) -> None:
+        idx = self.obj_mapping.GetSelection()
+        if 0 <= idx < len(self._mapping_ids):
+            self._emit(self.on_object_change, "mapping", self._mapping_ids[idx])
 
     def _on_easing_choice(self, _event: wx.CommandEvent) -> None:
         shape = ops.EASING_SHAPES[max(0, self.ease_shape.GetSelection())][1]
@@ -520,6 +533,17 @@ class SceneInspector(wx.ScrolledWindow):
             labels.append("   " * depth + row_obj.name)
         self.obj_parent.SetItems(labels)
         self.obj_parent.SetSelection(self._parent_ids.index(obj.parent_id) if obj.parent_id in self._parent_ids else 0)
+
+        # Mapping: inherit (showing what that resolves to), original, or one of the project's mappings.
+        inherited = scene.object_mapping(project, obj.parent_id, project.active_mapping) if obj.parent_id else project.active_mapping
+        inherited_name = inherited.name if inherited else "original"
+        self._mapping_ids = [None, TIMELINE_MAPPING_ORIGINAL] + [m.id for m in project.mappings]
+        self.obj_mapping.SetItems(
+            [f"Inherit ({'parent' if obj.parent_id else 'preview'}: {inherited_name})", "Original modules"]
+            + [m.name for m in project.mappings]
+        )
+        current = obj.mapping_id if obj.mapping_id in self._mapping_ids else None
+        self.obj_mapping.SetSelection(self._mapping_ids.index(current))
 
         self.pb_mode.SetSelection({"loop": 0, "once": 1, "ping_pong": 2}.get(obj.playback_mode, 0))
         self.pb_speed.SetValue(obj.playback_speed)

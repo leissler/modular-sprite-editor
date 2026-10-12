@@ -343,23 +343,36 @@ def is_descendant(scene: TimelineScene, object_id: str, maybe_ancestor_id: Optio
 
 
 # --------------------------------------------------------------------------- transforms
-def local_matrix(state: Dict[str, Any]) -> Matrix:
-    """Object transform for an evaluated state (same convention as the stage renderer)."""
-    source_offset = state.get("source_offset", (0.0, 0.0))
-    tx = float(state.get("x", 0.0)) + float(source_offset[0])
-    ty = float(state.get("y", 0.0)) + float(source_offset[1])
-    total_rotation = float(state.get("rotation_degrees", 0.0)) + float(state.get("source_rotation", 0.0))
-    quarter = total_rotation / 90.0
+def pose_matrix(x: float, y: float, rotation: float, flip_x: bool, flip_y: bool) -> Matrix:
+    """Flip, then rotate, then move (exact at 90° steps)."""
+    quarter = float(rotation) / 90.0
     if abs(quarter - round(quarter)) < 1e-9:
         cos_a, sin_a = ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[int(round(quarter)) % 4]
     else:
-        rad = math.radians(total_rotation)
+        rad = math.radians(float(rotation))
         cos_a, sin_a = math.cos(rad), math.sin(rad)
-    flip_x = bool(state.get("flip_x", False)) ^ bool(state.get("source_flip_x", False))
-    flip_y = bool(state.get("flip_y", False)) ^ bool(state.get("source_flip_y", False))
     sx = -1.0 if flip_x else 1.0
     sy = -1.0 if flip_y else 1.0
-    return (cos_a * sx, sin_a * sx, -sin_a * sy, cos_a * sy, tx, ty)
+    return (cos_a * sx, sin_a * sx, -sin_a * sy, cos_a * sy, float(x), float(y))
+
+
+def source_matrix(state: Dict[str, Any]) -> Matrix:
+    """What the source adds inside the object: root motion (the step's offset, flips and rotation) and the swap offset."""
+    source_offset = state.get("source_offset", (0.0, 0.0))
+    return pose_matrix(
+        float(source_offset[0]), float(source_offset[1]), float(state.get("source_rotation", 0.0)),
+        bool(state.get("source_flip_x", False)), bool(state.get("source_flip_y", False)),
+    )
+
+
+def local_matrix(state: Dict[str, Any]) -> Matrix:
+    """Object transform for an evaluated state: the key's pose applied to what the source adds, so a mirrored or
+    turned object also mirrors or turns where its animation moves it (like a mirrored parent its children)."""
+    pose = pose_matrix(
+        float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("rotation_degrees", 0.0)),
+        bool(state.get("flip_x", False)), bool(state.get("flip_y", False)),
+    )
+    return compose(pose, source_matrix(state))
 
 
 def compose(parent: Matrix, child: Matrix) -> Matrix:
@@ -475,15 +488,16 @@ def set_parent_keep_world(
         new_parent_world = world_matrix(scene, states, new_parent_id, cache) if new_parent_id else IDENTITY
         desired_local = compose(invert(new_parent_world), old_world)
         state = states[obj.id]
-        source_offset = state.get("source_offset", (0.0, 0.0))
+        # local = pose · source, so the key's pose is desired_local · source⁻¹
         (tx, ty), rotation, flip_x, flip_y = decompose(
-            desired_local, (bool(state.get("flip_x", False)), bool(state.get("flip_y", False)))
+            compose(desired_local, invert(source_matrix(state))),
+            (bool(state.get("flip_x", False)), bool(state.get("flip_y", False))),
         )
-        key.x = float(tx - float(source_offset[0]))
-        key.y = float(ty - float(source_offset[1]))
-        key.rotation_degrees = float(rotation - float(state.get("source_rotation", 0.0)))
-        key.flip_x = bool(flip_x) ^ bool(state.get("source_flip_x", False))
-        key.flip_y = bool(flip_y) ^ bool(state.get("source_flip_y", False))
+        key.x = float(tx)
+        key.y = float(ty)
+        key.rotation_degrees = float(rotation)
+        key.flip_x = bool(flip_x)
+        key.flip_y = bool(flip_y)
     obj.parent_id = new_parent_id
     return True
 

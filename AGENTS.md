@@ -143,14 +143,16 @@ docs/                      UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
   `forward`, `backward`, `loop`, `ping_pong`; `loop_count` 0 = infinite.
 - `ModuleMapping.map`: `{source_module_id: target_module_id | None}`. Missing key = original module,
   `None` = hidden. `Project.active_mapping` is **runtime only** (not saved) and drives every preview and the
-  RetroAnimator export; it is shown/selected in the context bar.
+  RetroAnimator export; it is shown/selected in the context bar. Timeline objects can carry their own
+  (`TimelineObject.mapping_id`: `None` inherits from the parent, `TIMELINE_MAPPING_ORIGINAL`, or a mapping id),
+  resolved by `TimelineScene.object_mapping(project, id, default)`.
 - Timeline: `TimelineScene.evaluate_object_state()` / `sample_draw_list()` evaluate keyframes (easing,
-  linear/spline paths, per-key source switches, root motion from animation offsets). Scale/opacity exist in
-  the model but are not exposed or rendered.
+  linear/spline paths, per-key source switches, root motion from animation offsets). An animation swapped in at a
+  later key plays from that key. Scale/opacity exist in the model but are not exposed or rendered.
 
 ## File format
 
-Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **3**, constant
+Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **4**, constant
 `PROJECT_FORMAT_VERSION`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
@@ -206,7 +208,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   Layer rows are listed in draw order (lower rows draw on top) and `ops.normalize_draw_order` keeps
   `draw_order` depth-first so the SGDK exporter's global sort matches. Auto-Key on: pose edits create/update a
   key at the playhead (created lazily on the first real drag movement); off: edits between keys shift every
-  key of the layer. Put scene logic in `ops.py` (testable without a display), not in the widgets.
+  key of the layer. Put scene logic in `ops.py` (testable without a display), not in the widgets. The stage draws,
+  measures and budgets each object with its mapping (`StageCanvas.object_mapping`); canvases resolve parts through
+  `FrameCanvas.mapping` (the preview mapping unless `drawing_mapping()` overrides it), never
+  `project.active_mapping` directly.
 - **Animations:** holds are ticks at `Animation.fps`; anything below 1 plays as 1 (`ops.hold`), like the exporters.
   Playback preview goes through `ops.Player`, which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop
   backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts, follow-up animation);
@@ -243,7 +248,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Part rotation**: about the pivot, 90° steps (use exact cos/sin at 90° multiples, never raw `math.cos`).
 - **Nested frame part, animation step, mirror preview, timeline object**: geometric transform about the
   anchor/origin — flip first, then rotate. A mirrored parent (odd number of flips) reverses the direction of
-  its children's rotation (`final_rot = parent_rot - child_rot`).
+  its children's rotation (`final_rot = parent_rot - child_rot`). A timeline object's root motion (the step's
+  offset, flips, rotation) and swap offset sit inside the object's transform (`ops.local_matrix` = pose ·
+  `ops.source_matrix`, the same in the SGDK exporter's `_build_local_matrix`; `tests/test_sgdk_scenes.py` compares).
 - `tools/check_export_parity.py` and `tests/test_export_canvas_parity.py` render with the real canvas code and
   compare against the RetroAnimator export pixel by pixel (and the Animations stage's mirror preview against
   `StepRenderer`); run them after touching any transform code.

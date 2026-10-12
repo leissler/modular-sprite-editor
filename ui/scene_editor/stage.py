@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import wx
 
-from models import FModule, Project, TimelineKeyframe, TimelineObject, TimelineScene
+from models import FModule, ModuleMapping, Project, TimelineKeyframe, TimelineObject, TimelineScene
 from hardware_budget import Budget, HwPart
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
 from ui.canvas import BUDGET, FrameCanvas
@@ -196,8 +196,9 @@ class StageCanvas(FrameCanvas):
             if not state.get("visible", True):
                 continue
             world = ops.world_matrix(self.scene, states, obj.id, cache)
-            self._draw_source(gc, state, world)
-            bounds = self._source_bounds(state)
+            with self.drawing_mapping(self.object_mapping(obj.id)):
+                self._draw_source(gc, state, world)
+                bounds = self._source_bounds(state)
             if bounds:
                 self._drawn_objects.append(
                     {"object_id": obj.id, "screen_rect": self._screen_rect(bounds, world)}
@@ -226,7 +227,6 @@ class StageCanvas(FrameCanvas):
 
         if states is None:
             states = ops.evaluate_states(self.project, self.scene, self.time_value)
-        mapping = self.project.active_mapping
         cache: Dict[str, ops.Matrix] = {}
         parts: List[HwPart] = []
         for obj, _depth, _kids in ops.tree_rows(self.scene, set()):
@@ -238,6 +238,7 @@ class StageCanvas(FrameCanvas):
             source_type = state.get("source_type")
             source_id = state.get("source_id")
             frame_id = state.get("frame_id") or source_id
+            mapping = self.object_mapping(obj.id)
             if source_type == "module" and source_id:
                 parts += BUDGET.module_parts(self.project, str(source_id), mapping, self.budget_profile, a, b)
             elif source_type in ("frame", "animation") and frame_id:
@@ -245,6 +246,10 @@ class StageCanvas(FrameCanvas):
                 if frame:
                     parts += BUDGET.frame_parts(self.project, frame, mapping, self.budget_profile, a, b)
         return Budget(self.budget_profile, parts)
+
+    def object_mapping(self, object_id: str) -> Optional[ModuleMapping]:
+        """The object's own mapping, else its parent's, else the preview mapping."""
+        return self.scene.object_mapping(self.project, object_id, self.project.active_mapping) if self.scene else None
 
     def _is_hidden(self, obj: TimelineObject) -> bool:
         current: Optional[TimelineObject] = obj

@@ -13,7 +13,7 @@ Construct complex character animations from individual body parts (modules). Def
 ## ⚠️ Project Status
 
 - The **Modules / Frames / Animations / Mappings** workflow is actively used and is the most complete part of the tool.
-- The **Timeline** (scene editor) was redesigned on the `timeline-redesign` branch and is still young: the file format is unchanged, but the UX may still evolve.
+- The **Timeline** (scene editor) was redesigned on the `timeline-redesign` branch and is still young: the UX may still evolve.
 - SGDK export and demo content lives in [`examples/sgdk`](examples/sgdk/README.md), including a blob-based runtime data path for Mega Drive tests.
 - Project files carry a `format_version` (currently 3); older files are upgraded on load. See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 
@@ -59,7 +59,9 @@ Construct complex character animations from individual body parts (modules). Def
 *   **Layers + dopesheet** in one timeline, counted in frames: lower rows draw on top, drag a layer onto another to parent it, eye / lock per layer.
 *   **Auto-Key** like in animation tools: moving, flipping or rotating an object sets a key at the playhead. With Auto-Key off, edits move the whole layer.
 *   **Readable tweens**: bars between keys show the easing by name (right-click a bar to change it), curved paths are edited on the stage, animation frame changes show as ticks.
-*   **Contextual inspector**: only what applies to the selection — scene, object, animation playback, transform at the playhead, motion to the next key, swap image at a key.
+*   **Contextual inspector**: only what applies to the selection — scene, object, animation playback, transform at the playhead, motion to the next key, swap image at a key. An animation swapped in at a key plays from that key.
+*   **Root motion** follows the object: a mirrored fighter steps forward to the left.
+*   **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's mapping (top level: the preview mapping) or use one of their own, also in the SGDK export.
 
 ### 🎯 Mapping Editor
 *   **Module Variants**: Replace modules (e.g. "Clean Armor" → "Damaged Armor") or hide them (invisibility) without touching frames.

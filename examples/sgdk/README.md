@@ -50,7 +50,8 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 - **80 hardware sprites** per screen (H40); `ms_set_sprite_limit(64)` in H32 or to leave room for other sprites.
   Pieces that do not fit are counted in `MS_FrameProfile.sprites_dropped`.
 - **Scenes** are baked as one render frame per tick: they play back exactly, but objects cannot be moved
-  individually at runtime.
+  individually at runtime. Each scene is baked once per mapping; objects with a mapping of their own (Timeline
+  inspector ▸ Mapping) keep it in all of them, the others follow the mapping chosen at runtime.
 
 ## Files
 
@@ -150,6 +151,8 @@ counts. It redraws one text line per frame at most, because drawing many lines i
   testbeds in the middle of the screen and across its edges, rasterises the sprite table from the exported
   tiles like the VDP and compares it with the editor's renderer pixel by pixel; it also checks the C record
   sizes against the blob.
+- `tests/test_sgdk_scenes.py` checks that scene objects are placed like on the Timeline stage (root motion
+  mirrored and turned with the object) and keep a mapping of their own in every baked mapping.
 - `tests/test_runtime_player.py` compiles the C animation player and compares it with the editor's preview
   tick by tick.
 - `tests/test_sgdk_markers.py` checks hitbox / point export (types, roles, step transforms, defines).

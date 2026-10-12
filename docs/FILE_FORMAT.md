@@ -9,11 +9,18 @@ string ids. Unknown keys are ignored on load (and dropped when the editor saves)
 |---|---|
 | missing / `1` | Files written before versioning existed. |
 | `2` | Legacy fields canonicalised (see below). Added 2026-10-09. |
-| `3` | Current. Animation step events + project event types, loop-from step, follow-up animation. Added 2026-10-11. |
+| `3` | Animation step events + project event types, loop-from step, follow-up animation. Added 2026-10-11. |
+| `4` | Current. Timeline objects carry a module mapping (`mapping_id`); an animation swapped in at a later key plays from that key; root motion turns with the object. Added 2026-10-12. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
-warning. v3 is additive: builds that only know v2 open v3 files with a warning and drop the new keys on save.
+warning. v3 and v4 are additive: older builds open them with a warning and drop the new keys on save.
+
+v3 → v4 adds `mapping_id: null` (inherit) to every timeline object. v4 also changes two timeline rules, so
+scenes can be choreographed: an animation swapped in at a later key (`keyframes[].source_type/source_id`) plays
+from that key instead of from the scene start, and root motion and the swap offset are mirrored and turned with
+the object (before, they were added in the parent's space, so a mirrored fighter stepped backwards). No v3 file
+on disk swapped animations at keys or mirrored / turned an object with root motion or a swap offset.
 
 v2 → v3 adds, with their defaults: top-level `event_types: []`, per animation `loop_start: 0` and
 `next_animation_id: null`, per step `events: []`. Nothing else changes.
@@ -47,11 +54,14 @@ On 2026-10-11 the same 17 files were migrated to v3 (originals in
 `~/Downloads/ModularSpriteEditor_format_v2_backup_2026-10-11.zip`); each was checked to equal its original
 except for the added default keys.
 
-## Schema (v3)
+On 2026-10-12 the same files (with `examples/sonic/sonic.json` and `examples/adventurer/adventurer.json`; 18 in
+all) were migrated to v4 the same way (originals in `~/Downloads/ModularSpriteEditor_format_v3_backup_2026-10-12.zip`).
+
+## Schema (v4)
 
 ```jsonc
 {
-  "format_version": 3,
+  "format_version": 4,
   "name": "New Project",
   "images": [
     {"id": "img_…", "file_path": "modules_POP.bmp",      // relative to the project file
@@ -99,6 +109,7 @@ except for the added default keys.
      "objects": [
        {"id": "tlo_…", "name": "Hero", "parent_id": null,
         "source_type": "animation", "source_id": "anim_…",   // none | module | frame | animation
+        "mapping_id": null,                              // null = inherit, "original", or a mapping id
         "draw_order": 0, "playback_offset": 0.0, "playback_speed": 1.0,
         "playback_mode": "loop",                         // loop | once | ping_pong
         "path_mode": "linear",                           // linear | spline
@@ -136,6 +147,18 @@ Timeline evaluation notes: a segment's easing is the `easing` of its *end* key. 
 a segment with an explicit handle (`path_out` of its start key or `path_in` of its end key) is a cubic Bézier;
 otherwise it follows an automatic Catmull-Rom curve through the neighbouring keys, except that two
 consecutive keys at the same position hold still (no drift out and back).
+
+An object's animation plays from the scene start (shifted by `playback_offset`, scaled by `playback_speed`, in
+`playback_mode`); an animation swapped in at a later key plays from that key with the same settings (a swap on
+the first key counts from the scene start). With `use_source_root_motion` the current step's offset, flips and
+rotation apply inside the object, like a nested frame inside a frame part: the object's flip and rotation also
+mirror and turn the step (a mirrored fighter steps forward to the left). The key's swap `source_offset` is added
+to the step offset the same way.
+
+An object's `mapping_id` re-skins it and its children: `null` inherits the parent's mapping, and at the top level
+the preview mapping in the editor or the mapping being exported (the SGDK exporter bakes every scene once per
+mapping; objects with their own mapping keep it in all of them). `"original"` draws the original modules. An id
+that no longer exists counts as `null`; deleting a mapping resets the objects that used it.
 
 Not stored in the file: the active (preview) mapping, view state, grid size, zoom.
 

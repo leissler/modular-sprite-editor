@@ -346,7 +346,11 @@ class MappingEditorPanel(wx.Panel):
         mapping = self.current_mapping
         if mapping is None:
             return
-        message = f"Delete the mapping '{mapping.name}' ({ops.describe(self.project, mapping)})?\n\n(Undo with Cmd/Ctrl+Z.)"
+        message = f"Delete the mapping '{mapping.name}' ({ops.describe(self.project, mapping)})?"
+        users = ops.scene_objects_using(self.project, mapping.id)
+        if users:
+            message += f"\n\nTimeline objects using it: {len(users)}. They will inherit their mapping instead."
+        message += "\n\n(Undo with Cmd/Ctrl+Z.)"
         if wx.MessageBox(message, "Delete Mapping", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
             return
         index = self.project.mappings.index(mapping)

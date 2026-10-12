@@ -5,7 +5,16 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from models import AFrame, Animation, Frame, FModule, Project, TimelineKeyframe
+from models import (
+    TIMELINE_MAPPING_ORIGINAL,
+    AFrame,
+    Animation,
+    Frame,
+    FModule,
+    ModuleMapping,
+    Project,
+    TimelineKeyframe,
+)
 
 
 class TestTimelineScenes(unittest.TestCase):
@@ -238,6 +247,56 @@ class TestTimelineScenes(unittest.TestCase):
         self.assertEqual(tuple(state_1_5["source_offset"]), (5.0, 1.0))
         self.assertEqual(tuple(state_2_5["source_offset"]), (-2.0, 3.0))
         self.assertEqual(tuple(state_1_5["source_key_offset"]), (5.0, 1.0))
+
+    def test_animation_swapped_in_at_a_later_key_plays_from_that_key(self):
+        project = Project(name="Swap Restart")
+        anim = Animation(id="a", name="strike", fps=10)
+        anim.aframes = [AFrame(frame_id=f"f{i}", duration_frames=1) for i in range(4)]
+        project.animations.append(anim)
+        scene = project.create_timeline_scene("Swap")
+        scene.fps = 10
+        obj = scene.create_object("Fighter", source_type="animation", source_id="a")
+        obj.playback_mode = "once"
+        obj.keyframes = [
+            TimelineKeyframe(id="k0", time=0.0),
+            TimelineKeyframe(id="k1", time=1.0, source_type="animation", source_id="a"),
+            TimelineKeyframe(id="k2", time=1.5),
+            TimelineKeyframe(id="k3", time=2.0, source_type="animation", source_id="a"),
+        ]
+
+        def shown(t: float) -> str:
+            return scene.evaluate_object_state(project, obj.id, t)["frame_id"]
+
+        self.assertEqual([shown(t) for t in (0.05, 0.35, 0.95)], ["f0", "f3", "f3"])  # own source: from the start
+        self.assertEqual([shown(t) for t in (1.05, 1.25, 1.65)], ["f0", "f2", "f3"])  # swapped in at 1.0
+        self.assertEqual([shown(t) for t in (2.05, 2.15)], ["f0", "f1"])  # the same animation again restarts
+
+        # A swap on the first key replaces the object's source from the scene start, offset included.
+        obj.keyframes[0].source_type, obj.keyframes[0].source_id = "animation", "a"
+        obj.playback_offset = 0.2
+        self.assertEqual(shown(0.05), "f2")
+
+    def test_object_mapping_inherits_from_parent_then_default(self):
+        project = Project(name="Mappings")
+        guard = ModuleMapping(id="map_guard", name="Normal", map={"m1": "m2"})
+        hidden = ModuleMapping(id="map_hide", name="Hidden", map={"m1": None})
+        project.mappings += [guard, hidden]
+        scene = project.create_timeline_scene("Fight")
+        group = scene.create_object("Guard group")
+        guard_obj = scene.create_object("Guard", source_type="frame", source_id="f", parent_id=group.id)
+        prince = scene.create_object("Prince", source_type="frame", source_id="f")
+
+        self.assertIs(scene.object_mapping(project, prince.id, hidden), hidden)  # top level: the default
+        self.assertIsNone(scene.object_mapping(project, prince.id, None))
+        group.mapping_id = guard.id
+        self.assertIs(scene.object_mapping(project, guard_obj.id, hidden), guard)  # from the parent
+        guard_obj.mapping_id = TIMELINE_MAPPING_ORIGINAL
+        self.assertIsNone(scene.object_mapping(project, guard_obj.id, hidden))
+        guard_obj.mapping_id = "deleted_mapping"  # dangling ids count as unset
+        self.assertIs(scene.object_mapping(project, guard_obj.id, hidden), guard)
+
+        loaded = Project.from_dict(project.to_dict()).timeline_scenes[0]
+        self.assertEqual([o.mapping_id for o in loaded.objects], [guard.id, "deleted_mapping", None])
 
     def test_legacy_duration_frames_scene_loads_as_seconds(self):
         payload = {

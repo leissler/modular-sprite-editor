@@ -813,25 +813,31 @@ class SGDKBakeContext:
 
     @staticmethod
     def _build_local_matrix(state: Dict[str, Any]) -> Matrix2x3:
+        """The key's pose applied to what the source adds (root motion, swap offset): a mirrored or turned object
+        mirrors or turns where its animation moves it, like the Timeline stage (ui/scene_editor/ops.local_matrix)."""
         source_offset = state.get("source_offset", (0.0, 0.0))
-        tx = float(state.get("x", 0.0)) + float(source_offset[0])
-        ty = float(state.get("y", 0.0)) + float(source_offset[1])
+        pose = SGDKBakeContext._pose_matrix(
+            float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("rotation_degrees", 0.0)),
+            bool(state.get("flip_x", False)), bool(state.get("flip_y", False)),
+        )
+        source = SGDKBakeContext._pose_matrix(
+            float(source_offset[0]), float(source_offset[1]), float(state.get("source_rotation", 0.0)),
+            bool(state.get("source_flip_x", False)), bool(state.get("source_flip_y", False)),
+        )
+        return SGDKBakeContext._compose_matrix(pose, source)
 
-        total_rotation = float(state.get("rotation_degrees", 0.0)) + float(state.get("source_rotation", 0.0))
-        rad = math.radians(total_rotation)
-        cos_a = math.cos(rad)
-        sin_a = math.sin(rad)
-
-        fx = bool(state.get("flip_x", False)) ^ bool(state.get("source_flip_x", False))
-        fy = bool(state.get("flip_y", False)) ^ bool(state.get("source_flip_y", False))
-        sx = -1.0 if fx else 1.0
-        sy = -1.0 if fy else 1.0
-
-        a = cos_a * sx
-        b = sin_a * sx
-        c = -sin_a * sy
-        d = cos_a * sy
-        return (a, b, c, d, tx, ty)
+    @staticmethod
+    def _pose_matrix(tx: float, ty: float, rotation: float, flip_x: bool, flip_y: bool) -> Matrix2x3:
+        """Flip, then rotate, then move (exact at 90° steps)."""
+        quarter = rotation / 90.0
+        if abs(quarter - round(quarter)) < 1e-9:
+            cos_a, sin_a = ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[int(round(quarter)) % 4]
+        else:
+            rad = math.radians(rotation)
+            cos_a, sin_a = math.cos(rad), math.sin(rad)
+        sx = -1.0 if flip_x else 1.0
+        sy = -1.0 if flip_y else 1.0
+        return (cos_a * sx, sin_a * sx, -sin_a * sy, cos_a * sy, tx, ty)
 
     @staticmethod
     def _compose_matrix(parent: Matrix2x3, child: Matrix2x3) -> Matrix2x3:
@@ -906,52 +912,55 @@ class SGDKBakeContext:
         ordered_objects = sorted(scene.objects, key=lambda item: (item.draw_order, item.name.lower(), item.id))
         world_cache: Dict[str, Matrix2x3] = {}
         scene_parts: List[PartEntry] = []
+        baked_mapping = self.mapping
+        try:
+            for obj in ordered_objects:
+                # Objects with their own mapping keep it; the others follow the mapping being baked.
+                self._set_current_mapping(scene.object_mapping(self.project, obj.id, baked_mapping))
+                scene_parts.extend(self._render_scene_object_parts(scene, state_map, obj.id, world_cache))
+        finally:
+            self._set_current_mapping(baked_mapping)
+        return tuple(scene_parts)
 
-        for obj in ordered_objects:
-            state = state_map.get(obj.id)
-            if not state:
-                continue
-            if not bool(state.get("visible", True)):
-                continue
+    def _render_scene_object_parts(
+        self,
+        scene: TimelineScene,
+        state_map: Dict[str, Dict[str, Any]],
+        object_id: str,
+        world_cache: Dict[str, Matrix2x3],
+    ) -> Tuple[PartEntry, ...]:
+        state = state_map.get(object_id)
+        if not state or not bool(state.get("visible", True)):
+            return ()
+        world_matrix = self._world_matrix_for_object(scene, state_map, object_id, world_cache)
+        offset, rotation, flip_x, flip_y = self._decompose_matrix_to_frame_transform(world_matrix)
 
-            world_matrix = self._world_matrix_for_object(scene, state_map, obj.id, world_cache)
-            offset, rotation, flip_x, flip_y = self._decompose_matrix_to_frame_transform(world_matrix)
-
-            source_type = str(state.get("source_type", "none") or "none").strip().lower()
-            if source_type == "module":
-                source_id = state.get("source_id")
-                if source_id is None:
-                    continue
-                parts = self._render_module_parts(
-                    module_id=str(source_id),
-                    offset=offset,
-                    rotation_degrees=float(rotation),
-                    flip_x=bool(flip_x),
-                    flip_y=bool(flip_y),
-                )
-                scene_parts.extend(parts)
-                continue
-
-            if source_type not in ("frame", "animation"):
-                continue
-
-            frame_id = state.get("frame_id") or state.get("source_id")
-            if frame_id is None:
-                continue
-            frame = self.project.get_frame(str(frame_id))
-            if not frame:
-                continue
-
-            parts = self._render_frame_parts(
-                frame=frame,
+        source_type = str(state.get("source_type", "none") or "none").strip().lower()
+        if source_type == "module":
+            source_id = state.get("source_id")
+            if source_id is None:
+                return ()
+            return self._render_module_parts(
+                module_id=str(source_id),
                 offset=offset,
                 rotation_degrees=float(rotation),
                 flip_x=bool(flip_x),
                 flip_y=bool(flip_y),
             )
-            scene_parts.extend(parts)
 
-        return tuple(scene_parts)
+        if source_type not in ("frame", "animation"):
+            return ()
+        frame_id = state.get("frame_id") or state.get("source_id")
+        frame = self.project.get_frame(str(frame_id)) if frame_id is not None else None
+        if not frame:
+            return ()
+        return self._render_frame_parts(
+            frame=frame,
+            offset=offset,
+            rotation_degrees=float(rotation),
+            flip_x=bool(flip_x),
+            flip_y=bool(flip_y),
+        )
 
     def bake(self) -> None:
         self._prepare_output_dirs()

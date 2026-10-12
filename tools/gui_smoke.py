@@ -695,6 +695,19 @@ def run():
         check(ops.frame_of(key5.time, scene.fps) == 8, "retime key")
         te._move_layer(obj.id, group.id, None)
         check(obj.parent_id == group.id, "parent via layer drag")
+        if proj.mappings:
+            # A group's own mapping reaches its children; the inspector offers inherit / original / each mapping
+            te.select_object(group.id)
+            te._on_object_field("mapping", proj.mappings[0].id)
+            check(te.stage.object_mapping(obj.id) is proj.mappings[0], "child inherits the group's mapping")
+            te.select_object(obj.id)
+            choice = te.inspector.obj_mapping
+            check(choice.GetSelection() == 0 and "parent" in choice.GetString(0), "inspector: inherit from the parent")
+            choice.SetSelection(1)
+            te.inspector._on_mapping_choice(None)
+            check(obj.mapping_id == "original" and te.stage.object_mapping(obj.id) is None, "inspector: original modules")
+            te.stage.Refresh()
+            te.stage.Update()
         te.toggle_play()
         pump(8)
         te.toggle_play()
