@@ -1,0 +1,31 @@
+# Release notes
+
+Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
+
+## 0.6, October 2026
+
+**A mapping per object in scenes.** Each object on the Timeline can have its own mapping, so a hero and an enemy made from the same animations appear in one scene. The Prince of Persia example has a new scene, the Swordfight.
+
+**Easier choreography.** An animation swapped in at a key now plays from that key. Root motion follows an object's mirror, so a character facing left steps forward to the left. The screen guide shows the screen the way the Mega Drive demo shows scenes, and labels on the timeline no longer run into each other.
+
+**Smoother on slow computers.** The checkerboard backdrop is drawn in one go instead of tile by tile, and playback no longer floods Windows with work when a frame takes long to draw.
+
+**Animations** show the current step's events on the stage and light them up when they fire.
+
+Projects are saved in file format 4. Older projects are upgraded when you open them. Version 0.5 can open format 4 projects, but drops the objects' mappings when it saves.
+
+## 0.5, October 2026
+
+**Auto Modularize, redesigned.** It cuts a sheet of whole sprites into the parts they share, also mirrored, and rebuilds every frame from them, pixel for pixel. A preview shows each sprite's parts and the Mega Drive memory and sprite cost before and after, and a slider trades fewer tiles against fewer hardware sprites.
+
+**New example**: the Adventurer sheet, a set of whole sprites to try Auto Modularize on.
+
+## 0.4, October 2026
+
+**All editors redesigned**: Modules, Frames, Animations, Timeline and Mappings share one layout and one undo history, with drag and drop between them.
+
+**Animations** play exactly like the Mega Drive runtime, with step events, loop-from steps, follow-up animations, onion skin and GIF export.
+
+**Timeline** with layers, Auto-Key, easing, curved paths and image swaps per key.
+
+**The budget overlay** shows hardware sprites, per-line limits and tiles as the Mega Drive exporter makes them.

@@ -1,0 +1,122 @@
+{% extends "main.html" %}
+{% block content %}
+<div class="ms-home">
+  <section class="ms-hero" aria-labelledby="hero-title">
+    <div class="ms-hero-copy">
+      <p class="ms-eyebrow">A sprite editor for retro console games</p>
+      <h1 id="hero-title">Draw the parts once.<br>Build every pose<br>from them.</h1>
+      <p class="ms-lead">Cut your sprite sheet into body parts, assemble poses, animate them step by step and stage whole scenes.</p>
+      <p class="ms-hero-description">Classic console games saved memory by building characters from small shared pieces. Modular Sprite Editor lets you work the same way, and shows how your sprites fit the Mega Drive while you draw.</p>
+      <div class="ms-actions">
+        <a class="ms-button ms-button-primary" href="{{ 'start/' | url }}">Open the documentation</a>
+        <a class="ms-button ms-button-quiet" href="{{ 'start/install/' | url }}">Get the editor</a>
+      </div>
+      <p class="ms-hero-note">Free and open source, for Windows, macOS and Linux.</p>
+    </div>
+    <figure class="ms-hero-art">
+      <div class="ms-screen"><img src="{{ 'assets/images/art/swordfight.webp' | url }}" alt="A pixel-art sword fight: the Prince slashes, a hooded guard blocks with sparks, and the fight goes on until the guard is thrown to the ground" width="420" height="136" fetchpriority="high"></div>
+      <figcaption>The Swordfight scene from the example project. The guard is the Prince, drawn with a different set of parts.</figcaption>
+    </figure>
+  </section>
+
+  <div class="ms-facts" aria-label="Product essentials">
+    <span>Made for pixel art: whole-pixel zoom, no smoothing</span>
+    <span>Every part, frame and animation stays editable</span>
+    <span>Exports for the Mega Drive (SGDK) and RetroAnimator</span>
+  </div>
+
+  <section class="ms-section" aria-labelledby="workflow-title">
+    <div class="ms-section-heading">
+      <p class="ms-eyebrow">From a sheet of parts to a scene</p>
+      <h2 id="workflow-title">Four steps, one project.</h2>
+      <p>Each step builds on the one before. Change a part and every pose, animation and scene that uses it changes with it.</p>
+    </div>
+    <div class="ms-workflow">
+      <a href="{{ 'guide/modules/' | url }}">
+        <div class="ms-step-art"><img src="{{ 'assets/images/art/step-modules.png' | url }}" alt="Thirteen small body parts of the Prince, each in its own outline" width="352" height="176" loading="lazy"></div>
+        <div class="ms-step-copy"><span class="ms-step-number">01</span><h3>Cut the sheet into modules</h3><p>Drag a box around each part, or let the editor find the sprites on the sheet.</p></div>
+      </a>
+      <a href="{{ 'guide/frames/' | url }}">
+        <div class="ms-step-art"><img src="{{ 'assets/images/art/step-frame.png' | url }}" alt="The Prince's pose built from the parts, every part outlined" width="132" height="148" loading="lazy"></div>
+        <div class="ms-step-copy"><span class="ms-step-number">02</span><h3>Build poses from parts</h3><p>Place, flip and turn parts to make a frame. Reuse the same pieces in every pose.</p></div>
+      </a>
+      <a href="{{ 'guide/animations/' | url }}">
+        <div class="ms-step-art"><img src="{{ 'assets/images/art/step-animation.png' | url }}" alt="A sword slash drawn over a faint copy of the step before it" width="184" height="168" loading="lazy"></div>
+        <div class="ms-step-copy"><span class="ms-step-number">03</span><h3>Animate step by step</h3><p>Set how long each pose holds, watch it play like the game will, compare with onion skin.</p></div>
+      </a>
+      <a href="{{ 'guide/scenes/' | url }}">
+        <div class="ms-step-art"><img src="{{ 'assets/images/art/step-scene.png' | url }}" alt="The Prince slashes while the guard blocks" width="408" height="216" loading="lazy"></div>
+        <div class="ms-step-copy"><span class="ms-step-number">04</span><h3>Stage a scene</h3><p>Put characters on a timeline, move them with keys and switch their animations on cue.</p></div>
+      </a>
+    </div>
+    <a class="ms-text-link" href="{{ 'start/first-sprite/' | url }}">Try it with your own sheet</a>
+  </section>
+
+  <section class="ms-section ms-feature" aria-labelledby="mapping-title">
+    <div class="ms-feature-copy">
+      <p class="ms-eyebrow">Variants without redrawing</p>
+      <h2 id="mapping-title">One set of animations.<br>As many characters as you like.</h2>
+      <p>A mapping swaps some parts for others in every frame at once. Recolour a costume, change the armour, hide a weapon, or turn the hero into an enemy.</p>
+      <p>In the example project, the hooded guard is the Prince with 28 head and body parts swapped. He uses all of the Prince's animations without a single extra frame.</p>
+      <a class="ms-text-link" href="{{ 'guide/mappings/' | url }}">Make a variant with a mapping</a>
+    </div>
+    <figure class="ms-pixel-panel">
+      <div>
+        <img src="{{ 'assets/images/art/mapping-pair.png' | url }}" alt="The same pose twice: the Prince, and the hooded guard made with the Normal mapping" width="288" height="148" loading="lazy">
+        <div class="ms-pair-labels"><span>Original parts</span><span>Mapping "Normal"</span></div>
+      </div>
+    </figure>
+  </section>
+
+  <section class="ms-section ms-feature ms-feature--flip" aria-labelledby="budget-title">
+    <div class="ms-feature-copy">
+      <p class="ms-eyebrow">Know what the console can show</p>
+      <h2 id="budget-title">See the limits<br>before your programmer does.</h2>
+      <p>The Mega Drive draws characters from hardware sprites, with a limit per screen and per line. Turn on the budget overlay and the editor outlines every hardware sprite a pose needs and marks the lines where sprites would vanish.</p>
+      <a class="ms-text-link" href="{{ 'guide/hardware-budget/' | url }}">Read the budget overlay</a>
+    </div>
+    <figure>
+      <a href="{{ 'assets/images/screens/budget.png' | url }}" aria-label="Open the full-size budget screenshot"><img src="{{ 'assets/images/screens/budget.png' | url }}" alt="The Frames tab with the Mega Drive budget overlay: the slash pose outlined in hardware sprites, with a readout of sprites, tiles and the busiest line" width="2880" height="1800" loading="lazy"></a>
+      <figcaption>16 hardware sprites and 41 tiles for this pose. The busiest line uses 10 of 20 sprites.</figcaption>
+    </figure>
+  </section>
+
+  <section class="ms-section ms-feature" aria-labelledby="automod-title">
+    <div class="ms-feature-copy">
+      <p class="ms-eyebrow">Already have whole sprites?</p>
+      <h2 id="automod-title">Let the editor find<br>the shared parts.</h2>
+      <p>Auto Modularize cuts a sheet of finished sprites into the pieces they have in common, including mirrored ones, and rebuilds every frame from them, pixel for pixel. A slider trades less memory against fewer hardware sprites.</p>
+      <div class="ms-numbers"><div><strong>873 &rarr; 595</strong><span>video memory tiles for 38 Sonic sprites</span></div><div><strong>32 %</strong><span>less memory, same pixels</span></div></div>
+      <a class="ms-text-link" href="{{ 'guide/auto-modularize/' | url }}">Find shared parts automatically</a>
+    </div>
+    <figure>
+      <a href="{{ 'assets/images/screens/automod.png' | url }}" aria-label="Open the full-size Auto Modularize screenshot"><img src="{{ 'assets/images/screens/automod.png' | url }}" alt="The Auto Modularize window with a Sonic sprite cut into shared parts and the memory cost before and after" width="2600" height="1640" loading="lazy"></a>
+      <figcaption>Auto Modularize on a sheet of 38 whole Sonic sprites.</figcaption>
+    </figure>
+  </section>
+
+  <section class="ms-section ms-feature ms-feature--flip" aria-labelledby="workspace-title">
+    <div class="ms-feature-copy">
+      <p class="ms-eyebrow">A workspace made for sprites</p>
+      <h2 id="workspace-title">Everything about a character<br>in one window.</h2>
+      <p>Five tabs share one project: Modules, Frames, Animations, Timeline and Mappings. Drag parts from a library onto the stage, nudge them pixel by pixel, and undo anything in any tab.</p>
+      <a class="ms-text-link" href="{{ 'start/tour/' | url }}">Take the tour</a>
+    </div>
+    <figure>
+      <a href="{{ 'assets/images/screens/animations.png' | url }}" aria-label="Open the full-size Animations tab screenshot"><img src="{{ 'assets/images/screens/animations.png' | url }}" alt="The Animations tab: an attack animation on the stage with onion skin, its steps on a timeline below and its settings on the right" width="2880" height="1800" loading="lazy"></a>
+      <figcaption>The Animations tab with the Prince's attack.</figcaption>
+    </figure>
+  </section>
+
+  <section class="ms-section ms-examples" aria-labelledby="examples-title">
+    <div class="ms-section-heading"><p class="ms-eyebrow">Learn from a finished project</p><h2 id="examples-title">Three example projects to take apart.</h2><p>Open one, play its animations, then change a part and watch everything update.</p></div>
+    <div class="ms-example-list">
+      <a href="{{ 'examples/swordfight/' | url }}"><span>01</span><div><h3>Prince of Persia</h3><p>165 parts, 207 poses, 68 animations and a sword fight.</p></div><span class="ms-example-kind">Mappings and scenes</span></a>
+      <a href="{{ 'examples/#sonic' | url }}"><span>02</span><div><h3>Sonic</h3><p>A hand-cut character with 171 animations.</p></div><span class="ms-example-kind">Animation</span></a>
+      <a href="{{ 'examples/#adventurer' | url }}"><span>03</span><div><h3>Adventurer</h3><p>A sheet of whole sprites, ready to be cut into parts.</p></div><span class="ms-example-kind">Auto Modularize</span></a>
+    </div>
+  </section>
+
+  <section class="ms-closing" aria-labelledby="closing-title"><p class="ms-eyebrow">Open a sheet</p><h2 id="closing-title">Start with a sprite you already have.</h2><p>The first lesson takes you from a sprite sheet to an animation that plays, one step at a time.</p><a class="ms-button ms-button-primary" href="{{ 'start/first-sprite/' | url }}">Make your first animated sprite</a><p class="ms-closing-note">Free and open source. <a href="{{ 'start/install/' | url }}">Get the editor for Windows, macOS or Linux</a></p></section>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+name: Website
+
+# Builds the product site (website/) strictly and checks links, anchors, alt text, search and punctuation.
+# Production is deployed separately with website/scripts/deploy.sh.
+
+on:
+  push:
+    branches: [main]
+    paths: ["website/**", ".github/workflows/website.yml"]
+  pull_request:
+    paths: ["website/**", ".github/workflows/website.yml"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build and check
+        working-directory: website
+        run: |
+          pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+          mkdocs build --strict
+          python scripts/check_site.py

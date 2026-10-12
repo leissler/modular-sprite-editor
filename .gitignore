@@ -65,3 +65,6 @@ examples/sgdk/sgdk_demo/third_party/sgdk/out/
 # SGDK's prebuilt libraries (libgcc.a, libmd.a, libmd_debug.a): Windows builds link them
 !examples/sgdk/sgdk_demo/third_party/sgdk/lib/
 examples/sgdk/sgdk_demo/third_party/sgdk/sample/**/out/
+
+# Built website
+website/site/

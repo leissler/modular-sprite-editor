@@ -1,0 +1,103 @@
+site_name: Modular Sprite Editor
+site_url: https://modularsprites.bionic-productions.com/
+site_description: Build pixel-art characters from reusable parts, animate them and stage scenes, with the limits of the Mega Drive in view. Free for Windows, macOS and Linux.
+site_author: bionic productions
+copyright: Copyright &copy; 2026 Martin Leissler, bionic productions
+repo_url: https://github.com/leissler/modular-sprite-editor
+repo_name: modular-sprite-editor
+edit_uri: ""
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: en
+  font: false
+  logo: assets/images/logo.svg
+  favicon: assets/images/favicon.png
+  icon:
+    repo: material/github
+  palette:
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Start here:
+      - Welcome: start/index.md
+      - Get the editor: start/install.md
+      - A tour of the editor: start/tour.md
+      - Your first animated sprite: start/first-sprite.md
+  - Make sprites:
+      - Cut a sheet into modules: guide/modules.md
+      - Find shared parts automatically: guide/auto-modularize.md
+      - Build frames from parts: guide/frames.md
+      - Hitboxes and points: guide/hitboxes-points.md
+      - Animate: guide/animations.md
+      - Stage a scene: guide/scenes.md
+      - Variants with mappings: guide/mappings.md
+      - Stay within the console's limits: guide/hardware-budget.md
+  - Examples:
+      - The example projects: examples/index.md
+      - Inside the Swordfight: examples/swordfight.md
+  - Help and reference:
+      - Keyboard and mouse: reference/shortcuts.md
+      - For your programmer: reference/programmers.md
+      - Troubleshooting: reference/troubleshooting.md
+      - Glossary: reference/glossary.md
+      - Release notes: reference/releases.md
+      - Get help: reference/support.md
+      - Credits: reference/credits.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - assets/stylesheets/modular-sprites.css
+extra:
+  generator: false
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn

@@ -9,6 +9,8 @@ frames, hitboxes and points), sequenced into **animations**, composed in **timel
 **mappings**. The SGDK exporter bakes it all into one blob that a small C runtime draws on the console exactly as the
 editor shows it.
 
+**Website and user guide: [modularsprites.bionic-productions.com](https://modularsprites.bionic-productions.com/)**
+
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg) ![GUI](https://img.shields.io/badge/GUI-wxPython-orange.svg) ![Platform](https://img.shields.io/badge/Platform-Win%20%7C%20Mac%20%7C%20Linux-lightgrey.svg)
 
 ## Download
@@ -160,6 +162,7 @@ python3 tools/check_export_parity.py PROJECT...    # RetroAnimator export vs. th
 python3 tools/migrate_projects.py --dry-run DIR    # upgrade project files to the current format
 python3 tools/automod_bench.py PROJECT.json        # Auto Modularize benchmark: exactness, tiles, hardware sprites
 python3 tools/make_readme_banner.py                # this README's banner, rendered from the PoP example
+python3 tools/make_app_icon.py                     # the app icon (pixel art), every size, and the website logo
 ```
 
 ## Controls
@@ -194,6 +197,7 @@ python3 tools/make_readme_banner.py                # this README's banner, rende
 
 ## Documentation
 
+- [The user guide](https://modularsprites.bionic-productions.com/) for artists and animators (source in [`website/`](website/README.md))
 - [`AGENTS.md`](AGENTS.md): architecture, conventions and workflows for contributors and coding agents
 - [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md): project JSON schema and versioning
 - [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items
