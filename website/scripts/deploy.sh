@@ -77,7 +77,7 @@ if [[ "$mode" = dry-run ]]; then
 fi
 
 ssh -o BatchMode=yes "$deploy_host" "sudo -n install -d -m 755 '$remote_release'"
-rsync -a --chmod=D755,F644 --rsync-path="sudo -n rsync" site/ "$deploy_host:$remote_release/"
+rsync -a --rsync-path="sudo -n rsync" site/ "$deploy_host:$remote_release/"
 ssh -o BatchMode=yes "$deploy_host" "cd '$remote_release' && sudo -n sha256sum --status -c SHA256SUMS"
 echo "Verified all files: $remote_release"
 if [[ "$mode" = stage-only ]]; then
