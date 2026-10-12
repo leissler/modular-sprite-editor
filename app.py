@@ -585,6 +585,7 @@ class MainFrame(wx.Frame):
 
     def load_project(self, path: str) -> None:
         """Helper to load a project and update the UI."""
+        path = os.path.abspath(path)  # before the chdir below, which would move a relative path
         try:
             os.chdir(os.path.dirname(path))  # Set CWD to project folder
             project = Project.from_json(path)
