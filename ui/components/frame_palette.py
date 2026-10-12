@@ -1,6 +1,7 @@
 import wx
 from typing import Optional, Callable, List, Tuple
 from models import Project, Frame
+from ui.components.thumb_list import fit_text
 from ui.utils import ThumbnailGenerator
 
 class FramePalette(wx.ScrolledWindow):
@@ -155,12 +156,13 @@ class FramePalette(wx.ScrolledWindow):
             
             # Draw Name Overlay (Bottom)
             dc.SetTextForeground(wx.Colour(255, 255, 255))
-            tex_w, tex_h = dc.GetTextExtent(frame.name)
+            name = fit_text(dc, frame.name, r.width - 6)  # long names would run into the next cell
+            tex_w, tex_h = dc.GetTextExtent(name)
             # Semi-transparent bar?
             dc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 128)))
             dc.SetPen(wx.Pen(wx.TRANSPARENT_PEN))
             dc.DrawRectangle(r.x, r.y + r.height - tex_h - 4, r.width, tex_h + 4)
-            dc.DrawText(frame.name, r.x + (r.width - tex_w)//2, r.y + r.height - tex_h - 2)
+            dc.DrawText(name, r.x + (r.width - tex_w)//2, r.y + r.height - tex_h - 2)
             
             # Selection Border
             if frame.id == self.selected_frame_id:
