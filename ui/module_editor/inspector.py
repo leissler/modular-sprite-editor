@@ -55,7 +55,7 @@ class ModuleInspector(wx.ScrolledWindow):
         grid.Add(hbox(self.btn_pick, self.btn_clear_key), 0, wx.EXPAND)
         self.btn_grid = small_button(p, "Grid slice…", "Cut the image into equal tiles", lambda: self._tool("grid"))
         self.btn_detect = small_button(p, "Detect…", "Detect sprites: one module per separate sprite on the sheet", lambda: self._tool("detect"))
-        self.btn_auto = small_button(p, "Modularize…", "Auto modularize: split sprites into reusable hardware-friendly pieces", lambda: self._tool("automod"))
+        self.btn_auto = small_button(p, "Modularize…", "Auto modularize: cut this image's sprites into hardware-sized parts they share (with a preview)", lambda: self._tool("automod"))
         self.btn_optimize = small_button(p, "Optimize…", "Optimize sheet: repack the modules into a smaller sheet (Tools ▸ Optimize Sprite Sheet)", lambda: self._tool("optimize"))
         row(grid, p, "Cut", hbox(self.btn_grid, self.btn_detect))
         grid.Add((0, 0))

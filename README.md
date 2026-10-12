@@ -29,7 +29,8 @@ Construct complex character animations from individual body parts (modules). Def
 
 ### 🛠️ Module Editor
 *   **Cut directly on the sheet**: drag over a sprite to make a module; move, resize (8 handles, optional grid snap) and nudge it right there; Cmd+drag selects several.
-*   **Slicing tools**: grid slice (tile size, offset, gap, skip empty tiles), sprite detection (touching pixels, merge gap; milliseconds on a full sheet), auto modularize — each can keep the existing modules and add only new areas. Copy modules and paste them onto another image to cut the same areas there.
+*   **Slicing tools**: grid slice (tile size, offset, gap, skip empty tiles) and sprite detection (touching pixels, merge gap; milliseconds on a full sheet) — both can keep the existing modules and add only new areas. Copy modules and paste them onto another image to cut the same areas there.
+*   **Auto modularize** (Slice ▾ or Tools): cuts an image's whole sprites into hardware-sized parts they share — found at any offset, also mirrored — on a new image, and rebuilds the frames from them, pixel for pixel. A live preview shows every sprite's cut and the Mega Drive cost before and after (VRAM tiles, hardware sprites); one slider trades fewer tiles against fewer hardware sprites. The Sonic example's 38 whole frames go from 869 to 655 tiles with fewer hardware sprites per frame than its hand-cut version.
 *   **Pivots**: Shift+drag, type them, or a 3×3 preset (bottom centre = feet on the origin); **Trim** shrinks modules to their pixels.
 *   **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image; **modules list** with thumbnails, size and how often each is used.
 *   **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
@@ -134,6 +135,7 @@ the PoP_WW and Sonic ROMs with those scripts.
 python3 -m pytest -q                          # unit tests
 python3 tools/gui_smoke.py [project.json]     # drives the real UI against a project (needs a display)
 python3 tools/migrate_projects.py --dry-run DIR   # upgrade project files to the current format
+python3 tools/automod_bench.py PROJECT.json   # auto modularize benchmark: exactness, tiles, hardware sprites
 ```
 
 ---

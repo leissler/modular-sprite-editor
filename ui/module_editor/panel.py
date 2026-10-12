@@ -735,39 +735,46 @@ class ModuleEditorPanel(wx.Panel):
         )
 
     def auto_modularize(self) -> None:
-        from optimization import run_auto_modularization
-        from ui.auto_modularize_dialog import AutoModularizeDialog
+        """Cut this image's sprites into shared hardware-sized parts (preview first), on a new image."""
+        from ui.module_editor.modularize_dialog import ModularizeDialog
 
         asset = self.asset()
         if asset is None:
+            app_services.show_status("Select an image to modularize.")
             return
-        with AutoModularizeDialog(self) as dlg:
-            if dlg.ShowModal() != wx.ID_OK:
+        modules = [m for m in ops.modules_of_sheet(self.project, asset.id) if m.type == "MD_IMAGE"]
+        if not modules:
+            app_services.show_status("This image has no modules yet: slice it or detect its sprites first, then modularize.")
+            return
+        with ModularizeDialog(self, self.project, asset, modules) as dlg:
+            if dlg.ShowModal() != wx.ID_OK or dlg.plan is None:
                 return
-            config = dlg.GetValues()
-        count = self._existing_count()
-        if count:
-            parts, frames, entries = ops.usage(self.project, [m.id for m in ops.modules_of_sheet(self.project, asset.id)])
-            message = f"Auto modularize replaces the {count} module(s) of this image."
-            if parts or entries:
-                message += f"\n\n{ops.describe_usage(parts, frames, entries)} will show as missing."
-            if wx.MessageBox(message + "\n\nContinue? (Undo with Cmd/Ctrl+Z.)", "Auto Modularize",
-                             wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
-                return
-        before = {img.id for img in self.project.images}
+            plan, sheet_path = dlg.plan, dlg.sheet_path()
+        try:
+            self.apply_modularize(asset, modules, plan, sheet_path)
+        except OSError as exc:
+            wx.MessageBox(f"Could not save {sheet_path}:\n{exc}", "Auto Modularize", wx.OK | wx.ICON_ERROR, self)
+
+    def apply_modularize(self, asset: ImageAsset, modules: List[Module], plan: Any, sheet_path: str) -> Any:
+        """Put a modularize plan into the project (one undo step) and show the new image."""
+        import modularize
+
         with wx.BusyCursor():
-            success, message = run_auto_modularization(self.project, asset.id, config)
-        if not success:
-            wx.MessageBox(f"Auto modularize failed: {message}", "Auto Modularize", wx.OK | wx.ICON_ERROR, self)
-            return
-        new_images = [img.id for img in self.project.images if img.id not in before]
-        mode = str(config.get("modularization_mode", "freeform")).strip().lower()
-        target = new_images[-1] if mode.startswith("tile") and new_images else asset.id
+            applied = modularize.apply_plan(self.project, asset.id, [m.id for m in modules], plan, sheet_path)
         SHARED.clear()
         self.refresh_sheets()
-        self.select_sheet(target if self.project.get_image(target) else asset.id, fit=True)
+        self.select_sheet(applied.image_id, fit=True)
         app_services.request_checkpoint()
-        wx.MessageBox(message, "Auto Modularize", wx.OK | wx.ICON_INFORMATION, self)
+        text = (f"Modularized: {applied.parts} parts on {os.path.basename(applied.sheet_path)}, "
+                f"{applied.rewritten_refs} frame parts rebuilt")
+        if applied.new_frames:
+            text += f", {applied.new_frames} new frames"
+        if applied.kept_modules:
+            text += f", {applied.kept_modules} sprites kept whole (freely rotated in a frame)"
+        if applied.mapping_entries_removed:
+            text += f", {applied.mapping_entries_removed} mapping entries removed"
+        app_services.show_status(text + ".")
+        return applied
 
     def show_optimization_dialog(self, output_dir: Optional[str] = None, name_hint: Optional[str] = None) -> None:
         """Repack modules into a new sheet (Tools ▸ Optimize Sprite Sheet)."""

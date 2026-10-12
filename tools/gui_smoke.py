@@ -787,6 +787,76 @@ def run():
 
     step("mappings: preview selector sync, hide/replace/reset, undo, filter", mappings)
 
+    def automod():
+        import tempfile
+        import time
+
+        from ui.frame_render import FrameRenderer
+        from ui.module_editor.modularize_dialog import ModularizeDialog
+
+        frame.select_tab(0)
+        pump()
+        me = frame.module_editor
+        asset = next((img for img in proj.images
+                      if any(m.image_id == img.id and m.type == "MD_IMAGE" for m in proj.modules)), None)
+        check(asset is not None, "an image with modules to modularize")
+        if asset is None:
+            return
+        modules = [m for m in proj.modules if m.image_id == asset.id and m.type == "MD_IMAGE"]
+
+        def wait_plan(dlg):
+            for _ in range(1500):
+                pump(1)
+                if dlg.plan is not None:
+                    return dlg.plan
+                time.sleep(0.01)
+            return None
+
+        dlg = ModularizeDialog(me, proj, asset, modules)
+        dlg.Show()
+        check(wait_plan(dlg) is not None, "the dialog plans in the background")
+        dlg.goal.SetValue(5)
+        dlg._settings_changed(delay=1)
+        check(dlg.plan is None and not dlg.apply_button.IsEnabled(), "a new setting invalidates the plan")
+        plan = wait_plan(dlg)
+        check(plan is not None and dlg.apply_button.IsEnabled(), "the new plan arrives and can be applied")
+        dlg.view_choice.SetStringSelection("Parts sheet")
+        dlg._show_selected(fit=True)
+        dlg._closing = True
+        dlg.Destroy()
+        pump()
+        if plan is None:
+            return
+
+        def pixels(renderer, fr):
+            image, hx, hy = renderer.render(proj, fr, None)
+            rgba = image.convert("RGBA")
+            data = rgba.tobytes()
+            return {(hx + i // 4 % rgba.width, hy + i // 4 // rgba.width): data[i:i + 4]
+                    for i in range(0, len(data), 4) if data[i + 3]}
+
+        renderer = FrameRenderer()
+        before = {fr.id: pixels(renderer, fr) for fr in proj.frames}
+        count = len(proj.modules)
+        frame.history_checkpoint()
+        folder = tempfile.mkdtemp(prefix="mse_smoke_")
+        applied = me.apply_modularize(asset, modules, plan, os.path.join(folder, "parts.png"))
+        pump()
+        renderer = FrameRenderer()
+        changed = [fr.name for fr in proj.frames if fr.id in before and pixels(renderer, fr) != before[fr.id]]
+        check(not changed, f"frames look the same after modularizing (changed: {changed[:3]})")
+        check(me.sheet_key == applied.image_id, "the parts image is shown")
+        check(all(m.image_id != asset.id for m in proj.modules if m.type == "MD_IMAGE"), "the sprites were replaced")
+        frame.on_undo(None)
+        pump()
+        check(len(proj.modules) == count, "undo brings the modules back")
+        print("   modularized:", applied.parts, "parts,", applied.rewritten_refs, "frame parts rebuilt")
+        import shutil
+
+        shutil.rmtree(folder, ignore_errors=True)
+
+    step("modules: auto modularize (dialog, apply keeps every frame, undo)", automod)
+
     def dirty():
         frame.history_checkpoint()
         fp_now = project_fingerprint(proj)[0]

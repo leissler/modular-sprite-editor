@@ -519,6 +519,7 @@ class MainFrame(wx.Frame):
         menubar.Append(view_menu, "&View")
 
         tools_menu = wx.Menu()
+        m_automod = tools_menu.Append(wx.ID_ANY, "Auto Modularize Image…", "Cut the selected image's sprites into shared hardware-sized parts")
         m_opt_sprite = tools_menu.Append(wx.ID_ANY, "Optimize Sprite Sheet...")
         m_opt_nested = tools_menu.Append(wx.ID_ANY, "Optimize Nested Frame Combos (All Frames)...")
         tools_menu.AppendSeparator()
@@ -526,6 +527,7 @@ class MainFrame(wx.Frame):
         tools_menu.AppendSeparator()
         m_validate_roles = tools_menu.Append(wx.ID_ANY, "Validate Roles (All Frames)")
         m_inspect_roles = tools_menu.Append(wx.ID_ANY, "Inspect Compiled Role Tables...")
+        self.Bind(wx.EVT_MENU, self.on_tool_auto_modularize, m_automod)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize, m_opt_sprite)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize_nested, m_opt_nested)
         self.Bind(wx.EVT_MENU, self.on_tool_create_reference_frames, m_ref_frames)
@@ -749,6 +751,10 @@ class MainFrame(wx.Frame):
         controls = getattr(panel, "canvas_controls", None)
         if controls is not None:
             controls.toggle_grid()
+
+    def on_tool_auto_modularize(self, _: wx.CommandEvent) -> None:
+        self.book.SetSelection(0)
+        self.module_editor.auto_modularize()
 
     def on_tool_optimize(self, _: wx.CommandEvent) -> None:
         self.book.SetSelection(0)

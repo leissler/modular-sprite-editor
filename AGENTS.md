@@ -52,10 +52,10 @@ models.py                  Dataclasses + JSON (to_dict/from_dict), format migrat
                            RetroAnimator export (baked parts), role tables
 hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32): SGDK-exact part placement, ≤32×32 VDP
                            sprite cut, per-screen / per-line limits — wx-free, tested against the SGDK exporter
-optimization.py            Sheet optimisation/packing, auto-modularisation (freeform + tile-constrained
-                           with console profiles), nested-frame combo optimisation
+modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
+                           cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
+optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
 rect_packer.py             MaxRects bin packer
-algorithms/decomposition.py  Rectangle decomposition helpers for auto-modularisation
 ui/
   app_services.py          Hooks panels use to reach the main window (checkpoint, status, zoom,
                            mapping changed, text-focus test). No-ops without a main window.
@@ -73,6 +73,7 @@ ui/
                            Cmd+drag marquee, snap, names, pivots, key-colour pick
     inspector.py           ModuleInspector: sheet (file, key colour, slicing tools) or module(s)
     dialogs.py             Grid slice / detect sprites (live counts, keep-or-replace) / folder import
+    modularize_dialog.py   Auto Modularize: background planning, sprite list, cut / parts-sheet preview, cost table
     panel.py               ModuleEditorPanel: Images + Modules lists, canvas, inspector, commands, keyboard
   frame_editor/            Frames tab, redesigned from scratch:
     ops.py                 wx-free: frames (new/duplicate/delete/move/references), items (paste with cycle
@@ -118,7 +119,8 @@ ui/
                            to frame_render)
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
-tools/                     migrate_projects.py, gui_smoke.py
+tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
+                           make_windows_kit.py
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one binary blob) + Mega Drive runtime
                            (sgdk_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
@@ -218,6 +220,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   every edit; logic lives in each package's `ops.py`. Module pivots are stored for the module *as used*:
   packed (`rotated`) modules convert with `ops.visual_pivot` / `ops.logical_pivot`. Part bounds come from
   `ui/frame_geometry.py` only. Module thumbnails go through `components.module_palette.THUMBNAILS`.
+- **Auto modularize:** the engine (`modularize.py`) stays wx-free and exact by construction: a part is placed only where
+  all its pixels equal the sprite's, every opaque pixel is covered. Its cost model is the SGDK exporter's
+  (`part_tiles`); keep them in step. Measure changes with `tools/automod_bench.py` (flattened testbeds, exactness,
+  tiles, hardware sprites) — `tests/test_modularize.py` covers the rewrite of flipped / rotated references.
 - **Destructive actions** confirm when they break references (count the references) and stay undoable.
 - **Lists** use Add / Duplicate / Delete buttons, Delete key, double-click/F2 rename, drag to reorder and a filter
   (`wx.SearchCtrl`); new lists use `components.thumb_list.Browser` / `ThumbList`. Lists show a filtered view:
