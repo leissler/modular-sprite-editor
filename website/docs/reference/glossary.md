@@ -4,7 +4,7 @@
 
 **Auto Modularize**: a tool that cuts whole sprites into parts they share and rebuilds the frames from them.
 
-**Budget**: the overlay that shows what a pose or scene costs on a Mega Drive in hardware sprites and tiles.
+**Budget**: the overlay that shows what a pose or scene costs on a console in hardware sprites and tiles. It knows the Mega Drive first.
 
 **Easing**: how an object speeds up and slows down between two keys in a scene.
 
@@ -12,7 +12,7 @@
 
 **Frame**: a pose built from parts. A frame can contain other frames.
 
-**Hardware sprite**: a rectangle of up to 32 by 32 pixels that the Mega Drive can show on its own. A character is made of several.
+**Hardware sprite**: a small rectangle of graphics that a console can show on its own, up to 32 by 32 pixels on the Mega Drive. A character is made of several.
 
 **Hitbox**: a rectangle on a frame that tells the game where the character can be hit or where it hits.
 
@@ -54,6 +54,6 @@
 
 **Tick**: the unit of animation time. **Tick rate** says how many ticks make a second.
 
-**Tile**: an 8 by 8 pixel block of graphics in the Mega Drive's video memory.
+**Tile**: an 8 by 8 pixel block of graphics in a console's video memory.
 
 **H40, H32**: the Mega Drive's two screen widths, 320 and 256 pixels, each with its own sprite limits.

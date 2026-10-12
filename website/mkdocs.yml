@@ -1,6 +1,6 @@
 site_name: Modular Sprite Editor
 site_url: https://modularsprites.bionic-productions.com/
-site_description: Build pixel-art characters from reusable parts, animate them and stage scenes, with the limits of the Mega Drive in view. Free for Windows, macOS and Linux.
+site_description: Build pixel-art characters for retro consoles from reusable parts, animate them and stage scenes, with the console's limits in view. Free for Windows, macOS and Linux.
 site_author: bionic productions
 copyright: Copyright &copy; 2026 Martin Leissler, bionic productions
 repo_url: https://github.com/leissler/modular-sprite-editor

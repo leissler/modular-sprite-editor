@@ -37,11 +37,27 @@ Two tools under **Slice ▾** cut a whole sheet at once:
 
 Both windows show how many modules they will make while you change the settings. If the sheet already has modules, choose whether to keep them and add only new areas, or replace them.
 
+<div class="ms-pair" markdown>
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Grid Slice window: tile size 32 by 32, Skip empty tiles on, 68 tiles](../assets/images/screens/lesson-grid.png){ width="383" height="286" loading="lazy" }](../assets/images/screens/lesson-grid.png)
+  <figcaption><strong>Grid slice...</strong> on the Adventurer sheet.</figcaption>
+</figure>
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Detect Sprites window: merge gap 2, keep or replace the 65 existing modules, 341 sprites found](../assets/images/screens/modules-detect.png){ width="377" height="287" loading="lazy" }](../assets/images/screens/modules-detect.png)
+  <figcaption><strong>Detect sprites...</strong> on the Sonic sheet.</figcaption>
+</figure>
+</div>
+
 For sheets of finished sprites there is a third tool, **Auto modularize...**, which finds parts the sprites share. See [Find shared parts automatically](auto-modularize.md).
 
 ## Names and pivots
 
 Double-click a module in the **Modules** list or press ++f2++ to rename it. Clear names such as `head_left` or `sword_swing2` help when you build frames.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![Part of the Prince of Persia sheet zoomed in: torso, hip and leg modules, each labelled with its name and a small red cross at its pivot](../assets/images/screens/modules-names.png){ width="833" height="385" loading="lazy" }](../assets/images/screens/modules-names.png)
+  <figcaption><strong>Names</strong> and <strong>Pivots</strong> in the view bar label every module and mark its pivot.</figcaption>
+</figure>
 
 The **pivot** is the point of the module that is placed when you use it in a frame. It is shown as a small red cross. Set it in one of three ways:
 
@@ -50,6 +66,11 @@ The **pivot** is the point of the module that is placed when you use it in a fra
 - choose one of the nine **Presets**. **Bottom** puts the pivot at the middle of the module's bottom edge, the usual choice for feet.
 
 Pivots matter when parts swap. If every head of a character has its pivot at the neck, any head drops into place in any frame.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The inspector for a module: name, kind, position, size, pivot with the nine presets, Used by with Go to frame and New frame, and Trim to content](../assets/images/screens/modules-inspector.png){ width="291" height="377" loading="lazy" }](../assets/images/screens/modules-inspector.png)
+  <figcaption>A selected module in the inspector.</figcaption>
+</figure>
 
 ## See where a module is used
 
@@ -68,5 +89,5 @@ The **Shapes** entry in the **Images** list holds vector shapes: rectangles, ell
 ## Tips
 
 - Cut parts that repeat across poses: one forearm used in twenty frames saves nineteen drawings and their memory.
-- A mirrored part does not need its own module. Flip it in the frame. The Mega Drive flips hardware sprites for free.
-- Keep a part within 32 by 32 pixels where you can. That is the largest hardware sprite of the Mega Drive, see [Stay within the console's limits](hardware-budget.md).
+- A mirrored part does not need its own module. Flip it in the frame. Consoles such as the Mega Drive flip hardware sprites for free.
+- Keep a part within the console's largest hardware sprite where you can, 32 by 32 pixels on the Mega Drive. See [Stay within the console's limits](hardware-budget.md).

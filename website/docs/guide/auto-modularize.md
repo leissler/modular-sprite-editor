@@ -29,6 +29,11 @@ The canvas shows the selected sprite. **Show** chooses what you see:
 - **Original**: the sprite as it is now.
 - **Parts sheet**: the new image with every part once.
 
+<figure class="ms-shot" markdown="span">
+  [![The Auto Modularize window showing the parts sheet: every shared part of the Sonic sprites once, packed on one new image](../assets/images/screens/automod-sheet.png){ width="1300" height="820" loading="lazy" }](../assets/images/screens/automod-sheet.png)
+  <figcaption><strong>Parts sheet</strong>: every part once, on the new image.</figcaption>
+</figure>
+
 **Result (Mega Drive)** compares now and after: video memory tiles, hardware sprites per sprite, parts per sprite, modules and shared parts.
 
 ## Choose what matters

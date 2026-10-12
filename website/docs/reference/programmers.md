@@ -8,6 +8,8 @@ The project file (`.json`) and its images. The project stores image paths relati
 
 ## Mega Drive (SGDK)
 
+The Mega Drive is the first console with an exporter and a runtime. More consoles will follow.
+
 `export_sgdk`, on the [release page](https://github.com/leissler/modular-sprite-editor/releases/latest) next to the editor, turns a project into data for a Mega Drive game made with [SGDK](https://github.com/Stephane-D/SGDK). The source code includes a small runtime that draws it.
 
 - Everything is baked into one data file: tiles and palette, frames, animations, scenes, hitboxes and points with their types and roles, step events, and every mapping.

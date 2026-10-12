@@ -4,6 +4,7 @@ Writes to docs/assets/images/art/:
 - swordfight.webp: the Swordfight scene, looping, for the landing page
 - step-modules.png, step-frame.png, step-animation.png, step-scene.png: one picture per step of the workflow
 - mapping-pair.png: the same pose without and with the "Normal" mapping
+- attack.gif: the Prince's attack as the editor's Export GIF... writes it (one cycle, 1x)
 
 Pixel art is scaled by whole numbers only; the page shows it with image-rendering: pixelated.
 
@@ -143,6 +144,12 @@ def main() -> None:
     for index, (art, hx, hy) in enumerate(images):
         place(art, hx, hy, None, ((index * (w + 6) - x0) * scale, -y0 * scale), scale, image)
     image.save(OUT / "mapping-pair.png", optimize=True)
+
+    # Export GIF: exactly the file the Animations tab writes
+    from ui.animation_editor.render import export_gif
+
+    attack = next(a for a in project.animations if a.name.strip() == "C34 Attack")
+    export_gif(project, attack, str(OUT / "attack.gif"), None)
 
     for path in sorted(OUT.iterdir()):
         with Image.open(path) as im:

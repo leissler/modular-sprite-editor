@@ -27,6 +27,11 @@ With **Auto-Key** on, moving, flipping or turning an object on the stage sets a 
 
 On the timeline, drag keys to retime them, double-click a track to add a key and drag over empty track to select several keys. Copy and paste keys with ++cmd+c++ and ++cmd+v++: they paste at the playhead.
 
+<figure class="ms-shot" markdown="span">
+  [![The Swordfight's timeline: a row for the guard and one for the Prince, with a key for every action and the name of each swapped-in animation](../assets/images/screens/scene-timeline.png){ width="1426" height="215" loading="lazy" }](../assets/images/screens/scene-timeline.png)
+  <figcaption>The Swordfight's two layers. Every key swaps in an animation, and the labels name them.</figcaption>
+</figure>
+
 ## Motion between keys
 
 The bar between two keys shows how the object moves there, by name. Right-click it, or use **Motion to next key** in the inspector, to choose the easing:
@@ -37,9 +42,25 @@ The bar between two keys shows how the object moves there, by name. Right-click 
 
 **Path** chooses a straight or curved path. On a curved path, drag the handles on the stage to shape the curve; **Reset curve handles** brings back the automatic curve. The stage draws the path with a dot for every frame, so you can see where the motion is fast or slow.
 
+<div class="ms-pair" markdown>
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![Motion to next key in the inspector: Overshoot and Ease out with a curve that rises past its target and settles, and Path set to Curved](../assets/images/screens/scene-motion.png){ width="311" height="138" loading="lazy" }](../assets/images/screens/scene-motion.png)
+  <figcaption><strong>Overshoot</strong>, <strong>Ease out</strong>, on a <strong>Curved</strong> path.</figcaption>
+</figure>
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![A curved path on the stage: an arc through three keys with a dot for every frame, closer together where the motion is slow](../assets/images/screens/scene-path.png){ width="673" height="295" loading="lazy" }](../assets/images/screens/scene-path.png)
+  <figcaption>The curved path, with a dot for every frame.</figcaption>
+</figure>
+</div>
+
 ## Change the animation at a key
 
 Select a key and turn on **Swap the image here** in the inspector. From this key on, the object shows another animation, frame or module. An animation swapped in at a key plays from its first step at that key, so you can cue an attack, a hit and a fall exactly when they should happen. **Offset** shifts the swapped image, for when two animations do not line up.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![Swap the image here, checked, showing Animation C06 slash, with an offset of 0 and 0](../assets/images/screens/scene-swap.png){ width="311" height="74" loading="lazy" }](../assets/images/screens/scene-swap.png)
+  <figcaption>The Prince's key at frame 22 swaps in his slash.</figcaption>
+</figure>
 
 **Animation playback** in the inspector sets how an object's animations play: **Mode** (loop, play once or ping-pong), **Speed**, and **Start offset** to start the object's own animation a few frames in.
 
@@ -48,6 +69,11 @@ Select a key and turn on **Swap the image here** in the inspector. From this key
 ## Give an object its own look
 
 **Mapping** in the inspector chooses the [mapping](mappings.md) the object is drawn with. **Inherit** uses the parent's mapping, or for top-level objects the preview mapping at the top of the window. **Original modules** always shows the original parts. In the Swordfight, the guard is the Prince's animations with the "Normal" mapping.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The guard's object settings in the inspector: name Guard, shows an animation, no parent, Mapping Normal](../assets/images/screens/scene-mapping.png){ width="311" height="149" loading="lazy" }](../assets/images/screens/scene-mapping.png)
+  <figcaption>The guard's settings: the Prince's animations, drawn with the <strong>Normal</strong> mapping.</figcaption>
+</figure>
 
 ## See it on screen
 

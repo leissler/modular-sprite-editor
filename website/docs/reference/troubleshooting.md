@@ -26,7 +26,7 @@ The animation never ends, so nothing can follow it. Choose **Play once**, or giv
 
 ## The budget overlay shows red lines
 
-Too many hardware sprites meet on those lines, and on a Mega Drive some would disappear. [Stay within the console's limits](../guide/hardware-budget.md) has tips for bringing the number down.
+Too many hardware sprites meet on those lines, and on the console some would disappear. [Stay within the console's limits](../guide/hardware-budget.md) has tips for bringing the number down.
 
 ## Keys do nothing
 

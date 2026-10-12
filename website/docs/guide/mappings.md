@@ -19,6 +19,11 @@ The **Modules** table lists every module and what it shows under the mapping. Se
 
 **Changed only** shows just the modules this mapping replaces or hides. **Filter modules** and the image choice narrow the table down.
 
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Modules table of the Normal mapping with Changed only on: each of the Prince's modules next to the guard's module that replaces it](../assets/images/screens/mappings-table.png){ width="833" height="639" loading="lazy" }](../assets/images/screens/mappings-table.png)
+  <figcaption>The <strong>Modules</strong> table of <strong>Normal</strong>, with <strong>Changed only</strong> on.</figcaption>
+</figure>
+
 ## Match a whole sheet at once
 
 If you drew a variant as a second sheet, **Match ▾** saves you from mapping modules one by one:
@@ -31,6 +36,11 @@ If you drew a variant as a second sheet, **Match ▾** saves you from mapping mo
 The **Preview** under the palette shows the frames that use the selected modules, drawn with the mapping.
 
 **Preview mapping** at the top of the window shows any mapping in every tab: frames, animations and scenes are drawn with it. It only changes the view. The exports use it too, as described in [For your programmer](../reference/programmers.md).
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![Preview mapping with its choice of mappings, at the top right of the window](../assets/images/screens/mapping-chooser.png){ width="306" height="32" loading="lazy" }](../assets/images/screens/mapping-chooser.png)
+  <figcaption><strong>Preview mapping</strong>, at the top right of the window.</figcaption>
+</figure>
 
 In a scene, each object can have [its own mapping](scenes.md#give-an-object-its-own-look), so the hero and the guard appear together.
 

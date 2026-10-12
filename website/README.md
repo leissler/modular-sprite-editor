@@ -43,14 +43,17 @@ Every picture comes from the editor and the example projects; regenerate them wh
 
 | Pictures | Made by |
 | --- | --- |
-| `docs/assets/images/screens/*.png`: editor screenshots | `python3 website/scripts/capture_screenshots.py [NAME ...]` (macOS, needs the screen; quantized to 256 colours) |
-| `docs/assets/images/art/*`: the Swordfight loop and the step pictures | `python3 website/scripts/make_site_art.py` (the editor's renderer) |
+| `docs/assets/images/screens/*.png`: editor screenshots, whole windows, parts of them and dialogs | `python3 website/scripts/capture_screenshots.py [NAME or GROUP ...]` (macOS, needs the screen; groups `pop`, `sonic`, `lesson`, `automod`; quantized to 256 colours) |
+| `docs/assets/images/art/*`: the Swordfight loop, the step pictures and `attack.gif` | `python3 website/scripts/make_site_art.py` (the editor's renderer and its GIF export) |
+| `docs/assets/images/art/lesson-run.gif`: the first lesson's run | `python3 website/scripts/capture_screenshots.py lesson` (made in the editor, step by step) |
 | `docs/assets/images/logo.svg`, `favicon.png` | `python3 tools/make_app_icon.py` (also writes the app icons) |
 | `docs/assets/images/logo-title.png`: the logo on the landing page | `python3 tools/make_logo.py` (the app icon's mannequin over a pixel wordmark) |
 | `docs/reference/shortcuts.md` | `python3 website/scripts/make_shortcuts_page.py` (from `ui/shortcuts_dialog.py`) |
 | The product card on bionic-productions.com (`public/assets/modular-sprite-editor-logo.png` in the bionic-site repository) | `python3 tools/make_logo.py --card OUT.png` |
 
-Pixel art is scaled by whole numbers only and shown with `image-rendering: pixelated` (`.ms-pixel`). The example art
+Pixel art is scaled by whole numbers only and shown with `image-rendering: pixelated` (`.ms-pixel`). A part of the
+window goes in a `ms-shot ms-shot--part` figure with half the capture's pixel size as `width` and `height` (the
+captures are 2x), so it shows at its size on screen; two of them can sit in a `ms-pair`. The example art
 belongs to its owners; [Credits](docs/reference/credits.md) says so. The logo uses none of it: only our own pixel art.
 
 ## Writing

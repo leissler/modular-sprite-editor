@@ -17,6 +17,11 @@ The stage shows the frame's **origin** as two thin lines. The origin is the poin
 
 The **Library** below the frames list shows your modules, one image at a time or all of them, and your frames. Drag a module onto the stage, or double-click it to add it at the origin. The module's pivot lands where you drop it.
 
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Library with the Modules and Frames buttons, an image choice and a grid of module thumbnails with their names and sizes](../assets/images/screens/frames-library.png){ width="270" height="399" loading="lazy" }](../assets/images/screens/frames-library.png)
+  <figcaption>The <strong>Library</strong>, here with the modules of every image.</figcaption>
+</figure>
+
 ## Select and arrange
 
 Make sure **Parts** is selected above the stage.
@@ -30,6 +35,11 @@ Make sure **Parts** is selected above the stage.
 A flipped part stays where it is and mirrors its picture. Turns are about the part's pivot, in steps of 90 degrees, so pixels stay square.
 
 The inspector shows the selected part: **Shows** names the module, **Position** is where its pivot sits, **Flip**, **Rotation** and **Order** do the same as the keys. To swap a part for another module, pick the new module in the library and choose **Use library pick**. **Open** shows the module in the **Modules** tab.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The inspector for a selected part: Shows with the module, Use library pick and Open, Position, Flip, Rotation and Order](../assets/images/screens/frames-part.png){ width="301" height="251" loading="lazy" }](../assets/images/screens/frames-part.png)
+  <figcaption>A selected part in the inspector.</figcaption>
+</figure>
 
 The **Parts** list at the bottom right lists every part of the frame, the front-most first. Drag rows to change the order.
 
@@ -45,11 +55,21 @@ Drag a frame from the library onto the stage to use it as one part. A nested fra
 
 With nothing selected, the inspector shows the frame. **Whole frame** mirrors or turns every part at once. **Origin** has two helpers: **Feet on origin** moves all parts so the middle of the pose's bottom edge sits on the origin, and **Centre** puts the middle of the pose there.
 
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The inspector for a frame: its name, contents, size and use, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="279" loading="lazy" }](../assets/images/screens/frames-whole.png)
+  <figcaption>With nothing selected, the inspector shows the frame.</figcaption>
+</figure>
+
 Right-click a frame in the list for the same tools, and for **Rename**, **Duplicate** and **Delete**.
 
 ## Compare with neighbouring poses
 
 **Onion** above the stage shows the previous, the next or both neighbouring frames of the list as faint ghosts behind the current one. Use it to keep a pose in line with the ones around it.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![A running pose of the Prince with faint red and blue ghosts of the poses before and after it](../assets/images/screens/frames-onion.png){ width="409" height="241" loading="lazy" }](../assets/images/screens/frames-onion.png)
+  <figcaption>A running pose with both neighbouring frames as ghosts.</figcaption>
+</figure>
 
 ## Next
 

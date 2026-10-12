@@ -47,11 +47,25 @@
 
 /* Guide figures: a screenshot of the editor, linked to its full size. */
 .md-typeset .ms-shot { margin: 1.4rem 0 1.7rem; }
-.md-typeset .ms-shot img { display: block; width: 100%; height: auto; border: 1px solid #7e869340; border-radius: .3rem; }
+.md-typeset .ms-shot img { display: block; height: auto; border: 1px solid #7e869340; border-radius: .3rem; }
+/* A whole window fills the column; a part of it keeps its size on screen (its width attribute, half the 2x capture). */
+.md-typeset .ms-shot:not(.ms-shot--part) img { width: 100%; }
 .md-typeset .ms-shot figcaption { margin: .55rem 0 0; max-width: none; color: var(--md-default-fg-color--light); font-size: .7rem; font-style: normal; text-align: left; line-height: 1.55; }
 .md-typeset .ms-art { display: flex; justify-content: center; align-items: center; margin: 1.3rem 0 1.6rem; padding: 1.2rem; border-radius: .3rem; background: #1d2026; }
 .md-typeset .ms-art img { image-rendering: pixelated; border-radius: 0; max-width: 100%; height: auto; }
 .md-typeset .ms-art + p { margin-top: -.6rem; }
+/* Parts of the window line up on the left, whatever the length of their caption. */
+.md-typeset .ms-shot--part { text-align: left; }
+.md-typeset .ms-shot--part img { max-width: 100%; margin: 0; }
+/* Two pictures next to each other, one above the other when there is no room. */
+.md-typeset .ms-pair { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem 1.4rem; margin: 1.4rem 0 1.7rem; }
+.md-typeset .ms-pair > .ms-shot { margin: 0; flex: 0 1 auto; min-width: 0; }
+/* The words of the guide, each with its picture, at exactly 3x. */
+.md-typeset .ms-words { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin: 1.2rem 0 1.6rem; }
+.md-typeset .ms-words figure { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: auto; margin: 0; padding: 1rem .6rem .7rem; border-radius: .3rem; background: #1d2026; }
+.md-typeset .ms-words img { image-rendering: pixelated; border-radius: 0; max-width: 100%; height: auto; }
+.md-typeset .ms-words figcaption { margin: .6rem 0 0; color: #c2c9d3; font-size: .7rem; font-style: normal; font-weight: 700; }
+@media (max-width: 30em) { .md-typeset .ms-words { grid-template-columns: minmax(0, 1fr); } }
 
 /* Cards that lead to the next page */
 .ms-paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin: 1.5rem 0; }

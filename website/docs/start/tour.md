@@ -9,6 +9,11 @@ The editor keeps one project open at a time: your images, the modules cut from t
 
 ## The five tabs
 
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The tab bar with Modules, Frames, Animations, Timeline and Mappings, and the Preview mapping choice on the right](../assets/images/screens/tour-top.png){ width="948" height="55" loading="lazy" }](../assets/images/screens/tour-top.png)
+  <figcaption>The five tabs, and on the right the preview mapping.</figcaption>
+</figure>
+
 **Modules** shows your images. Here you cut them into modules and set each module's pivot, the point that is placed when the module is used in a frame. See [Cut a sheet into modules](../guide/modules.md).
 
 **Frames** is where you build poses from modules and other frames. It also holds the hitboxes and points a game needs. See [Build frames from parts](../guide/frames.md).
@@ -35,9 +40,19 @@ Every canvas works the same way:
 
 The view bar under each canvas holds the view options: **Grid** and its size, **Backdrop** (a checkerboard or a colour), **Part bounds**, which outlines every module in a pose, and **Budget**, the [hardware budget overlay](../guide/hardware-budget.md). These only change what you see, never your project.
 
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The view bar of the Frames tab: grid size, Grid, Backdrop, Part bounds, Budget, Hitboxes and Points](../assets/images/screens/tour-viewbar.png){ width="841" height="36" loading="lazy" }](../assets/images/screens/tour-viewbar.png)
+  <figcaption>The view bar of the <strong>Frames</strong> tab.</figcaption>
+</figure>
+
 ## Lists
 
 Lists work the same in every tab. **+ New**, **Duplicate** and **Delete** sit under the list. Double-click a name or press ++f2++ to rename it, drag rows to reorder them, and type in **Filter** to find something by name. Thumbnails show what each entry looks like.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The frames list: a filter, rows with a thumbnail, the number of parts and animations, and New, Duplicate and Delete below](../assets/images/screens/tour-list.png){ width="270" height="372" loading="lazy" }](../assets/images/screens/tour-list.png)
+  <figcaption>The <strong>Frames</strong> list. Each row shows a thumbnail and what the frame is made of.</figcaption>
+</figure>
 
 ## Undo, save and hints
 

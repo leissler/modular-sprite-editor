@@ -20,6 +20,11 @@ In the sequence:
 - ++delete++ removes the selected steps;
 - double-click a step to open its frame in the **Frames** tab.
 
+<figure class="ms-shot" markdown="span">
+  [![The sequence of an attack: eleven steps on a tick ruler, the wide seventh step held for two ticks, coloured stripes under steps that show the same frame, and a hit event above step 8](../assets/images/screens/anim-sequence.png){ width="1174" height="149" loading="lazy" }](../assets/images/screens/anim-sequence.png)
+  <figcaption>The sequence of <strong>C34 Attack</strong>. Each step is as wide as its hold, stripes mark steps that show the same frame, and step 8 carries a <code>hit</code> event.</figcaption>
+</figure>
+
 Right-click a step for more: **Swap frame...** shows another frame in the same step, **Reverse order** reverses the selected steps, and the menu also flips, turns, copies and pastes steps.
 
 ## Timing
@@ -43,11 +48,21 @@ Press ++enter++ to play and stop. ++comma++ and ++period++ step one pose back or
 
 **Repeat** sets how many times a repeating animation plays before it ends, 0 for forever. **Loop from** makes later passes of a loop start at a later step, so an intro, such as drawing a sword, plays only once. **Then play** names an animation that starts when this one ends, such as an attack that returns to the idle pose. The inspector warns when an animation can never end, because then it never reaches what follows.
 
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The animation settings in the inspector: name, Playback Loop, Repeat 0, Loop from step 1, Then play nothing, and a warning that the animation never ends](../assets/images/screens/anim-settings.png){ width="311" height="229" loading="lazy" }](../assets/images/screens/anim-settings.png)
+  <figcaption>An attack that loops forever: the inspector warns that it never reaches what <strong>Then play</strong> names.</figcaption>
+</figure>
+
 ## Moving, flipping and turning steps
 
 Select a step and its settings appear under **Step** in the inspector.
 
 **Offset** moves the frame in this step. Drag on the stage or use the arrow keys. Offsets are how a character moves forward while it runs or jumps: turn on **Path** in the view bar to see the motion of every step as a line.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![A standing jump on the stage with Path on: a line with a dot for every step rises up and forward from the origin to the Prince](../assets/images/screens/anim-path.png){ width="445" height="349" loading="lazy" }](../assets/images/screens/anim-path.png)
+  <figcaption><strong>Path</strong> on: the steps of a standing jump move up and forward.</figcaption>
+</figure>
 
 **Rotation** turns the step's frame in 90 degree steps, and **Mirror** flips it. The **Mirror** preview in the transport shows the whole animation flipped, to check how it looks when the character faces the other way. The preview only changes the view.
 
@@ -63,6 +78,13 @@ A step can tell the game that something happens: a footstep sound, the moment a 
 
 **Event types...** manages the list of event names and their colours for the whole project. On the stage, the current step's events show as small labels and light up when their step starts during playback, the moment the game receives them.
 
+<figure class="ms-shot" markdown="span">
+  [![The Animations tab with the second step of a slash selected: a red hit label in the corner of the stage, a hit marker above the step in the sequence, and the hit event under Events in the inspector](../assets/images/screens/anim-events.png){ width="1440" height="900" loading="lazy" }](../assets/images/screens/anim-events.png)
+  <figcaption>The second step of <strong>C06 slash</strong> carries a <code>hit</code> event: a label on the stage, a marker in the sequence and a row under <strong>Events</strong>.</figcaption>
+</figure>
+
 ## Export a GIF
 
 **Export GIF...** writes one cycle of the animation as an animated GIF, with the preview mapping applied. It looks exactly like the editor's preview.
+
+<div class="ms-art" markdown="span">![The Prince's attack as an animated GIF, the file Export GIF writes, four times larger](../assets/images/art/attack.gif){ .ms-pixel width="204" height="192" loading="lazy" }</div>

@@ -21,6 +21,11 @@ Both play their animations in **Play once** mode with **Root motion** on: a step
 
 Every key on a fighter's track swaps in the next animation, labelled on the timeline. An animation swapped in at a key starts at that key, so each action begins exactly on its frame:
 
+<figure class="ms-shot" markdown="span">
+  [![The Swordfight's timeline: a row for the guard and one for the Prince, with a key for every action and the name of each swapped-in animation](../assets/images/screens/scene-timeline.png){ width="1426" height="215" loading="lazy" }](../assets/images/screens/scene-timeline.png)
+  <figcaption>The Swordfight's timeline: one row per fighter, one key per action.</figcaption>
+</figure>
+
 | Frame | Prince | Guard |
 | --- | --- | --- |
 | 0 | stands | stands |
@@ -50,6 +55,6 @@ Select a key and look at **Position** in the inspector to see it. After the Prin
 - Set the guard's **Mapping** to **Original modules**: two Princes fight.
 - Set **Preview mapping** at the top to **Invizibil**: the Prince becomes invisible except for his swords, while the guard keeps his own mapping.
 - Drag the guard's attack key at frame 36 a few frames later and play it. The Prince now blocks too early.
-- Turn on **Budget** at frame 70, during the finishing move, to see what both fighters together cost on a Mega Drive.
+- Turn on **Budget** at frame 70, during the finishing move, to see what both fighters together cost on the console.
 
 The same scene plays on a real Mega Drive with the editor's SGDK runtime, drawn from the same project. See [For your programmer](../reference/programmers.md).
