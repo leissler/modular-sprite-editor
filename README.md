@@ -1,148 +1,168 @@
-![Modular Sprite Editor](assets/banner_project.png)
+![Modules cut from a sheet, a frame built from them, an animation step and a scene with a remapped guard](assets/readme_banner.png)
 
 # Modular Sprite Editor
 
-**A specialized tool for assembling, animating, and mapping modular pixel-art sprites for retro consoles.**
+A desktop editor for modular pixel-art sprites on retro consoles, with the Mega Drive (SGDK) as the main target.
 
-Construct complex character animations from individual body parts (modules). Define pivots, assemble frames, create animations, and map internal hitboxes/points for game logic — then export to SGDK (Mega Drive) or RetroAnimator.
+Artwork is cut into reusable **modules**, assembled into **frames** (positioned, flipped and rotated parts, nested
+frames, hitboxes and points), sequenced into **animations**, composed in **timeline scenes** and re-skinned with
+**mappings**. The SGDK exporter bakes it all into one blob that a small C runtime draws on the console exactly as the
+editor shows it.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg) ![Library](https://img.shields.io/badge/GUI-wxPython-orange.svg) ![Platform](https://img.shields.io/badge/Platform-Win%20%7C%20Mac%20%7C%20Linux-lightgrey.svg)
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg) ![GUI](https://img.shields.io/badge/GUI-wxPython-orange.svg) ![Platform](https://img.shields.io/badge/Platform-Win%20%7C%20Mac%20%7C%20Linux-lightgrey.svg)
 
----
+## Download
 
-## ⚠️ Project Status
+The editor and the SGDK exporter (`export_sgdk`) for Windows, macOS and Linux are on the
+[Releases](https://github.com/leissler/modular-sprite-editor/releases) page. The builds are not signed: on Windows
+choose "More info › Run anyway", on macOS right-click › Open the first time.
 
-- The **Modules / Frames / Animations / Mappings** workflow is actively used and is the most complete part of the tool.
-- The **Timeline** (scene editor) was redesigned on the `timeline-redesign` branch and is still young: the UX may still evolve.
-- SGDK export and demo content lives in [`examples/sgdk`](examples/sgdk/README.md), including a blob-based runtime data path for Mega Drive tests.
-- Project files carry a `format_version` (currently 3); older files are upgraded on load. See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
+## Status
 
----
+- **Modules, Frames, Animations and Mappings** are the most complete and most used part of the tool.
+- **Timeline** (scenes) is newer: objects can carry their own mapping and animations can be choreographed with keys;
+  the UX may still change.
+- Project files carry a `format_version` (currently 4); older files are upgraded when opened. See
+  [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
+- The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md).
 
-## ✨ Key Features
+## Features
 
 ### Everywhere
-*   **Project-wide Undo/Redo** for every editor, unsaved-change tracking and a save prompt on close.
-*   **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag pans, `Ctrl+0` fits.
-*   **Preview mapping selector** above the tabs — the mapping applied to every preview and to exports.
-*   **Filters** on all long lists (modules, frames, animations, palettes).
+- **Project-wide undo/redo** for every editor, unsaved-change tracking and a save prompt on close.
+- **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag
+  pans, `Cmd/Ctrl+0` fits.
+- **Preview mapping** above the tabs: the mapping every preview and export uses.
+- **Filters** on all long lists (modules, frames, animations, palettes).
 
-### 🛠️ Module Editor
-*   **Cut directly on the sheet**: drag over a sprite to make a module; move, resize (8 handles, optional grid snap) and nudge it right there; Cmd+drag selects several.
-*   **Slicing tools**: grid slice (tile size, offset, gap, skip empty tiles) and sprite detection (touching pixels, merge gap; milliseconds on a full sheet) — both can keep the existing modules and add only new areas. Copy modules and paste them onto another image to cut the same areas there.
-*   **Auto modularize** (Slice ▾ or Tools): cuts an image's whole sprites into hardware-sized parts they share — found at any offset, also mirrored — on a new image, and rebuilds the frames from them, pixel for pixel. A live preview shows every sprite's cut and the Mega Drive cost before and after (VRAM tiles, hardware sprites); one slider trades fewer tiles against fewer hardware sprites. The Sonic example's 38 whole frames go from 869 to 655 tiles with fewer hardware sprites per frame than its hand-cut version; `examples/adventurer` is a sheet of whole sprites to try it on.
-*   **Pivots**: Shift+drag, type them, or a 3×3 preset (bottom centre = feet on the origin); **Trim** shrinks modules to their pixels.
-*   **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image; **modules list** with thumbnails, size and how often each is used.
-*   **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
+### Modules
+- **Cut directly on the sheet**: drag over a sprite to make a module; move, resize (8 handles, optional grid snap) and
+  nudge it right there; Cmd+drag selects several.
+- **Slicing tools**: grid slice (tile size, offset, gap, skip empty tiles) and sprite detection (touching pixels, merge
+  gap; milliseconds on a full sheet). Both can keep the existing modules and add only new areas. Copy modules and paste
+  them onto another image to cut the same areas there.
+- **Auto Modularize** (Slice ▾ or Tools): cuts an image's whole sprites into hardware-sized parts they share, found at
+  any offset and also mirrored, on a new image, and rebuilds the frames from them pixel for pixel. A preview shows every
+  sprite's cut and the Mega Drive cost before and after (VRAM tiles, hardware sprites); one slider trades fewer tiles
+  against fewer hardware sprites. The Sonic example's 38 whole frames go from 869 to 655 tiles with fewer hardware
+  sprites per frame than its hand-cut version.
+- **Pivots**: Shift+drag, type them, or a 3×3 preset (bottom centre = feet on the origin); **Trim** shrinks modules to
+  their pixels.
+- **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image;
+  **modules list** with thumbnails, size and how often each is used.
+- **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
 
-### 🖼️ Frame Editor
-*   **Frames list with thumbnails** and usage; a **library** of modules (per image) and frames to drag onto the stage or double-click.
-*   **Parts / Hitboxes / Points** modes above the stage; the inspector edits the selection (position, flips, rotation, draw order, swap the source; hitbox type, role, rect) and the frame (mirror, rotate, put the feet on the origin).
-*   **Contents list** of the frame's parts (top-most first; drag to reorder), hitboxes or points; marquee selection on the stage.
-*   **Pixel-exact editing**: arrow-key nudging (Shift = 8 px tile), flip (H/V), 90° rotation (R), draw order, copy/paste/duplicate of parts between frames.
-*   **Hitboxes & points** with semantic roles (compiled into per-animation lookup tables); types managed inline (colour, visibility, usage).
-*   **Onion Skinning**: ghost the previous/next frame of the list.
+### Frames
+- **Frames list with thumbnails** and usage; a **library** of modules (per image) and frames to drag onto the stage or
+  double-click.
+- **Parts / Hitboxes / Points** modes above the stage; the inspector edits the selection (position, flips, rotation,
+  draw order, swap the source; hitbox type, role, rect) and the frame (mirror, rotate, put the feet on the origin).
+- **Contents list** of the frame's parts (top-most first; drag to reorder), hitboxes or points; marquee selection.
+- **Pixel-exact editing**: arrow-key nudging (Shift = 8 px tile), flip (H/V), 90° rotation (R), draw order,
+  copy/paste/duplicate of parts between frames.
+- **Hitboxes and points** with semantic roles (compiled into per-animation lookup tables); types managed inline.
+- **Onion skin**: ghost the previous/next frame of the list.
 
-### 🎮 Hardware Budget (Mega Drive)
-*   **Budget** in the Frames, Animations and Timeline view bars (MD H40 / H32): outlines the hardware sprites each part becomes, marks scanlines where sprites would drop out in red, and shows sprites, tiles and the busiest line. The Animations inspector names the worst step; the Timeline counts the whole scene. Numbers follow the SGDK exporter.
+### Animations
+- **Sequence on a tick ruler**: every step is as wide as its hold; drag a step's right edge to change the hold, drag
+  steps to reorder (Alt copies), drop frames from the library where they should go.
+- **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick;
+  preview speed ½× / ¼× / 2×.
+- **Stage**: drag to move the selected steps' offsets, motion path, onion skin, mirror preview, part bounds, hitboxes
+  and points.
+- **Game data**: step **events** (hit windows, sounds, spawns, with a value), **Loop from** a step (an intro plays
+  once) and **Then play** a follow-up animation (`attack → idle`). The runtime plays them exactly like the preview; the
+  stage shows the current step's events and lights them up when they fire.
+- **GIF export** of one playback cycle, pixel-identical to the editor.
 
-### 🎬 Animation Editor
-*   **Sequence on a tick ruler**: every step is as wide as its hold; drag a step's right edge to change the hold, drag steps to reorder (Alt copies), drop frames from the library where they should go. A coloured stripe marks repeated frames.
-*   **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick; preview speed ½× / ¼× / 2×.
-*   **Stage**: drag to move the selected steps' offsets, motion path, onion skin, mirror preview, part bounds, collision boxes and points.
-*   **Animations list** with thumbnails, length and playback mode; contextual inspector for the animation and the selected step(s); whole-animation mirror / rotate / reverse.
-*   **Game data on animations**: step **events** (hit windows, sounds, spawns… from a project-wide list, with a value), **Loop from** a step (an intro plays once), and **Then play** a follow-up animation when one ends (`attack → idle`). The SGDK runtime plays them exactly like the editor preview; the stage shows the current step's events and lights them up the moment their step starts, when the game's `ms_anim_player_event_started` fires.
-*   **GIF Export** of one playback cycle, pixel-identical to the editor (nested frames, rotation, shapes, preview mapping).
+### Timeline (scenes)
+- **Library → stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES /
+  GBA / GB) shows what fits on screen, placed the way the SGDK demo shows scenes.
+- **Layers and dopesheet** in one timeline, counted in frames: lower rows draw on top, drag a layer onto another to
+  parent it, eye / lock per layer.
+- **Auto-Key**: moving, flipping or rotating an object sets a key at the playhead; with Auto-Key off, edits move the
+  whole layer.
+- **Readable tweens**: bars between keys show the easing by name, curved paths are edited on the stage, animation frame
+  changes show as ticks.
+- **Choreography**: an animation swapped in at a key plays from that key, and root motion follows the object (a
+  mirrored fighter steps forward to the left).
+- **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's
+  mapping (at the top level the preview mapping) or use one of their own, also in the SGDK export.
 
-### 🎬 Timeline (Scenes)
-*   **Library → Stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES / GBA / GB) shows what fits on screen, placed the way the SGDK demo shows scenes (origin centred, three quarters down).
-*   **Layers + dopesheet** in one timeline, counted in frames: lower rows draw on top, drag a layer onto another to parent it, eye / lock per layer.
-*   **Auto-Key** like in animation tools: moving, flipping or rotating an object sets a key at the playhead. With Auto-Key off, edits move the whole layer.
-*   **Readable tweens**: bars between keys show the easing by name (right-click a bar to change it), curved paths are edited on the stage, animation frame changes show as ticks.
-*   **Contextual inspector**: only what applies to the selection — scene, object, animation playback, transform at the playhead, motion to the next key, swap image at a key. An animation swapped in at a key plays from that key.
-*   **Root motion** follows the object: a mirrored fighter steps forward to the left.
-*   **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's mapping (top level: the preview mapping) or use one of their own, also in the SGDK export. Example: the *Swordfight* scene in `examples/sgdk/PoP_WW.json`.
+### Mappings
+- **Module variants**: replace modules ("clean armour" → "damaged armour") or hide them without touching any frame.
+- **Module map**: every module with what it shows under the mapping; select rows and click a replacement (or drag it
+  onto a row); filter by image or "changed only".
+- **Bulk matching**: map a whole sheet onto a recoloured copy with the same layout, or by names (`_red` → `_blue`).
+- **Preview** of the frames the selected modules appear in, drawn with the mapping.
 
-### 🎯 Mapping Editor
-*   **Module Variants**: Replace modules (e.g. "Clean Armor" → "Damaged Armor") or hide them (invisibility) without touching frames.
-*   **Module map**: every module with what it shows under the mapping; select rows and click a replacement (or drag it onto a row); filter by image or "changed only".
-*   **Bulk matching**: map a whole sheet onto a recoloured copy with the same layout, or by names (`_red` → `_blue`).
-*   **Preview** of the frames the selected modules appear in, drawn with the mapping.
+### Mega Drive / SGDK
+- **Budget overlay** in the Frames, Animations and Timeline view bars (H40 / H32): the hardware sprites each part
+  becomes, scanlines where sprites would drop out, sprite and tile counts. The numbers follow the exporter.
+- **Exporter** (`export_sgdk`): tiles, palette, frames, animations, scenes, hitboxes, points, events and every mapping
+  in one binary blob.
+- **Runtime** (`examples/sgdk/sgdk_demo`): tiles stay in VRAM and drawing only writes the sprite table (on average 7 %
+  of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
+  scenes; characters can share animations and differ by mapping (`ms_draw_anim_player_mapped`). Tests compile it for
+  the host and compare what it draws with the editor pixel by pixel.
+- **Demo ROM**: browse every module, frame, animation and scene with live profiling.
 
----
+### Import and export
+- Import AuroraGT `.sprite` files and RetroAnimator JSON; export RetroAnimator JSON (with the preview mapping baked
+  in), SGDK data and animated GIFs.
 
-## 🚀 Getting Started
+## Examples
 
-### Prerequisites
-*   Python 3.10 or higher
-*   pip (Python Package Manager)
+| Project | What it shows |
+| :--- | :--- |
+| [`examples/sgdk/PoP_WW.json`](examples/sgdk/PoP_WW.json) | Prince of Persia: 165 modules, 207 frames, 68 animations, 2 mappings and the *Swordfight* scene (the Prince against a guard drawn with the "Normal" mapping) |
+| [`examples/sonic/sonic.json`](examples/sonic/sonic.json) | Sonic: 65 modules, 38 frames, 171 animations |
+| [`examples/adventurer/adventurer.json`](examples/adventurer/adventurer.json) | A sheet of 15 whole sprites to try Auto Modularize on |
 
-### Installation (Development)
+## Run from source
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/leissler/modular-sprite-editor.git
-    cd modular-sprite-editor
-    ```
+Python 3.10 or newer:
 
-2.  **Create a Virtual Environment**
-    ```bash
-    # Mac/Linux
-    python3 -m venv .venv
-    source .venv/bin/activate
-
-    # Windows
-    python -m venv .venv
-    .venv\Scripts\activate
-    ```
-
-3.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Run the App** (optionally with a project to open)
-    ```bash
-    python app.py examples/sgdk/PoP_WW.json
-    ```
-
-### Build Executables
 ```bash
-# macOS
-./build_macos.sh
-
-# Linux
-./build_linux.sh
+git clone https://github.com/leissler/modular-sprite-editor.git
+cd modular-sprite-editor
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python3 app.py examples/sgdk/PoP_WW.json
 ```
 
-```bat
-REM Windows
-build_windows.bat
+## Build and release
+
+```bash
+./build_macos.sh      # macOS
+./build_linux.sh      # Linux
+build_windows.bat     # Windows
 ```
 
-Releases come from the **Build And Release** GitHub workflow (Actions ▸ Run workflow, with a version). It builds
-the editor and the SGDK exporter (`export_sgdk`, the exporter as one executable) for all three platforms, tests
-every build (unit tests; the built editor drives every tab against both example projects with
-`--smoke-test PROJECT.json [LOG]`; the built exporter must write exactly what the Python one writes) and publishes
-`ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz` and `export_sgdk-*`. With *publish*
-off the run only builds and tests.
+Releases come from the **Build And Release** workflow (Actions ▸ Run workflow, with a version). It builds the editor and
+the SGDK exporter for all three platforms and tests every build: unit tests, the built editor drives every tab against
+both example projects (`--smoke-test PROJECT.json [LOG]`), and the built exporter must write exactly what the Python one
+writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz` and `export_sgdk-*`;
+with *publish* off it only builds and tests.
 
 The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
 `export_sgdk.exe`, the example projects and the SGDK demo with the SGDK it builds with, plus `export_to_sgdk.bat` /
-`build_sgdk_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI unpacks it and builds
-the PoP_WW and Sonic ROMs with those scripts.
+`build_sgdk_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI unpacks it and builds the
+PoP_WW and Sonic ROMs with those scripts.
 
-### Tests & Tools
+## Tests and tools
+
 ```bash
-python3 -m pytest -q                          # unit tests
-python3 tools/gui_smoke.py [project.json]     # drives the real UI against a project (needs a display)
-python3 tools/migrate_projects.py --dry-run DIR   # upgrade project files to the current format
-python3 tools/automod_bench.py PROJECT.json   # auto modularize benchmark: exactness, tiles, hardware sprites
+python3 -m pytest -q                               # unit tests (no display needed)
+python3 tools/gui_smoke.py [project.json]          # drives the real UI against a project (needs a display)
+python3 tools/check_export_parity.py PROJECT...    # RetroAnimator export vs. the editor canvas, pixel by pixel
+python3 tools/migrate_projects.py --dry-run DIR    # upgrade project files to the current format
+python3 tools/automod_bench.py PROJECT.json        # Auto Modularize benchmark: exactness, tiles, hardware sprites
+python3 tools/make_readme_banner.py                # this README's banner, rendered from the PoP example
 ```
 
----
-
-## ⌨️ Controls
+## Controls
 
 `Cmd` on macOS, `Ctrl` elsewhere. The full table is in **Help ▸ Keyboard & Mouse Shortcuts** (`Cmd+/`).
 
@@ -172,18 +192,15 @@ python3 tools/automod_bench.py PROJECT.json   # auto modularize benchmark: exact
 | | Set key / add-or-remove key at playhead | `K` / `Shift+K` |
 | | Flip / Rotate selected object | `H` `V` / `R` (`Shift+R` = CCW) |
 
----
+## Documentation
 
-## 📚 Documentation
+- [`AGENTS.md`](AGENTS.md): architecture, conventions and workflows for contributors and coding agents
+- [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md): project JSON schema and versioning
+- [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items
+- [`docs/ANIMATION.md`](docs/ANIMATION.md): animation capabilities and roadmap
+- [`examples/sgdk/README.md`](examples/sgdk/README.md): SGDK export and the Mega Drive runtime
 
-*   [`AGENTS.md`](AGENTS.md) — architecture, conventions and workflows for contributors and coding agents
-*   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md) — project JSON schema and versioning
-*   [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md) — UI/UX audit, what changed, open items
-*   [`docs/ANIMATION.md`](docs/ANIMATION.md) — animation capabilities and roadmap
-*   [`examples/sgdk/README.md`](examples/sgdk/README.md) — SGDK export and Mega Drive runtime
+## License
 
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT; see [LICENSE](LICENSE). The example sprite art (Prince of Persia, Sonic, Adventurer) belongs to its respective
+owners, is not covered by this license and is included only to test the editor.

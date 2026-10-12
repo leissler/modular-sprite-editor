@@ -121,7 +121,7 @@ ui/
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
-                           make_windows_kit.py
+                           make_windows_kit.py, make_readme_banner.py (README banner from the PoP example)
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one binary blob) + Mega Drive runtime
                            (sgdk_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
