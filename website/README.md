@@ -47,6 +47,7 @@ Every picture comes from the editor and the example projects; regenerate them wh
 | `docs/assets/images/art/*`: the Swordfight loop and the step pictures | `python3 website/scripts/make_site_art.py` (the editor's renderer) |
 | `docs/assets/images/logo.svg`, `favicon.png` | `python3 tools/make_app_icon.py` (also writes the app icons) |
 | `docs/reference/shortcuts.md` | `python3 website/scripts/make_shortcuts_page.py` (from `ui/shortcuts_dialog.py`) |
+| The product card on bionic-productions.com (`public/assets/modular-sprite-editor-card.png` in the bionic-site repository) | `python3 website/scripts/make_catalog_card.py OUT.png` |
 
 Pixel art is scaled by whole numbers only and shown with `image-rendering: pixelated` (`.ms-pixel`). The example art
 belongs to its owners; [Credits](docs/reference/credits.md) says so.
