@@ -43,6 +43,13 @@ TYPE_COLOURS = {
 LABEL_STEPS = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
 
 
+def _fit_text(dc: wx.DC, text: str, width: float) -> str:
+    """``text``, shortened with "…" until it fits ``width`` pixels ("" when not even that fits)."""
+    while text and dc.GetTextExtent(text)[0] > width:
+        text = text[:-2] + "…" if len(text) > 2 else ""
+    return text
+
+
 class TimelineWidget(wx.Panel):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.WANTS_CHARS | wx.BORDER_NONE)
@@ -781,9 +788,7 @@ class TimelineWidget(wx.Panel):
         locked = obj.id in self.locked_ids
         dc.SetTextForeground(COL_TEXT_DIM if hidden else COL_TEXT)
         name_rect = parts["name"]
-        text = obj.name
-        while text and dc.GetTextExtent(text)[0] > name_rect.width:
-            text = text[:-2] + "…" if len(text) > 2 else ""
+        text = _fit_text(dc, obj.name, name_rect.width)
         dc.DrawText(text, name_rect.x, y + (self.row_h - dc.GetTextExtent("Ag")[1]) // 2)
 
         # eye
@@ -843,6 +848,8 @@ class TimelineWidget(wx.Panel):
 
         # keys (selected last so they stay visible when keys share a frame)
         stack_sizes: Dict[int, int] = {}
+        # A swap label runs up to the next swap key (shortened with "…"), so close swaps stay readable.
+        swap_xs = sorted({self.frame_center_x(ops.frame_of(k.time, fps)) for k in keys if k.source_type is not None})
         for key in keys:
             frame = ops.frame_of(key.time, fps)
             stack_sizes[frame] = stack_sizes.get(frame, 0) + 1
@@ -857,6 +864,9 @@ class TimelineWidget(wx.Panel):
             if key.source_type is not None:
                 dc.DrawRectangle(int(cx - r), mid - r, 2 * r, 2 * r)
                 label = self.source_labels.get(key.id)
+                next_x = next((x for x in swap_xs if x > cx), None)
+                if label and next_x is not None:
+                    label = _fit_text(dc, label, next_x - 9 - (cx + r + 3))
                 if label:
                     dc.SetTextForeground(COL_TEXT)
                     dc.DrawText(label, int(cx + r + 3), y + 1)
