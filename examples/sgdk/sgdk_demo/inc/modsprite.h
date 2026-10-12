@@ -52,6 +52,8 @@ void ms_end_frame(void);
 /* Add a sprite of your own to this frame's list (drawn above what is added later). */
 u8 ms_add_hw_sprite(s16 x, s16 y, u8 size, u16 attribute);
 
+/* The mapping re-skins everything drawn afterwards; set it per character before drawing it (a guard drawn
+   from the hero's animations), the way AuroraGT games do. The players keep no mapping of their own. */
 void ms_set_mapping(u16 mapping_index);
 u16 ms_get_mapping(void);
 
@@ -61,6 +63,8 @@ void ms_draw_frame(u16 frame_index, s16 x, s16 y);
 void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index);
 void ms_anim_player_tick(MS_AnimPlayer *player);
 void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y);
+/* Draw with another mapping; the active mapping is left as it was. */
+void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y);
 
 /* Animation events (MS_EVENT_* from modsprite_data.h) on the step being shown.
    has_event: active while the step shows (hit windows, invulnerability, cancel windows).

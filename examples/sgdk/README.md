@@ -126,7 +126,13 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
   Types are numbered in the editor's list order (`MS_HITBOX_<NAME>`, `MS_POINT_<NAME>`), roles alphabetically
   (`MS_ROLE_<NAME>`, `MS_NO_ROLE` for none); a box whose type was deleted has type `MS_UNKNOWN_TYPE`.
 - `ms_scene_player_*()` for scene playback
-- `ms_set_mapping(index)` re-skins everything drawn afterwards
+- `ms_set_mapping(index)` re-skins everything drawn afterwards. The players keep no mapping of their own, so
+  several characters share one set of animations and differ only in the mapping they are drawn with, the way
+  AuroraGT games call the sprite's mapping setter before drawing each character:
+  ```c
+  ms_draw_anim_player(&hero, hero_x, hero_y);                              /* active mapping */
+  ms_draw_anim_player_mapped(&guard, guard_mapping, guard_x, guard_y);    /* active one stays */
+  ```
 - `ms_get_frame_profile()`: render calls, parts, hardware sprites used and dropped this frame
 
 ## Demo controls
@@ -134,6 +140,8 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 - `UP / DOWN`: switch unit type (`Module`, `Frame`, `Animation`, `Scene`)
 - `LEFT / RIGHT`: previous / next entry; `X / Y`: jump `-10 / +10`
 - `A`: pause/resume playback; `B`: reset the player
+- `START + B`: versus view (animations): the animation again on the right, drawn with the next mapping through
+  `ms_draw_anim_player_mapped`
 - `START` (press and release): cycle the active mapping (`<none>` / mapped variants)
 - `START + A`: show hitboxes (red corner marks) and points (green crosses)
 - `START + UP / DOWN`: background brightness
@@ -150,7 +158,8 @@ counts. It redraws one text line per frame at most, because drawing many lines i
 - `tests/test_sgdk_runtime_draw.py` compiles `src/modsprite.c` for the host, lets it draw every frame of the
   testbeds in the middle of the screen and across its edges, rasterises the sprite table from the exported
   tiles like the VDP and compares it with the editor's renderer pixel by pixel; it also checks the C record
-  sizes against the blob.
+  sizes against the blob. It also draws two players of one animation with different mappings into one sprite
+  table (`ms_draw_anim_player_mapped`).
 - `tests/test_sgdk_scenes.py` checks that scene objects are placed like on the Timeline stage (root motion
   mirrored and turned with the object) and keep a mapping of their own in every baked mapping.
 - `tests/test_runtime_player.py` compiles the C animation player and compares it with the editor's preview

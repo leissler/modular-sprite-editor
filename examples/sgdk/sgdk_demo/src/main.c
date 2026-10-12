@@ -18,6 +18,7 @@ enum
 #define UI_LINES_PER_FRAME 1   /* text lines redrawn per frame: drawing many in one frame drops it */
 #define SPRITE_DRAW_X 160
 #define SPRITE_DRAW_Y 168
+#define VERSUS_SPACING 48     /* versus view: hero and guard this far left / right of the centre */
 #define HUD_TOGGLE_BUTTONS (BUTTON_MODE | BUTTON_Z)
 
 static u16 g_unit = DEMO_UNIT_ANIMATION;
@@ -58,6 +59,9 @@ static MS_ScenePlayer g_scene_player;
 
 /* Hitbox / point overlay (START+A): corner marks for boxes (PAL2) and a cross for points (PAL3). */
 static u8 g_show_markers = FALSE;
+/* Versus view (START+B, animations): the animation twice, the right one with the next mapping, drawn with
+   ms_draw_anim_player_mapped: one set of animations, characters re-skinned per draw call. */
+static u8 g_versus = FALSE;
 static u16 g_marker_tile = 0;
 static u16 g_shown_boxes = 0;
 static u16 g_shown_points = 0;
@@ -263,6 +267,11 @@ static void demo_cycle_mapping(s16 delta)
 
     g_mapping_index = (u16)next;
     g_ui_dirty = TRUE;
+}
+
+static u16 demo_versus_mapping(void)
+{
+    return (u16)((g_mapping_index + 1) % demo_mapping_count());
 }
 
 /* Show the events of a step on the status line when the step starts. */
@@ -581,6 +590,11 @@ static void draw_ui(void)
         p = put_u16(p, demo_mapping_count());
         p = put_str(p, ": ");
         put_str(p, demo_mapping_name(g_mapping_index));
+        if (g_versus && g_unit == DEMO_UNIT_ANIMATION)
+        {
+            p = put_str(lines[5], "Versus: right uses ");
+            put_str(p, demo_mapping_name(demo_versus_mapping()));
+        }
 
         p = put_str(lines[6], "Parts:");
         p = put_u16(p, prof->parts_submitted);
@@ -596,7 +610,7 @@ static void draw_ui(void)
         put_u16(p, ms_tiles_used());
 
         put_str(lines[9], "UP/DOWN unit  LEFT/RIGHT +/-1");
-        put_str(lines[10], "X/Y +/-10     A pause   B reset");
+        put_str(lines[10], "X/Y +/-10  A pause  B reset  START+B vs");
         put_str(lines[11], "START map  START+UP/DN bg  C jump");
         put_str(lines[12], g_show_markers ? "START+A boxes ON  MODE/Z minimal HUD" : "START+A boxes  MODE/Z minimal HUD");
     }
@@ -719,7 +733,13 @@ int main(void)
                 g_pause = !g_pause;
                 demo_set_status(g_pause ? "Paused" : "Playing");
             }
-            if (press & BUTTON_B)
+            if ((press & BUTTON_B) && (pad & BUTTON_START))
+            {
+                g_versus = !g_versus;
+                g_ui_dirty = TRUE;
+                demo_set_status(g_versus ? "Versus: two mappings at once" : "Versus off");
+            }
+            else if (press & BUTTON_B)
             {
                 demo_sync_players();
                 demo_set_status("Playback reset");
@@ -823,11 +843,14 @@ int main(void)
                 {
                     const MS_Hitbox *boxes;
                     const MS_Point *points;
+                    s16 x = g_versus ? (SPRITE_DRAW_X - VERSUS_SPACING) : SPRITE_DRAW_X;
                     u16 nb = ms_anim_player_hitboxes(&g_anim_player, &boxes);
                     u16 np = ms_anim_player_points(&g_anim_player, &points);
-                    demo_draw_markers(boxes, nb, points, np, SPRITE_DRAW_X, SPRITE_DRAW_Y);
+                    demo_draw_markers(boxes, nb, points, np, x, SPRITE_DRAW_Y);
+                    ms_draw_anim_player(&g_anim_player, x, SPRITE_DRAW_Y);
+                    if (g_versus)
+                        ms_draw_anim_player_mapped(&g_anim_player, demo_versus_mapping(), SPRITE_DRAW_X + VERSUS_SPACING, SPRITE_DRAW_Y);
                 }
-                ms_draw_anim_player(&g_anim_player, SPRITE_DRAW_X, SPRITE_DRAW_Y);
             }
         }
         else

@@ -537,6 +537,15 @@ void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y)
     ms_draw_render_frame(step->frame_index, x, y);
 }
 
+void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y)
+{
+    u16 active = g_active_mapping;
+
+    ms_set_mapping(mapping_index);
+    ms_draw_anim_player(player, x, y);
+    g_active_mapping = active;
+}
+
 static u16 ms_render_hitboxes(u16 render_index, const MS_Hitbox **out)
 {
     const MS_RenderFrame *rf;

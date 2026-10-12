@@ -192,7 +192,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   changes, update the struct, the `struct.pack` format and the size list in `tests/test_sgdk_runtime_draw.py`, and
   bump `BLOB_VERSION`. Tiles stay in VRAM; drawing only writes `vdpSpriteCache` (no SGDK `SPR_*` engine).
   `tests/test_sgdk_runtime_draw.py` compiles `modsprite.c` for the host and compares its sprite table, rasterised
-  like the VDP, with `FrameRenderer`. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
+  like the VDP, with `FrameRenderer`. The active mapping is runtime state read at draw time (players keep none), so
+  characters with different mappings share one set of animations (`ms_draw_anim_player_mapped`, as AuroraGT games
+  set the mapping per draw); scenes are baked once per mapping, objects with their own mapping keep it. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
   counter, not `getSubTick()` (it only advances per scanline and jumps around vblank).
 - **Preferences** go through `wx.Config.Get()`; because the main window is built before the app name is set, the
   store is named after the launched script (`app` for `python3 app.py`). Test scripts therefore get their own store,
