@@ -122,7 +122,8 @@ ui/
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
                            make_windows_kit.py, make_readme_banner.py (README banner from the PoP example),
-                           make_app_icon.py (the pixel-art app icon: every size, nearest-neighbour only)
+                           make_app_icon.py (the pixel-art app icon, a wooden mannequin: every size, nearest-neighbour only),
+                           make_logo.py (the product logo: the icon's mannequin over a pixel wordmark, no example art)
 website/                   Product site + user guide for artists (MkDocs Material, deployed to
                            modularsprites.bionic-productions.com): see website/README.md
 examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one binary blob) + Mega Drive runtime

@@ -46,11 +46,12 @@ Every picture comes from the editor and the example projects; regenerate them wh
 | `docs/assets/images/screens/*.png`: editor screenshots | `python3 website/scripts/capture_screenshots.py [NAME ...]` (macOS, needs the screen; quantized to 256 colours) |
 | `docs/assets/images/art/*`: the Swordfight loop and the step pictures | `python3 website/scripts/make_site_art.py` (the editor's renderer) |
 | `docs/assets/images/logo.svg`, `favicon.png` | `python3 tools/make_app_icon.py` (also writes the app icons) |
+| `docs/assets/images/logo-title.png`: the logo on the landing page | `python3 tools/make_logo.py` (the app icon's mannequin over a pixel wordmark) |
 | `docs/reference/shortcuts.md` | `python3 website/scripts/make_shortcuts_page.py` (from `ui/shortcuts_dialog.py`) |
-| The product card on bionic-productions.com (`public/assets/modular-sprite-editor-card.png` in the bionic-site repository) | `python3 website/scripts/make_catalog_card.py OUT.png` |
+| The product card on bionic-productions.com (`public/assets/modular-sprite-editor-logo.png` in the bionic-site repository) | `python3 tools/make_logo.py --card OUT.png` |
 
 Pixel art is scaled by whole numbers only and shown with `image-rendering: pixelated` (`.ms-pixel`). The example art
-belongs to its owners; [Credits](docs/reference/credits.md) says so.
+belongs to its owners; [Credits](docs/reference/credits.md) says so. The logo uses none of it: only our own pixel art.
 
 ## Writing
 
