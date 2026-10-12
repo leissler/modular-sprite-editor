@@ -55,7 +55,7 @@ Construct complex character animations from individual body parts (modules). Def
 *   **GIF Export** of one playback cycle, pixel-identical to the editor (nested frames, rotation, shapes, preview mapping).
 
 ### 🎬 Timeline (Scenes)
-*   **Library → Stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES / GBA / GB) shows what fits on screen.
+*   **Library → Stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES / GBA / GB) shows what fits on screen, placed the way the SGDK demo shows scenes (origin centred, three quarters down).
 *   **Layers + dopesheet** in one timeline, counted in frames: lower rows draw on top, drag a layer onto another to parent it, eye / lock per layer.
 *   **Auto-Key** like in animation tools: moving, flipping or rotating an object sets a key at the playhead. With Auto-Key off, edits move the whole layer.
 *   **Readable tweens**: bars between keys show the easing by name (right-click a bar to change it), curved paths are edited on the stage, animation frame changes show as ticks.

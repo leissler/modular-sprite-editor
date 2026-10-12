@@ -49,6 +49,20 @@ def set_scene_length_frames(scene: TimelineScene, frames: int) -> None:
     scene.duration_seconds = time_of(max(1, int(frames)), scene.fps)
 
 
+# --------------------------------------------------------------------------- screen guide
+def screen_origin(size: Tuple[int, int]) -> Tuple[int, int]:
+    """Where the scene origin lies on a console screen: centred, three quarters down. That is where the SGDK demo
+    draws scenes (SPRITE_DRAW_X / SPRITE_DRAW_Y in sgdk_demo/src/main.c: 160, 168 on the Mega Drive's 320×224)."""
+    width, height = size
+    return (int(width) // 2, int(height) * 3 // 4)
+
+
+def screen_rect(size: Tuple[int, int]) -> Tuple[int, int, int, int]:
+    """The screen in scene coordinates: (x0, y0, x1, y1)."""
+    ox, oy = screen_origin(size)
+    return (-ox, -oy, int(size[0]) - ox, int(size[1]) - oy)
+
+
 def set_scene_fps(scene: TimelineScene, fps: int) -> None:
     """Change FPS keeping the scene length and every key at the same moment in time."""
     scene.fps = max(1, int(fps))

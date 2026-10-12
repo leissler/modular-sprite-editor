@@ -13,8 +13,8 @@ from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
 from ui.canvas import BUDGET, FrameCanvas
 from ui.scene_editor import ops
 
-# Retro screen guides: label -> (width, height). The guide's top-left is the scene origin,
-# so scene coordinates read as screen coordinates.
+# Retro screen guides: label -> (width, height). The scene origin lies where the SGDK demo draws scenes
+# (ops.screen_origin: centred, three quarters down).
 SCREEN_GUIDES: List[Tuple[str, Optional[Tuple[int, int]]]] = [
     ("No screen guide", None),
     ("Mega Drive 320×224", (320, 224)),
@@ -106,9 +106,9 @@ class StageCanvas(FrameCanvas):
     def get_content_bounds(self) -> Optional[Tuple[float, float, float, float]]:
         rects = [item["screen_rect"] for item in self._drawn_objects]
         if self.screen_guide:
-            w, h = self.screen_guide
-            x0, y0 = self.world_to_screen((0, 0))
-            x1, y1 = self.world_to_screen((w, h))
+            left, top, right, bottom = ops.screen_rect(self.screen_guide)
+            x0, y0 = self.world_to_screen((left, top))
+            x1, y1 = self.world_to_screen((right, bottom))
             rects.append(wx.Rect(int(x0), int(y0), int(x1 - x0), int(y1 - y0)))
         if not rects:
             return None
@@ -265,8 +265,9 @@ class StageCanvas(FrameCanvas):
         if not self.screen_guide:
             return
         w, h = self.screen_guide
-        x0, y0 = self.world_to_screen((0, 0))
-        x1, y1 = self.world_to_screen((w, h))
+        left, top, right, bottom = ops.screen_rect(self.screen_guide)
+        x0, y0 = self.world_to_screen((left, top))
+        x1, y1 = self.world_to_screen((right, bottom))
         cw, ch = self.GetClientSize()
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 130)))

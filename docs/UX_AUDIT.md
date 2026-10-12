@@ -112,7 +112,7 @@ Spine, Aseprite). The file format is unchanged; every existing scene opens as be
 | T4 | Editing a pose required finding/selecting the right key first. | Auto-Key (on by default): move / flip / rotate at the playhead and a key appears. Off: edits move the whole layer. K / Shift+K set / toggle a key. |
 | T5 | Easing picked per key from 32 technical names (`expo_in_out`, …) without a preview; it applied to the segment *ending* at that key, which was not obvious. | Tween bars between keys labelled with the easing ("Strong ease out", "Hold"); right-click a bar for quick presets; inspector picks shape × direction with a live curve preview. |
 | T6 | Kept: motion path with draggable keys / spline handles on the canvas. | Added per-frame dots on the path (spacing shows the easing) and a plain "Straight / Curved" path choice for the layer. |
-| T7 | No idea what fits on the console screen. | Screen guide (MD / SNES / NES / GBA / GB) with the scene origin at the screen's top-left; outside is dimmed. |
+| T7 | No idea what fits on the console screen. | Screen guide (MD / SNES / NES / GBA / GB); outside is dimmed. The scene origin lies where the SGDK demo draws scenes (centred, three quarters down; until 2026-10-12 it was the screen's top-left). |
 | T8 | Animation objects gave no hint where their frames change. | Green ticks on the layer row where the playing animation changes frame. |
 | T9 | Scene settings, source palette and transport spread over three boxed panels. | Library (Animations / Frames / Modules, filtered) on the left, scene settings in the inspector when nothing is selected, one transport row above the timeline. |
 

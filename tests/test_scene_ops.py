@@ -1,4 +1,6 @@
+import re
 import unittest
+from pathlib import Path
 
 from models import Project
 from ui.scene_editor import ops
@@ -235,6 +237,16 @@ class TestRootMotion(unittest.TestCase):
         for v1, v2 in zip(before, self._world(project, scene, obj)):
             self.assertAlmostEqual(v1, v2, places=6)
 
+
+
+class TestScreenGuide(unittest.TestCase):
+    def test_origin_is_where_the_sgdk_demo_draws_scenes(self):
+        main_c = (Path(__file__).resolve().parents[1] / "examples" / "sgdk" / "sgdk_demo" / "src" / "main.c").read_text()
+        x = int(re.search(r"#define SPRITE_DRAW_X (\d+)", main_c).group(1))
+        y = int(re.search(r"#define SPRITE_DRAW_Y (\d+)", main_c).group(1))
+        self.assertEqual(ops.screen_origin((320, 224)), (x, y))
+        self.assertEqual(ops.screen_rect((320, 224)), (-160, -168, 160, 56))
+        self.assertEqual(ops.screen_rect((160, 144)), (-80, -108, 80, 36))
 
 
 if __name__ == "__main__":

@@ -119,7 +119,9 @@ class SceneEditorPanel(wx.Panel):
             scene_backdrop=True, part_bounds=True, budget=True,
         )
         self.screen_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in SCREEN_GUIDES])
-        self.screen_choice.SetToolTip("Outline of a console screen with its top-left at the scene origin")
+        self.screen_choice.SetToolTip(
+            "Outline of a console screen, placed like the SGDK demo shows scenes: the scene origin centred, three quarters down"
+        )
         self.canvas_controls.add_control(self.screen_choice, "Screen")
         stage_sizer.Add(self.stage, 1, wx.EXPAND | wx.ALL, 2)
         stage_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)

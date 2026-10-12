@@ -211,7 +211,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   key of the layer. Put scene logic in `ops.py` (testable without a display), not in the widgets. The stage draws,
   measures and budgets each object with its mapping (`StageCanvas.object_mapping`); canvases resolve parts through
   `FrameCanvas.mapping` (the preview mapping unless `drawing_mapping()` overrides it), never
-  `project.active_mapping` directly.
+  `project.active_mapping` directly. The screen guide puts the scene origin where the SGDK demo draws scenes
+  (`ops.screen_origin`, tested against `SPRITE_DRAW_X/Y` in `sgdk_demo/src/main.c`).
 - **Animations:** holds are ticks at `Animation.fps`; anything below 1 plays as 1 (`ops.hold`), like the exporters.
   Playback preview goes through `ops.Player`, which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop
   backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts, follow-up animation);
