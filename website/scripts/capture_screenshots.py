@@ -75,15 +75,47 @@ def trim_right(name: str, margin: int = 24) -> None:
         256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(path, optimize=True)
 
 
-def capture(name: str, rect: wx.Rect) -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / f"{name}.png"
-    subprocess.run(["screencapture", "-x", "-o", "-R", f"{rect.x},{rect.y},{rect.width},{rect.height}", str(path)], check=True)
-    # 256 colours are enough for the editor's flat UI and the pixel art, at a fraction of the size.
+def window_number(window: wx.Window) -> int:
+    """The macOS window number of a top-level window, for `screencapture -l`."""
+    import ctypes
+    import ctypes.util
+
+    objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+    objc.sel_registerName.restype = ctypes.c_void_p
+    objc.sel_registerName.argtypes = [ctypes.c_char_p]
+    send = objc.objc_msgSend
+    send.restype = ctypes.c_void_p
+    send.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    ns_window = send(ctypes.c_void_p(window.GetHandle()), objc.sel_registerName(b"window"))
+    send.restype = ctypes.c_long
+    return int(send(ctypes.c_void_p(ns_window), objc.sel_registerName(b"windowNumber")))
+
+
+def capture(name: str, rect: wx.Rect, window=None) -> None:
+    """Save the screen rectangle `rect` of a window (the editor's unless given). The window alone is captured and then
+    cut, so other programs' windows in front of it never end up in a picture."""
     from PIL import Image
 
-    image = Image.open(path).convert("RGB")
-    image.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(path, optimize=True)
+    window = window or frame
+    OUT.mkdir(parents=True, exist_ok=True)
+    path = OUT / f"{name}.png"
+    subprocess.run(["screencapture", "-x", "-o", "-l", str(window_number(window)), str(path)], check=True)
+    image = Image.open(path).convert("RGBA")  # the window's rounded corners stay transparent
+    outer = window.GetScreenRect()
+    scale = image.width / outer.width
+    box = (rect.x - outer.x, rect.y - outer.y, rect.Right + 1 - outer.x, rect.Bottom + 1 - outer.y)
+    image = image.crop(tuple(int(round(v * scale)) for v in box))
+    # 256 colours are enough for the editor's flat UI and the pixel art, at a fraction of the size; the last one is
+    # kept for the transparent corners of a whole window.
+    quantized = image.convert("RGB").quantize(255, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+    alpha = image.getchannel("A")
+    if alpha.getextrema()[0] < 128:
+        colours = quantized.getpalette() or []
+        quantized.putpalette(colours[:765] + [0] * (768 - len(colours[:765])))  # index 255 exists
+        quantized.paste(255, mask=alpha.point(lambda a: 255 if a < 128 else 0))
+        quantized.save(path, optimize=True, transparency=255)
+    else:
+        quantized.save(path, optimize=True)
     print("captured", path.relative_to(REPO), f"{image.width}x{image.height}", f"{path.stat().st_size // 1024} KB")
 
 
@@ -92,7 +124,7 @@ def shoot(name: str, window=None) -> None:
     window = window or frame
     window.Raise()
     pump(0.8)
-    capture(name, window.GetScreenRect())
+    capture(name, window.GetScreenRect(), window)
 
 
 def part(name: str, *widgets: wx.Window, pad: int = 6, top: Optional[wx.Window] = None,
@@ -109,7 +141,7 @@ def part(name: str, *widgets: wx.Window, pad: int = 6, top: Optional[wx.Window] 
     if bottom is not None:
         rect = wx.Rect(rect.x, rect.y, rect.width, bottom.GetScreenRect().Bottom - rect.y + 1)
     rect.Inflate(pad, pad)
-    capture(name, rect)
+    capture(name, rect, window)
 
 
 def canvas_part(name: str, canvas, box: Tuple[float, float, float, float], pad: int = 16) -> None:
@@ -227,6 +259,13 @@ def run_pop() -> None:
             toggle(me.chk_names, me._on_names, False)
             toggle(me.chk_pivots, me._on_pivots, False)
 
+    if wanted("modules-palette", group):
+        frame.select_tab(0)
+        me.select_sheet(proj.images[0].id)
+        me.select_modules([])
+        pump()
+        part("modules-palette", me.inspector, pad=0, top=me.inspector.palette_choice, bottom=me.inspector.palette_strip)
+
     # ---------------------------------------------------------------- Frames
     fe = frame.frame_editor
     toggle(fe.chk_points, fe._on_show_points, False)  # the pose itself; hitboxes and points have their own shots
@@ -322,8 +361,9 @@ def run_pop() -> None:
             shoot("budget")
         if wanted("budget-readout", group):
             canvas = fe.canvas
-            r = canvas.GetScreenRect()
-            capture("budget-readout", wx.Rect(r.x, r.y, 440, 64))
+            x, y, w, h = canvas.budget_hud_rect
+            origin = canvas.ClientToScreen(wx.Point(int(x) - 4, int(y) - 4))
+            capture("budget-readout", wx.Rect(origin.x, origin.y, int(w) + 8, int(h) + 8))
         fe.canvas_controls._set_budget("", persist=False)
 
     # ---------------------------------------------------------------- Animations
@@ -388,7 +428,7 @@ def run_pop() -> None:
         ae.refresh()
         pump()
         scroll_to(ae.inspector, ae.inspector.budget_label)
-        part("budget-animation", ae.inspector, pad=0, top=ae.inspector.budget_label, bottom=ae.inspector.budget_info)
+        part("budget-animation", ae.inspector, pad=0, top=ae.inspector.budget_info, bottom=ae.inspector.budget_info)
         ae.canvas_controls._set_budget("", persist=False)
 
     # ---------------------------------------------------------------- Timeline
