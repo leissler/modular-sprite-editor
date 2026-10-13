@@ -208,4 +208,8 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 ## License
 
 MIT; see [LICENSE](LICENSE). The example sprite art (Prince of Persia, Sonic, Adventurer) belongs to its respective
-owners, is not covered by this license and is included only to test the editor.
+owners, is not covered by this license and is included only to test the editor. The Adventurer sheet is
+[Pixel Art Adventurer Sprites](https://elthen.itch.io/pixel-art-adventurer-sprites) v1.1 by Elthen, under
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) with the
+[artist's additional permissions](https://www.patreon.com/posts/27430241); see
+[examples/adventurer/CREDITS.md](examples/adventurer/CREDITS.md).

@@ -42,3 +42,5 @@ The [Auto Modularize guide](../guide/auto-modularize.md) shows the same Sonic po
 
 - follow [Your first animated sprite](../start/first-sprite.md) to animate its run;
 - run [Auto Modularize](../guide/auto-modularize.md) on it and compare the memory before and after.
+
+The sheet is version 1.1 of [Pixel Art Adventurer Sprites](https://elthen.itch.io/pixel-art-adventurer-sprites) by Elthen, under CC BY-NC 4.0 (see [Credits](../reference/credits.md)). Elthen's page has the latest version, with many more animations.

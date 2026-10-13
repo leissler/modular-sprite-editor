@@ -2,7 +2,7 @@
 
 In this lesson you take a sprite sheet, cut it into modules, make frames from them and turn eight of them into a running animation. At the end you export it as an animated GIF.
 
-Use any sheet you like. The steps use the Adventurer sheet from the [example projects](../examples/index.md), `examples/adventurer/adventurer_sprite_sheet_v1.1.png`: a character drawn in 32 by 32 pixel cells, one animation per row, on a transparent background. Its second row is an eight-step run.
+Use any sheet you like. The steps use Elthen's Adventurer sheet from the [example projects](../examples/index.md), `examples/adventurer/adventurer_sprite_sheet_v1.1.png`: a character drawn in 32 by 32 pixel cells, one animation per row, on a transparent background. Its second row is an eight-step run.
 
 ## 1. Start a project
 
