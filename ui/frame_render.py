@@ -1,7 +1,7 @@
 """Pixel-exact frame images for every preview (thumbnails, lists, GIF export).
 
-Renders with the RetroAnimator exporter's renderer, which tools/check_export_parity.py keeps identical to
-the editor canvas: nested frames, part rotation, shape modules and the preview mapping all come out right.
+Renders with the compositor (compositor.py, also behind the exports), which tools/check_export_parity.py keeps
+identical to the editor canvas: nested frames, part rotation, shape modules and the preview mapping all come out right.
 Results are cached by *content* (the frame's parts, nested frames, modules and mapping), so edits in any tab
 show up without anyone having to clear a cache.
 """
@@ -13,7 +13,8 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 import wx
 
-from models import Frame, ImageAsset, Module, ModuleMapping, Project, RetroAnimatorExporter as _RA
+import compositor
+from models import Frame, ImageAsset, Module, ModuleMapping, Project
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
@@ -27,12 +28,12 @@ def transform(
     mirror: Tuple[bool, bool] = (False, False),
 ) -> Tuple[Matrix, Tuple[float, float]]:
     """Frame-level transform (flip, then rotate, then offset), optionally inside a whole-view mirror."""
-    a = _RA._mat_mul(_RA._rotation_matrix(float(rotation)), _RA._flip_matrix(bool(flip_x), bool(flip_y)))
+    a = compositor.mat_mul(compositor.rotation_matrix(float(rotation)), compositor.flip_matrix(bool(flip_x), bool(flip_y)))
     b = (float(offset[0]), float(offset[1]))
     if mirror[0] or mirror[1]:
-        m = _RA._flip_matrix(bool(mirror[0]), bool(mirror[1]))
-        a = _RA._mat_mul(m, a)
-        b = _RA._mat_vec_mul(m, b)
+        m = compositor.flip_matrix(bool(mirror[0]), bool(mirror[1]))
+        a = compositor.mat_mul(m, a)
+        b = compositor.mat_vec_mul(m, b)
     return a, b
 
 
@@ -56,7 +57,7 @@ def mapping_key(mapping: Optional[ModuleMapping]) -> Any:
 
 
 def _module_key(project: Project, module_id: str, mapping: Optional[ModuleMapping]) -> Any:
-    mod = _RA._resolve_module(project, module_id, mapping)
+    mod = compositor.resolve_module(project, module_id, mapping)
     if mod is None:
         return None
     asset = project.get_image(mod.image_id) if mod.type == "MD_IMAGE" else None
@@ -139,7 +140,7 @@ class FrameRenderer:
             self._results.move_to_end(key)
             return cached
         self._forget_changed_modules(project, signature)
-        image, hx, hy, _collisions = _RA._render_frame_variant(project, frame, mapping, a, b, self._images, self._modules)
+        image, hx, hy, _collisions = compositor.render_frame(project, frame, mapping, a, b, self._images, self._modules)
         result = (image, int(hx), int(hy))
         self._results[key] = result
         while len(self._results) > self.max_items:
@@ -152,7 +153,7 @@ class FrameRenderer:
         if self._module_keys.get(module.id) != content:
             self._modules.pop(module.id, None)
             self._module_keys[module.id] = content
-        return _RA._load_module_rgba(project, module, self._images, self._modules)
+        return compositor.load_module_rgba(project, module, self._images, self._modules)
 
     def sheet(self, project: Project, asset: ImageAsset, keyed: bool = True) -> Any:
         """A whole image asset as RGBA (with its key colour removed unless ``keyed`` is False), or None."""

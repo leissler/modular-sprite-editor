@@ -1039,14 +1039,14 @@ def run():
 
     # ---- Optimize Sprite Sheet: the repacked sheet draws every frame the same; undo brings the old one back
     def optimize_sheet():
+        import compositor
         import ui.optimize_dialog as optimize_dialog
-        from models import RetroAnimatorExporter as RA
 
         def drawn():
             images, modules = {}, {}
             shown = []
             for f in proj.frames:
-                image = RA._render_frame_variant(proj, f, None, ((1.0, 0.0), (0.0, 1.0)), (0.0, 0.0), images, modules)[0]
+                image = compositor.render_frame(proj, f, None, compositor.IDENTITY, (0.0, 0.0), images, modules)[0]
                 shown.append(image.tobytes() if image is not None else b"")
             return shown
 

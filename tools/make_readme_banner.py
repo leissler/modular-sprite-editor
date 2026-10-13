@@ -18,7 +18,8 @@ sys.path.insert(0, REPO)
 
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
-from models import Frame, ModuleMapping, Project, RetroAnimatorExporter as RA  # noqa: E402
+import compositor  # noqa: E402
+from models import Frame, ModuleMapping, Project  # noqa: E402
 from ui.frame_geometry import part_bounds  # noqa: E402
 from ui.scene_editor import ops  # noqa: E402
 
@@ -53,8 +54,8 @@ def font(size: float, weight: str = "Regular") -> ImageFont.FreeTypeFont:
 def render(project: Project, frame: Frame, mapping: Optional[ModuleMapping], flip_x: bool = False,
            offset: Tuple[float, float] = (0.0, 0.0)) -> Tuple[Image.Image, int, int]:
     """The frame in art pixels and the position of its top-left relative to the origin."""
-    a = RA._mat_mul(RA._rotation_matrix(0.0), RA._flip_matrix(flip_x, False))
-    image, hx, hy, _ = RA._render_frame_variant(project, frame, mapping, a, offset, _images, _modules)
+    a = compositor.mat_mul(compositor.rotation_matrix(0.0), compositor.flip_matrix(flip_x, False))
+    image, hx, hy, _ = compositor.render_frame(project, frame, mapping, a, offset, _images, _modules)
     return image, hx, hy
 
 
@@ -123,7 +124,7 @@ def main() -> None:
         for module in r:
             mw, mh = module.rect[2] * PX, module.rect[3] * PX
             my = y + (row_height - mh) // 2
-            art = RA._load_module_rgba(project, module, _images, _modules)
+            art = compositor.load_module_rgba(project, module, _images, _modules)
             banner.alpha_composite(scaled(art), (x, my))
             lines.rectangle((x - S, my - S, x + mw + S - 1, my + mh + S - 1), outline=MODULE_OUTLINE + (150,), width=S)
             x += mw + gap

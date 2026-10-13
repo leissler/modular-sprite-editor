@@ -7,8 +7,9 @@ import os
 from itertools import combinations
 from typing import Any, Dict, List, Optional, Tuple
 
+import compositor
 import palettes
-from models import FModule, Frame, Project, RetroAnimatorExporter, generate_id
+from models import FModule, Frame, Project, generate_id
 from rect_packer import MaxRectsBinPack
 
 HEURISTICS = (
@@ -53,7 +54,7 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
             empty.append(mod)  # kept, without pixels (e.g. to hide parts in a mapping)
             continue
         try:
-            image = RetroAnimatorExporter._load_module_rgba(project, mod, full_images, module_images)
+            image = compositor.load_module_rgba(project, mod, full_images, module_images)
         except (OSError, ValueError):
             continue
         rects_to_pack.append((image.width + padding, image.height + padding, mod, image))

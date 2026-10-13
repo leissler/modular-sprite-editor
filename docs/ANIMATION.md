@@ -93,9 +93,9 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
   NTSC vs. PAL.
 
 ### 5. One compositor for all previews and exports (correctness)
-- Extract a `render_frame(project, frame, mapping, transform) -> PIL.Image + handle` from
-  `RetroAnimatorExporter._render_frame_variant` (now verified against the canvas) and use it for thumbnails,
-  the frame strip, GIF export, onion-skin bakes and both exporters.
+- Done: `compositor.render_frame(project, frame, mapping, transform, ...) -> image + handle` (`compositor.py`, verified
+  against the canvas) draws every thumbnail, the frame strip, GIF export and the RetroAnimator export. The SGDK
+  exporter shares its matrices and module images but cuts its own hardware-sprite pieces.
 
 ### 6. Palette awareness (high value for MD/SNES, larger effort)
 - Show the per-part palette line (derived from source colours or assigned), warn on parts that need >16 colours,

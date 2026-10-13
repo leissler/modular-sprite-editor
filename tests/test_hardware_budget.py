@@ -10,12 +10,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "examples", "sgdk", "tools"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import compositor  # noqa: E402
 import hardware_budget as hb  # noqa: E402
-from models import FModule, ModuleMapping, Project, RetroAnimatorExporter, TimelineKeyframe, generate_id  # noqa: E402
+from models import FModule, ModuleMapping, Project, TimelineKeyframe, generate_id  # noqa: E402
 
 
 def _transform(flip_x=False, flip_y=False, rotation=0.0, offset=(0.0, 0.0)):
-    a = RetroAnimatorExporter._mat_mul(RetroAnimatorExporter._rotation_matrix(rotation), RetroAnimatorExporter._flip_matrix(flip_x, flip_y))
+    a = compositor.mat_mul(compositor.rotation_matrix(rotation), compositor.flip_matrix(flip_x, flip_y))
     return a, (float(offset[0]), float(offset[1]))
 
 

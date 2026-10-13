@@ -25,8 +25,9 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+import compositor
 import palettes
-from models import Frame, ModuleMapping, Project, RetroAnimatorExporter as _RA
+from models import Frame, ModuleMapping, Project
 from project_check import MD_TILE_CAPACITY
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
@@ -210,7 +211,7 @@ class BudgetCalculator:
     ) -> List[HwPart]:
         self._sync_palettes(project)
         instances: List[Any] = []
-        _RA._collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set())
+        compositor.collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set())
         parts: List[HwPart] = []
         for mod, a_mat, b_vec, _rot, _fx, _fy, local_fx, local_fy in instances:
             part = self._leaf_part(project, mod, a_mat, b_vec, local_fx, local_fy, profile)
@@ -228,7 +229,7 @@ class BudgetCalculator:
         b: Tuple[float, float] = (0.0, 0.0),
     ) -> List[HwPart]:
         self._sync_palettes(project)
-        mod = _RA._resolve_module(project, module_id, mapping)
+        mod = compositor.resolve_module(project, module_id, mapping)
         if mod is None:
             return []
         part = self._leaf_part(project, mod, a, b, False, False, profile)
@@ -341,7 +342,7 @@ class BudgetCalculator:
         if self._module_keys.get(mod.id) != key:
             self._modules.pop(mod.id, None)
             self._module_keys[mod.id] = key
-        return _RA._load_module_rgba(project, mod, self._images, self._modules)
+        return compositor.load_module_rgba(project, mod, self._images, self._modules)
 
     def _leaf_part(
         self,
@@ -429,7 +430,7 @@ class BudgetCalculator:
 
 def frame_transform(offset: Sequence[float], rotation: float, flip_x: bool, flip_y: bool) -> Tuple[Matrix, Tuple[float, float]]:
     """A frame drawn flipped, then rotated, then moved (an animation step, a scene object): the export's matrix."""
-    a = _RA._mat_mul(_RA._rotation_matrix(float(rotation)), _RA._flip_matrix(bool(flip_x), bool(flip_y)))
+    a = compositor.mat_mul(compositor.rotation_matrix(float(rotation)), compositor.flip_matrix(bool(flip_x), bool(flip_y)))
     return a, (float(offset[0]), float(offset[1]))
 
 
@@ -506,16 +507,16 @@ def _baked(base: Any, mod: Any, a: Matrix, b: Tuple[float, float], local_fx: boo
     if local_fy:
         base = base.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
     w, h = base.size
-    ap = _RA._mat_vec_mul(a, (float(mod.pivot[0]), float(mod.pivot[1])))
+    ap = compositor.mat_vec_mul(a, (float(mod.pivot[0]), float(mod.pivot[1])))
     c = (float(b[0]) - ap[0], float(b[1]) - ap[1])
     xs, ys = [], []
     for u, v in ((0.0, 0.0), (float(w), 0.0), (0.0, float(h)), (float(w), float(h))):
-        tx, ty = _RA._mat_vec_mul(a, (u, v))
+        tx, ty = compositor.mat_vec_mul(a, (u, v))
         xs.append(tx + c[0])
         ys.append(ty + c[1])
     min_x, min_y = int(math.floor(min(xs))), int(math.floor(min(ys)))
     out_w, out_h = int(math.ceil(max(xs))) - min_x, int(math.ceil(max(ys))) - min_y
-    inv = _RA._invert(a)
+    inv = compositor.invert(a)
     if out_w <= 0 or out_h <= 0 or not inv:
         return None, 0, 0
     dx, dy = float(min_x) - c[0], float(min_y) - c[1]

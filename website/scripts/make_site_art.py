@@ -23,8 +23,9 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from PIL import Image, ImageDraw  # noqa: E402
 
+import compositor  # noqa: E402
 import make_readme_banner as banner  # noqa: E402
-from models import Project, RetroAnimatorExporter as RA  # noqa: E402
+from models import Project  # noqa: E402
 from ui.frame_geometry import part_bounds  # noqa: E402
 from ui.scene_editor import ops  # noqa: E402
 
@@ -88,7 +89,7 @@ def main() -> None:
     for r, row_h in zip(rows, heights):
         x = gap
         for module in r:
-            art = RA._load_module_rgba(project, module, banner._images, banner._modules)
+            art = compositor.load_module_rgba(project, module, banner._images, banner._modules)
             ox = x + (cell_w - gap - module.rect[2]) // 2
             oy = y + (row_h - gap - module.rect[3]) // 2
             image.alpha_composite(art.resize((art.width * scale, art.height * scale), Image.NEAREST), (ox * scale, oy * scale))

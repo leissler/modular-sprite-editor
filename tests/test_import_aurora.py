@@ -4,7 +4,8 @@ import os
 import tempfile
 import unittest
 
-from models import AuroraSpriteParser, Module, Project
+from importers import aurora
+from models import Module, Project
 
 PRINCE = r"""
 // D:\Work\POPSOT2\POP2\res_data\game\sprites\prince.sprite
@@ -102,7 +103,7 @@ SPRITE = r"""
 class TestAuroraCollisionRects(unittest.TestCase):
     def test_empty_rects_are_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
-            project = AuroraSpriteParser.parse(SPRITE, tmp)
+            project = aurora.parse(SPRITE, tmp)
         frames = {f.name: f for f in project.frames}
         self.assertEqual(frames["empty"].collision_rects, [])
         self.assertEqual([cr.rect for cr in frames["boxed"].collision_rects], [(-4, -8, 8, 8)])
@@ -124,7 +125,7 @@ LINES = r"""
 class TestAuroraLines(unittest.TestCase):
     def test_lines_become_percentages_of_their_rect(self):
         with tempfile.TemporaryDirectory() as tmp:
-            project = AuroraSpriteParser.parse(LINES, tmp)
+            project = aurora.parse(LINES, tmp)
         lines = {m.name: m for m in project.modules}
         self.assertEqual(sorted(lines), ["down right", "left"], "a name with a space no longer drops the module")
         self.assertEqual((lines["down right"].rect, lines["down right"].params), ((0, 0, 8, 4), [0.0, 0.0, 100.0, 100.0]))

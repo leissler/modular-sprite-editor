@@ -52,9 +52,17 @@ app.py                     MainFrame: menus, tabs, context bar (preview mapping)
                            project lifecycle (new/open/save/import/export), unsaved-change prompt,
                            project-wide undo/redo dispatch, autosave timer + crash recovery prompt,
                            images changed on disk (checked when the window becomes active)
-models.py                  Dataclasses + JSON (to_dict/from_dict), format migration, timeline evaluation
-                           (easing, spline paths, source switching), AuroraGT + RetroAnimator import,
-                           RetroAnimator export (baked parts), role tables
+models/                    The data model (wx-free); import from `models` (the package re-exports it all):
+  core.py                  ImageAsset, Module, FModule, Frame (hitboxes, points), Animation, mappings, types, ids,
+                           JSON (to_dict/from_dict)
+  timeline.py              Timeline scenes: keys, easing, spline paths, source switching, evaluate_object_state
+  migration.py             PROJECT_FORMAT_VERSION, migrate_project_dict (raw dicts, one step per version)
+  project.py               Project: the lists, lookups by id, native JSON (from_json also imports the formats below)
+importers/                 aurora.py (AuroraGT .sprite), retroanimator.py (RetroAnimator JSON): parse() -> Project
+exporters/                 retroanimator.py: export() (RetroAnimator JSON + baked part PNGs, the active mapping baked)
+compositor.py              The reference compositor (Pillow, wx-free): 2×2 matrices, module images (key colour,
+                           shapes), leaf instances of nested frames, render_frame — previews, budget, Optimize Sprite
+                           Sheet and both exporters build on it
 hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32): SGDK-exact part placement,
                            ≤32×32 VDP sprite cut (SNES: square small / large sprites), per-screen / per-line limits,
                            video memory (tiles stored like the export, the project's total) — wx-free, tested against
@@ -158,7 +166,7 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
                            FILE_FORMAT.md, ANIMATION.md
 ```
 
-## Data model essentials (`models.py`)
+## Data model essentials (`models/`)
 
 - `Project` holds lists of `ImageAsset`, `Module`, `Frame`, `Animation`, `TimelineScene`, `ModuleMapping`,
   `CollisionType`, `PointType`. Lookups are linear `get_*` by id. Everything is referenced **by id**.
@@ -181,12 +189,12 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
 ## File format
 
 Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **6**, constant
-`PROJECT_FORMAT_VERSION`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
+`PROJECT_FORMAT_VERSION` in `models/migration.py`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
 
-**When you change the format:** bump `PROJECT_FORMAT_VERSION`, add a `_migrate_vN_to_vN+1` step that works
-on raw dicts, add a test in `tests/test_format_migration.py`, keep changes additive where possible, then run
+**When you change the format:** bump `PROJECT_FORMAT_VERSION`, add a `_migrate_vN_to_vN+1` step to `models/migration.py`
+that works on raw dicts, add a test in `tests/test_format_migration.py`, keep changes additive where possible, then run
 `tools/migrate_projects.py --backup-zip …` over every project file you can find (repo examples and the user's
 copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 
@@ -363,12 +371,12 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 | Path | Where | Nested frames | Rotation | Shapes | Mapping |
 |---|---|---|---|---|---|
 | Frame/animation/timeline canvas | `ui/canvas.py` | yes | 90° steps | yes | yes |
-| All frame thumbnails, Animations tab, GIF export | `ui/frame_render.py` (RetroAnimator renderer, content-cached) | yes | yes | yes | yes |
+| All frame thumbnails, Animations tab, GIF export | `ui/frame_render.py` (`compositor.render_frame`, content-cached) | yes | yes | yes | yes |
 | Module thumbnails (lists, palettes, mapping table) | `ui/frame_render.py` `FrameRenderer.module` via `ModuleThumbnails` | n/a | n/a | yes | n/a |
 | Modules tab sheet | `FrameRenderer.sheet` (key colour cut in C, like the exporter) | n/a | n/a | n/a | n/a |
-| RetroAnimator export | `RetroAnimatorExporter` | yes | any (affine) | yes | yes |
+| RetroAnimator export | `exporters/retroanimator.py` (on `compositor`) | yes | any (affine) | yes | yes |
 | SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
 
-Previews now share one compositor (`ui/frame_render.py`); `tests/test_thumbnails.py` checks thumbnails against the
-canvas. The SGDK exporter still bakes on its own (it needs per-part hardware sprites, not a flat image);
+Previews share one compositor (`compositor.py`, cached by `ui/frame_render.py`); `tests/test_thumbnails.py` checks
+thumbnails against the canvas. The SGDK exporter still bakes on its own (it needs per-part hardware sprites, not a flat image);
 `tests/test_sgdk_runtime_draw.py` checks what the Mega Drive runtime draws against `FrameRenderer`.

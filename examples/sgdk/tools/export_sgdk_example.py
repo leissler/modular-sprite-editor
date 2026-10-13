@@ -25,7 +25,8 @@ else:
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from models import Frame, Module, ModuleMapping, Project, RetroAnimatorExporter, TimelineScene  # noqa: E402
+import compositor  # noqa: E402
+from models import Frame, Module, ModuleMapping, Project, TimelineScene  # noqa: E402
 import palettes  # noqa: E402
 import project_check  # noqa: E402
 from project_check import Issue  # noqa: E402
@@ -221,7 +222,7 @@ class SGDKBakeContext:
         return int(mod.rect[2]) <= 0 or int(mod.rect[3]) <= 0
 
     def _resolve_module(self, module_id: str) -> Optional[Module]:
-        mod = RetroAnimatorExporter._resolve_module(self.project, module_id, self.mapping)
+        mod = compositor.resolve_module(self.project, module_id, self.mapping)
         if self._is_hidden_module(mod):
             return None
         return mod
@@ -401,13 +402,13 @@ class SGDKBakeContext:
         self, frame: Frame, offset: Vec2, rotation_degrees: float, flip_x: bool, flip_y: bool
     ) -> Tuple[Tuple[BoxEntry, ...], Tuple[PointEntry, ...]]:
         """The frame's own hitboxes and points, moved like the frame (flip, then rotate, then offset)."""
-        a_mat = RetroAnimatorExporter._mat_mul(
-            RetroAnimatorExporter._rotation_matrix(rotation_degrees),
-            RetroAnimatorExporter._flip_matrix(flip_x, flip_y),
+        a_mat = compositor.mat_mul(
+            compositor.rotation_matrix(rotation_degrees),
+            compositor.flip_matrix(flip_x, flip_y),
         )
 
         def move(x: float, y: float) -> Vec2:
-            tx, ty = RetroAnimatorExporter._mat_vec_mul(a_mat, (float(x), float(y)))
+            tx, ty = compositor.mat_vec_mul(a_mat, (float(x), float(y)))
             return (tx + float(offset[0]), ty + float(offset[1]))
 
         boxes: List[BoxEntry] = []
@@ -458,7 +459,7 @@ class SGDKBakeContext:
         local_flip_x: bool = False,
         local_flip_y: bool = False,
     ) -> Optional[PartEntry]:
-        base = RetroAnimatorExporter._load_module_rgba(
+        base = compositor.load_module_rgba(
             project=self.project,
             mod=mod,
             full_image_cache=self.full_image_cache,
@@ -519,7 +520,7 @@ class SGDKBakeContext:
         local_flip_x: bool,
         local_flip_y: bool,
     ) -> Optional[Tuple[Image.Image, int, int]]:
-        base = RetroAnimatorExporter._load_module_rgba(
+        base = compositor.load_module_rgba(
             project=self.project,
             mod=mod,
             full_image_cache=self.full_image_cache,
@@ -536,7 +537,7 @@ class SGDKBakeContext:
             return None
 
         piv = (float(mod.pivot[0]), float(mod.pivot[1]))
-        ap = RetroAnimatorExporter._mat_vec_mul(a_mat, piv)
+        ap = compositor.mat_vec_mul(a_mat, piv)
         c_vec = (float(b_vec[0]) - ap[0], float(b_vec[1]) - ap[1])
 
         corners = (
@@ -548,7 +549,7 @@ class SGDKBakeContext:
         xs: List[float] = []
         ys: List[float] = []
         for u, v in corners:
-            tx, ty = RetroAnimatorExporter._mat_vec_mul(a_mat, (u, v))
+            tx, ty = compositor.mat_vec_mul(a_mat, (u, v))
             xs.append(tx + c_vec[0])
             ys.append(ty + c_vec[1])
 
@@ -561,7 +562,7 @@ class SGDKBakeContext:
         if out_w <= 0 or out_h <= 0:
             return None
 
-        inv = RetroAnimatorExporter._invert(a_mat)
+        inv = compositor.invert(a_mat)
         if not inv:
             return None
 
@@ -622,17 +623,17 @@ class SGDKBakeContext:
             local_flip_x = bool(getattr(fm, "flip_x", False))
             local_flip_y = bool(getattr(fm, "flip_y", False))
             local_b = (float(fm.position[0]), float(fm.position[1]))
-            rot_a = RetroAnimatorExporter._rotation_matrix(local_rot)
-            flip_a = RetroAnimatorExporter._flip_matrix(local_flip_x, local_flip_y)
+            rot_a = compositor.rotation_matrix(local_rot)
+            flip_a = compositor.flip_matrix(local_flip_x, local_flip_y)
 
             # Match editor behavior: module-local flips mirror pixels in-place and
             # do not change module bounds/anchor placement.
             if fm.ref_type == "frame":
-                local_a = RetroAnimatorExporter._mat_mul(rot_a, flip_a)
+                local_a = compositor.mat_mul(rot_a, flip_a)
             else:
                 local_a = rot_a
 
-            a_next, b_next = RetroAnimatorExporter._compose(parent_a, parent_b, local_a, local_b)
+            a_next, b_next = compositor.compose(parent_a, parent_b, local_a, local_b)
             parent_flipped = bool(parent_flip_x) ^ bool(parent_flip_y)
             rot_next = float(parent_rot) + (-local_rot if parent_flipped else local_rot)
             flip_x_next = bool(parent_flip_x) ^ local_flip_x
@@ -668,9 +669,9 @@ class SGDKBakeContext:
         if not mod:
             return tuple()
 
-        a_mat = RetroAnimatorExporter._mat_mul(
-            RetroAnimatorExporter._rotation_matrix(rotation_degrees),
-            RetroAnimatorExporter._flip_matrix(flip_x, flip_y),
+        a_mat = compositor.mat_mul(
+            compositor.rotation_matrix(rotation_degrees),
+            compositor.flip_matrix(flip_x, flip_y),
         )
         part = self._render_leaf_part(
             mod=mod,
@@ -706,9 +707,9 @@ class SGDKBakeContext:
         if cached is not None:
             return cached
 
-        parent_a = RetroAnimatorExporter._mat_mul(
-            RetroAnimatorExporter._rotation_matrix(rotation_degrees),
-            RetroAnimatorExporter._flip_matrix(flip_x, flip_y),
+        parent_a = compositor.mat_mul(
+            compositor.rotation_matrix(rotation_degrees),
+            compositor.flip_matrix(flip_x, flip_y),
         )
         parent_b = (float(offset[0]), float(offset[1]))
 

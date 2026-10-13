@@ -11,7 +11,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from models import FModule, Project, RetroAnimatorExporter as RA, generate_id  # noqa: E402
+import compositor  # noqa: E402
+from models import FModule, Project, generate_id  # noqa: E402
 from optimization import optimize_modules  # noqa: E402
 
 IDENTITY = ((1.0, 0.0), (0.0, 1.0))
@@ -24,7 +25,7 @@ def rendered(project):
     for mapping in [None] + list(project.mappings):
         images, modules = {}, {}
         for frame in project.frames:
-            image, hx, hy, _boxes = RA._render_frame_variant(project, frame, mapping, IDENTITY, (0.0, 0.0), images, modules)
+            image, hx, hy, _boxes = compositor.render_frame(project, frame, mapping, IDENTITY, (0.0, 0.0), images, modules)
             shown[(frame.id, mapping.id if mapping else None)] = (image.size, image.tobytes(), hx, hy) if image else None
     return shown
 

@@ -341,7 +341,7 @@ def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int
             # Convert pixels to pct? No, legacy params hold pixels in old format...
             # BUT if we upgraded the parser, the params in memory ARE PERCENTAGES.
             # So if we see 2 params, what are they?
-            # If `models.py` ran, it has 4 params.
+            # If the AuroraGT import (importers/aurora.py) ran, it has 4 params.
             # If we load old JSON, it has 2 params (Pixels).
             # We must detect if params are likely pixels or percentages?
             # Or just assume 2 params = Pixels (old raw params).
