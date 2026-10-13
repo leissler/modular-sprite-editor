@@ -99,10 +99,39 @@ class TestFormatMigration(unittest.TestCase):
               "timeline_scenes": [{"id": "s", "name": "scene", "fps": 10, "duration_seconds": 1.0, "objects": [
                   {"id": "o", "name": "obj", "source_type": "none", "keyframes": [{"id": "k", "time": 0.0}]}]}]}
         migrated, notes = migrate_project_dict(v3)
-        self.assertEqual(migrated["format_version"], 4)
+        self.assertEqual(migrated["format_version"], PROJECT_FORMAT_VERSION)
         self.assertIsNone(migrated["timeline_scenes"][0]["objects"][0]["mapping_id"])
         self.assertEqual(notes, [])
         self.assertIsNone(Project.from_dict(migrated).timeline_scenes[0].objects[0].mapping_id)
+
+    def test_v4_to_v5_objects_keep_their_playback_mode(self):
+        def obj(ident, mode, keys, source="a_pp"):
+            data = {"id": ident, "name": ident, "source_type": "animation", "source_id": source, "keyframes": keys}
+            if mode is not None:
+                data["playback_mode"] = mode
+            return data
+
+        still = [{"id": "k0", "time": 0.0}, {"id": "k1", "time": 1.0, "x": 5.0}]
+        turning = [{"id": "k0", "time": 0.0}, {"id": "k1", "time": 1.0, "flip_x": True}]
+        v4 = {"format_version": 4, "name": "v4", "images": [], "modules": [], "frames": [], "mappings": [],
+              "animations": [{"id": "a_pp", "name": "pp", "aframes": [{"frame_id": "f", "duration_frames": 1}] * 3}],
+              "timeline_scenes": [
+                  {"id": "s1", "name": "Calm", "fps": 10, "duration_seconds": 1.0, "objects": [
+                      obj("unset", None, still), obj("once", "once", still), obj("pp", "ping_pong", still)]},
+                  {"id": "s2", "name": "Duel", "fps": 10, "duration_seconds": 1.0, "objects": [
+                      obj("turns", "loop", turning)]},
+              ]}
+        migrated, notes = migrate_project_dict(v4)
+        modes = [o["playback_mode"] for scene in migrated["timeline_scenes"] for o in scene["objects"]]
+        self.assertEqual(modes, ["loop", "once", "ping_pong", "loop"], "the old default was Loop")
+        self.assertEqual(len(notes), 2)
+        self.assertIn("1 Timeline object(s) set to Ping-pong", notes[0])
+        self.assertIn("scene(s): Duel.", notes[1])
+        loaded = Project.from_dict(migrated)
+        self.assertEqual([o.playback_mode for o in loaded.timeline_scenes[0].objects], ["loop", "once", "ping_pong"])
+        self.assertEqual(loaded.timeline_scenes[0].create_object("new").playback_mode, "as_animated")
+        again, notes = migrate_project_dict(migrated)
+        self.assertEqual((again, notes), (migrated, []))
 
     def test_v3_events_loop_and_follow_up_round_trip(self):
         from models import AFrame, Animation, EventType, StepEvent
@@ -122,14 +151,12 @@ class TestFormatMigration(unittest.TestCase):
         self.assertEqual(a.aframes[1].events, [])
 
     def test_loop_start_keeps_the_intro_out_of_later_passes(self):
+        import playback
         from models import AFrame, Animation
 
-        project = Project()
         anim = Animation(id="a", name="a", playback_type="loop", loop_start=1)
         anim.aframes = [AFrame(frame_id=f"f{i}", duration_frames=1) for i in range(3)]
-        project.animations.append(anim)
-        shown = [project.sample_animation_frame("a", t + 0.5)[1] for t in range(9)]
-        self.assertEqual(shown, [0, 1, 2, 1, 2, 1, 2, 1, 2])
+        self.assertEqual(playback.steps_shown(anim, 9), [0, 1, 2, 1, 2, 1, 2, 1, 2])
 
     def test_current_version_is_idempotent(self):
         migrated, _ = migrate_project_dict(_legacy_project_dict())

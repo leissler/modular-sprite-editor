@@ -329,7 +329,7 @@ class SceneEditorPanel(wx.Panel):
             signature = (
                 obj.source_type, obj.source_id, obj.playback_mode, obj.playback_speed, obj.playback_offset,
                 tuple((round(k.time, 6), k.source_type, k.source_id) for k in obj.sorted_keyframes()),
-                scene.fps, scene.duration_seconds,
+                scene.fps, scene.duration_seconds, ops.playback_signature(self.project, obj),
             )
             cached = self._tick_cache.get(obj.id)
             if not cached or cached[0] != signature:

@@ -224,7 +224,11 @@ class SceneInspector(wx.ScrolledWindow):
         # --- Playback (animation sources)
         self.playback_panel, g = _section(self, root, "Animation playback")
         p = self.playback_panel
-        self.pb_mode = wx.Choice(p, choices=["Loop", "Play once", "Ping-pong"])
+        self.pb_mode = wx.Choice(p, choices=[label for label, _mode in ops.PLAYBACK_MODES])
+        self.pb_mode.SetToolTip(
+            "As animated: plays like the Animations tab and the game (its playback, repeat count, loop-from step and "
+            "follow-up animation). The others override how the animation plays."
+        )
         self.pb_speed = wx.SpinCtrlDouble(p, min=0.05, max=16.0, initial=1.0, inc=0.25)
         self.pb_speed.SetDigits(2)
         self.pb_offset = wx.SpinCtrl(p, min=-100000, max=100000, initial=0)
@@ -369,7 +373,9 @@ class SceneInspector(wx.ScrolledWindow):
         self.obj_mapping.Bind(wx.EVT_CHOICE, self._on_mapping_choice)
         self.pb_mode.Bind(
             wx.EVT_CHOICE,
-            lambda e: self._emit(self.on_object_change, "playback_mode", ("loop", "once", "ping_pong")[self.pb_mode.GetSelection()]),
+            lambda e: self._emit(
+                self.on_object_change, "playback_mode", ops.PLAYBACK_MODES[self.pb_mode.GetSelection()][1]
+            ),
         )
         spin(self.pb_speed, lambda: self.on_object_change, "playback_speed")
         spin(self.pb_offset, lambda: self.on_object_change, "playback_offset_frames")
@@ -545,7 +551,8 @@ class SceneInspector(wx.ScrolledWindow):
         current = obj.mapping_id if obj.mapping_id in self._mapping_ids else None
         self.obj_mapping.SetSelection(self._mapping_ids.index(current))
 
-        self.pb_mode.SetSelection({"loop": 0, "once": 1, "ping_pong": 2}.get(obj.playback_mode, 0))
+        modes = [mode for _label, mode in ops.PLAYBACK_MODES]
+        self.pb_mode.SetSelection(modes.index(obj.playback_mode) if obj.playback_mode in modes else 0)
         self.pb_speed.SetValue(obj.playback_speed)
         self.pb_offset.SetValue(int(round(obj.playback_offset * fps)))
         self.pb_root.SetValue(obj.use_source_root_motion)

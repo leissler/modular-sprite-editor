@@ -95,6 +95,9 @@ right-click › Open the first time.
   changes show as ticks.
 - **Choreography**: an animation swapped in at a key plays from that key, and root motion follows the object (a
   mirrored fighter steps forward to the left).
+- **Animations play as animated**: an object plays its animation exactly like the Animations tab and the game (Play
+  once ends, repeat counts, "loop from", the follow-up animation takes over); Loop, Play once, Ping-pong and Loop
+  backwards override that. Flips and visibility change exactly at a key.
 - **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's
   mapping (at the top level the preview mapping) or use one of their own, also in the SGDK export.
 

@@ -17,7 +17,7 @@ import wx
 import wx.lib.agw.flatnotebook as fnb
 
 from models import FModule, Project, generate_id
-from ui import app_services, autosave
+from ui import app_services, autosave, preferences
 from ui.animation_editor.panel import AnimationEditorPanel
 from ui.canvas import BUDGET
 import project_check
@@ -148,8 +148,8 @@ class MainFrame(wx.Frame):
         self.history = ProjectHistory()
         self._last_dirty_state: Optional[bool] = None
 
-        # Config and Recent Files (Custom MRU); tests use their own preferences file (see SpriteEditorApp.OnInit)
-        self.config = wx.Config.Get() if os.environ.get("MSE_PREFERENCES_FILE") else wx.Config(APP_NAME)
+        # Preferences and Recent Files (Custom MRU): the one store SpriteEditorApp.OnInit sets up (tests use a file)
+        self.config = wx.Config.Get()
         self.recent_files: list[str] = []
         self._load_recent_files()
 
@@ -1076,29 +1076,29 @@ class MainFrame(wx.Frame):
 
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
+    """A bundled file (assets/...): next to app.py, or in PyInstaller's folder in the builds."""
+    base_path = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
 
 class SpriteEditorApp(wx.App):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        # Set names on the app instance so macOS uses them for the application menu.
+    def OnInit(self) -> bool:  # type: ignore[N802]
+        # wx's default name, the launched program's: older versions kept the view settings in a store named so.
+        old_name = self.GetAppName()
+        # The names before any window or preference exists: macOS uses them for the application menu.
         self.SetAppName(APP_NAME)
         self.SetAppDisplayName(APP_NAME)
-        self.SetVendorName(APP_NAME)
-        self.SetVendorDisplayName(APP_NAME)
-
-    def OnInit(self) -> bool:  # type: ignore[N802]
         prefs = os.environ.get("MSE_PREFERENCES_FILE")
         if prefs:  # tests keep their preferences in a file of their own
             wx.Config.Set(wx.FileConfig(localFilename=prefs, style=wx.CONFIG_USE_LOCAL_FILE))
+        else:
+            # Before the vendor name is set: on Windows it would become part of the registry path.
+            config = wx.Config(APP_NAME)
+            if old_name and old_name != APP_NAME:
+                preferences.adopt_old_store(config, wx.Config(old_name), old_name)
+            wx.Config.Set(config)
+        self.SetVendorName(APP_NAME)
+        self.SetVendorDisplayName(APP_NAME)
         frame = MainFrame()
 
         # Set Icon (Windows needs explicit setting for Taskbar/Window)

@@ -31,6 +31,15 @@ Matrix = Tuple[float, float, float, float, float, float]
 IDENTITY: Matrix = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 Row = Tuple[TimelineObject, int, bool]  # (object, depth, has_children)
 
+# (label, TimelineObject.playback_mode): play the animation as set in the Animations tab, or override how it plays.
+PLAYBACK_MODES: List[Tuple[str, str]] = [
+    ("As animated", "as_animated"),
+    ("Loop", "loop"),
+    ("Play once", "once"),
+    ("Ping-pong", "ping_pong"),
+    ("Loop backwards", "backward"),
+]
+
 
 # --------------------------------------------------------------------------- time
 def time_of(frame: int, fps: int) -> float:
@@ -677,6 +686,24 @@ def shift_all_keys(obj: TimelineObject, dx: float = 0.0, dy: float = 0.0, drot: 
         key.x += dx
         key.y += dy
         key.rotation_degrees += drot
+
+
+def playback_signature(project: Project, obj: TimelineObject) -> Tuple[Any, ...]:
+    """Everything that decides which animation frames an object shows: its animations (source, swaps and every
+    follow-up they hand over to) with their timing. Caches of what an object shows compare it."""
+    pending = [obj.source_id] + [key.source_id for key in obj.keyframes]
+    seen: Set[str] = set()
+    signature = []
+    while pending:
+        anim_id = pending.pop()
+        anim = project.get_animation(anim_id) if anim_id else None
+        if anim is None or anim.id in seen:
+            continue
+        seen.add(anim.id)
+        signature.append((anim.id, anim.playback_type, anim.loop_count, anim.loop_start, anim.next_animation_id,
+                          anim.fps, tuple((af.frame_id, af.duration_frames) for af in anim.aframes)))
+        pending.append(anim.next_animation_id)
+    return tuple(sorted(signature, key=lambda entry: entry[0]))
 
 
 def animation_frame_changes(project: Project, scene: TimelineScene, obj: TimelineObject) -> List[int]:

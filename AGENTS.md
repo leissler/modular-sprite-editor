@@ -59,6 +59,8 @@ hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32): SGDK-exa
 modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
                            cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
+playback.py                Animation playback exactly like the SGDK runtime (wx-free): Player (tick by tick, the
+                           Animations tab's preview) and animation_at (Timeline objects and so the scene bakes)
 project_check.py           Check Project (wx-free, shared with the SGDK exporter): issues (error / warning / note) with
                            a target to go to and a fix, C symbol names, the Mega Drive tile capacity
 rect_packer.py             MaxRects bin packer
@@ -124,6 +126,7 @@ ui/
                            THUMBNAILS cache), ThumbList / Browser (thumbnail rows: rename, reorder, drag out),
                            inspector_kit (section / row / spin helpers), confirm (remove uses / keep as missing)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)
+  preferences.py           The one-time copy of settings older versions kept in a second preferences store
   check_dialog.py          Tools ▸ Check Project: the issue list, Go to, Fix / Fix All
   sgdk_export_dialog.py    File ▸ Export ▸ Mega Drive (SGDK): folder + mappings, the report (runs the SGDK exporter)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
@@ -168,7 +171,7 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
 
 ## File format
 
-Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **4**, constant
+Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **5**, constant
 `PROJECT_FORMAT_VERSION`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
@@ -231,10 +234,13 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `var_NNNN.png` sheets). Its issues are `project_check`'s plus the merged palette and
   the tile count (`tile_issue`): whatever the exporter leaves out or changes must show up as an issue there, not
   disappear silently. Name C symbols through `project_check.c_symbols` so Check Project's clash warning stays true.
-- **Preferences** go through `wx.Config.Get()`; because the main window is built before the app name is set, the
-  store is named after the launched script (`app` for `python3 app.py`). Tests set `MSE_PREFERENCES_FILE` to a
-  throwaway file (`--smoke-test` and `tools/gui_smoke.py` do), which also keeps their recovery copies out of the
-  user's folder.
+- **Preferences** go through `wx.Config.Get()`. `SpriteEditorApp.OnInit` names the app and makes the editor's store
+  (`wx.Config(APP_NAME)`, created before the vendor name is set, which on Windows would change the registry path)
+  wx's default before any window exists. Up to 0.7 the view settings went to a second store named after the launched
+  program ("app" from source); `ui/preferences.adopt_old_store` copies them over once. Tests set
+  `MSE_PREFERENCES_FILE` to a throwaway file (`--smoke-test` and `tools/gui_smoke.py` do), which also keeps their
+  recovery copies out of the user's folder. On macOS wx ignores `$HOME`: never start the editor to try preference
+  handling, it writes the user's real store; test with `wx.FileConfig` files.
 - **View options** belong in the canvas's `CanvasDisplayControls` (`add_toggle`, `add_control`), not in side
   panels. **Status/hints** go through `app_services.show_status`, not modal dialogs.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`
@@ -250,11 +256,16 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   measures and budgets each object with its mapping (`StageCanvas.object_mapping`); canvases resolve parts through
   `FrameCanvas.mapping` (the preview mapping unless `drawing_mapping()` overrides it), never
   `project.active_mapping` directly. The screen guide puts the scene origin where the SGDK demo draws scenes
-  (`ops.screen_origin`, tested against `SPRITE_DRAW_X/Y` in `sgdk_demo/src/main.c`).
+  (`ops.screen_origin`, tested against `SPRITE_DRAW_X/Y` in `sgdk_demo/src/main.c`). Objects play animations
+  *as animated* through `playback.animation_at` (own playback, repeat count, loop-from, follow-ups at their own tick
+  rate); the other modes (`ops.PLAYBACK_MODES`) override them. Flips and visibility are stepped (they change at the
+  key). Caches of what an object shows must compare `ops.playback_signature`, which covers its animations' timing.
 - **Animations:** holds are ticks at `Animation.fps`; anything below 1 plays as 1 (`ops.hold`), like the exporters.
-  Playback preview goes through `ops.Player`, which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop
-  backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts, follow-up animation);
-  `tests/test_runtime_player.py` compiles the C player and compares both tick by tick — keep them in sync.
+  Playback preview goes through `playback.Player` (also `ops.Player`), which mirrors `ms_anim_player_tick` in the
+  SGDK runtime (Loop backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts,
+  follow-up animation); `tests/test_runtime_player.py` compiles the C player and compares both tick by tick, and
+  `tests/test_playback.py` checks `playback.step_after` / `animation_at` (what scenes use) against the Player — keep
+  all three in sync.
   Step events reference `Project.event_types` by id (order = `MS_EVENT_*` number); `ops.Player.step_started` is the
   runtime's `step_started` (compared in the same test) and drives the preview's event chips on the stage; wrap structural step edits in
   `ops.keep_loop_start(anim)` so "loop from" stays on its step. Thumbnails and GIF export

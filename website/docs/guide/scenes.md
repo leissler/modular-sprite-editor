@@ -21,7 +21,7 @@ Layers are listed in drawing order: lower rows draw on top. Drag a layer up or d
 
 ## Keys
 
-A key stores where an object is, how it is flipped and turned, and whether it is visible, at one frame.
+A key stores where an object is, how it is flipped and turned, and whether it is visible, at one frame. The object moves and turns smoothly to the next key, while a flip or a change of visibility happens exactly at the key's frame.
 
 With **Auto-Key** on, moving, flipping or turning an object on the stage sets a key at the playhead. With it off, the same edits move all of a layer's keys together. ++k++ sets a key at the playhead, and ++shift+k++ adds or removes one.
 
@@ -62,7 +62,7 @@ Select a key and turn on **Swap the image here** in the inspector. From this key
   <figcaption>The Prince's key at frame 22 swaps in his slash.</figcaption>
 </figure>
 
-**Animation playback** in the inspector sets how an object's animations play: **Mode** (loop, play once or ping-pong), **Speed**, and **Start offset** to start the object's own animation a few frames in.
+**Animation playback** in the inspector sets how an object's animations play. **Mode** is **As animated** for new objects: the animation plays exactly as in the **Animations** tab and in the game, so a *Play once* animation stops on its last step, repeat counts and "loop from" apply, and when it ends its follow-up animation takes over. **Loop**, **Play once**, **Ping-pong** and **Loop backwards** override that and keep playing the one animation. **Speed** plays it faster or slower, and **Start offset** starts the object's own animation a few frames in.
 
 **Root motion** lets the object move with its animation's step offsets, the way a run moves forward. It follows the object's mirror: a fighter flipped to face left steps forward to the left.
 

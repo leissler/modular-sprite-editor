@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from models import AFrame, Animation, EventType, Project, StepEvent, generate_id
+from playback import DEFAULT_TICK_RATE, Player, can_finish, hold, loop_start, tick_rate  # noqa: F401 (shared)
 
 # (label, playback_type). Labels say what the game does; "backward" repeats like the SGDK runtime.
 PLAYBACK_MODES: List[Tuple[str, str]] = [
@@ -22,18 +23,10 @@ PLAYBACK_MODES: List[Tuple[str, str]] = [
 ]
 REPEATING_MODES = ("loop", "ping_pong", "backward")
 TICK_RATE_PRESETS = (10, 12, 15, 20, 24, 30, 50, 60)
-DEFAULT_TICK_RATE = 10
 
 
 # ---------------------------------------------------------------------------- timing
-def hold(af: AFrame) -> int:
-    return max(1, int(af.duration_frames))
-
-
-def tick_rate(anim: Animation) -> int:
-    return int(anim.fps) if int(anim.fps) > 0 else DEFAULT_TICK_RATE
-
-
+# hold, tick_rate, loop_start, can_finish and the Player live in playback.py, shared with Timeline objects.
 def total_ticks(anim: Animation) -> int:
     return sum(hold(af) for af in anim.aframes)
 
@@ -72,18 +65,6 @@ def playback_label(playback_type: str) -> str:
     return next((label for label, key in PLAYBACK_MODES if key == playback_type), "Loop")
 
 
-def loop_start(anim: Animation) -> int:
-    """Step that later loop passes start at (0 = the whole animation loops)."""
-    if anim.playback_type != "loop" or not anim.aframes:
-        return 0
-    return max(0, min(int(anim.loop_start or 0), len(anim.aframes) - 1))
-
-
-def can_finish(anim: Animation) -> bool:
-    """Whether playback ever ends (so a follow-up animation can start)."""
-    return anim.playback_type == "forward" or int(anim.loop_count or 0) > 0
-
-
 @contextmanager
 def keep_loop_start(anim: Optional[Animation]) -> Iterator[None]:
     """Keep "loop from" on the same step while steps are inserted, moved or deleted."""
@@ -96,109 +77,6 @@ def keep_loop_start(anim: Optional[Animation]) -> Iterator[None]:
         anim.loop_start = next(i for i, af in enumerate(anim.aframes) if af is anchor)
     else:
         anim.loop_start = max(0, min(old, len(anim.aframes) - 1))
-
-
-# ---------------------------------------------------------------------------- playback preview
-class Player:
-    """Advances an animation tick by tick the way the SGDK runtime (modsprite.c) does.
-
-    ``loop_count`` (> 0) stops repeating modes after that many cycles, like the data intends; the
-    editor's Repeat toggle restarts a finished preview from the beginning.
-    """
-
-    def __init__(self, anim: Animation, repeat: bool = True):
-        self.anim = anim
-        self.repeat = repeat
-        self.step = 0
-        self.ticks_left = 1
-        self.direction = 1
-        self.cycles = 0
-        self.finished = False
-        self.step_started = False  # True on the tick a step starts: its events fire (like the runtime's)
-
-    def start(self, from_step: Optional[int] = None) -> None:
-        count = len(self.anim.aframes)
-        self.cycles = 0
-        self.finished = False
-        if count == 0:
-            self.step = 0
-            return
-        if from_step is None:
-            from_step = count - 1 if self.anim.playback_type == "backward" else 0
-        self.direction = -1 if self.anim.playback_type == "backward" else 1
-        self._enter(max(0, min(int(from_step), count - 1)))
-
-    def _enter(self, step: int) -> None:
-        self.step = step
-        self.ticks_left = hold(self.anim.aframes[step])
-        self.step_started = True
-
-    def position(self) -> int:
-        """Tick on the strip that is showing now."""
-        if not self.anim.aframes:
-            return 0
-        start = step_starts(self.anim)[self.step]
-        return start + hold(self.anim.aframes[self.step]) - max(1, self.ticks_left)
-
-    def _cycle_done(self) -> bool:
-        """Count a finished cycle; True when the animation should stop."""
-        self.cycles += 1
-        limit = int(self.anim.loop_count or 0)
-        return limit > 0 and self.cycles >= limit
-
-    def advance(self) -> bool:
-        """One tick. Returns False once playback has stopped."""
-        count = len(self.anim.aframes)
-        self.step_started = False
-        if count == 0 or self.finished:
-            return False
-        if self.ticks_left > 1:
-            self.ticks_left -= 1
-            return True
-        mode = self.anim.playback_type
-        if mode == "forward":
-            if self.step + 1 >= count:
-                return self._finish()
-            self._enter(self.step + 1)
-        elif mode == "backward":
-            if self.step == 0:
-                if self._cycle_done():
-                    return self._finish()
-                self._enter(count - 1)
-            else:
-                self._enter(self.step - 1)
-        elif mode == "ping_pong":
-            if count <= 1:
-                self._enter(0)
-            elif self.direction >= 0:
-                if self.step + 1 >= count:
-                    self.direction = -1
-                    self._enter(self.step - 1)
-                else:
-                    self._enter(self.step + 1)
-            else:
-                if self.step == 0:
-                    if self._cycle_done():
-                        return self._finish()
-                    self.direction = 1
-                    self._enter(1)
-                else:
-                    self._enter(self.step - 1)
-        else:  # loop: later passes start at loop_start (the intro before it plays once)
-            if self.step + 1 >= count:
-                if self._cycle_done():
-                    return self._finish()
-                self._enter(loop_start(self.anim))
-            else:
-                self._enter(self.step + 1)
-        return True
-
-    def _finish(self) -> bool:
-        if self.repeat:
-            self.start()
-            return True
-        self.finished = True
-        return False
 
 
 # ---------------------------------------------------------------------------- step edits

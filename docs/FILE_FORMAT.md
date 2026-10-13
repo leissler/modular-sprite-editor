@@ -10,11 +10,22 @@ string ids. Unknown keys are ignored on load (and dropped when the editor saves)
 | missing / `1` | Files written before versioning existed. |
 | `2` | Legacy fields canonicalised (see below). Added 2026-10-09. |
 | `3` | Animation step events + project event types, loop-from step, follow-up animation. Added 2026-10-11. |
-| `4` | Current. Timeline objects carry a module mapping (`mapping_id`); an animation swapped in at a later key plays from that key; root motion turns with the object. Added 2026-10-12. |
+| `4` | Timeline objects carry a module mapping (`mapping_id`); an animation swapped in at a later key plays from that key; root motion turns with the object. Added 2026-10-12. |
+| `5` | Current. Timeline objects play animations "as animated" (`playback_mode: "as_animated"`, the default for new objects; `"backward"` joins the overrides); flips and visibility switch at a key. Added 2026-10-13. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
-warning. v3 and v4 are additive: older builds open them with a warning and drop the new keys on save.
+warning. v3 and v4 are additive: older builds open them with a warning and drop the new keys on save. A v5 object
+set to "as_animated" or "backward" plays as Loop in an older build.
+
+v4 → v5 writes `playback_mode: "loop"` where an object has none (the old default), so every existing object keeps
+playing as before. New objects play their animation *as animated*: with the animation's own playback, repeat
+count, loop-from step and follow-up, exactly like the Animations tab and the Mega Drive runtime (one player,
+`playback.py`). Before, scenes sampled animations by time: a Play once animation looped, Loop backwards played
+forwards, and Ping-pong showed its end steps twice; an object set to Ping-pong now turns like the runtime (the
+migration notes how many objects that affects). Flips and visibility now hold until the next key's frame instead
+of switching half-way to it (once the eased progress passed 0.5); the migration names the scenes where a key
+changes them. No file on disk had either.
 
 v3 → v4 adds `mapping_id: null` (inherit) to every timeline object. v4 also changes two timeline rules, so
 scenes can be choreographed: an animation swapped in at a later key (`keyframes[].source_type/source_id`) plays
@@ -59,11 +70,17 @@ all) were migrated to v4 the same way (originals in `~/Downloads/ModularSpriteEd
 `examples/sgdk/PoP_WW.json` and `~/Downloads/PoP_WW.json` were saved as v4 with the new *Swordfight* scene, which
 replaced their disposable test scene.
 
-## Schema (v4)
+On 2026-10-13 all 19 project files (the three repo examples, the 13 in `~/Downloads` and the 3 in
+`~/Downloads/Hero_spritesheet`) were migrated to v5
+(originals in `~/Downloads/ModularSpriteEditor_format_v4_backup_2026-10-13.zip`). Only `format_version` changed: the
+*Swordfight*'s two objects already had `playback_mode: "once"`, and its 222 object states were compared frame by
+frame with the v4 evaluation: identical.
+
+## Schema (v5)
 
 ```jsonc
 {
-  "format_version": 4,
+  "format_version": 5,
   "name": "New Project",
   "images": [
     {"id": "img_…", "file_path": "modules_POP.bmp",      // relative to the project file
@@ -113,7 +130,7 @@ replaced their disposable test scene.
         "source_type": "animation", "source_id": "anim_…",   // none | module | frame | animation
         "mapping_id": null,                              // null = inherit, "original", or a mapping id
         "draw_order": 0, "playback_offset": 0.0, "playback_speed": 1.0,
-        "playback_mode": "loop",                         // loop | once | ping_pong
+        "playback_mode": "as_animated",                  // as_animated | loop | once | ping_pong | backward
         "path_mode": "linear",                           // linear | spline
         "use_source_root_motion": false,
         "keyframes": [
@@ -150,9 +167,12 @@ a segment with an explicit handle (`path_out` of its start key or `path_in` of i
 otherwise it follows an automatic Catmull-Rom curve through the neighbouring keys, except that two
 consecutive keys at the same position hold still (no drift out and back).
 
-An object's animation plays from the scene start (shifted by `playback_offset`, scaled by `playback_speed`, in
-`playback_mode`); an animation swapped in at a later key plays from that key with the same settings (a swap on
-the first key counts from the scene start). With `use_source_root_motion` the current step's offset, flips and
+An object's animation plays from the scene start (shifted by `playback_offset`, scaled by `playback_speed`); an
+animation swapped in at a later key plays from that key with the same settings (a swap on the first key counts
+from the scene start). `playback_mode: "as_animated"` plays the animation's own settings, follow-ups included (at
+each animation's own tick rate); `loop`, `once` (the last step holds), `ping_pong` and `backward` override them and
+never hand over to a follow-up (`loop` keeps the loop-from step). Before an animation starts (a negative offset)
+its first step shows. Flips and visibility are stepped: a key's values hold until the next key's frame. With `use_source_root_motion` the current step's offset, flips and
 rotation apply inside the object, like a nested frame inside a frame part: the object's flip and rotation also
 mirror and turn the step (a mirrored fighter steps forward to the left). The key's swap `source_offset` is added
 to the step offset the same way.

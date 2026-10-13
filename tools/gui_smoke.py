@@ -727,6 +727,18 @@ def run():
             check(obj.mapping_id == "original" and te.stage.object_mapping(obj.id) is None, "inspector: original modules")
             te.stage.Refresh()
             te.stage.Update()
+        if obj.source_type == "animation":
+            # New objects play as animated; the inspector offers the overrides and the stage follows them
+            check(obj.playback_mode == "as_animated", "new objects play as animated")
+            te.select_object(obj.id)
+            modes = [mode for _label, mode in ops.PLAYBACK_MODES]
+            check(te.inspector.pb_mode.GetCount() == len(modes) and te.inspector.pb_mode.GetSelection() == 0,
+                  "inspector: As animated and the overrides")
+            te.inspector.pb_mode.SetSelection(modes.index("backward"))
+            te._on_object_field("playback_mode", "backward")
+            check(obj.playback_mode == "backward", "playback override set")
+            te.stage.Refresh()
+            te.stage.Update()
         te.toggle_play()
         pump(8)
         te.toggle_play()

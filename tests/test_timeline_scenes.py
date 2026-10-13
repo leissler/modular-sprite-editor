@@ -324,5 +324,79 @@ class TestTimelineScenes(unittest.TestCase):
         self.assertAlmostEqual(scene.objects[0].keyframes[0].time, 1.0)
 
 
+
+def _played(project, anim, mode, frames=12):
+    """The step an object shows on each scene frame (scene and animation at 10 per second)."""
+    scene = project.create_timeline_scene(f"{anim.name} {mode}")
+    scene.fps = 10
+    obj = scene.create_object("Actor", source_type="animation", source_id=anim.id)
+    obj.playback_mode = mode
+    shown = []
+    for frame in range(frames):
+        frame_id = scene.evaluate_object_state(project, obj.id, frame / 10)["frame_id"]
+        shown.append(frame_id[-1] if frame_id.startswith(anim.id) else frame_id)
+    return "".join(shown)
+
+
+class TestObjectsPlayAsAnimated(unittest.TestCase):
+    """Format 5: an object plays its animation like the Animations tab and the game (C3 in docs/AUDIT_0.7.md)."""
+
+    def setUp(self):
+        self.project = Project(name="Playback")
+
+    def anim(self, ident, playback_type="loop", steps=4, **settings):
+        anim = Animation(id=ident, name=ident, playback_type=playback_type, fps=10, **settings)
+        anim.aframes = [AFrame(frame_id=f"{ident}{i}", duration_frames=1) for i in range(steps)]
+        self.project.animations.append(anim)
+        return anim
+
+    def test_new_objects_play_as_animated(self):
+        scene = self.project.create_timeline_scene("New")
+        self.assertEqual(scene.create_object("Actor").playback_mode, "as_animated")
+
+    def test_the_animations_own_playback(self):
+        p = self.project
+        self.assertEqual(_played(p, self.anim("once", "forward"), "as_animated"), "012333333333")
+        self.assertEqual(_played(p, self.anim("back", "backward"), "as_animated"), "321032103210")
+        self.assertEqual(_played(p, self.anim("pp", "ping_pong"), "as_animated"), "012321012321")
+        self.assertEqual(_played(p, self.anim("twice", "loop", loop_count=2), "as_animated"), "012301233333")
+        self.assertEqual(_played(p, self.anim("intro", "loop", loop_start=2), "as_animated"), "012323232323")
+
+    def test_a_follow_up_takes_over(self):
+        self.anim("rest", "loop", steps=2)
+        strike = self.anim("strike", "forward", steps=3, next_animation_id="rest")
+        self.assertEqual(_played(self.project, strike, "as_animated", 8), "012rest0rest1rest0rest1rest0")
+
+    def test_overrides(self):
+        p = self.project
+        once = self.anim("o", "forward", next_animation_id="o")
+        self.assertEqual(_played(p, once, "loop"), "012301230123")
+        self.assertEqual(_played(p, once, "ping_pong"), "012321012321", "no doubled end steps")
+        self.assertEqual(_played(p, once, "backward"), "321032103210")
+        looping = self.anim("l", "loop", loop_count=1)
+        self.assertEqual(_played(p, looping, "once"), "012333333333")
+
+
+class TestSteppedKeys(unittest.TestCase):
+    """Format 5: flips and visibility switch at the key, whatever the easing (C4 in docs/AUDIT_0.7.md)."""
+
+    def test_flips_and_visibility_switch_at_the_key(self):
+        project = Project(name="Steps")
+        scene = project.create_timeline_scene("Turn")
+        scene.fps = 10
+        obj = scene.create_object("Guard")
+        for easing in ("linear", "quad_in", "back_out"):
+            obj.keyframes = [
+                TimelineKeyframe(id="k0", time=0.0, x=0.0),
+                TimelineKeyframe(id="k1", time=1.0, x=10.0, flip_x=True, flip_y=True, visible=False, easing=easing),
+            ]
+            states = [scene.evaluate_object_state(project, obj.id, frame / 10) for frame in range(11)]
+            with self.subTest(easing=easing):
+                self.assertEqual([s["flip_x"] for s in states], [False] * 10 + [True])
+                self.assertEqual([s["flip_y"] for s in states], [False] * 10 + [True])
+                self.assertEqual([s["visible"] for s in states], [True] * 10 + [False])
+                self.assertAlmostEqual(states[10]["x"], 10.0)
+
+
 if __name__ == "__main__":
     unittest.main()

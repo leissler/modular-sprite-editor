@@ -21,7 +21,11 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 **Timeline scenes (Timeline tab)**
 - Objects with a source (module / frame / animation / group), parenting, draw order, playback speed/offset/mode.
-- Keyframes: position, 90° rotation, flip, visibility, easing per segment (shape × direction, plus Hold),
+  An animation plays *as animated* by default (format v5): its own playback, repeat count, loop-from step and
+  follow-up, through the same rules as the Animations tab and the runtime (`playback.py`); Loop / Play once /
+  Ping-pong / Loop backwards override them.
+- Keyframes: position, 90° rotation, flip and visibility (stepped: they change at the key), easing per segment
+  (shape × direction, plus Hold),
   straight or curved motion paths with handles edited on the stage, per-key image swaps with hold semantics,
   swap offsets, root motion from the animation's step offsets.
 - Editor (`ui/scene_editor/`): Library | Stage | contextual Inspector, one frame-based timeline with the layer
@@ -77,7 +81,8 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
   header. Not yet: events in the RetroAnimator export and in the role tables.
 
 ### 3. Loop-from step and follow-up animation (done)
-- Data (format v3): `Animation.loop_start`, `Animation.next_animation_id`; scenes honour `loop_start` too.
+- Data (format v3): `Animation.loop_start`, `Animation.next_animation_id`; scenes honour them too (follow-ups since
+  format v5, for objects that play *as animated*).
 - Runtime: `MS_Animation.loop_start / next_animation / loop_count`; `ms_anim_player_tick` loops from
   `loop_start`, counts passes and hands over to the follow-up. `tests/test_runtime_player.py` compiles the C player
   and checks it against the editor preview tick by tick.

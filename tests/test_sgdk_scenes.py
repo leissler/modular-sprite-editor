@@ -60,6 +60,36 @@ class TestSceneObjectMappings(unittest.TestCase):
             self.assertEqual(shown[1], [(0, 0, 2), (32, 0, 2), (32, 16, 2), (64, 0, 1)])
 
 
+class TestScenePlayback(unittest.TestCase):
+    def test_objects_play_their_animation_as_animated(self):
+        """The baked scene plays like the Animations tab: Play once ends, then the follow-up takes over."""
+        import export_sgdk_example as sg
+        from models import AFrame, Animation
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = _project(Path(tmp))
+            small = project.modules[0]
+            for i in range(3):  # the module 8, 16 and 24 pixels to the right
+                frame = project.create_frame(f"at {i}")
+                frame.fmodules.append(FModule(id=f"p{i}", ref_type="module", ref_id=small.id, position=(8 + 8 * i, 0)))
+            ids = [f.id for f in project.frames[1:]]
+            strike = Animation(id="strike", name="strike", playback_type="forward", fps=10, next_animation_id="rest",
+                               aframes=[AFrame(frame_id=frame_id, duration_frames=1) for frame_id in ids[:2]])
+            rest = Animation(id="rest", name="rest", fps=10, aframes=[AFrame(frame_id=ids[2], duration_frames=1)])
+            project.animations += [strike, rest]
+            scene = project.create_timeline_scene("Strike")
+            scene.fps, scene.duration_seconds = 10, 0.5
+            scene.create_object("Hero", "animation", "strike")
+            ctx = sg.SGDKBakeContext(project, [None], Path(tmp) / "out")
+            ctx.bake()
+            record = ctx.scene_records[-1]
+            xs = []
+            for sample in ctx.scene_samples[record.first_sample:record.first_sample + record.sample_count]:
+                span = ctx.render_frames[sample]
+                xs.append([x for _v, x, _y, _h, _f in ctx.parts[span.first_part:span.first_part + span.part_count]])
+            self.assertEqual(xs, [[8], [16], [24], [24], [24]])
+
+
 class TestSceneObjectTransforms(unittest.TestCase):
     def test_local_matrix_matches_the_stage(self):
         """Root motion and swap offsets are mirrored and turned with the object, in the exporter as on the stage."""

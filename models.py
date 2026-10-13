@@ -11,11 +11,12 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+import playback
 from safe_files import write_text_atomically
 
 
 def generate_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+    return f"{prefix}_{uuid.uuid4().hex[:16]}"  # 64 random bits: no clash among a project's thousands of parts
 
 
 # Native project file format version (top-level "format_version" key).
@@ -24,7 +25,10 @@ def generate_id(prefix: str) -> str:
 # 3 = animation step events (+ project event types), loop-from step and follow-up animation (additive).
 # 4 = timeline objects carry a module mapping (mapping_id, additive); an animation swapped in at a later
 #     key plays from that key instead of from the scene start.
-PROJECT_FORMAT_VERSION = 4
+# 5 = timeline objects play an animation "as animated" (playback_mode "as_animated", the new default: its own
+#     playback, repeat count, loop-from step and follow-up, like the Animations tab and the game); existing objects
+#     keep their mode, "backward" joins the overrides. Flips and visibility switch at a key, not half-way to it.
+PROJECT_FORMAT_VERSION = 5
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -115,6 +119,34 @@ def _migrate_v3_to_v4(data: Dict[str, Any], notes: List[str]) -> None:
             obj.setdefault("mapping_id", None)
 
 
+def _migrate_v4_to_v5(data: Dict[str, Any], notes: List[str]) -> None:
+    """Timeline objects keep the mode they played with ("loop" was the default); notes for what plays differently."""
+    steps = {anim.get("id"): len(anim.get("aframes", []) or []) for anim in data.get("animations", []) or []}
+    ping_pong = 0
+    flip_scenes: List[str] = []
+    for scene in data.get("timeline_scenes", []) or []:
+        switches = False
+        for obj in scene.get("objects", []) or []:
+            mode = str(obj.get("playback_mode") or "loop").strip().lower()
+            obj["playback_mode"] = mode if mode in ("loop", "once", "ping_pong") else "loop"
+            keys = sorted(obj.get("keyframes", []) or [], key=lambda key: float(key.get("time", 0.0) or 0.0))
+            sources = [obj.get("source_id")] + [key.get("source_id") for key in keys]
+            if obj["playback_mode"] == "ping_pong" and any(steps.get(source, 0) > 1 for source in sources):
+                ping_pong += 1
+            for before, after in zip(keys, keys[1:]):
+                if any(before.get(name, default) != after.get(name, default)
+                       for name, default in (("flip_x", False), ("flip_y", False), ("visible", True))):
+                    switches = True
+        if switches:
+            flip_scenes.append(str(scene.get("name", "Scene")))
+    if ping_pong:
+        notes.append(f"{ping_pong} Timeline object(s) set to Ping-pong no longer show an animation's first and last "
+                     "steps twice, like the Animations tab and the game.")
+    if flip_scenes:
+        notes.append("Flips and visibility now change exactly at a key instead of half-way to it. Check the "
+                     f"scene(s): {', '.join(flip_scenes)}.")
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -142,6 +174,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
         _migrate_v2_to_v3(migrated, notes)
     if version < 4:
         _migrate_v3_to_v4(migrated, notes)
+    if version < 5:
+        _migrate_v4_to_v5(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes
@@ -866,7 +900,7 @@ class TimelineObject:
     draw_order: int = 0
     playback_offset: float = 0.0
     playback_speed: float = 1.0
-    playback_mode: str = "loop"
+    playback_mode: str = playback.AS_ANIMATED  # or an override: playback.OBJECT_MODES
     path_mode: str = "linear"
     use_source_root_motion: bool = False
     mapping_id: Optional[str] = None
@@ -900,9 +934,9 @@ class TimelineObject:
         source_type = str(data.get("source_type", "none") or "none").strip().lower()
         if source_type not in TIMELINE_SOURCE_TYPES:
             source_type = "none"
-        playback_mode = str(data.get("playback_mode", "loop") or "loop").strip().lower()
-        if playback_mode not in ("loop", "once", "ping_pong"):
-            playback_mode = "loop"
+        playback_mode = str(data.get("playback_mode") or playback.AS_ANIMATED).strip().lower()
+        if playback_mode not in playback.OBJECT_MODES:
+            playback_mode = playback.AS_ANIMATED
         path_mode = str(data.get("path_mode", "linear") or "linear").strip().lower()
         if path_mode not in TIMELINE_PATH_MODES:
             path_mode = "linear"
@@ -1058,16 +1092,12 @@ class TimelineScene:
         anim = project.get_animation(resolved_id)
         if not anim or not anim.aframes:
             return result
+        # The same rules as the Animations tab and the game (playback.py), at the animation's own tick rate.
         local_time = (scene_time - started_at) * obj.playback_speed + obj.playback_offset
-        source_fps = anim.fps if anim.fps > 0 else 10
-        sampled = project.sample_animation_frame(
-            anim.id,
-            round(local_time * float(source_fps), 6),  # (0.7 - 0.4) * 10 must reach tick 3, not 2.999…
-            playback_override=obj.playback_mode,
+        shown, index = playback.animation_at(
+            anim, local_time, playback.object_rules(anim, obj.playback_mode), project.get_animation
         )
-        if not sampled:
-            return result
-        af, _sample_index = sampled
+        af = shown.aframes[index]
         result["frame_id"] = af.frame_id
         if obj.use_source_root_motion:
             result["source_offset"] = (float(af.offset[0]), float(af.offset[1]))
@@ -1196,6 +1226,7 @@ class TimelineScene:
 
         span = max(1e-6, float(next_key.time) - float(prev_key.time))
         raw_t = (float(time) - float(prev_key.time)) / span
+        at_next = float(time) >= float(next_key.time) - 1e-9
         eased_t = apply_timeline_easing(next_key.easing or prev_key.easing, raw_t)
         p0 = (float(prev_key.x), float(prev_key.y))
         p3 = (float(next_key.x), float(next_key.y))
@@ -1236,9 +1267,10 @@ class TimelineScene:
             "rotation_degrees": _timeline_lerp(prev_key.rotation_degrees, next_key.rotation_degrees, eased_t),
             "scale_x": _timeline_lerp(prev_key.scale_x, next_key.scale_x, eased_t),
             "scale_y": _timeline_lerp(prev_key.scale_y, next_key.scale_y, eased_t),
-            "flip_x": next_key.flip_x if eased_t >= 0.5 else prev_key.flip_x,
-            "flip_y": next_key.flip_y if eased_t >= 0.5 else prev_key.flip_y,
-            "visible": next_key.visible if eased_t >= 0.5 else prev_key.visible,
+            # Flips and visibility hold until the next key's frame (like stepped keys in animation tools).
+            "flip_x": next_key.flip_x if at_next else prev_key.flip_x,
+            "flip_y": next_key.flip_y if at_next else prev_key.flip_y,
+            "visible": next_key.visible if at_next else prev_key.visible,
             "opacity": _timeline_clamp01(_timeline_lerp(prev_key.opacity, next_key.opacity, eased_t)),
             "source_key_offset": key_source_offset,
             **sampled_source,
@@ -2994,10 +3026,12 @@ class Project:
 
     def frame_has_cycle(self, frame_id: str, new_child_id: Optional[str] = None) -> bool:
         """Checks if a cycle exists (or would exist if new_child_id is added to frame_id)."""
-        visited = set()
+        visited = set()  # explored without finding a cycle: shared nested frames are walked once
         def visit(fid: str, stack: List[str]) -> bool:
             if fid in stack:
                 return True
+            if fid in visited:
+                return False
             frame = self.get_frame(fid)
             if not frame:
                 return False
@@ -3064,51 +3098,6 @@ class Project:
         )
         self.timeline_scenes.append(scene)
         return scene
-
-    def sample_animation_frame(
-        self,
-        animation_id: str,
-        time_frames: float,
-        playback_override: Optional[str] = None,
-    ) -> Optional[Tuple[AFrame, int]]:
-        anim = self.get_animation(animation_id)
-        if not anim or not anim.aframes:
-            return None
-
-        durations = [max(1.0, float(af.duration_frames)) for af in anim.aframes]
-        total = sum(durations)
-        if total <= 0.0:
-            return (anim.aframes[0], 0)
-
-        playback = str(playback_override or anim.playback_type or "loop").strip().lower()
-        local_time = float(time_frames)
-        if playback == "once" or playback == "forward":
-            local_time = max(0.0, min(local_time, total - 1e-6))
-        elif playback == "backward":
-            local_time = total - max(0.0, min(local_time, total - 1e-6)) - 1e-6
-        elif playback == "ping_pong":
-            if len(anim.aframes) == 1:
-                local_time = 0.0
-            else:
-                cycle = total * 2.0
-                local_time = local_time % cycle if cycle > 0.0 else 0.0
-                if local_time >= total:
-                    local_time = total - (local_time - total) - 1e-6
-        else:
-            # Loop: the first pass plays every step, later passes start at loop_start.
-            intro = sum(durations[: max(0, min(int(anim.loop_start or 0), len(durations) - 1))])
-            if local_time >= total and 0.0 < intro < total:
-                local_time = intro + (local_time - total) % (total - intro)
-            else:
-                local_time = local_time % total if total > 0.0 else 0.0
-
-        cursor = 0.0
-        for idx, af in enumerate(anim.aframes):
-            dur = durations[idx]
-            if local_time < cursor + dur or idx == len(anim.aframes) - 1:
-                return (af, idx)
-            cursor += dur
-        return (anim.aframes[-1], len(anim.aframes) - 1)
 
     def ensure_default_collision_type(self) -> CollisionType:
         """Ensure at least one collision type exists and return it."""

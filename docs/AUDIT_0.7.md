@@ -40,7 +40,7 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1, C2, C5, C6, C8, K7, F5, F6 and F7, the VRAM check of C7 and the
+Done since the audit, for the next version: C1–C6, C8, C12, K7, F5, F6 and F7, the VRAM check of C7 and the
 warning of C9 (each entry says how).
 
 | # | What | Why | Size |
@@ -115,6 +115,14 @@ count, follow-up), keeping Loop / Play once / Ping-pong / Backwards as overrides
 already uses the editor's evaluation). This changes scene output: format v5 with a migration that keeps existing
 objects on their current mode.
 
+**Done:** `playback.py` holds the runtime's rules once: the Player (Animations tab) and `animation_at` (what shows
+some time after an animation started, follow-ups at their own tick rate, repeating chains skipped in whole rounds),
+which `TimelineScene._sample_source` and so the SGDK scene bake use. Format v5: new objects play *As animated*,
+existing ones keep their mode ("loop" where unset), Loop backwards joins the overrides, Ping-pong no longer doubles
+its end steps. `tests/test_playback.py` checks the shortcut against the Player (every playback, repeat count and
+loop-from, all testbed animations, follow-up chains against a runtime-style simulation); `test_timeline_scenes.py`
+has the table above; `test_sgdk_scenes.py` a baked follow-up. The Swordfight is unchanged (222 states compared).
+
 ### C4 (Medium) Flips and visibility switch half-way between keys
 
 `evaluate_object_state` ([models.py:1237](../models.py)) switches `flip_x`, `flip_y` and `visible` when the *eased*
@@ -124,6 +132,8 @@ and the guide says a key stores how the object is flipped "at one frame".
 
 **Fix:** stepped semantics: the value of the previous key holds until the next key's frame. Format v5, with a note in
 the migration for scenes whose result changes.
+
+**Done** as proposed (`evaluate_object_state`, any easing); no file on disk had a key that changes them.
 
 ### C5 (Medium) Deleting things leaves dangling references, and exports drop them silently
 
@@ -234,6 +244,10 @@ shows".
   PoP but exponential for deep shared nesting.
 - `resource_path` falls back to the current folder when run from source ([app.py:840](../app.py)); the app icon goes
   missing when started from another folder.
+
+**Done:** `OnInit` names the app first and makes the editor's store wx's default, so every setting is in one store;
+the old store's entries are copied over once (`ui/preferences.py`, `tests/test_preferences.py`). Ids have 64 random
+bits, `frame_has_cycle` walks each nested frame once, `resource_path` is relative to `app.py`.
 
 ### C13 (Windows, to verify) Blurry UI and uneven pixels on scaled displays
 
