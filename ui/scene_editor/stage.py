@@ -9,6 +9,7 @@ import wx
 
 from models import FModule, ModuleMapping, Project, TimelineKeyframe, TimelineObject, TimelineScene
 from hardware_budget import Budget, HwPart
+from ui import first_steps
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
 from ui.canvas import BUDGET, FrameCanvas
 from ui.scene_editor import ops
@@ -16,12 +17,12 @@ from ui.scene_editor import ops
 # Retro screen guides: label -> (width, height). The scene origin lies where the SGDK demo draws scenes
 # (ops.screen_origin: centred, three quarters down).
 SCREEN_GUIDES: List[Tuple[str, Optional[Tuple[int, int]]]] = [
-    ("No screen guide", None),
+    ("None", None),
     ("Mega Drive 320×224", (320, 224)),
     ("Mega Drive 256×224", (256, 224)),
     ("SNES 256×224", (256, 224)),
     ("NES 256×240", (256, 240)),
-    ("Game Boy Advance 240×160", (240, 160)),
+    ("GBA 240×160", (240, 160)),
     ("Game Boy 160×144", (160, 144)),
 ]
 
@@ -183,7 +184,7 @@ class StageCanvas(FrameCanvas):
         self._draw_grid(gc)
         if not self.scene:
             gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(190, 190, 190))
-            gc.DrawText("No scene. Use + in the scene bar to create one.", 20, 20)
+            gc.DrawText(first_steps.scenes(self.project) or "No scene yet: click New in the scene bar to make one.", 20, 20)
             return
 
         states = ops.evaluate_states(self.project, self.scene, self.time_value)

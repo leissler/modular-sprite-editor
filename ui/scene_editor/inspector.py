@@ -13,6 +13,8 @@ from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 import wx
 
 from models import TIMELINE_MAPPING_ORIGINAL, Project, TimelineKeyframe, TimelineObject, TimelineScene, apply_timeline_easing
+from ui import first_steps
+from ui.components.inspector_kit import relayout, row, section
 from ui.scene_editor import ops
 
 SOURCE_TYPE_LABELS = {"none": "Group", "module": "Module", "frame": "Frame", "animation": "Animation"}
@@ -128,32 +130,6 @@ def _short(text: str, limit: int = 30) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def _section(parent: wx.Window, sizer: wx.BoxSizer, title: str) -> Tuple[wx.Panel, wx.FlexGridSizer]:
-    panel = wx.Panel(parent)
-    outer = wx.BoxSizer(wx.VERTICAL)
-    label = wx.StaticText(panel, label=title.upper())
-    font = label.GetFont()
-    font.SetWeight(wx.FONTWEIGHT_BOLD)
-    font.SetPointSize(max(8, font.GetPointSize() - 1))
-    label.SetFont(font)
-    label.SetForegroundColour(wx.Colour(150, 156, 170))
-    outer.Add(label, 0, wx.LEFT | wx.TOP, 2)
-    outer.Add(wx.StaticLine(panel), 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 4)
-    grid = wx.FlexGridSizer(0, 2, 6, 8)
-    grid.AddGrowableCol(1, 1)
-    outer.Add(grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
-    panel.SetSizer(outer)
-    sizer.Add(panel, 0, wx.EXPAND | wx.ALL, 6)
-    return panel, grid
-
-
-def _row(grid: wx.FlexGridSizer, parent: wx.Window, label: str, item) -> wx.StaticText:
-    text = wx.StaticText(parent, label=label)
-    grid.Add(text, 0, wx.ALIGN_CENTER_VERTICAL)
-    grid.Add(item, 1, wx.EXPAND)
-    return text
-
-
 class SceneInspector(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
@@ -186,26 +162,26 @@ class SceneInspector(wx.ScrolledWindow):
         root.Add(self.hint, 0, wx.ALL, 8)
 
         # --- Scene
-        self.scene_panel, g = _section(self, root, "Scene")
-        p = self.scene_panel
+        self.scene_panel, g, _ = section(self, root, "Scene", "Timeline")
+        p = self.scene_panel.body
         self.scene_name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
         self.scene_fps = wx.SpinCtrl(p, min=1, max=120, initial=12)
         self.scene_length = wx.SpinCtrl(p, min=1, max=100000, initial=120)
         self.scene_length_info = wx.StaticText(p, label="")
         self.scene_loop = wx.CheckBox(p, label="Loop playback")
         self.scene_bg = wx.ColourPickerCtrl(p)
-        _row(g, p, "Name", self.scene_name)
-        _row(g, p, "Frame rate", self._with_suffix(p, self.scene_fps, "fps"))
+        row(g, p, "Name", self.scene_name)
+        row(g, p, "Frame rate", self._with_suffix(p, self.scene_fps, "fps"))
         length_row = wx.BoxSizer(wx.HORIZONTAL)
         length_row.Add(self.scene_length, 1, wx.RIGHT, 6)
         length_row.Add(self.scene_length_info, 0, wx.ALIGN_CENTER_VERTICAL)
-        _row(g, p, "Length", length_row)
-        _row(g, p, "", self.scene_loop)
-        _row(g, p, "Background", self.scene_bg)
+        row(g, p, "Length", length_row)
+        row(g, p, "", self.scene_loop)
+        row(g, p, "Background", self.scene_bg)
 
         # --- Object
-        self.object_panel, g = _section(self, root, "Object")
-        p = self.object_panel
+        self.object_panel, g, _ = section(self, root, "Object", "Timeline")
+        p = self.object_panel.body
         self.obj_name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
         self.obj_source = wx.Button(p, label="", style=wx.BU_LEFT)
         self.obj_source.SetToolTip("What this object shows. Click to choose another source.")
@@ -216,14 +192,14 @@ class SceneInspector(wx.ScrolledWindow):
             "Module mapping this object and its children are drawn with (also in the SGDK export). "
             "Inherit: the parent's mapping, or for top-level objects the preview mapping chosen in the bar above."
         )
-        _row(g, p, "Name", self.obj_name)
-        _row(g, p, "Shows", self.obj_source)
-        _row(g, p, "Parent", self.obj_parent)
-        _row(g, p, "Mapping", self.obj_mapping)
+        row(g, p, "Name", self.obj_name)
+        row(g, p, "Shows", self.obj_source)
+        row(g, p, "Parent", self.obj_parent)
+        row(g, p, "Mapping", self.obj_mapping)
 
         # --- Playback (animation sources)
-        self.playback_panel, g = _section(self, root, "Animation playback")
-        p = self.playback_panel
+        self.playback_panel, g, _ = section(self, root, "Animation playback", "Timeline")
+        p = self.playback_panel.body
         self.pb_mode = wx.Choice(p, choices=[label for label, _mode in ops.PLAYBACK_MODES])
         self.pb_mode.SetToolTip(
             "As animated: plays like the Animations tab and the game (its playback, repeat count, loop-from step and "
@@ -235,14 +211,14 @@ class SceneInspector(wx.ScrolledWindow):
         self.pb_offset.SetToolTip("Start the animation this many scene frames in")
         self.pb_root = wx.CheckBox(p, label="Root motion")
         self.pb_root.SetToolTip("Move with the animation's per-frame offsets (as set in the Animations tab)")
-        _row(g, p, "Mode", self.pb_mode)
-        _row(g, p, "Speed", self._with_suffix(p, self.pb_speed, "×"))
-        _row(g, p, "Start offset", self._with_suffix(p, self.pb_offset, "frames"))
-        _row(g, p, "", self.pb_root)
+        row(g, p, "Mode", self.pb_mode)
+        row(g, p, "Speed", self._with_suffix(p, self.pb_speed, "×"))
+        row(g, p, "Start offset", self._with_suffix(p, self.pb_offset, "frames"))
+        row(g, p, "", self.pb_root)
 
         # --- Transform at the playhead
-        self.transform_panel, g = _section(self, root, "Transform")
-        p = self.transform_panel
+        self.transform_panel, g, _ = section(self, root, "Transform", "Timeline")
+        p = self.transform_panel.body
         key_row = wx.BoxSizer(wx.HORIZONTAL)
         self.key_button = wx.ToggleButton(p, label="◆", size=(32, -1))
         self.key_button.SetToolTip("Key at this frame (K). Toggle to add or remove it.")
@@ -273,15 +249,15 @@ class SceneInspector(wx.ScrolledWindow):
         flip_row.Add(self.flip_h, 1, wx.RIGHT, 4)
         flip_row.Add(self.flip_v, 1)
         self.tr_visible = wx.CheckBox(p, label="Visible")
-        _row(g, p, "Key", key_row)
-        _row(g, p, "Position", pos_row)
-        _row(g, p, "Rotation", rot_row)
-        _row(g, p, "Mirror", flip_row)
-        _row(g, p, "", self.tr_visible)
+        row(g, p, "Key", key_row)
+        row(g, p, "Position", pos_row)
+        row(g, p, "Rotation", rot_row)
+        row(g, p, "Mirror", flip_row)
+        row(g, p, "", self.tr_visible)
 
         # --- Motion to next key
-        self.motion_panel, g = _section(self, root, "Motion to next key")
-        p = self.motion_panel
+        self.motion_panel, g, _ = section(self, root, "Motion to next key", "Timeline")
+        p = self.motion_panel.body
         self.motion_info = wx.StaticText(p, label="")
         self.ease_shape = wx.Choice(p, choices=[label for label, _ in ops.EASING_SHAPES])
         self.ease_shape.SetToolTip("How strongly the motion speeds up / slows down. Hold jumps at the next key.")
@@ -297,14 +273,14 @@ class SceneInspector(wx.ScrolledWindow):
         self.path_choice = wx.Choice(p, choices=["Straight", "Curved"])
         self.path_choice.SetToolTip("Path shape for this layer's whole motion. Curved paths are shaped with the handles shown on the stage.")
         self.reset_handles = wx.Button(p, label="Reset curve handles", style=wx.BU_EXACTFIT)
-        _row(g, p, "", self.motion_info)
-        _row(g, p, "Easing", ease_row)
-        _row(g, p, "Path", self.path_choice)
-        _row(g, p, "", self.reset_handles)
+        row(g, p, "", self.motion_info)
+        row(g, p, "Easing", ease_row)
+        row(g, p, "Path", self.path_choice)
+        row(g, p, "", self.reset_handles)
 
         # --- Image swap at this key
-        self.swap_panel, g = _section(self, root, "Swap image at this key")
-        p = self.swap_panel
+        self.swap_panel, g, _ = section(self, root, "Swap image at this key", "Timeline")
+        p = self.swap_panel.body
         self.swap_enable = wx.CheckBox(p, label="Swap the image here")
         self.swap_enable.SetToolTip("From this key on, show another animation, frame or module")
         self.swap_source = wx.Button(p, label="", style=wx.BU_LEFT)
@@ -315,9 +291,9 @@ class SceneInspector(wx.ScrolledWindow):
         off_row.Add(self.swap_off_x, 1, wx.RIGHT, 8)
         off_row.Add(wx.StaticText(p, label="Y"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 3)
         off_row.Add(self.swap_off_y, 1)
-        _row(g, p, "", self.swap_enable)
-        self.swap_source_label = _row(g, p, "Shows", self.swap_source)
-        self.swap_offset_label = _row(g, p, "Offset", off_row)
+        row(g, p, "", self.swap_enable)
+        self.swap_source_label = row(g, p, "Shows", self.swap_source)
+        self.swap_offset_label = row(g, p, "Offset", off_row)
 
         self.SetSizer(root)
         # Let popups/buttons shrink with the panel (macOS truncates their text natively).
@@ -488,8 +464,7 @@ class SceneInspector(wx.ScrolledWindow):
                 self._fill_scene()
             if scene and obj:
                 self._fill_object()
-            self.Layout()
-            self.FitInside()
+            relayout(self)
         finally:
             self.Thaw()
             self._updating = False
@@ -499,7 +474,7 @@ class SceneInspector(wx.ScrolledWindow):
         has_obj = self.obj is not None
         anim = has_obj and (self.obj.source_type == "animation" or any(k.source_type == "animation" for k in self.obj.keyframes))
         self.hint.SetLabel(
-            "Create a scene with + in the scene bar." if not has_scene else
+            (first_steps.scenes(self.project) or "Click New in the scene bar to make a scene.") if not has_scene else
             ("Nothing selected — scene settings. Click an object on the stage or a layer to edit it." if not has_obj else "")
         )
         self.hint.Show(bool(self.hint.GetLabel()))
@@ -560,7 +535,7 @@ class SceneInspector(wx.ScrolledWindow):
         # Transform at the playhead
         key = self._key_here()
         state = scene.evaluate_object_state(project, obj.id, ops.time_of(self.frame, fps)) or {}
-        self.transform_panel.GetChildren()[0].SetLabel(f"TRANSFORM AT FRAME {self.frame}")
+        self.transform_panel.set_title(f"Transform at frame {self.frame}")
         self.key_button.SetValue(key is not None)
         stack = ops.keys_at_frame(obj, self.frame, fps)
         if key and len(stack) > 1:

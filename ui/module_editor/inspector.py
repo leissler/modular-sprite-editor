@@ -8,7 +8,7 @@ from typing import Any, Callable, List, Optional, Tuple
 import wx
 
 from models import ImageAsset, Module, Project
-from ui.components.inspector_kit import bind_spin, dim_text, hbox, row, section, set_spin, small_button, spin
+from ui.components.inspector_kit import bind_spin, dim_text, hbox, relayout, row, section, set_spin, small_button, spin
 from ui.module_editor import ops
 
 PRESET_GLYPHS = ("◤", "▲", "◥", "◀", "●", "▶", "◣", "▼", "◢")
@@ -36,7 +36,7 @@ class ModuleInspector(wx.ScrolledWindow):
 
         # --- Sheet
         self.sheet_panel, grid, self.sheet_title = section(self, root, "Sheet")
-        p = self.sheet_panel
+        p = self.sheet_panel.body
         self.file_name = wx.StaticText(p, label="")
         row(grid, p, "File", self.file_name)
         self.file_info = dim_text(p)
@@ -63,7 +63,7 @@ class ModuleInspector(wx.ScrolledWindow):
 
         # --- Shapes (the pseudo sheet)
         self.shapes_panel, grid, _ = section(self, root, "Shapes")
-        p = self.shapes_panel
+        p = self.shapes_panel.body
         self.draw_type = wx.Choice(p, choices=[label for _key, label in ops.SHAPE_TYPES])
         self.draw_type.SetSelection(0)
         self.draw_colour = wx.ColourPickerCtrl(p, colour=wx.Colour(255, 255, 255))
@@ -75,7 +75,7 @@ class ModuleInspector(wx.ScrolledWindow):
 
         # --- Module(s)
         self.module_panel, grid, self.module_title = section(self, root, "Module")
-        p = self.module_panel
+        p = self.module_panel.body
         self.name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
         self.name_label = row(grid, p, "Name", self.name)
         self.kind = wx.StaticText(p, label="")
@@ -129,8 +129,11 @@ class ModuleInspector(wx.ScrolledWindow):
         self.usage_label = row(grid, p, "Used by", self.usage)
         self.btn_show_usage = small_button(p, "Go to frame", "Open the first frame that uses this module in the Frames tab", lambda: self._tool("show_usage"))
         self.btn_new_frame = small_button(p, "New frame", "Create a frame that shows this module (pivot on the origin)", lambda: self._tool("new_frame"))
+        self.btn_new_anim = small_button(
+            p, "New animation", "A frame for each selected module, in list order, and an animation that plays them",
+            lambda: self._tool("new_animation"))
         grid.Add((0, 0))
-        grid.Add(hbox(self.btn_show_usage, self.btn_new_frame), 0, wx.EXPAND)
+        grid.Add(hbox(self.btn_show_usage, self.btn_new_frame, self.btn_new_anim), 0, wx.EXPAND)
         self.btn_trim = small_button(p, "Trim to content", "Shrink to the opaque pixels (the pivot stays on its pixel)", lambda: self._tool("trim"))
         grid.Add((0, 0))
         grid.Add(hbox(self.btn_trim), 0, wx.EXPAND)
@@ -212,8 +215,7 @@ class ModuleInspector(wx.ScrolledWindow):
         finally:
             self._updating = False
             self.Thaw()
-        self.Layout()
-        self.FitInside()
+        relayout(self)
 
     def _fill_sheet(self, project: Project, asset: ImageAsset) -> None:
         missing = ops.image_missing(asset)
@@ -236,9 +238,13 @@ class ModuleInspector(wx.ScrolledWindow):
         single = modules[0] if len(modules) == 1 else None
         self.module_title.SetLabel("MODULE" if single else f"{len(modules)} MODULES")
         for widget in (self.name_label, self.name, self.kind_label, self.pos_label, self.x, self.y,
-                       self.size_label, self.w, self.h, self.pivot_label, self.px, self.py,
-                       self.btn_show_usage, self.btn_new_frame):
+                       self.size_label, self.w, self.h, self.pivot_label, self.px, self.py, self.btn_show_usage):
             widget.Show(single is not None)
+        # One module: a frame for it. Several: a frame each, or an animation through them (a row of whole sprites).
+        self.btn_new_frame.SetLabel("New frame" if single else "New frames")
+        self.btn_new_frame.SetToolTip("Create a frame that shows this module (pivot on the origin)" if single else
+                                      "Create a frame for each selected module (pivot on the origin)")
+        self.btn_new_anim.Show(single is None)
         is_shape = single is not None and single.type != "MD_IMAGE"
         self.kind.Show(single is not None and not is_shape)
         self.shape_type.Show(is_shape)

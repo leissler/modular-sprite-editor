@@ -11,7 +11,7 @@ A module is one part of your artwork, cut from a sprite sheet: a head, a hand, a
 
 The **Images** list at the top left holds the sheets of your project. Choose **+ Add ▾ ▸ Image...** for one image or **Folder...** for every image in a folder. For a folder of single sprites, one file per pose, turn on **Make each image one module** in the folder window.
 
-PNG with transparency works best. If your sheet uses a background colour instead, select the image, choose **Pick** next to **Key colour** in the inspector and click the colour. It becomes transparent everywhere the image is used. Turn on **Show key colour** in the view bar to see the original background again while you cut.
+PNG with transparency works best. If your sheet uses a background colour instead, select the image, choose **Pick** next to **Key colour** in the inspector and click the colour. It becomes transparent everywhere the image is used. Turn on **Key colour** in the view bar to see the original background again while you cut.
 
 If you move an image on disk, its row shows that the file is missing. Select it and choose **Locate...** to point the project at the new place.
 
@@ -33,7 +33,7 @@ Click a module to select it, ++cmd++-click to add more to the selection, and ++c
 
 Two tools under **Slice ▾** cut a whole sheet at once:
 
-**Grid slice...** cuts the sheet into equal cells. Set **Tile size**, and **Offset** and **Gap** if the cells have a margin or space between them. **Skip empty tiles** leaves out cells without any visible pixel.
+**Grid slice...** cuts the sheet into equal cells. Set **Tile size**, and **Offset** and **Gap** if the cells have a margin or space between them. **Skip empty tiles** leaves out cells without any visible pixel. On a sheet with one animation per row, **Make a frame for every tile and an animation for every row** also makes the frames and animations: rename them and they are ready to play.
 
 **Detect sprites...** finds every group of touching pixels and makes it a module. **Merge gap** joins sprites closer than that many pixels, so a character with a separate sword or a dust cloud becomes one module.
 
@@ -41,7 +41,7 @@ Both windows show how many modules they will make while you change the settings.
 
 <div class="ms-pair" markdown>
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The Grid Slice window: tile size 32 by 32, Skip empty tiles on, 68 tiles](../assets/images/screens/lesson-grid.png){ width="383" height="286" loading="lazy" }](../assets/images/screens/lesson-grid.png)
+  [![The Grid Slice window: tile size 32 by 32, Skip empty tiles on, 68 tiles](../assets/images/screens/lesson-grid.png){ width="457" height="310" loading="lazy" }](../assets/images/screens/lesson-grid.png)
   <figcaption><strong>Grid slice...</strong> on the Adventurer sheet.</figcaption>
 </figure>
 <figure class="ms-shot ms-shot--part" markdown="span">
@@ -76,7 +76,7 @@ Pivots matter when parts swap. If every head of a character has its pivot at the
 
 ## See where a module is used
 
-The inspector's **Used by** counts the frames, parts and mapping entries that use the selected module. **Go to frame** opens the first frame that uses it, and **New frame** makes a new frame with just this module on its origin.
+The inspector's **Used by** counts the frames, parts and mapping entries that use the selected module. **Go to frame** opens the first frame that uses it, and **New frame** makes a new frame with just this module on its origin. With several modules selected, **New frames** makes one for each, and **New animation** makes the frames and an animation that plays them in the order of the list: the quickest way from a row of whole sprites to a moving character.
 
 The **Modules** list shows a thumbnail, the size and how often each module is used. A module used zero times is a candidate for cleaning up.
 

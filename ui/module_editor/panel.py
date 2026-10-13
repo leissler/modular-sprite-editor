@@ -11,8 +11,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import wx
 
-from models import FModule, ImageAsset, Module, Project, generate_id
+from models import ImageAsset, Module, Project, generate_id
 from ui import app_services
+from ui.animation_editor import ops as anim_ops
 from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.module_palette import THUMBNAILS
@@ -43,6 +44,7 @@ class ModuleEditorPanel(wx.Panel):
         self._merge_gap = 1
         self._counts: Dict[str, int] = {}
         self.on_open_frame: Optional[Callable[[str], None]] = None  # set by the main window
+        self.on_open_animation: Optional[Callable[[str], None]] = None  # set by the main window
 
         self._build_ui()
         self._bind()
@@ -606,7 +608,8 @@ class ModuleEditorPanel(wx.Panel):
             "grid": self.grid_slice, "detect": self.detect_sprites, "automod": self.auto_modularize,
             "optimize": lambda: self.show_optimization_dialog(),
             "trim": self.trim_modules, "duplicate": self.duplicate_modules, "delete": self.delete_modules,
-            "new_frame": self.new_frame_from_module, "show_usage": self.show_usage,
+            "new_frame": self.new_frames_from_modules, "new_animation": self.new_animation_from_modules,
+            "show_usage": self.show_usage,
         }
         handler = handlers.get(name)
         if handler:
@@ -668,18 +671,35 @@ class ModuleEditorPanel(wx.Panel):
         self._refresh_inspector()
         app_services.request_checkpoint()
 
-    def new_frame_from_module(self) -> None:
-        mods = self.selected_modules()
-        if len(mods) != 1:
+    def _selected_in_order(self) -> List[Module]:
+        """The selected modules in the order of the list (reading order on a sliced sheet)."""
+        order = {m.id: index for index, m in enumerate(self.project.modules)}
+        return sorted(self.selected_modules(), key=lambda m: order.get(m.id, 0))
+
+    def new_frames_from_modules(self) -> None:
+        mods = self._selected_in_order()
+        if not mods:
             return
-        mod = mods[0]
-        used = {f.name for f in self.project.frames}
-        frame = self.project.create_frame(ops.unique_name(mod.name, used))
-        frame.fmodules.append(FModule(id=generate_id("fmod"), ref_type="module", ref_id=mod.id, position=(0, 0)))
+        frames = ops.frames_for_modules(self.project, mods)
         self._commit()
-        app_services.show_status(f"New frame '{frame.name}' with {mod.name} on its origin")
-        if self.on_open_frame:
-            self.on_open_frame(frame.id)
+        if len(frames) == 1:
+            app_services.show_status(f"New frame '{frames[0].name}' with {mods[0].name} on its origin")
+            if self.on_open_frame:
+                self.on_open_frame(frames[0].id)
+        else:
+            app_services.show_status(f"{len(frames)} new frames, each with its module on the origin")
+
+    def new_animation_from_modules(self) -> None:
+        """A frame for each selected module and an animation through them: a sheet of whole sprites, animated."""
+        mods = self._selected_in_order()
+        if not mods:
+            return
+        frames = ops.frames_for_modules(self.project, mods)
+        anim = anim_ops.animation_from_frames(self.project, [f.id for f in frames])
+        self._commit()
+        app_services.show_status(f"New animation '{anim.name}': {len(frames)} new frame(s), one tick each")
+        if self.on_open_animation:
+            self.on_open_animation(anim.id)
 
     def show_usage(self) -> None:
         mods = self.selected_modules()
@@ -715,7 +735,18 @@ class ModuleEditorPanel(wx.Panel):
             self._grid_values = dlg.values()
             replace = dlg.replace()
         rects = rects_for(self._grid_values, bool(self._grid_values.get("skip_empty", 1)))
-        self._add_cut_modules(rects, replace, "Grid slice")
+        self._add_cut_modules(rects, replace, "Grid slice",
+                              self._animate_rows if self._grid_values.get("row_animations") else None)
+
+    def _animate_rows(self, created: List[Module]) -> str:
+        """A frame for every new tile and an animation for every row of them (what grid_slice offers)."""
+        asset = self.asset()
+        stem = os.path.splitext(os.path.basename(asset.file_path))[0] if asset else "Row"
+        rows = ops.rows_of(created)
+        for number, row in enumerate(rows, 1):
+            frames = ops.frames_for_modules(self.project, row)
+            anim_ops.animation_from_frames(self.project, [f.id for f in frames], f"{stem} row {number}")
+        return f", {len(created)} frame(s) and {len(rows)} animation(s), one per row"
 
     def detect_sprites(self) -> None:
         asset = self.asset()
@@ -738,7 +769,9 @@ class ModuleEditorPanel(wx.Panel):
             replace = dlg.replace()
         self._add_cut_modules(merged(self._merge_gap), replace, "Detect sprites")
 
-    def _add_cut_modules(self, rects: List[Tuple[int, int, int, int]], replace: bool, action: str) -> None:
+    def _add_cut_modules(self, rects: List[Tuple[int, int, int, int]], replace: bool, action: str,
+                         then: Optional[Callable[[List[Module]], str]] = None) -> None:
+        """Cut modules from the current image; ``then(created)`` adds more in the same undo step (its status text)."""
         asset = self.asset()
         if asset is None:
             return
@@ -751,10 +784,11 @@ class ModuleEditorPanel(wx.Panel):
                 return
         created = ops.add_sheet_modules(self.project, asset.id, rects, replace=replace)
         self.selection = [m.id for m in created]
+        more = then(created) if then and created else ""
         self._commit()
         skipped = len(rects) - len(created)
         app_services.show_status(
-            f"{action}: {len(created)} new module(s)" + (f", {skipped} skipped (already cut)" if skipped else "")
+            f"{action}: {len(created)} new module(s)" + more + (f", {skipped} skipped (already cut)" if skipped else "")
         )
 
     def auto_modularize(self) -> None:
@@ -879,7 +913,10 @@ class ModuleEditorPanel(wx.Panel):
                 add(label, lambda f=fractions: self._on_preset(f), True, pivots)
             menu.AppendSubMenu(pivots, "Pivot")
             menu.AppendSeparator()
-            add("New Frame from Module", self.new_frame_from_module, len(mods) == 1)
+            add("New Frame from Module" if len(mods) == 1 else f"New Frames from {len(mods)} Modules",
+                self.new_frames_from_modules)
+            add("New Animation from Module" if len(mods) == 1 else f"New Animation from {len(mods)} Modules",
+                self.new_animation_from_modules)
             add("Show in Frames", self.show_usage, len(mods) == 1 and bool(ops.frames_using(self.project, mods[0].id)))
             menu.AppendSeparator()
             add("Delete", self.delete_modules)

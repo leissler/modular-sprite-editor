@@ -11,7 +11,7 @@ Many sprite sheets are drawn as whole poses: every frame a complete picture. Tha
 
 ## Before you start
 
-Auto Modularize works on one image whose modules are whole sprites. If your sheet is not cut yet, use **Grid slice...** or **Detect sprites...** first (see [Cut a sheet into modules](modules.md)). Then make a frame for every sprite, for example with **Tools ▸ Create Reference Frames From All Image Modules...**. The frames are what Auto Modularize rebuilds from the parts: when you apply it, the whole-sprite modules are replaced.
+Auto Modularize works on one image whose modules are whole sprites. If your sheet is not cut yet, use **Grid slice...** or **Detect sprites...** first (see [Cut a sheet into modules](modules.md)). Then make a frame for every sprite: select the modules and choose **New frames** in the inspector, or use **Tools ▸ Create Reference Frames From All Image Modules...**. The frames are what Auto Modularize rebuilds from the parts: when you apply it, the whole-sprite modules are replaced.
 
 ## Open it
 

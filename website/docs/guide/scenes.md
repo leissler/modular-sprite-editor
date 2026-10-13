@@ -25,7 +25,7 @@ A key stores where an object is, how it is flipped and turned, and whether it is
 
 With **Auto-Key** on, moving, flipping or turning an object on the stage sets a key at the playhead. With it off, the same edits move all of a layer's keys together. ++k++ sets a key at the playhead, and ++shift+k++ adds or removes one.
 
-On the timeline, drag keys to retime them, double-click a track to add a key and drag over empty track to select several keys. Copy and paste keys with ++cmd+c++ and ++cmd+v++: they paste at the playhead.
+On the timeline, drag keys to retime them, double-click a track to add a key and drag over empty track to select several keys. ++shift++-click adds a key to the selection, ++cmd++-click adds or removes one. Copy and paste keys with ++cmd+c++ and ++cmd+v++: they paste at the playhead.
 
 <figure class="ms-shot" markdown="span">
   [![The Swordfight's timeline: a row for the guard and one for the Prince, with a key for every action and the name of each swapped-in animation](../assets/images/screens/scene-timeline.png){ width="1426" height="215" loading="lazy" }](../assets/images/screens/scene-timeline.png)
@@ -71,7 +71,7 @@ Select a key and turn on **Swap the image here** in the inspector. From this key
 **Mapping** in the inspector chooses the [mapping](mappings.md) the object is drawn with. **Inherit** uses the parent's mapping, or for top-level objects the preview mapping at the top of the window. **Original modules** always shows the original parts. In the Swordfight, the guard is the Prince's animations with the "Normal" mapping.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The guard's object settings in the inspector: name Guard, shows an animation, no parent, Mapping Normal](../assets/images/screens/scene-mapping.png){ width="311" height="149" loading="lazy" }](../assets/images/screens/scene-mapping.png)
+  [![The guard's object settings in the inspector: name Guard, shows an animation, no parent, Mapping Normal](../assets/images/screens/scene-mapping.png){ width="311" height="150" loading="lazy" }](../assets/images/screens/scene-mapping.png)
   <figcaption>The guard's settings: the Prince's animations, drawn with the <strong>Normal</strong> mapping.</figcaption>
 </figure>
 

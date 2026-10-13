@@ -4,7 +4,7 @@ A frame is a pose made from modules. You place each part, flip or turn it, and d
 
 <figure class="ms-shot" markdown="span">
   [![The Frames tab with the Prince's pose built from 13 parts, every part outlined, and the selected part's settings in the inspector](../assets/images/screens/frames.png)](../assets/images/screens/frames.png)
-  <figcaption>A pose of the Prince built from 13 parts. <strong>Part bounds</strong> outlines every part; the selected part shows its position, flip, rotation and draw order.</figcaption>
+  <figcaption>A pose of the Prince built from 13 parts. <strong>Bounds</strong> outlines every part; the selected part shows its position, flip, rotation and draw order.</figcaption>
 </figure>
 
 ## Make a frame
@@ -27,7 +27,7 @@ The **Library** below the frames list shows your modules, one image at a time or
 Make sure **Parts** is selected above the stage.
 
 - Click a part to select it. Click the same spot again to select the part below it.
-- ++shift++-click adds parts to the selection. Drag on empty space to select every part in a box. ++esc++ clears the selection.
+- ++shift++-click adds parts to the selection and ++cmd++-click adds or removes one. Drag on empty space to select every part in a box. ++esc++ clears the selection.
 - Drag to move. Arrow keys nudge by one pixel, ++shift++ by 8.
 - ++h++ and ++v++ flip the selected parts, ++r++ turns them 90 degrees clockwise and ++shift+r++ counter-clockwise.
 - ++cmd+arrow-up++ and ++cmd+arrow-down++ move a part in front of or behind its neighbour. Add ++shift++ to send it all the way to the front or back.
@@ -37,7 +37,7 @@ A flipped part stays where it is and mirrors its picture. Turns are about the pa
 The inspector shows the selected part: **Shows** names the module, **Position** is where its pivot sits, **Flip**, **Rotation** and **Order** do the same as the keys. To swap a part for another module, pick the new module in the library and choose **Use library pick**. **Open** shows the module in the **Modules** tab.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The inspector for a selected part: Shows with the module, Use library pick and Open, Position, Flip, Rotation and Order](../assets/images/screens/frames-part.png){ width="301" height="251" loading="lazy" }](../assets/images/screens/frames-part.png)
+  [![The inspector for a selected part: Shows with the module, Use library pick and Open, Position, Flip, Rotation and Order](../assets/images/screens/frames-part.png){ width="301" height="252" loading="lazy" }](../assets/images/screens/frames-part.png)
   <figcaption>A selected part in the inspector.</figcaption>
 </figure>
 
@@ -56,7 +56,7 @@ Drag a frame from the library onto the stage to use it as one part. A nested fra
 With nothing selected, the inspector shows the frame. **Whole frame** mirrors or turns every part at once. **Origin** has two helpers: **Feet on origin** moves all parts so the middle of the pose's bottom edge sits on the origin, and **Centre** puts the middle of the pose there.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The inspector for a frame: its name, contents, size and use, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="279" loading="lazy" }](../assets/images/screens/frames-whole.png)
+  [![The inspector for a frame: its name, contents, size and use, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="280" loading="lazy" }](../assets/images/screens/frames-whole.png)
   <figcaption>With nothing selected, the inspector shows the frame.</figcaption>
 </figure>
 

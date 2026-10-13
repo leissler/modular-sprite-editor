@@ -213,5 +213,43 @@ class TestAnimations(unittest.TestCase):
         self.assertEqual(ops.scene_usage(project, b.id), 0)
 
 
+class TestAnimationFromFrames(unittest.TestCase):
+    def test_shared_name(self):
+        self.assertEqual(ops.shared_name(["run_01", "run_02"]), "run")
+        self.assertEqual(ops.shared_name(["walk01_2", "walk02_2"]), "walk")
+        self.assertEqual(ops.shared_name(["Hero (2)", "Hero (3)"]), "Hero")
+        self.assertEqual(ops.shared_name(["idle", "walk"]), "")
+        self.assertEqual(ops.shared_name([]), "")
+
+    def test_an_animation_through_the_frames_in_order(self):
+        from models import Frame
+
+        project = Project()
+        project.frames += [Frame(f"f{i}", f"run_{i:02d}", fmodules=[]) for i in range(3)]
+        anim = ops.animation_from_frames(project, ["f2", "gone", "f0"])
+        self.assertEqual(anim.name, "run")
+        self.assertEqual([(af.frame_id, af.duration_frames) for af in anim.aframes], [("f2", 1), ("f0", 1)])
+        again = ops.animation_from_frames(project, ["f1"], name="run")
+        self.assertEqual(again.name, "run 2")
+        self.assertEqual(ops.animation_from_frames(project, ["f0"], name="").name, "run 3")
+
+
+class TestFirstSteps(unittest.TestCase):
+    def test_each_tab_points_to_the_step_before(self):
+        from models import AFrame, Animation, Frame, Module
+        from ui import first_steps
+
+        project = Project()
+        self.assertIn("Modules tab", first_steps.frames(project))
+        self.assertIn("Frames tab", first_steps.animations(project))
+        self.assertIn("other tabs", first_steps.scenes(project))
+        self.assertIn("Modules tab", first_steps.mappings(project))
+        project.modules.append(Module("m", "m", "img", (0, 0, 8, 8), (0, 0)))
+        project.frames.append(Frame("f", "f", fmodules=[]))
+        project.animations.append(Animation("a", "a", aframes=[AFrame("f", 1)]))
+        self.assertEqual([first_steps.frames(project), first_steps.animations(project), first_steps.scenes(project),
+                          first_steps.mappings(project), first_steps.frames(None)], [None] * 5)
+
+
 if __name__ == "__main__":
     unittest.main()

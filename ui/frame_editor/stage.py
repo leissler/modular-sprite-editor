@@ -7,6 +7,7 @@ from typing import Callable, List, Optional, Tuple
 import wx
 
 from models import Project
+from ui import first_steps
 from ui.canvas import FrameCanvas
 
 
@@ -105,7 +106,7 @@ class FrameStage(FrameCanvas):
     # ------------------------------------------------------------------ paint
     def draw_content(self, gc: wx.GraphicsContext) -> None:
         if self.frame is None:
-            self._draw_hint(gc, self.empty_hint or "Select a frame, or click + New in the list")
+            self._draw_hint(gc, self.empty_hint or first_steps.frames(self.project) or "Select a frame, or click + New in the list")
             return
         super().draw_content(gc)
         if not self.show_grid:

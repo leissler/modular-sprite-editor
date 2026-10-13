@@ -197,7 +197,8 @@ class ModularizeDialog(wx.Dialog):
         side = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        panel, grid, _ = section(side, sizer, "Goal")
+        part, grid, _ = section(side, sizer, "Goal")
+        panel = part.body  # the rows' parent
         self.goal = wx.Slider(panel, value=DEFAULT_GOAL, minValue=0, maxValue=len(GOALS) - 1, style=wx.SL_HORIZONTAL)
         self.goal.SetToolTip("What matters more on the console: video memory (tiles) or hardware sprites per frame "
                              "(the Mega Drive shows 80 per screen and 20 per line).")
@@ -214,7 +215,8 @@ class ModularizeDialog(wx.Dialog):
         grid.Add(column, 1, wx.EXPAND)
         self.goal.Bind(wx.EVT_SLIDER, lambda e: self._settings_changed())
 
-        panel, grid, _ = section(side, sizer, "Parts")
+        part, grid, _ = section(side, sizer, "Parts")
+        panel = part.body  # the rows' parent
         self.chk_share = wx.CheckBox(panel, label="Share parts between sprites")
         self.chk_share.SetValue(True)
         self.chk_share.SetToolTip("Find pixels that several sprites have in common (at any position) and store them once. "
@@ -232,7 +234,8 @@ class ModularizeDialog(wx.Dialog):
             grid.Add(chk, 0)
             chk.Bind(wx.EVT_CHECKBOX, lambda e: self._settings_changed())
 
-        panel, grid, _ = section(side, sizer, "Result (Mega Drive)")
+        part, grid, _ = section(side, sizer, "Result (Mega Drive)")
+        panel = part.body  # the rows' parent
         table = wx.FlexGridSizer(0, 3, 4, 12)
         table.AddGrowableCol(0, 1)
         for text in ("", "Now", "Result"):
@@ -262,7 +265,8 @@ class ModularizeDialog(wx.Dialog):
         note.Wrap(WRAP)
         panel.GetSizer().Add(note, 0, wx.LEFT | wx.RIGHT | wx.TOP, 4)
 
-        panel, grid, _ = section(side, sizer, "Output")
+        part, grid, _ = section(side, sizer, "Output")
+        panel = part.body  # the rows' parent
         stem = os.path.splitext(os.path.basename(asset.file_path))[0] or "sheet"
         self.sheet_name = wx.TextCtrl(panel, value=f"{stem}_parts.png")
         self.sheet_name.SetToolTip("The parts go on this new image, next to the current one.")

@@ -13,7 +13,7 @@ The sprite art in the examples belongs to its owners and is included only to sho
 Things to look at:
 
 - **Modules**: the parts are tiny, often just a forearm or a boot, and **Used by** shows that many are used in more than 50 frames.
-- **Frames**: turn on **Part bounds** to see how many parts a pose has, and **Budget** to see what it costs on the console.
+- **Frames**: turn on **Bounds** to see how many parts a pose has, and choose **MD H40** in the budget menu to see what it costs on the console.
 
 - **Hitboxes and points**: choose **Hitboxes** or **Points** above the stage of the **Frames** tab. Every pose has hurt boxes for the head and the body, the striking poses an attack box, and points mark the feet and, in combat, the tip of the blade. See [Hitboxes and points](../guide/hitboxes-points.md).
 - **Animations**: play **C34 Attack**, **C06 slash** or **A05 run**. Turn on **Path** to see how a jump moves. The attacks have a `hit` event on the step where the blade strikes, the runs a `footstep` when a foot lands.

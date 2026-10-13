@@ -7,7 +7,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import wx
 
 from models import Frame, Project
-from ui.components.inspector_kit import COL_DIM, bind_spin, common, dim_text, hbox, row, section, set_spin, small_button, spin
+from ui import first_steps
+from ui.components.inspector_kit import (
+    COL_DIM, bind_spin, common, dim_text, hbox, relayout, row, section, set_spin, small_button, spin,
+)
 from ui.frame_editor import ops
 
 
@@ -37,8 +40,8 @@ class FrameInspector(wx.ScrolledWindow):
         root.Add(self.hint, 0, wx.ALL, 8)
 
         # --- Frame
-        self.frame_panel, grid, _ = section(self, root, "Frame")
-        p = self.frame_panel
+        self.frame_panel, grid, _ = section(self, root, "Frame", "Frames")
+        p = self.frame_panel.body
         self.name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
         row(grid, p, "Name", self.name)
         self.contents = wx.StaticText(p, label="")
@@ -59,8 +62,8 @@ class FrameInspector(wx.ScrolledWindow):
         row(grid, p, "Origin", hbox(self.btn_feet, self.btn_centre))
 
         # --- Part(s)
-        self.part_panel, grid, self.part_title = section(self, root, "Part")
-        p = self.part_panel
+        self.part_panel, grid, self.part_title = section(self, root, "Part", "Frames")
+        p = self.part_panel.body
         self.source_bitmap = wx.StaticBitmap(p, size=(40, 40))
         self.source_name = wx.StaticText(p, label="")
         self.source_info = dim_text(p)
@@ -96,8 +99,8 @@ class FrameInspector(wx.ScrolledWindow):
         row(grid, p, "Order", hbox(self.btn_bottom, self.btn_down, self.btn_up, self.btn_top))
 
         # --- Hitbox / point
-        self.marker_panel, grid, self.marker_title = section(self, root, "Hitbox")
-        p = self.marker_panel
+        self.marker_panel, grid, self.marker_title = section(self, root, "Hitbox", "Frames")
+        p = self.marker_panel.body
         self.marker_type = wx.Choice(p)
         row(grid, p, "Type", self.marker_type)
         self.role = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
@@ -111,8 +114,8 @@ class FrameInspector(wx.ScrolledWindow):
         self.msize_label = row(grid, p, "Size", hbox(self.mw, self.mh))
 
         # --- Types
-        self.types_panel, grid, self.types_title = section(self, root, "Hitbox types")
-        p = self.types_panel
+        self.types_panel, grid, self.types_title = section(self, root, "Hitbox types", "Frames")
+        p = self.types_panel.body
         self.types_box = wx.BoxSizer(wx.VERTICAL)
         outer = p.GetSizer()
         outer.Add(self.types_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
@@ -185,12 +188,12 @@ class FrameInspector(wx.ScrolledWindow):
             self.marker_panel.Show(frame is not None and mode != "parts" and bool(selected))
             self.types_panel.Show(mode != "parts" and not selected)
             if frame is None:
-                self.hint.SetLabel("Select a frame in the list, or click + New.")
+                self.hint.SetLabel(first_steps.frames(project) or "Select a frame in the list, or click + New.")
             elif not selected:
                 self.hint.SetLabel({
                     "parts": "Drag modules or frames from the library onto the stage. Click a part to edit it; drag on empty space to select several.",
                     "hitboxes": "Drag on empty space to draw a box of the type chosen above the stage. Drag a box to move it, a corner to resize.",
-                    "points": "Shift+click to place a point of the chosen type. Drag points to move them.",
+                    "points": "Click to place a point of the chosen type. Drag points to move them; Shift+click adds one to the selection.",
                 }[mode])
             else:
                 self.hint.SetLabel("")
@@ -206,8 +209,7 @@ class FrameInspector(wx.ScrolledWindow):
         finally:
             self._updating = False
             self.Thaw()
-        self.Layout()
-        self.FitInside()
+        relayout(self)
 
     def _fill_frame(self, project: Project, frame: Frame, size: Optional[Tuple[int, int]]) -> None:
         if not self.name.HasFocus():
@@ -282,7 +284,7 @@ class FrameInspector(wx.ScrolledWindow):
             return
         self._type_rows_key = key
         self.types_box.Clear(True)
-        p = self.types_panel
+        p = self.types_panel.body
         for t in type_list:
             line = wx.BoxSizer(wx.HORIZONTAL)
             swatch = wx.Button(p, label="", size=(22, 20), style=wx.BORDER_NONE)

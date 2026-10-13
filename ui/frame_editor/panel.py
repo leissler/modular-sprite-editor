@@ -31,7 +31,7 @@ UNKNOWN_TYPE_COLOUR = (150, 150, 150)
 MODE_HINTS = {
     "parts": "Drag from the library onto the stage  •  Click: select (again: the part below)  •  Drag empty space: select several  •  Arrows: nudge (Shift = 8 px)  •  H/V flip  •  R rotate",
     "hitboxes": "Drag on empty space: new box of the chosen type  •  Drag a box: move  •  Drag a corner: resize  •  Arrows: nudge",
-    "points": "Shift+click: new point of the chosen type  •  Drag: move  •  Arrows: nudge",
+    "points": "Click: new point of the chosen type  •  Drag: move  •  Shift+click: add to selection  •  Arrows: nudge",
 }
 
 # Copied parts / hitboxes / points, shared between frames for the session.

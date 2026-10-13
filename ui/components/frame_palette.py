@@ -7,19 +7,25 @@ from ui.utils import ThumbnailGenerator
 class FramePalette(wx.ScrolledWindow):
     """
     Shows a grid of available frames in the project.
-    Allows selection, double-click to add, and dragging to timeline.
+    Allows selection, double-click to add, and dragging to timeline. With ``multiple``, Shift+click selects a range
+    and Cmd+click adds or removes one; dragging any of the selected frames drags them all ("FRAME:id,id,...").
     """
-    def __init__(self, parent, project: Project):
+    def __init__(self, parent, project: Project, multiple: bool = False):
         super().__init__(parent, style=wx.BORDER_SUNKEN)
         self.project = project
         self.generator = ThumbnailGenerator()
-        
+        self.multiple = multiple
+
         # Interaction Callbacks
         self.on_frame_double_click: Optional[Callable[[str], None]] = None
-        
+        self.on_context_menu: Optional[Callable[[List[str], wx.Point], None]] = None  # selected ids, where
+
         # State
-        self.selected_frame_id: Optional[str] = None
+        self.selected_frame_id: Optional[str] = None  # the one clicked last
+        self.selected_ids: List[str] = []
         self.hovered_frame_id: Optional[str] = None
+        self._narrow_on_up: Optional[str] = None  # a click on a selected frame selects it alone, unless it drags
+        self._anchor: Optional[str] = None  # where a Shift+click range starts
         
         # Layout
         self.item_size = (128, 128)
@@ -42,6 +48,7 @@ class FramePalette(wx.ScrolledWindow):
         self.Bind(wx.EVT_MOTION, self.on_motion)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_double_click)
         self.Bind(wx.EVT_LEAVE_WINDOW, self.on_leave)
+        self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
 
     def refresh_frames(self) -> None:
         """Call this when project frames change."""
@@ -165,7 +172,7 @@ class FramePalette(wx.ScrolledWindow):
             dc.DrawText(name, r.x + (r.width - tex_w)//2, r.y + r.height - tex_h - 2)
             
             # Selection Border
-            if frame.id == self.selected_frame_id:
+            if frame.id == self.selected_frame_id or frame.id in self.selected_ids:
                 # Outer Glow Look
                 dc.SetBrush(wx.Brush(wx.TRANSPARENT_BRUSH))
                 dc.SetPen(wx.Pen(wx.Colour(100, 200, 255), 3))
@@ -185,22 +192,63 @@ class FramePalette(wx.ScrolledWindow):
         self._cached_scale = uniform_scale
         return uniform_scale
 
+    def selection(self) -> List[str]:
+        """The selected frames in the palette's order."""
+        chosen = set(self.selected_ids) | ({self.selected_frame_id} if self.selected_frame_id else set())
+        return [f.id for f in self.visible_frames() if f.id in chosen]
+
     def on_left_down(self, event) -> None:
         idx = self._hit_test(event.GetPosition())
+        self._narrow_on_up = None
         if idx != -1:
             fid = self.visible_frames()[idx].id
+            ids = [f.id for f in self.visible_frames()]
+            if self.multiple and event.ShiftDown() and self._anchor in ids:
+                a, b = sorted((ids.index(self._anchor), idx))
+                self.selected_ids = ids[a:b + 1]
+            elif self.multiple and event.CmdDown():
+                current = self.selection()
+                self.selected_ids = [i for i in current if i != fid] if fid in current else current + [fid]
+                self.selected_frame_id = fid if fid in self.selected_ids else (self.selected_ids[-1] if self.selected_ids else None)
+                self._anchor = fid
+                self._drag_start_pos = None
+                self.Refresh()
+                event.Skip()
+                return
+            elif fid in self.selection() and len(self.selection()) > 1:
+                self._narrow_on_up = fid  # keep the group for a drag
+                self._anchor = fid
+            else:
+                self.selected_ids = [fid]
+                self._anchor = fid
             self.selected_frame_id = fid
             self._drag_start_pos = event.GetPosition()
             self.Refresh()
         else:
             self.selected_frame_id = None
+            self.selected_ids = []
             self._drag_start_pos = None
             self.Refresh()
         event.Skip()
 
     def on_left_up(self, event) -> None:
+        if self._narrow_on_up:
+            self.selected_ids = [self._narrow_on_up]
+            self._narrow_on_up = None
+            self.Refresh()
         self._drag_start_pos = None
         event.Skip()
+
+    def on_right_down(self, event) -> None:
+        idx = self._hit_test(event.GetPosition())
+        if idx == -1:
+            return
+        fid = self.visible_frames()[idx].id
+        if fid not in self.selection():
+            self.selected_ids, self.selected_frame_id = [fid], fid
+            self.Refresh()
+        if self.on_context_menu:
+            self.on_context_menu(self.selection(), event.GetPosition())
 
     def on_motion(self, event) -> None:
         if event.Dragging() and event.LeftIsDown() and self._drag_start_pos:
@@ -209,13 +257,15 @@ class FramePalette(wx.ScrolledWindow):
             if abs(drag_vec.x) > 5 or abs(drag_vec.y) > 5:
                 # Start Drag
                 if self.selected_frame_id:
-                    self._do_drag(self.selected_frame_id)
+                    self._narrow_on_up = None
+                    ids = self.selection() if self.selected_frame_id in self.selection() else [self.selected_frame_id]
+                    self._do_drag(",".join(ids))
                     self._drag_start_pos = None # Reset
         event.Skip()
 
-    def _do_drag(self, frame_id: str) -> None:
-        # Create Drag Source
-        data = wx.TextDataObject("FRAME:" + frame_id)
+    def _do_drag(self, frame_ids: str) -> None:
+        # Create Drag Source ("FRAME:id" or, for several frames, "FRAME:id,id,...")
+        data = wx.TextDataObject("FRAME:" + frame_ids)
         source = wx.DropSource(self)
         source.SetData(data)
         res = source.DoDragDrop(wx.Drag_DefaultMove)

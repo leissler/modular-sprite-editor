@@ -11,7 +11,7 @@ The editor knows the limits of the Sega Mega Drive, the first console it support
 
 ## Turn it on
 
-Choose **Budget** in the view bar of the **Frames**, **Animations** or **Timeline** tab:
+In the view bar of the **Frames**, **Animations** or **Timeline** tab, change **No budget** to a console mode:
 
 - **MD H40** is the Mega Drive's wide mode, 320 pixels across, used by most games.
 - **MD H32** is the narrower mode, 256 pixels across.

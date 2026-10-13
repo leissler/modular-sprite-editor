@@ -7,45 +7,9 @@ from typing import Any, Callable, List, Optional, Tuple
 import wx
 
 from models import AFrame, Animation, Project
+from ui import first_steps
 from ui.animation_editor import ops
-
-
-def _section(parent: wx.Window, sizer: wx.BoxSizer, title: str) -> Tuple[wx.Panel, wx.FlexGridSizer, wx.StaticText]:
-    panel = wx.Panel(parent)
-    outer = wx.BoxSizer(wx.VERTICAL)
-    label = wx.StaticText(panel, label=title.upper())
-    font = label.GetFont()
-    font.SetWeight(wx.FONTWEIGHT_BOLD)
-    font.SetPointSize(max(8, font.GetPointSize() - 1))
-    label.SetFont(font)
-    label.SetForegroundColour(wx.Colour(150, 156, 170))
-    outer.Add(label, 0, wx.LEFT | wx.TOP, 2)
-    outer.Add(wx.StaticLine(panel), 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 4)
-    grid = wx.FlexGridSizer(0, 2, 6, 8)
-    grid.AddGrowableCol(1, 1)
-    outer.Add(grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
-    panel.SetSizer(outer)
-    sizer.Add(panel, 0, wx.EXPAND | wx.ALL, 6)
-    return panel, grid, label
-
-
-def _row(grid: wx.FlexGridSizer, parent: wx.Window, label: str, item: Any) -> wx.StaticText:
-    text = wx.StaticText(parent, label=label)
-    grid.Add(text, 0, wx.ALIGN_CENTER_VERTICAL)
-    grid.Add(item, 1, wx.EXPAND)
-    return text
-
-
-def _hbox(*items: Any, gap: int = 4) -> wx.BoxSizer:
-    box = wx.BoxSizer(wx.HORIZONTAL)
-    for item in items:
-        if isinstance(item, int):
-            box.AddSpacer(item)
-        elif isinstance(item, str):
-            box.AddStretchSpacer(1)
-        else:
-            box.Add(item, 1 if isinstance(item, (wx.Button, wx.ToggleButton)) else 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, gap)
-    return box
+from ui.components.inspector_kit import hbox, relayout, row, section
 
 
 class AnimationInspector(wx.ScrolledWindow):
@@ -79,25 +43,25 @@ class AnimationInspector(wx.ScrolledWindow):
         root.Add(self.hint, 0, wx.ALL, 8)
 
         # --- Animation
-        self.anim_panel, grid, _ = _section(self, root, "Animation")
-        p = self.anim_panel
+        self.anim_panel, grid, _ = section(self, root, "Animation", "Animations")
+        p = self.anim_panel.body
         self.name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
-        _row(grid, p, "Name", self.name)
+        row(grid, p, "Name", self.name)
         self.playback = wx.Choice(p, choices=[label for label, _ in ops.PLAYBACK_MODES])
         self.playback.SetToolTip(
             "Loop: start → end, again.  Play once: stops on the last step.\n"
             "Ping-pong: forward, then back.  Loop backwards: end → start, again."
         )
-        _row(grid, p, "Playback", self.playback)
+        row(grid, p, "Playback", self.playback)
         self.loops = wx.SpinCtrl(p, min=0, max=999, initial=0, size=(64, -1))
         self.loops.SetToolTip("How many times a looping animation repeats before it stops. 0 = forever.")
         self.loops_info = wx.StaticText(p, label="times (0 = forever)")
-        self.loops_label = _row(grid, p, "Repeat", _hbox(self.loops, self.loops_info))
+        self.loops_label = row(grid, p, "Repeat", hbox(self.loops, self.loops_info))
         self.loop_from = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(64, -1))
         self.loop_from.SetToolTip("Later passes start at this step; the steps before it play once (an intro).")
         self.loop_from_info = wx.StaticText(p, label="step")
         self.loop_from_info.SetToolTip("Steps before it play once (an intro), then the loop repeats from here")
-        self.loop_from_label = _row(grid, p, "Loop from", _hbox(self.loop_from, self.loop_from_info))
+        self.loop_from_label = row(grid, p, "Loop from", hbox(self.loop_from, self.loop_from_info))
         self.next_anim = wx.Choice(p, choices=["— nothing —"])
         self.next_anim.SetToolTip(
             "When this animation ends, continue with another one (e.g. attack → idle).\n"
@@ -105,7 +69,7 @@ class AnimationInspector(wx.ScrolledWindow):
         )
         self.next_info = wx.StaticText(p, label="")
         self.next_info.SetForegroundColour(wx.Colour(150, 156, 170))
-        _row(grid, p, "Then play", self.next_anim)
+        row(grid, p, "Then play", self.next_anim)
         grid.Add((0, 0))
         grid.Add(self.next_info, 0)
         self.fps = wx.SpinCtrl(p, min=1, max=60, initial=10, size=(64, -1))
@@ -116,22 +80,22 @@ class AnimationInspector(wx.ScrolledWindow):
         self.fps_info = wx.StaticText(p, label="ticks / s")
         self.tick_ms = wx.StaticText(p, label="")
         self.tick_ms.SetForegroundColour(wx.Colour(150, 156, 170))
-        _row(grid, p, "Tick rate", _hbox(self.fps, self.fps_info))
+        row(grid, p, "Tick rate", hbox(self.fps, self.fps_info))
         grid.Add((0, 0))
         grid.Add(self.tick_ms, 0)
         self.length = wx.StaticText(p, label="")
-        _row(grid, p, "Length", self.length)
+        row(grid, p, "Length", self.length)
         self.usage = wx.StaticText(p, label="")
         self.usage.SetForegroundColour(wx.Colour(150, 156, 170))
-        _row(grid, p, "Used in", self.usage)
+        row(grid, p, "Used in", self.usage)
         self.budget_info = wx.StaticText(p, label="")
         self.budget_info.SetToolTip("The step that needs the most hardware sprites (view bar ▸ Budget)")
-        self.budget_label = _row(grid, p, "Budget", self.budget_info)
+        self.budget_label = row(grid, p, "Budget", self.budget_info)
         self.btn_mirror_h = wx.Button(p, label="Mirror H", style=wx.BU_EXACTFIT)
         self.btn_mirror_v = wx.Button(p, label="Mirror V", style=wx.BU_EXACTFIT)
         self.btn_mirror_h.SetToolTip("Mirror every step and its motion horizontally (e.g. turn a walk to face left)")
         self.btn_mirror_v.SetToolTip("Mirror every step and its motion vertically")
-        _row(grid, p, "Whole", _hbox(self.btn_mirror_h, self.btn_mirror_v, gap=2))
+        row(grid, p, "Whole", hbox(self.btn_mirror_h, self.btn_mirror_v, gap=2))
         self.btn_rot_ccw = wx.Button(p, label="↺ 90°", style=wx.BU_EXACTFIT)
         self.btn_rot_cw = wx.Button(p, label="↻ 90°", style=wx.BU_EXACTFIT)
         self.btn_reverse = wx.Button(p, label="Reverse", style=wx.BU_EXACTFIT)
@@ -139,37 +103,37 @@ class AnimationInspector(wx.ScrolledWindow):
         self.btn_rot_cw.SetToolTip("Rotate every step and its motion 90° clockwise")
         self.btn_reverse.SetToolTip("Play the steps in reverse order (the selected steps, or all)")
         grid.Add((0, 0))
-        grid.Add(_hbox(self.btn_rot_ccw, self.btn_rot_cw, self.btn_reverse, gap=2), 1, wx.EXPAND)
+        grid.Add(hbox(self.btn_rot_ccw, self.btn_rot_cw, self.btn_reverse, gap=2), 1, wx.EXPAND)
         self.btn_gif = wx.Button(p, label="Export GIF…", style=wx.BU_EXACTFIT)
         self.btn_gif.SetToolTip("Save one cycle as an animated GIF (uses the mirror preview and the preview mapping)")
         grid.Add((0, 0))
         grid.Add(self.btn_gif, 0)
 
         # --- Step(s)
-        self.step_panel, grid, self.step_title = _section(self, root, "Step")
-        p = self.step_panel
+        self.step_panel, grid, self.step_title = section(self, root, "Step", "Animations")
+        p = self.step_panel.body
         self.frame_btn = wx.Button(p, label="", style=wx.BU_EXACTFIT)
         self.frame_btn.SetToolTip("Show a different frame in this step")
         self.btn_edit_frame = wx.Button(p, label="Edit…", style=wx.BU_EXACTFIT)
         self.btn_edit_frame.SetToolTip("Open this frame in the Frames tab (or double-click the step)")
-        self.frame_label = _row(grid, p, "Frame", _hbox(self.frame_btn, self.btn_edit_frame, gap=2))
+        self.frame_label = row(grid, p, "Frame", hbox(self.frame_btn, self.btn_edit_frame, gap=2))
         self.hold = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(64, -1))
         self.hold.SetToolTip("How many ticks this step stays on screen. Drag a step's right edge in the sequence, or press [ / ].")
         self.hold_info = wx.StaticText(p, label="")
-        _row(grid, p, "Hold", _hbox(self.hold, self.hold_info))
+        row(grid, p, "Hold", hbox(self.hold, self.hold_info))
         self.off_x = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(64, -1))
         self.off_y = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(64, -1))
-        self.offset_label = _row(grid, p, "Offset", _hbox(wx.StaticText(p, label="X"), self.off_x, 6, wx.StaticText(p, label="Y"), self.off_y))
+        self.offset_label = row(grid, p, "Offset", hbox(wx.StaticText(p, label="X"), self.off_x, 6, wx.StaticText(p, label="Y"), self.off_y))
         self.offset_label.SetToolTip("Where this step's frame origin sits (root motion). Drag on the stage or use the arrow keys.")
         self.rot_ccw = wx.Button(p, label="↺ 90°", style=wx.BU_EXACTFIT)
         self.rot_cw = wx.Button(p, label="↻ 90°", style=wx.BU_EXACTFIT)
         self.rot_value = wx.StaticText(p, label="0°")
-        _row(grid, p, "Rotation", _hbox(self.rot_ccw, self.rot_cw, self.rot_value, gap=2))
+        row(grid, p, "Rotation", hbox(self.rot_ccw, self.rot_cw, self.rot_value, gap=2))
         self.flip_h = wx.ToggleButton(p, label="Flip H")
         self.flip_v = wx.ToggleButton(p, label="Flip V")
         self.flip_h.SetToolTip("Mirror this step's frame horizontally in place (H)")
         self.flip_v.SetToolTip("Mirror this step's frame vertically in place (V)")
-        _row(grid, p, "Mirror", _hbox(self.flip_h, self.flip_v, gap=2))
+        row(grid, p, "Mirror", hbox(self.flip_h, self.flip_v, gap=2))
         self.events_box = wx.BoxSizer(wx.VERTICAL)
         self.events_empty = wx.StaticText(p, label="none")
         self.events_empty.SetForegroundColour(wx.Colour(150, 156, 170))
@@ -187,7 +151,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.btn_manage_events = wx.Button(p, label="Event types…", style=wx.BU_EXACTFIT)
         self.btn_manage_events.SetToolTip("Rename, recolour or delete the project's event types")
         self.events_box.Add(self.btn_manage_events, 0, wx.TOP, 2)
-        events_label = _row(grid, p, "Events", self.events_box)
+        events_label = row(grid, p, "Events", self.events_box)
         events_label.SetToolTip(
             "Game events on this step: they fire when the step starts and are active while it shows "
             "(hit windows, sounds, spawns, footsteps). The value is up to the game (e.g. which sound)."
@@ -275,7 +239,9 @@ class AnimationInspector(wx.ScrolledWindow):
         self._updating = True
         try:
             self.Freeze()
-            self.hint.SetLabel("" if animation else "Select an animation in the list, or click + New.")
+            self.hint.SetLabel("" if animation else
+                               first_steps.animations(project) or "Select an animation in the list, or click + New.")
+            self.hint.Wrap(260)
             self.hint.Show(animation is None)
             self.anim_panel.Show(animation is not None)
             self.step_panel.Show(bool(self.indices))
@@ -283,11 +249,21 @@ class AnimationInspector(wx.ScrolledWindow):
                 self._fill_animation(animation)
             if self.indices:
                 self._fill_steps(animation, self.indices)
-            self.Layout()
-            self.FitInside()
+            self._order_sections(step_first=bool(self.indices))
+            relayout(self)
         finally:
             self.Thaw()
             self._updating = False
+
+    def _order_sections(self, step_first: bool) -> None:
+        """While steps are selected their section comes first: the controls used most while timing stay in view."""
+        root = self.GetSizer()
+        items = [item.GetWindow() for item in root.GetChildren()]
+        if (items.index(self.step_panel) < items.index(self.anim_panel)) == step_first:
+            return
+        root.Detach(self.step_panel)
+        anim_at = [item.GetWindow() for item in root.GetChildren()].index(self.anim_panel)
+        root.Insert(anim_at if step_first else anim_at + 1, self.step_panel, 0, wx.EXPAND | wx.ALL, 6)
 
     def _fill_animation(self, anim: Animation) -> None:
         if not self.name.HasFocus():
@@ -399,7 +375,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.events_empty.Show(not events)
 
     def _rebuild_event_rows(self, events: List[Tuple[str, int, int]], selected: int) -> None:
-        parent = self.step_panel
+        parent = self.step_panel.body
         self.events_rows.Clear(delete_windows=True)
         self._event_spins = {}
         for type_id, value, count in events:

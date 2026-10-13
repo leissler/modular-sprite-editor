@@ -238,6 +238,27 @@ def new_animation(project: Project, after_id: Optional[str] = None, name: str = 
     return anim
 
 
+def shared_name(names: Sequence[str]) -> str:
+    """What the names share, without a trailing number or separator: run_01, run_02 → run ("" if nothing)."""
+    names = [name.strip() for name in names if name and name.strip()]
+    if not names:
+        return ""
+    prefix = names[0]
+    for name in names[1:]:
+        while not name.startswith(prefix):
+            prefix = prefix[:-1]
+    return prefix.rstrip("0123456789").rstrip(" _-.#(").strip()
+
+
+def animation_from_frames(project: Project, frame_ids: Sequence[str], name: str = "",
+                          after_id: Optional[str] = None) -> Animation:
+    """A new animation that shows these frames in this order, one tick each, named after what their names share."""
+    frames = [frame for frame in (project.get_frame(fid) for fid in frame_ids) if frame is not None]
+    anim = new_animation(project, after_id, name or shared_name([f.name for f in frames]) or "New Animation")
+    anim.aframes = [new_step(frame.id) for frame in frames]
+    return anim
+
+
 def duplicate_animation(project: Project, anim: Animation) -> Animation:
     copy = anim.clone()
     copy.id = generate_id("anim")

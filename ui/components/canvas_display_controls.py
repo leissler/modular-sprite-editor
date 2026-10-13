@@ -11,6 +11,7 @@ CONFIG_BACKDROP = "View/Backdrop/{}"  # per tab: "checker" | "colour"
 CONFIG_BACKDROP_COLOUR = "View/BackdropColour"  # "r,g,b", one preview colour shared by all tabs
 CONFIG_BUDGET = "View/Budget/{}"  # per tab: "" (off) or a hardware profile key
 BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32"}
+GAP = 8  # between the bar's groups
 
 # Live view bars, so a new backdrop colour shows in every tab at once. Destroyed wx windows are falsy.
 _LIVE_BARS: List["CanvasDisplayControls"] = []
@@ -54,10 +55,11 @@ class CanvasDisplayControls(wx.Panel):
     """
     Shared view bar shown under every editor canvas.
 
-    Contains grid size, Grid toggle, Backdrop (checkerboard or a solid preview colour) and a Fit
-    button. Optional: "Part bounds" (outline every module part) for composition canvases and
-    "Show key colour" (raw sheet pixels) for the Modules tab, the only place where seeing the
-    transparent key colour helps. Editors append their own view toggles with ``add_toggle``.
+    Contains the Grid toggle and size, Backdrop (checkerboard or a solid preview colour) and a Fit
+    button. Optional: "Bounds" (outline every module part) for composition canvases and "Key colour"
+    (raw sheet pixels) for the Modules tab, the only place where seeing the transparent key colour
+    helps. Editors append their own view toggles with ``add_toggle``. The controls wrap into more
+    rows when the canvas is narrow (laptop screens), so none of them gets cut off.
     """
 
     def __init__(
@@ -80,52 +82,52 @@ class CanvasDisplayControls(wx.Panel):
         self.on_key_colour_changed = on_key_colour_changed
         self.on_budget_changed: Optional[Callable[[], None]] = None
 
-        self._sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # The controls wrap into more rows when the canvas is narrow; Fit stays at the right of the first row.
+        self._sizer = wx.WrapSizer(wx.HORIZONTAL, wx.REMOVE_LEADING_SPACES)
         controls = self._sizer
-        controls.Add(wx.StaticText(self, label="Grid"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.grid_w = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[0])), size=(64, -1))
-        self.grid_w.SetToolTip("Grid width in pixels")
-        controls.Add(self.grid_w, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
-        controls.Add(wx.StaticText(self, label="×"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
-        self.grid_h = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[1])), size=(64, -1))
-        self.grid_h.SetToolTip("Grid height in pixels")
-        controls.Add(self.grid_h, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-
         self.chk_grid = wx.CheckBox(self, label="Grid")
         self.chk_grid.SetValue(bool(canvas.show_grid))
-        self.chk_grid.SetToolTip("Show grid (View ▸ Toggle Grid)")
-        controls.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.chk_grid.SetToolTip("Show grid (View ▸ Toggle Grid). The numbers are its width and height in pixels.")
+        self.grid_w = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[0])), size=(52, -1))
+        self.grid_w.SetToolTip("Grid width in pixels")
+        self.grid_h = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[1])), size=(52, -1))
+        self.grid_h.SetToolTip("Grid height in pixels")
+        grid_box = wx.BoxSizer(wx.HORIZONTAL)
+        grid_box.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        grid_box.Add(self.grid_w, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        grid_box.Add(wx.StaticText(self, label="×"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        grid_box.Add(self.grid_h, 0, wx.ALIGN_CENTER_VERTICAL)
+        controls.Add(grid_box, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
 
         # Backdrop: what shows where the artwork is transparent.
-        controls.Add(wx.StaticText(self, label="Backdrop"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        backdrop_box = wx.BoxSizer(wx.HORIZONTAL)
         self.backdrop_choice = wx.Choice(self, choices=["Checker", "Scene colour" if scene_backdrop else "Colour"])
         self.backdrop_choice.SetToolTip(
-            "Checker shows exactly what is transparent. "
+            "Backdrop: what shows where the artwork is transparent. Checker shows exactly what is transparent. "
             + ("Scene colour previews the scene's background (Scene settings)."
                if scene_backdrop else "Colour previews the artwork on a solid backdrop, e.g. your game's background.")
         )
         # macOS sizes a Choice for its current item; leave room for the longest one plus the arrows.
         longest = max(self.GetTextExtent(self.backdrop_choice.GetString(i))[0] for i in range(self.backdrop_choice.GetCount()))
         self.backdrop_choice.SetMinSize((longest + 44, -1))
-        controls.Add(self.backdrop_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        backdrop_box.Add(self.backdrop_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         self.backdrop_picker: Optional[wx.ColourPickerCtrl] = None
         if not scene_backdrop:
             self.backdrop_picker = wx.ColourPickerCtrl(self, colour=wx.Colour(*shared_backdrop_colour()))
             self.backdrop_picker.SetToolTip("Backdrop colour (shared by all tabs)")
-            controls.Add(self.backdrop_picker, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        else:
-            controls.AddSpacer(4)
+            backdrop_box.Add(self.backdrop_picker, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+        controls.Add(backdrop_box, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
 
         self.chk_part_bounds: Optional[wx.CheckBox] = None
         if part_bounds:
-            self.chk_part_bounds = wx.CheckBox(self, label="Part bounds")
+            self.chk_part_bounds = wx.CheckBox(self, label="Bounds")
             self.chk_part_bounds.SetToolTip("Outline every module part: the area each hardware sprite covers")
-            controls.Add(self.chk_part_bounds, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+            controls.Add(self.chk_part_bounds, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
             self.chk_part_bounds.Bind(wx.EVT_CHECKBOX, self._on_toggle_part_bounds)
 
         self.budget_choice: Optional[wx.Choice] = None
         if budget:
-            labels = ["Off"] + [BUDGET_LABELS.get(p.key, p.name) for p in PROFILES]
+            labels = ["No budget"] + [BUDGET_LABELS.get(p.key, p.name) for p in PROFILES]
             self.budget_choice = wx.Choice(self, choices=labels)
             longest = max(self.GetTextExtent(label)[0] for label in labels)
             self.budget_choice.SetMinSize((longest + 44, -1))
@@ -133,25 +135,26 @@ class CanvasDisplayControls(wx.Panel):
                 "Hardware budget: outline the console's hardware sprites, mark scanlines where sprites would "
                 "drop out (red) and show sprite / tile counts. MD H40 = 320 px wide mode, H32 = 256 px."
             )
-            controls.Add(wx.StaticText(self, label="Budget"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-            controls.Add(self.budget_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+            controls.Add(self.budget_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
             self.budget_choice.Bind(wx.EVT_CHOICE, self._on_budget_choice)
 
         self.chk_key_colour: Optional[wx.CheckBox] = None
         if key_colour_toggle:
-            self.chk_key_colour = wx.CheckBox(self, label="Show key colour")
+            self.chk_key_colour = wx.CheckBox(self, label="Key colour")
             self.chk_key_colour.SetToolTip("Show the sheet's transparent (key) colour instead of hiding it")
-            controls.Add(self.chk_key_colour, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+            controls.Add(self.chk_key_colour, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
             self.chk_key_colour.Bind(wx.EVT_CHECKBOX, self._on_toggle_key_colour)
 
-        # Editor-specific toggles are inserted before the stretch spacer.
+        # Editor-specific toggles go after these.
         self._extra_insert_index = controls.GetItemCount()
-        controls.AddStretchSpacer(1)
         self.btn_fit = wx.Button(self, label="Fit", style=wx.BU_EXACTFIT)
         self.btn_fit.SetToolTip("Fit content in view (View ▸ Fit to Content, Ctrl+0)")
-        controls.Add(self.btn_fit, 0, wx.ALIGN_CENTER_VERTICAL)
-
-        self.SetSizer(controls)
+        outer = wx.BoxSizer(wx.HORIZONTAL)
+        outer.Add(controls, 1, wx.EXPAND)
+        outer.Add(self.btn_fit, 0, wx.ALIGN_TOP)
+        self.SetSizer(outer)
+        self._rows_height: Optional[int] = None
+        self.Bind(wx.EVT_SIZE, self._on_size)
 
         self.grid_w.Bind(wx.EVT_SPINCTRL, self._on_change_grid_spacing)
         self.grid_h.Bind(wx.EVT_SPINCTRL, self._on_change_grid_spacing)
@@ -169,9 +172,23 @@ class CanvasDisplayControls(wx.Panel):
             self._set_budget(cfg.Read(CONFIG_BUDGET.format(view_key), "") if cfg else "", persist=False)
         _LIVE_BARS.append(self)
 
+    def _on_size(self, event: wx.SizeEvent) -> None:
+        """Wrap the controls for the width there is; the bar grows by a row instead of cutting controls off."""
+        event.Skip()
+        width = self.GetClientSize().width - self.btn_fit.GetBestSize().width
+        if width <= 0:
+            return
+        self._sizer.InformFirstDirection(wx.HORIZONTAL, width, -1)
+        height = max(self._sizer.CalcMin().height, self.btn_fit.GetBestSize().height)
+        if height != self._rows_height:
+            self._rows_height = height
+            self.SetMinSize((self.btn_fit.GetBestSize().width + 160, height))
+            parent = self.GetParent()
+            wx.CallAfter(lambda: parent and parent.Layout())
+
     def add_separator(self) -> None:
-        line = wx.StaticLine(self, style=wx.LI_VERTICAL, size=(1, 18))
-        self._sizer.Insert(self._extra_insert_index, line, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 6)
+        """Extra room before an editor's own toggles (a spacer: dropped where the bar wraps)."""
+        self._sizer.InsertSpacer(self._extra_insert_index, GAP)
         self._extra_insert_index += 1
 
     def add_toggle(self, label: str, value: bool, on_change: Callable[[bool], None], tooltip: str = "") -> wx.CheckBox:
@@ -180,22 +197,17 @@ class CanvasDisplayControls(wx.Panel):
         if tooltip:
             chk.SetToolTip(tooltip)
         chk.Bind(wx.EVT_CHECKBOX, lambda e: on_change(e.IsChecked()))
-        self._sizer.Insert(self._extra_insert_index, chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self._sizer.Insert(self._extra_insert_index, chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
         self._extra_insert_index += 1
         self.Layout()
         return chk
 
     def add_control(self, window: wx.Window, label: str = "") -> wx.Window:
+        box = wx.BoxSizer(wx.HORIZONTAL)  # a label stays with its control when the bar wraps
         if label:
-            self._sizer.Insert(
-                self._extra_insert_index,
-                wx.StaticText(self, label=label),
-                0,
-                wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-                4,
-            )
-            self._extra_insert_index += 1
-        self._sizer.Insert(self._extra_insert_index, window, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+            box.Add(wx.StaticText(self, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        box.Add(window, 0, wx.ALIGN_CENTER_VERTICAL)
+        self._sizer.Insert(self._extra_insert_index, box, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
         self._extra_insert_index += 1
         self.Layout()
         return window

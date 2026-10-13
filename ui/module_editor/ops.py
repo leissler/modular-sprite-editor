@@ -6,7 +6,7 @@ import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from models import ImageAsset, Module, Project, generate_id
+from models import FModule, Frame, ImageAsset, Module, Project, generate_id
 
 Rect = Tuple[int, int, int, int]  # x, y, w, h
 
@@ -181,6 +181,26 @@ def unique_name(base: str, used: Set[str]) -> str:
         n += 1
     used.add(name)
     return name
+
+
+def frames_for_modules(project: Project, modules: Sequence[Module]) -> List[Frame]:
+    """A new frame for each module, in this order: the module with its pivot on the origin, named after it."""
+    used = {frame.name for frame in project.frames}
+    frames = []
+    for mod in modules:
+        frame = project.create_frame(unique_name(mod.name, used))
+        frame.fmodules.append(FModule(id=generate_id("fmod"), ref_type="module", ref_id=mod.id, position=(0, 0)))
+        frames.append(frame)
+    return frames
+
+
+def rows_of(modules: Sequence[Module]) -> List[List[Module]]:
+    """Modules cut from one sheet grouped into its rows (the same top edge), rows top to bottom, each left to right:
+    on a sheet of whole sprites, a row is usually one animation."""
+    rows: Dict[int, List[Module]] = {}
+    for mod in modules:
+        rows.setdefault(int(mod.rect[1]), []).append(mod)
+    return [sorted(rows[top], key=lambda m: int(m.rect[0])) for top in sorted(rows)]
 
 
 def numbered_names(prefix: str, count: int, used: Set[str]) -> List[str]:

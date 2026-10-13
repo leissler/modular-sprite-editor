@@ -69,12 +69,19 @@ class GridSliceDialog(_OptionsDialog):
         self.skip_empty.Bind(wx.EVT_CHECKBOX, lambda e: self._update())
         self.grid.Add((0, 0))
         self.grid.Add(self.skip_empty, 0)
+        self.row_animations = wx.CheckBox(self, label="Make a frame for every tile and an animation for every row")
+        self.row_animations.SetToolTip("For a sheet of whole sprites with one action per row (idle, run, jump...): "
+                                       "each row becomes an animation of its tiles, left to right")
+        self.row_animations.SetValue(bool(values.get("row_animations", 0)))
+        self.grid.Add((0, 0))
+        self.grid.Add(self.row_animations, 0)
         self._finish()
         self._update()
 
     def values(self) -> Dict[str, int]:
         data = {key: int(ctrl.GetValue()) for key, ctrl in self.spins.items()}
         data["skip_empty"] = int(self.skip_empty.GetValue())
+        data["row_animations"] = int(self.row_animations.GetValue())
         return data
 
     def _update(self) -> None:

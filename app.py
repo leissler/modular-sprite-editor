@@ -32,11 +32,15 @@ from ui.project_history import ProjectHistory
 from ui.shortcuts_dialog import ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
+from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
 
 APP_NAME = "Modular Sprite Editor"
 # The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
 APP_VERSION = "0.7.1"
 TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
+CONFIG_WINDOW = "Window/Geometry"  # "x,y,width,height" when the editor last closed
+CONFIG_WINDOW_MAXIMIZED = "Window/Maximized"
+DEFAULT_WINDOW = (1500, 980)
 
 # Shown in the status bar when a tab is activated.
 TAB_HINTS = {
@@ -189,9 +193,20 @@ class MainFrame(wx.Frame):
         for idx, (panel, name) in enumerate(zip(self.panels, TAB_NAMES)):
             self.book.AddPage(panel, f"{pad}{name}{pad}", select=(idx == 0))
 
+        # Before a project is open the welcome screen takes the tabs' place.
+        self.welcome = WelcomePanel(root, APP_VERSION)
+        self.welcome.on_new = lambda: self.on_new(None)
+        self.welcome.on_open = lambda: self.on_open(None)
+        self.welcome.on_open_path = self.open_path
+        self.welcome.on_shortcuts = lambda: self.on_shortcuts(None)
+        self.welcome.on_back = lambda: self.show_welcome(False)
+        self.welcome.on_show_at_start = self._set_welcome_at_start
+        self.welcome.Hide()
+
         root_sizer = wx.BoxSizer(wx.VERTICAL)
         root_sizer.Add(self.context_bar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 6)
         root_sizer.Add(self.book, 1, wx.EXPAND)
+        root_sizer.Add(self.welcome, 1, wx.EXPAND)
         root.SetSizer(root_sizer)
 
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -208,6 +223,7 @@ class MainFrame(wx.Frame):
 
         self.animation_editor.on_edit_frame = self.switch_to_frame_editor
         self.module_editor.on_open_frame = self.switch_to_frame_editor
+        self.module_editor.on_open_animation = self.switch_to_animation
         self.frame_editor.on_open_module = self.switch_to_module
         self.mapping_editor.on_open_module = self.switch_to_module
 
@@ -239,6 +255,37 @@ class MainFrame(wx.Frame):
 
         self._update_title()
         self._show_tab_hint()
+        self._restore_geometry()
+
+    # ------------------------------------------------------------------ window geometry
+    def _restore_geometry(self) -> None:
+        """Where and how large the window was last time, if its title bar is still on a screen; else a size that
+        fits the screen it opens on (laptops have less room than the default)."""
+        try:
+            x, y, w, h = (int(v) for v in self.config.Read(CONFIG_WINDOW, "").split(","))
+        except ValueError:
+            x = y = w = h = None
+        screen = wx.Display.GetFromPoint(wx.Point(x + 60, y + 12)) if x is not None else wx.NOT_FOUND
+        if screen != wx.NOT_FOUND:
+            area = wx.Display(screen).GetClientArea()
+            w, h = min(max(w, 800), area.width), min(max(h, 560), area.height)
+            self.SetSize(max(area.x, min(x, area.Right - w + 1)), max(area.y, min(y, area.Bottom - h + 1)), w, h)
+            if self.config.ReadBool(CONFIG_WINDOW_MAXIMIZED, False):
+                self.Maximize()
+            return
+        screen = wx.Display.GetFromWindow(self)
+        area = wx.Display(screen if screen != wx.NOT_FOUND else 0).GetClientArea()
+        self.SetSize(min(DEFAULT_WINDOW[0], area.width - 40), min(DEFAULT_WINDOW[1], area.height - 40))
+        self.CentreOnScreen()
+
+    def _save_geometry(self) -> None:
+        if self.IsIconized() or self.IsFullScreen():
+            return
+        self.config.WriteBool(CONFIG_WINDOW_MAXIMIZED, self.IsMaximized())
+        if not self.IsMaximized():
+            rect = self.GetRect()
+            self.config.Write(CONFIG_WINDOW, f"{rect.x},{rect.y},{rect.width},{rect.height}")
+        self.config.Flush()
 
     # ------------------------------------------------------------------ status / title
     def set_status(self, message: str) -> None:
@@ -260,7 +307,8 @@ class MainFrame(wx.Frame):
         fname = os.path.basename(self.current_path) if self.current_path else "New Project"
         dirty = self.history.is_dirty()
         marker = "*" if dirty else ""
-        self.SetTitle(f"{APP_NAME} - {fname}{marker} - [{self._current_tab_name()}]")
+        welcome = hasattr(self, "welcome") and self.welcome.IsShown()
+        self.SetTitle(APP_NAME if welcome else f"{APP_NAME} - {fname}{marker} - [{self._current_tab_name()}]")
         if sys.platform == "darwin":
             # Native "edited" dot in the macOS close button.
             try:
@@ -390,8 +438,44 @@ class MainFrame(wx.Frame):
         return False
 
     def startup(self, path: Optional[str]) -> None:
-        """First thing after the window opens: offer crash recovery, then open the project from the command line."""
-        if not self.offer_recovery() and path:
+        """First thing after the window opens: offer crash recovery, then open the project from the command line,
+        else show the welcome screen."""
+        if self.offer_recovery():
+            return
+        if path:
+            self.load_project(path)
+        elif self.config.ReadBool(CONFIG_SHOW, True):
+            self.show_welcome()
+
+    # ------------------------------------------------------------------ welcome screen
+    def show_welcome(self, show: bool = True) -> None:
+        """The welcome screen in place of the tabs (at the start, Help ▸ Welcome Screen), or the tabs again."""
+        if show:
+            has_project = bool(self.current_path or self.history.is_dirty() or self.project.images or self.project.frames)
+            self.welcome.refresh(self.recent_files, has_project, self.config.ReadBool(CONFIG_SHOW, True))
+        if show == self.welcome.IsShown():
+            return
+        self.welcome.Show(show)
+        self.context_bar.Show(not show)
+        self.book.Show(not show)
+        self.welcome.GetParent().Layout()
+        self._update_title()
+        if show:
+            self.set_status("")
+            self.status_bar.SetStatusText("", 1)
+        else:
+            self._show_tab_hint()
+
+    def _set_welcome_at_start(self, show: bool) -> None:
+        self.config.WriteBool(CONFIG_SHOW, show)
+        self.config.Flush()
+
+    def open_path(self, path: str) -> None:
+        """Open a project (a recent one, an example), after asking about unsaved changes."""
+        if not os.path.isfile(path):
+            wx.MessageBox(f"File not found: {path}", "Open Project", wx.OK | wx.ICON_ERROR, self)
+            return
+        if self.confirm_discard_changes():
             self.load_project(path)
 
     def _after_history_restore(self) -> None:
@@ -514,17 +598,23 @@ class MainFrame(wx.Frame):
         event.Skip()
 
     def select_tab(self, index: int) -> None:
+        self.show_welcome(False)
         if 0 <= index < self.book.GetPageCount():
             self.book.SetSelection(index)
 
     def switch_to_frame_editor(self, frame_id: str) -> None:
         """Navigates to the Frame Editor and selects the given frame."""
-        self.book.SetSelection(1)
+        self.select_tab(1)
         self.frame_editor.select_frame_by_id(frame_id)
+
+    def switch_to_animation(self, anim_id: str) -> None:
+        """The Animations tab with this animation selected."""
+        self.select_tab(2)
+        self.animation_editor.select_animation(anim_id)
 
     def switch_to_module(self, module_id: str) -> None:
         """Navigates to the Modules tab and shows the given module on its image."""
-        self.book.SetSelection(0)
+        self.select_tab(0)
         self.module_editor.select_module(module_id)
 
     # ------------------------------------------------------------------ recent files
@@ -680,8 +770,24 @@ class MainFrame(wx.Frame):
         menubar.Append(tools_menu, "&Tools")
 
         help_menu = wx.Menu()
+        m_guide = help_menu.Append(wx.ID_ANY, "User Guide\tF1", "The user guide on the web")
+        examples_menu = wx.Menu()
+        for name, _text, path in example_paths():
+            item = examples_menu.Append(wx.ID_ANY, name, path)
+            self.Bind(wx.EVT_MENU, lambda e, p=path: self.open_path(p), item)
+        if not examples_menu.GetMenuItemCount():
+            item = examples_menu.Append(wx.ID_ANY, "Download the Example Projects...", DOWNLOAD_URL)
+            self.Bind(wx.EVT_MENU, lambda e: wx.LaunchDefaultBrowser(DOWNLOAD_URL), item)
+        examples_menu.AppendSeparator()
+        item = examples_menu.Append(wx.ID_ANY, "What Each Example Shows...", EXAMPLES_GUIDE_URL)
+        self.Bind(wx.EVT_MENU, lambda e: wx.LaunchDefaultBrowser(EXAMPLES_GUIDE_URL), item)
+        help_menu.AppendSubMenu(examples_menu, "Example Projects")
+        m_welcome = help_menu.Append(wx.ID_ANY, "Welcome Screen", "Recent projects, the examples and the guide")
+        help_menu.AppendSeparator()
         m_shortcuts = help_menu.Append(wx.ID_ANY, "Keyboard && Mouse Shortcuts\tCtrl+/")
         m_about = help_menu.Append(wx.ID_ABOUT, f"About {APP_NAME}")
+        self.Bind(wx.EVT_MENU, lambda e: wx.LaunchDefaultBrowser(GUIDE_URL), m_guide)
+        self.Bind(wx.EVT_MENU, lambda e: self.show_welcome(), m_welcome)
         self.Bind(wx.EVT_MENU, self.on_shortcuts, m_shortcuts)
         self.Bind(wx.EVT_MENU, self.on_about, m_about)
         menubar.Append(help_menu, "&Help")
@@ -714,6 +820,7 @@ class MainFrame(wx.Frame):
 
     def _set_project(self, project: Project, path: Optional[str], saved: bool) -> None:
         self._drop_recovery()  # the previous project's changes were saved or discarded by now
+        self.show_welcome(False)
         self.project = project
         self.current_path = path
         self._reload_project_into_panels()
@@ -1066,6 +1173,7 @@ class MainFrame(wx.Frame):
             if stop:
                 stop()
         self._save_recent_files()
+        self._save_geometry()
         app_services.install()
         event.Skip()
 

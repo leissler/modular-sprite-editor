@@ -33,6 +33,10 @@ right-click › Open the first time.
 
 ### Everywhere
 - **Project-wide undo/redo** for every editor, unsaved-change tracking and a save prompt on close.
+- **Welcome screen** with recent projects, the example projects and the user guide; **Help ▸ User Guide** (`F1`) and
+  **Help ▸ Example Projects**. Empty tabs say what to make first.
+- **Laptop-friendly**: view bars wrap instead of cutting controls off, inspector sections fold away (and stay folded),
+  the window opens where and as large as it was. One selection rule: `Shift`+click adds, `Cmd`+click adds or removes.
 - **Safe saving**: a save replaces the file in one step and keeps the previous version as `name.json.bak`; unsaved
   changes are autosaved every 30 s to a recovery folder and offered again after a crash.
 - **Images edited elsewhere reload by themselves** when you return to the editor.
@@ -50,6 +54,8 @@ right-click › Open the first time.
 - **Slicing tools**: grid slice (tile size, offset, gap, skip empty tiles) and sprite detection (touching pixels, merge
   gap; milliseconds on a full sheet). Both can keep the existing modules and add only new areas. Copy modules and paste
   them onto another image to cut the same areas there.
+- **From sheet to animation in one step**: select a row of whole sprites and choose **New animation** (a frame for
+  each, an animation through them), or let grid slice make a frame for every tile and an animation for every row.
 - **Auto Modularize** (Slice ▾ or Tools): cuts an image's whole sprites into hardware-sized parts they share, found at
   any offset and also mirrored, on a new image, and rebuilds the frames from them pixel for pixel. A preview shows every
   sprite's cut and the Mega Drive cost before and after (VRAM tiles, hardware sprites); one slider trades fewer tiles
@@ -67,6 +73,7 @@ right-click › Open the first time.
 - **Parts / Hitboxes / Points** modes above the stage; the inspector edits the selection (position, flips, rotation,
   draw order, swap the source; hitbox type, role, rect) and the frame (mirror, rotate, put the feet on the origin).
 - **Contents list** of the frame's parts (top-most first; drag to reorder), hitboxes or points; marquee selection.
+  A click places a point, a drag draws a hitbox.
 - **Pixel-exact editing**: arrow-key nudging (Shift = 8 px tile), flip (H/V), 90° rotation (R), draw order,
   copy/paste/duplicate of parts between frames.
 - **Hitboxes and points** with semantic roles (compiled into per-animation lookup tables); types managed inline.
@@ -74,7 +81,8 @@ right-click › Open the first time.
 
 ### Animations
 - **Sequence on a tick ruler**: every step is as wide as its hold; drag a step's right edge to change the hold, drag
-  steps to reorder (Alt copies), drop frames from the library where they should go.
+  steps to reorder (Alt copies), drop frames from the library where they should go (several at once: Shift+click a run
+  of frames; right-click makes them a new animation).
 - **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick;
   preview speed ½× / ¼× / 2×.
 - **Stage**: drag to move the selected steps' offsets, motion path, onion skin, mirror preview, part bounds, hitboxes
@@ -193,13 +201,14 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 | | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` |
 | | Fit / Actual pixels / Grid | `Cmd+0` / `Cmd+Shift+0` / `Cmd+G` |
 | **Modules** | New module / move / resize | Drag on the image / drag a module / drag a handle |
-| | Move pivot / select several | `Shift + Drag` / `Cmd + Drag` |
+| | Move pivot / select several / add or remove one | `Shift + Drag` / `Cmd + Drag` / `Cmd + Click` |
 | | Nudge 1 px / 8 px | `Arrows` / `Shift+Arrows` |
 | **Frames** | Nudge 1 px / 8 px | `Arrows` / `Shift+Arrows` |
 | | Flip / Rotate 90° | `H` `V` / `R` (`Shift+R` = CCW) |
 | | Draw order | `Cmd+↑/↓` (`Shift` = to front/back) |
 | | Copy / Paste / Duplicate / Select all | `Cmd+C` / `Cmd+V` / `Cmd+D` / `Cmd+A` |
-| | Select several parts | Drag on empty space |
+| | Select several parts / add a part / add or remove one | Drag on empty space / `Shift + Click` / `Cmd + Click` |
+| | New point (Points mode) | Click on empty space |
 | **Mappings** | Original / hide the selected modules | `Delete` / `H` |
 | **Animations / Timeline** | Play/Pause | `Enter` |
 | | Previous/Next step (Animations) or frame (Timeline) | `,` / `.` (`←` / `→` in the sequence / timeline) |

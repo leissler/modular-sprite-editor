@@ -11,7 +11,7 @@ from typing import Any, Callable, List, Optional
 import wx
 
 from models import ModuleMapping, Project
-from ui import app_services
+from ui import app_services, first_steps
 from ui.components.frame_palette import FramePalette
 from ui.components.module_palette import SHAPES_KEY, ModulePalette, sheet_of
 from ui.components.inspector_kit import fit_choice
@@ -275,7 +275,8 @@ class MappingEditorPanel(wx.Panel):
         total = len(self.project.modules)
         self.table_title.SetLabel(f"MODULES ({len(ids)} OF {total})" if mapping is not None and len(ids) != total else f"MODULES ({total})")
         if mapping is None:
-            self.empty_hint.SetLabel("No mapping selected: pick one on the left, or click + New to make one.")
+            self.empty_hint.SetLabel(first_steps.mappings(self.project)
+                                     or "No mapping selected: pick one on the left, or click + New to make one.")
         else:
             self.empty_hint.SetLabel(f"{mapping.name}: {ops.describe(self.project, mapping)}")
         for ctrl in (self.btn_original, self.btn_hide):

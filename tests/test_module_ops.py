@@ -167,3 +167,29 @@ class TestEditing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSheetToAnimation(unittest.TestCase):
+    """From whole sprites to an animation: frames for modules, the rows of a sliced sheet (U4 in AUDIT_0.7)."""
+
+    def _sheet(self):
+        project = Project()
+        project.images.append(ImageAsset("img", "sheet.png", 96, 64))
+        for row in range(2):
+            for col in range(3):
+                project.modules.append(Module(f"m{row}{col}", f"hero_{row * 3 + col:02d}", "img",
+                                              (col * 32, row * 32, 32, 32), (16, 32)))
+        return project
+
+    def test_a_frame_for_each_module_with_its_pivot_on_the_origin(self):
+        project = self._sheet()
+        project.frames.append(Frame("f", "hero_00", fmodules=[]))
+        frames = ops.frames_for_modules(project, project.modules[:2])
+        self.assertEqual([f.name for f in frames], ["hero_00 (2)", "hero_01"])
+        self.assertEqual([(fm.ref_type, fm.ref_id, fm.position) for fm in frames[1].fmodules], [("module", "m01", (0, 0))])
+
+    def test_rows_of_a_sheet(self):
+        project = self._sheet()
+        shuffled = [project.modules[i] for i in (4, 0, 5, 2, 1, 3)]
+        self.assertEqual([[m.id for m in row] for row in ops.rows_of(shuffled)],
+                         [["m00", "m01", "m02"], ["m10", "m11", "m12"]])

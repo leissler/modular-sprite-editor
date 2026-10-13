@@ -8,7 +8,7 @@ exports). Uses throwaway preferences and restores the recent files list; nothing
 Usage (from the repository root):
     python3 website/scripts/capture_screenshots.py [NAME ...]
 
-NAME is a shot name (for example `hitboxes`) or a group: `pop`, `sonic`, `lesson`, `automod`, `check`.
+NAME is a shot name (for example `hitboxes`) or a group: `welcome`, `pop`, `sonic`, `lesson`, `automod`, `check`.
 """
 
 import os
@@ -34,7 +34,6 @@ import wx  # noqa: E402
 wx.MessageBox = lambda *a, **k: wx.YES  # type: ignore[assignment]
 
 import app as app_mod  # noqa: E402
-from ui.animation_editor import ops as anim_ops  # noqa: E402
 from ui.animation_editor.render import export_gif  # noqa: E402
 from ui.module_editor import dialogs as module_dialogs  # noqa: E402
 
@@ -42,7 +41,7 @@ WINDOW = (1440, 900)
 POP = REPO / "examples" / "sgdk" / "PoP_WW.json"
 SONIC = REPO / "examples" / "sonic" / "sonic.json"
 ADVENTURER = REPO / "examples" / "adventurer" / "adventurer_sprite_sheet_v1.1.png"
-GROUPS = {"pop", "sonic", "lesson", "automod", "check"}
+GROUPS = {"welcome", "pop", "sonic", "lesson", "automod", "check"}
 only = set(sys.argv[1:])
 errors = []
 
@@ -172,6 +171,19 @@ def item_box(frame_obj, roles: Sequence[str] = ()) -> Tuple[float, float, float,
         xs += [x, x + w]
         ys += [y, y + h]
     return min(xs), min(ys), max(xs), max(ys)
+
+
+def run_welcome() -> None:
+    """The welcome screen as a first start shows it: no recent projects yet, the examples, the guide."""
+    if not wanted("welcome", "welcome"):
+        return
+    frame.recent_files = []
+    frame.SetSize(WINDOW)
+    frame.CentreOnScreen()
+    frame.show_welcome()
+    shoot("welcome")
+    frame.show_welcome(False)
+    frame.recent_files = list(saved_recent)
 
 
 def run_pop() -> None:
@@ -512,7 +524,7 @@ def run_sonic() -> None:
 def run_lesson() -> None:
     """Your first animated sprite, step by step, in a new project."""
     group = "lesson"
-    if not any(wanted(n, group) for n in ("lesson-sheet", "lesson-grid", "lesson-sliced", "lesson-frames",
+    if not any(wanted(n, group) for n in ("lesson-sheet", "lesson-grid", "lesson-sliced", "lesson-row",
                                          "lesson-animation", "lesson-timing", "lesson-onion", "lesson-run")):
         return
     frame.on_new(None)
@@ -553,22 +565,16 @@ def run_lesson() -> None:
     if wanted("lesson-sliced", group):
         shoot("lesson-sliced")
 
-    frame.on_tool_create_reference_frames(None)
+    # The run's row selected (a click, then Cmd+drag over the rest), then New animation in the inspector
+    me.select_modules([m.id for m in run_modules])
     pump()
-    frames = {f.name: f for f in frame.project.frames}
-    run_frames = [next(f for f in frame.project.frames if f.fmodules and f.fmodules[0].ref_id == m.id) for m in run_modules]
-    if wanted("lesson-frames", group):
-        frame.select_tab(1)
-        fe = frame.frame_editor
-        fe.select_frame_by_id(run_frames[0].id)
-        fe.canvas.fit_to_content()
-        shoot("lesson-frames")
-
-    frame.select_tab(2)
+    if wanted("lesson-row", group):
+        shoot("lesson-row")
+    me.new_animation_from_modules()
+    pump()
     ae = frame.animation_editor
-    anim = anim_ops.new_animation(frame.project, name="run")
-    anim.fps = 12
-    anim_ops.insert_steps(anim, 0, [anim_ops.new_step(f.id) for f in run_frames])
+    anim = ae.animation()
+    anim.name, anim.fps = "run", 12
     ae.refresh_animations()
     ae.select_animation(anim.id)
     ae.select_steps([3])
@@ -585,14 +591,14 @@ def run_lesson() -> None:
         part("lesson-timing", ae.inspector, pad=0, bottom=ae.inspector.tick_ms)
     if wanted("lesson-onion", group):
         ae.select_steps([3])
-        canvas_part("lesson-onion", ae.stage, (-2, 4, 30, 34), pad=0)  # reference frames hang the sprite below-right of the origin
+        x0, y0, x1, y1 = item_box(frame.project.get_frame(anim.aframes[3].frame_id))
+        canvas_part("lesson-onion", ae.stage, (x0 - 2, y0 - 2, x1 + 2, y1 + 2), pad=0)  # the step and its ghost
     ae.onion_choice.SetSelection(0)
     ae._refresh_stage()
     if wanted("lesson-run", group):
         ART.mkdir(parents=True, exist_ok=True)
         count = export_gif(frame.project, anim, str(ART / "lesson-run.gif"), None)
         print("exported", (ART / "lesson-run.gif").relative_to(REPO), count, "frames")
-    _ = frames
 
 
 def run_automod() -> None:
@@ -679,7 +685,7 @@ def run_check() -> None:
 
 
 def run() -> None:
-    for step in (run_pop, run_sonic, run_lesson, run_automod, run_check):
+    for step in (run_welcome, run_pop, run_sonic, run_lesson, run_automod, run_check):
         try:
             step()
         except Exception:

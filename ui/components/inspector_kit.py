@@ -9,25 +9,94 @@ import wx
 COL_SECTION = wx.Colour(150, 156, 170)
 COL_DIM = wx.Colour(150, 156, 170)
 COL_WARN = wx.Colour(255, 140, 120)
+CONFIG_FOLDED = "View/Folded/{}/{}"  # (inspector, section title): "1" while the section is folded away
 
 
-def section(parent: wx.Window, sizer: wx.BoxSizer, title: str) -> Tuple[wx.Panel, wx.FlexGridSizer, wx.StaticText]:
-    panel = wx.Panel(parent)
-    outer = wx.BoxSizer(wx.VERTICAL)
-    label = wx.StaticText(panel, label=title.upper())
-    font = label.GetFont()
-    font.SetWeight(wx.FONTWEIGHT_BOLD)
-    font.SetPointSize(max(8, font.GetPointSize() - 1))
-    label.SetFont(font)
-    label.SetForegroundColour(COL_SECTION)
-    outer.Add(label, 0, wx.LEFT | wx.TOP, 2)
-    outer.Add(wx.StaticLine(panel), 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 4)
-    grid = wx.FlexGridSizer(0, 2, 6, 8)
-    grid.AddGrowableCol(1, 1)
-    outer.Add(grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
-    panel.SetSizer(outer)
+def _config() -> Optional[wx.ConfigBase]:
+    try:
+        return wx.Config.Get()
+    except Exception:
+        return None
+
+
+class Section(wx.Panel):
+    """A titled inspector section. Its rows live in ``body`` (their parent) and ``grid``; Show / Hide on the section
+    act on all of it. With a ``scope`` (the inspector's name) a click on the title folds the rows away, and the
+    section remembers that for the next start."""
+
+    def __init__(self, parent: wx.Window, title: str, scope: str = ""):
+        super().__init__(parent)
+        self.key = CONFIG_FOLDED.format(scope, title) if scope else ""
+        cfg = _config()
+        self.folded = bool(self.key and cfg and cfg.ReadBool(self.key, False))
+        outer = wx.BoxSizer(wx.VERTICAL)
+        header = wx.BoxSizer(wx.HORIZONTAL)
+        self.arrow: Optional[wx.StaticText] = None
+        if self.key:
+            self.arrow = wx.StaticText(self, label="", size=(12, -1))
+            self.arrow.SetForegroundColour(COL_SECTION)
+            header.Add(self.arrow, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        self.title = wx.StaticText(self, label=title.upper())
+        font = self.title.GetFont()
+        font.SetWeight(wx.FONTWEIGHT_BOLD)
+        font.SetPointSize(max(8, font.GetPointSize() - 1))
+        self.title.SetFont(font)
+        self.title.SetForegroundColour(COL_SECTION)
+        header.Add(self.title, 1, wx.ALIGN_CENTER_VERTICAL)
+        outer.Add(header, 0, wx.EXPAND | wx.LEFT | wx.TOP, 2)
+        outer.Add(wx.StaticLine(self), 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 4)
+        self.body = wx.Panel(self)
+        self.grid = wx.FlexGridSizer(0, 2, 6, 8)
+        self.grid.AddGrowableCol(1, 1)
+        body_sizer = wx.BoxSizer(wx.VERTICAL)
+        body_sizer.Add(self.grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
+        self.body.SetSizer(body_sizer)
+        outer.Add(self.body, 0, wx.EXPAND)
+        self.SetSizer(outer)
+        if self.key:
+            for widget in (self.arrow, self.title):
+                widget.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+                widget.SetToolTip("Click to fold this section away or open it again")
+                widget.Bind(wx.EVT_LEFT_DOWN, lambda e: self.set_folded(not self.folded))
+        self._show_folded()
+
+    def set_title(self, text: str) -> None:
+        self.title.SetLabel(text.upper())
+
+    def set_folded(self, folded: bool) -> None:
+        self.folded = bool(folded)
+        cfg = _config()
+        if self.key and cfg:
+            cfg.WriteBool(self.key, self.folded)
+            cfg.Flush()
+        self._show_folded()
+        top = self.GetParent()
+        relayout(top)
+
+    def _show_folded(self) -> None:
+        if self.arrow is not None:
+            self.arrow.SetLabel("▸" if self.folded else "▾")
+        self.body.Show(not self.folded)
+
+
+def section(
+    parent: wx.Window, sizer: wx.BoxSizer, title: str, scope: str = ""
+) -> Tuple[Section, wx.FlexGridSizer, wx.StaticText]:
+    """A section under ``sizer``: (section, its grid, its title). Create the rows' widgets on ``section.body``."""
+    panel = Section(parent, title, scope)
     sizer.Add(panel, 0, wx.EXPAND | wx.ALL, 6)
-    return panel, grid, label
+    return panel, panel.grid, panel.title
+
+
+def relayout(inspector: wx.Window) -> None:
+    """Lay out an inspector after rows were shown, hidden or folded: every section, then the scrolled whole."""
+    for child in inspector.GetChildren():
+        if isinstance(child, Section):
+            child.body.Layout()
+            child.Layout()
+    inspector.Layout()
+    if isinstance(inspector, wx.ScrolledWindow):
+        inspector.FitInside()
 
 
 def row(grid: wx.FlexGridSizer, parent: wx.Window, label: str, item: Any) -> wx.StaticText:

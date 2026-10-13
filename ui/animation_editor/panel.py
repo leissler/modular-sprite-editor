@@ -84,8 +84,10 @@ class AnimationEditorPanel(wx.Panel):
         self.canvas_controls = CanvasDisplayControls(stage_panel, self.stage, view_key="animations", part_bounds=True, budget=True)
         self.canvas_controls.add_separator()
         self.chk_path = self.canvas_controls.add_toggle("Path", True, lambda v: self._refresh_stage(), "Show the motion path of the step offsets")
-        self.chk_collision = self.canvas_controls.add_toggle("Collision", False, self._on_toggle_collision)
-        self.chk_points = self.canvas_controls.add_toggle("Points", False, self._on_toggle_points)
+        self.chk_collision = self.canvas_controls.add_toggle(
+            "Hitboxes", False, self._on_toggle_collision, "Show the step's hitboxes, moved like the step")
+        self.chk_points = self.canvas_controls.add_toggle(
+            "Points", False, self._on_toggle_points, "Show the step's points, moved like the step")
         self.canvas_controls.on_budget_changed = lambda: self.refresh(stage=False, sequence=False)
         stage_sizer.Add(self.stage, 1, wx.EXPAND | wx.ALL, 2)
         stage_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
@@ -181,6 +183,7 @@ class AnimationEditorPanel(wx.Panel):
         b.btn_dup.Bind(wx.EVT_BUTTON, lambda e: self.duplicate_animation())
         b.btn_del.Bind(wx.EVT_BUTTON, lambda e: self.delete_animation())
         self.library.palette.on_frame_double_click = self.insert_frame_after_current
+        self.library.palette.on_context_menu = self._library_menu
 
         self.onion_choice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_stage())
         self.mirror_choice.Bind(wx.EVT_CHOICE, lambda e: self._refresh_stage())
@@ -207,7 +210,7 @@ class AnimationEditorPanel(wx.Panel):
         st.on_drag_begin = self._stage_drag_begin
         st.on_drag = self._stage_drag
         st.on_drag_end = self._stage_drag_end
-        st.on_drop_frame = self.insert_frame_after_current
+        st.on_drop_frames = self.insert_frames_after_current
 
         sq = self.sequence
         sq.on_seek_tick = self.seek_tick
@@ -216,7 +219,7 @@ class AnimationEditorPanel(wx.Panel):
         sq.on_hold_drag = self._hold_drag
         sq.on_hold_drag_end = self._commit
         sq.on_move_steps = self.move_steps
-        sq.on_insert_frame = self.insert_frame
+        sq.on_insert_frames = self.insert_frames
         sq.on_open_frame = self._open_frame_of_step
         sq.on_context_menu = self._sequence_menu
 
@@ -745,24 +748,51 @@ class AnimationEditorPanel(wx.Panel):
             self.seek_step(index)
 
     # ================================================================== step edits
-    def insert_frame(self, frame_id: str, index: int) -> None:
+    def insert_frames(self, frame_ids: List[str], index: int) -> None:
+        frame_ids = [fid for fid in frame_ids if self.project.get_frame(fid)]
+        if not frame_ids:
+            return
         anim = self.animation()
         if not anim:
             anim = ops.new_animation(self.project)
             self.selected_animation_id = anim.id
             self.refresh_animations()
-        if not self.project.get_frame(frame_id):
-            return
         with ops.keep_loop_start(anim):
-            new = ops.insert_steps(anim, index, [ops.new_step(frame_id)])
+            new = ops.insert_steps(anim, index, [ops.new_step(fid) for fid in frame_ids])
         self.selection = set(new)
         self.tick = ops.step_starts(anim)[new[0]]
         self.sequence.ensure_tick_visible(self.tick)
         self._commit()
 
-    def insert_frame_after_current(self, frame_id: str) -> None:
+    def insert_frame(self, frame_id: str, index: int) -> None:
+        self.insert_frames([frame_id], index)
+
+    def insert_frames_after_current(self, frame_ids: List[str]) -> None:
         current = self.current_step()
-        self.insert_frame(frame_id, current + 1 if current >= 0 else 0)
+        self.insert_frames(frame_ids, current + 1 if current >= 0 else 0)
+
+    def insert_frame_after_current(self, frame_id: str) -> None:
+        self.insert_frames_after_current([frame_id])
+
+    def new_animation_from_frames(self, frame_ids: List[str]) -> None:
+        """A new animation through these frames (in the library's order), one tick each."""
+        anim = ops.animation_from_frames(self.project, frame_ids, after_id=self.selected_animation_id)
+        if not anim.aframes:
+            return
+        self._commit()
+        self.select_animation(anim.id)
+        app_services.show_status(f"New animation '{anim.name}' with {len(anim.aframes)} step(s): Enter plays it")
+
+    def _library_menu(self, frame_ids: List[str], pos: wx.Point) -> None:
+        count = len(frame_ids)
+        menu = wx.Menu()
+        insert = menu.Append(wx.ID_ANY, "Insert After the Current Step" if count == 1
+                             else f"Insert {count} Frames After the Current Step")
+        new = menu.Append(wx.ID_ANY, "New Animation from Frame" if count == 1 else f"New Animation from {count} Frames")
+        menu.Bind(wx.EVT_MENU, lambda e: self.insert_frames_after_current(frame_ids), insert)
+        menu.Bind(wx.EVT_MENU, lambda e: self.new_animation_from_frames(frame_ids), new)
+        self.library.palette.PopupMenu(menu, pos)
+        menu.Destroy()
 
     def delete_steps(self) -> None:
         anim = self.animation()

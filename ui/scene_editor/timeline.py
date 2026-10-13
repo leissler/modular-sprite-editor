@@ -389,9 +389,9 @@ class TimelineWidget(wx.Panel):
             stack = [k.id for k in ops.keys_at_frame(stack_obj, frame, self.scene.fps)] if stack_obj else []
             if selected and not additive and len(stack) > 1:
                 self._stack_cycle = (obj_id, stack[(stack.index(key_id) + 1) % len(stack)])
-            if additive:
+            if additive:  # Shift adds the key, Cmd adds or removes it
                 new_sel = {k: set(v) for k, v in self.selection.items()}
-                if selected:
+                if selected and event.CmdDown():
                     new_sel[obj_id].discard(key_id)
                 else:
                     new_sel.setdefault(obj_id, set()).add(key_id)
@@ -419,7 +419,8 @@ class TimelineWidget(wx.Panel):
         self._mode = "marquee-pending"
         self._press_object = self.rows[row][0].id if in_rows else None
         self._press_frame = self.frame_at(pos.x)
-        self._marquee_base = {k: set(v) for k, v in self.selection.items()} if event.ShiftDown() else {}
+        additive = event.ShiftDown() or event.CmdDown()
+        self._marquee_base = {k: set(v) for k, v in self.selection.items()} if additive else {}
         self._capture()
 
     def _on_motion(self, event: wx.MouseEvent) -> None:

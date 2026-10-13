@@ -18,13 +18,13 @@ Choose **Hitboxes** above the stage and, next to it in **New**, the type of box 
 **Hitbox types** in the inspector lists the kinds of boxes your project uses, each with a colour, for example "Hurt" for where the character can be hit and "Attack" for where it hurts others. **+ Add type** makes a new one. The checkbox next to a type shows or hides its boxes on the stage. Deleting a type asks first if boxes still use it.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![Hitbox types in the inspector: Hurt in blue, used 414 times, and Attack in red, used 18 times, each with a checkbox, and + Add type](../assets/images/screens/hitboxes-types.png){ width="301" height="111" loading="lazy" }](../assets/images/screens/hitboxes-types.png)
+  [![Hitbox types in the inspector: Hurt in blue, used 414 times, and Attack in red, used 18 times, each with a checkbox, and + Add type](../assets/images/screens/hitboxes-types.png){ width="301" height="112" loading="lazy" }](../assets/images/screens/hitboxes-types.png)
   <figcaption><strong>Hitbox types</strong>, with how many boxes use each. The inspector lists them when nothing is selected.</figcaption>
 </figure>
 
 ## Points
 
-Choose **Points** above the stage and the type in **New**. ++shift++-click to place a point of that type, drag it to move it. Points mark places: a hand that holds a weapon, the spot a projectile leaves from, where dust appears at the feet.
+Choose **Points** above the stage and the type in **New**. Click to place a point of that type, drag it to move it; ++shift++-click adds a point to the selection. Points mark places: a hand that holds a weapon, the spot a projectile leaves from, where dust appears at the feet.
 
 <figure class="ms-shot" markdown="span">
   [![The Frames tab in Points mode: the Prince's stab with a yellow point at the tip of the blade and a green point at the feet, and the selected point's type, role and position in the inspector](../assets/images/screens/points.png){ width="1440" height="900" loading="lazy" }](../assets/images/screens/points.png)
@@ -51,9 +51,9 @@ Right-click a frame in the list:
 
 ## They move with the animation
 
-In an animation, a step's offset, flips and turns move its frame's hitboxes and points too. A point marks one pixel, and a mirrored step puts it on the mirrored pixel, so it stays on the same spot of the art. Turn on **Collision** and **Points** in the **Animations** tab's view bar to see them while the animation plays. While you arrange parts in the **Frames** tab, **Hitboxes** and **Points** in the view bar keep them visible.
+In an animation, a step's offset, flips and turns move its frame's hitboxes and points too. A point marks one pixel, and a mirrored step puts it on the mirrored pixel, so it stays on the same spot of the art. Turn on **Hitboxes** and **Points** in the **Animations** tab's view bar to see them while the animation plays. While you arrange parts in the **Frames** tab, **Hitboxes** and **Points** in the view bar keep them visible.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The Animations tab's stage with Collision and Points on: the slash step with its boxes and the points at the blade and the feet](../assets/images/screens/hitboxes-animation.png){ width="271" height="261" loading="lazy" }](../assets/images/screens/hitboxes-animation.png)
-  <figcaption><strong>C06 slash</strong> at its second step, with <strong>Collision</strong> and <strong>Points</strong> on.</figcaption>
+  [![The Animations tab's stage with Hitboxes and Points on: the slash step with its boxes and the points at the blade and the feet](../assets/images/screens/hitboxes-animation.png){ width="271" height="261" loading="lazy" }](../assets/images/screens/hitboxes-animation.png)
+  <figcaption><strong>C06 slash</strong> at its second step, with <strong>Hitboxes</strong> and <strong>Points</strong> on.</figcaption>
 </figure>

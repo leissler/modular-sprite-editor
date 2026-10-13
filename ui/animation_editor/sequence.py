@@ -80,7 +80,7 @@ class SequenceWidget(wx.Panel):
         self.on_hold_drag: Optional[Callable[[int], None]] = None  # delta ticks since the press
         self.on_hold_drag_end: Optional[Callable[[], None]] = None
         self.on_move_steps: Optional[Callable[[List[int], int, bool], None]] = None  # (indices, insert_at, copy)
-        self.on_insert_frame: Optional[Callable[[str, int], None]] = None
+        self.on_insert_frames: Optional[Callable[[List[str], int], None]] = None  # frame ids, at step index
         self.on_open_frame: Optional[Callable[[int], None]] = None
         self.on_context_menu: Optional[Callable[[int, wx.Point], None]] = None
         self.on_view_changed: Optional[Callable[[], None]] = None
@@ -533,12 +533,12 @@ class SequenceWidget(wx.Panel):
         self._drop_index = self.insertion_at(x) if self.animation is not None else -1
         self.Refresh(False)
 
-    def drop_frame(self, x: int, frame_id: str) -> None:
+    def drop_frames(self, x: int, frame_ids: List[str]) -> None:
         index = self.insertion_at(x)
         self._drop_index = -1
         self.Refresh(False)
-        if self.animation is not None and self.on_insert_frame:
-            self.on_insert_frame(frame_id, index)
+        if self.animation is not None and self.on_insert_frames and frame_ids:
+            self.on_insert_frames(frame_ids, index)
 
 
 def _fit_text(dc: wx.DC, text: str, width: int) -> str:
@@ -567,7 +567,7 @@ class _SequenceDropTarget(wx.TextDropTarget):
         if prefix.strip().upper() not in ("FRAME", "FRAME_REF") or not rest:
             self.OnLeave()
             return False
-        self.widget.drop_frame(x, rest.split(":")[-1].strip())
+        self.widget.drop_frames(x, [i.strip() for i in rest.split(":")[-1].split(",") if i.strip()])
         return True
 
 

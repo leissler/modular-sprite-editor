@@ -718,8 +718,9 @@ class FrameCanvas(BaseCanvas):
         local_pos = self.world_to_local(pos_world)
         hits = self._hit_test_all_local(local_pos)
         clicked: Optional[FModule] = None
+        additive = event.ShiftDown() or event.CmdDown()  # Shift adds to the selection, Cmd adds or removes
         if hits:
-            if event.ShiftDown():
+            if additive:
                 clicked = hits[0]
                 self._reset_module_hit_cycle()
                 self._selected_hit_on_mouse_down_id = None
@@ -747,10 +748,10 @@ class FrameCanvas(BaseCanvas):
             self._selected_hit_on_mouse_down_id = None
         
         if clicked:
-            if event.ShiftDown():
-                if clicked.id in self.selected_fmodules:
-                    self.selected_fmodules.remove(clicked.id)
-                else:
+            if event.CmdDown() and clicked.id in self.selected_fmodules:
+                self.selected_fmodules.remove(clicked.id)
+            elif additive:
+                if clicked.id not in self.selected_fmodules:
                     self.selected_fmodules.append(clicked.id)
             else:
                 if clicked.id not in self.selected_fmodules:
@@ -775,7 +776,7 @@ class FrameCanvas(BaseCanvas):
             if self.on_selection_changed:
                 self.on_selection_changed(self.selected_fmodules)
         else:
-            if not event.ShiftDown():
+            if not additive:
                 self.selected_fmodules = []
                 if self.on_selection_changed:
                     self.on_selection_changed([])
@@ -1387,26 +1388,26 @@ class FrameCanvas(BaseCanvas):
 
     def on_point_left_down(self, event, pos_screen):
         pos_world = self.screen_to_world(pos_screen)
-        
-        # Interaction Logic Split (User Request REVERSED):
-        # Shift+Click: Force Creation (Place new point)
-        # Click: Interaction (Select/Move existing)
-        
-        if not event.ShiftDown():
+
+        # A click on a point selects and moves it (Shift adds it to the selection, Cmd adds or removes it);
+        # a click on empty space makes a new point there, like a drag makes a hitbox.
+        cp = self._hit_test_point(pos_world)
+        additive = event.ShiftDown() or event.CmdDown()
+        if cp or additive:
             # SELECTION / INTERACTION MODE
-            cp = self._hit_test_point(pos_world)
             if cp:
                 if self.on_modify_started: self.on_modify_started()
-                
-                # If Cmd/Ctrl, toggle. Else replace.
-                if event.CmdDown() or event.ControlDown():
-                     if cp.id in self.selected_points:
-                         self.selected_points.remove(cp.id)
-                     else:
-                         self.selected_points.append(cp.id)
+
+                if event.CmdDown() and cp.id in self.selected_points:
+                    self.selected_points.remove(cp.id)  # just deselected: nothing to drag
+                    self.Refresh()
+                    return
+                elif additive:
+                    if cp.id not in self.selected_points:
+                        self.selected_points.append(cp.id)
                 else:
-                     if cp.id not in self.selected_points:
-                         self.selected_points = [cp.id]
+                    if cp.id not in self.selected_points:
+                        self.selected_points = [cp.id]
                          
                 self._pt_drag_mode = "move"
                 self._pt_drag_id = cp.id 
@@ -1421,11 +1422,8 @@ class FrameCanvas(BaseCanvas):
                          
                 self.CaptureMouse()
                 self.Refresh()
-            else:
-                self.selected_points = []
-                self.Refresh()
         else:
-            # CREATION MODE (Shift held)
+            # CREATION MODE (a plain click on empty space)
             active_type_id = self._resolve_active_point_type_id()
             if active_type_id:
                 if self.on_modify_started: self.on_modify_started()
@@ -1489,7 +1487,8 @@ class ModuleDropTarget(wx.TextDropTarget):
             self.canvas.handle_dropped_module(mid, wx.Point(x, y), ref_type="module")
             return True
         elif data.startswith("FRAME:"):
-            self.canvas.handle_dropped_module(data.split(":", 1)[1], wx.Point(x, y), ref_type="frame")
+            first = data.split(":", 1)[1].split(",")[0]  # several frames dragged: the first one
+            self.canvas.handle_dropped_module(first, wx.Point(x, y), ref_type="frame")
             return True
         elif data.startswith("FRAME_REF:"):
             # FRAME_REF:<idx>:<id>

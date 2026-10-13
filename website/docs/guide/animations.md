@@ -3,7 +3,7 @@
 An animation is a row of steps. Each step shows a frame for a number of ticks, and can move, flip or turn it. The **Animations** tab plays them exactly as the game will, so what you time here is what players see.
 
 <figure class="ms-shot" markdown="span">
-  [![The Animations tab: the Prince's attack on the stage with the step before as a faint red ghost, the steps on a tick ruler below, the animation and step settings on the right](../assets/images/screens/animations.png)](../assets/images/screens/animations.png)
+  [![The Animations tab: the Prince's attack on the stage with the step before as a faint red ghost, the steps on a tick ruler below, the step and animation settings on the right](../assets/images/screens/animations.png)](../assets/images/screens/animations.png)
   <figcaption>The Prince's attack at its eighth step. The step before is shown as onion skin; the wide step 7 holds for two ticks.</figcaption>
 </figure>
 
@@ -11,11 +11,11 @@ An animation is a row of steps. Each step shows a frame for a number of ticks, a
 
 Choose **+ New** under the animation list. Each row shows how many steps and ticks the animation has, how long it lasts and how it plays.
 
-Add steps from the **Frames** palette below the list: drag a frame into the sequence at the bottom, exactly where it should go, or double-click it to add it after the current step. You can also drop frames on the stage.
+Add steps from the **Frames** palette below the list: drag a frame into the sequence at the bottom, exactly where it should go, or double-click it to add it after the current step. You can also drop frames on the stage. ++shift++-click picks a run of frames and ++cmd++-click single ones; drag them in together, or right-click them for **New Animation from Frames**, which makes an animation of them in one go.
 
 In the sequence:
 
-- click a step to select it, ++shift++-click to select a range and ++cmd++-click to add single steps;
+- click a step to select it, ++shift++-click to select a range and ++cmd++-click to add or remove single steps;
 - drag a step to move it, hold ++alt++ to copy it instead;
 - ++delete++ removes the selected steps;
 - double-click a step to open its frame in the **Frames** tab.
@@ -49,13 +49,13 @@ Press ++enter++ to play and stop. ++comma++ and ++period++ step one pose back or
 **Repeat** sets how many times a repeating animation plays before it ends, 0 for forever. **Loop from** makes later passes of a loop start at a later step, so an intro, such as drawing a sword, plays only once. **Then play** names an animation that starts when this one ends, such as an attack that returns to the idle pose. The inspector warns when an animation can never end, because then it never reaches what follows.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The animation settings in the inspector: name, Playback Loop, Repeat 0, Loop from step 1, Then play nothing, and a warning that the animation never ends](../assets/images/screens/anim-settings.png){ width="311" height="229" loading="lazy" }](../assets/images/screens/anim-settings.png)
+  [![The animation settings in the inspector: name, Playback Loop, Repeat 0, Loop from step 1, Then play nothing, and a warning that the animation never ends](../assets/images/screens/anim-settings.png){ width="311" height="230" loading="lazy" }](../assets/images/screens/anim-settings.png)
   <figcaption>An attack that loops forever: the inspector warns that it never reaches what <strong>Then play</strong> names.</figcaption>
 </figure>
 
 ## Moving, flipping and turning steps
 
-Select a step and its settings appear under **Step** in the inspector.
+Select a step and its settings appear under **Step**, at the top of the inspector while steps are selected.
 
 **Offset** moves the frame in this step. Drag on the stage or use the arrow keys. Offsets are how a character moves forward while it runs or jumps: turn on **Path** in the view bar to see the motion of every step as a line.
 

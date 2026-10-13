@@ -1099,6 +1099,104 @@ def run():
 
     step("autosave: a recovery copy while unsaved, offered after a crash, restore / discard", recovery)
 
+    def laptop_ui():
+        """Milestone 4: bars wrap instead of cutting controls off, inspector sections fold, the step comes first,
+        the welcome screen, sheet-to-animation shortcuts, points by a click, window memory."""
+        from ui.components.inspector_kit import Section
+        from ui.welcome import example_paths
+
+        project = frame.project
+        old_size = frame.GetSize()
+        frame.SetSize((1100, 760))
+        pump(4)
+        for index, panel in enumerate(frame.panels[:4]):
+            frame.select_tab(index)
+            pump(4)
+            bar = panel.canvas_controls
+            area = bar.GetClientRect()
+            cut = [w for w in bar.GetChildren() if w.IsShown() and not area.Contains(w.GetRect())]
+            check(not cut, f"{app_mod.TAB_NAMES[index]}: every view bar control is on screen at 1100 px ({len(cut)} cut)")
+        frame.SetSize(old_size)
+        pump(2)
+
+        # Inspector sections fold away (remembered in the preferences file) and the step section comes first
+        ae = frame.animation_editor
+        frame.select_tab(2)
+        anim = next((a for a in project.animations if len(a.aframes) > 1), None)
+        if anim is not None:
+            ae.select_animation(anim.id)
+            ae.select_steps([1])
+            pump(2)
+            inspector = ae.inspector
+            order = [item.GetWindow() for item in inspector.GetSizer().GetChildren()]
+            check(order.index(inspector.step_panel) < order.index(inspector.anim_panel),
+                  "the selected step's section comes first")
+            section = inspector.anim_panel
+            check(isinstance(section, Section) and not section.folded, "the Animation section is open")
+            section.set_folded(True)
+            check(not section.body.IsShown() and wx.Config.Get().ReadBool(section.key, False), "folded, and remembered")
+            section.set_folded(False)
+            check(section.body.IsShown(), "and open again")
+
+        # The welcome screen takes the tabs' place and gives them back
+        frame.show_welcome()
+        pump(2)
+        check(frame.welcome.IsShown() and not frame.book.IsShown(), "the welcome screen shows instead of the tabs")
+        frame.show_welcome(False)
+        pump(2)
+        check(frame.book.IsShown() and not frame.welcome.IsShown(), "back to the tabs")
+        if os.path.isdir(os.path.join(repo, "examples")) and not getattr(sys, "frozen", False):
+            check(len(example_paths()) == 3, "the three examples are found from source")
+
+        # A row of modules becomes frames and an animation (Modules tab), library frames become an animation
+        me = frame.module_editor
+        frame.select_tab(0)
+        mods = [m for m in project.modules if m.type == "MD_IMAGE"][:3]
+        me.select_modules([m.id for m in mods])
+        frames_before, anims_before = len(project.frames), len(project.animations)
+        me.new_animation_from_modules()
+        pump(2)
+        made = ae.animation()
+        check(len(project.frames) == frames_before + 3 and made is not None and len(made.aframes) == 3
+              and frame.book.GetSelection() == 2, "New animation from 3 modules: 3 frames, an animation, shown")
+        frame.on_undo(None)
+        pump()
+        check(len(frame.project.animations) == anims_before, "one undo takes it all back")
+        ids = [f.id for f in frame.project.frames[:4]]
+        ae.library.palette.selected_ids = ids
+        ae.new_animation_from_frames(ids)
+        check(ae.animation() is not None and [af.frame_id for af in ae.animation().aframes] == ids,
+              "New animation from 4 library frames, in order")
+        frame.on_undo(None)
+        pump()
+
+        # A click on empty space makes a point (Points mode)
+        fe = frame.frame_editor
+        frame.select_tab(1)
+        pump()
+        if fe.frame() is not None and frame.project.point_types:
+            fe.set_mode("points")
+            points_before = len(fe.frame().control_points)
+            event = wx.MouseEvent(wx.wxEVT_LEFT_DOWN)
+            fe.stage.on_point_left_down(event, wx.Point(5, 5))
+            if fe.stage.HasCapture():
+                fe.stage.ReleaseMouse()
+            check(len(fe.frame().control_points) == points_before + 1, "a click on empty space makes a point")
+            frame.on_undo(None) if frame.history.is_dirty() else None
+            fe.set_mode("parts")
+
+        # The window opens where it was
+        frame.SetSize((1200, 800))
+        frame.SetPosition((60, 50))
+        frame._save_geometry()
+        frame.SetSize((900, 600))
+        frame._restore_geometry()
+        check(tuple(frame.GetSize()) == (1200, 800), "the window keeps its size")
+        frame.SetSize(old_size)
+        pump()
+
+    step("laptop UI: wrapping view bars, folding sections, welcome screen, sheet to animation, points, window", laptop_ui)
+
     def close():
         frame.Close(True)
 

@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import wx
 
 from models import AFrame, Animation, Project
+from ui import first_steps
 from ui.canvas import GHOST_NEXT, GHOST_PREVIOUS, FrameCanvas
 
 ONION_MODES: List[Tuple[str, str]] = [("Off", "off"), ("Previous", "previous"), ("Next", "next"), ("Both", "both")]
@@ -21,8 +22,9 @@ class _FrameDropTarget(wx.TextDropTarget):
         prefix, _, rest = data.partition(":")
         if prefix.strip().upper() not in ("FRAME", "FRAME_REF") or not rest:
             return False
-        if self.stage.on_drop_frame:
-            self.stage.on_drop_frame(rest.split(":")[-1].strip())
+        ids = [i.strip() for i in rest.split(":")[-1].split(",") if i.strip()]  # several: "FRAME:id,id,..."
+        if self.stage.on_drop_frames and ids:
+            self.stage.on_drop_frames(ids)
         return True
 
 
@@ -51,7 +53,7 @@ class AnimationStage(FrameCanvas):
         self.on_drag_begin: Optional[Callable[[], None]] = None
         self.on_drag: Optional[Callable[[int, int], None]] = None  # total (dx, dy) in animation space
         self.on_drag_end: Optional[Callable[[bool], None]] = None  # moved?
-        self.on_drop_frame: Optional[Callable[[str], None]] = None
+        self.on_drop_frames: Optional[Callable[[List[str]], None]] = None
         self.SetDropTarget(_FrameDropTarget(self))
 
     # ------------------------------------------------------------------ data
@@ -188,7 +190,7 @@ class AnimationStage(FrameCanvas):
     def draw_content(self, gc: wx.GraphicsContext) -> None:
         self._dots = []
         if not self.animation:
-            self._draw_hint(gc, "Select an animation, or click + New in the list")
+            self._draw_hint(gc, first_steps.animations(self.project) or "Select an animation, or click + New in the list")
             return
         if not self.animation.aframes:
             self._draw_hint(gc, "Empty animation: drag frames from the library into the sequence below or onto the stage")

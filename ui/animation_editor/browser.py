@@ -238,9 +238,10 @@ class FrameLibrary(wx.Panel):
         self.search = wx.SearchCtrl(self, style=wx.TE_PROCESS_ENTER)
         self.search.SetDescriptiveText("Filter")
         self.search.ShowCancelButton(True)
-        self.palette = FramePalette(self, project)
+        self.palette = FramePalette(self, project, multiple=True)
         self.palette.item_size = (96, 96)  # two columns in the default column width
-        hint = wx.StaticText(self, label="Drag into the sequence, or double-click to insert after the current step.")
+        hint = wx.StaticText(self, label="Drag into the sequence, or double-click to insert after the current step. "
+                                         "Shift+click picks a run of frames; right-click makes them an animation.")
         hint.SetForegroundColour(wx.Colour(150, 156, 170))
         hint.Wrap(230)
         sizer = wx.BoxSizer(wx.VERTICAL)

@@ -40,8 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1–C6, C8, C12, K7, F5, F6 and F7, the VRAM check of C7 and the
-warning of C9 (each entry says how).
+Done since the audit, for the next version: C1–C6, C8, C12, K1, K2, K4, K7, U1–U4, U6, F5, F6 and F7, the VRAM
+check of C7, the warning of C9 and parts of U8 (each entry says how).
 
 | # | What | Why | Size |
 |---|------|-----|------|
@@ -265,10 +265,10 @@ canvases zoom in device pixels (`GetContentScaleFactor`). Check it in the Window
 
 | # | Finding | Suggestion |
 |---|---------|------------|
-| K1 | **Adding to a selection** is Cmd+click in Modules, Shift+click in Frames and the Timeline, Shift (range) / Cmd (toggle) in Animations and Mappings ([ui/shortcuts_dialog.py](../ui/shortcuts_dialog.py)). The marquee is Cmd+drag in Modules and a plain drag elsewhere. | One rule everywhere: Shift = range / add, Cmd = toggle. Modules keeps Cmd+drag for the marquee because a plain drag draws a module. |
-| K2 | **Creating markers:** a hitbox is a drag on empty space; a point is a **Shift+click**, and a plain click on empty space only deselects ([ui/canvas.py:1386](../ui/canvas.py)). | A plain click on empty space creates a point, like a drag creates a box. |
+| K1 | **Adding to a selection** is Cmd+click in Modules, Shift+click in Frames and the Timeline, Shift (range) / Cmd (toggle) in Animations and Mappings ([ui/shortcuts_dialog.py](../ui/shortcuts_dialog.py)). The marquee is Cmd+drag in Modules and a plain drag elsewhere. | One rule everywhere: Shift = range / add, Cmd = toggle. Modules keeps Cmd+drag for the marquee because a plain drag draws a module. **Done:** parts, points, Timeline keys and the Animations frame library follow it; Modules keeps Shift for pivots. |
+| K2 | **Creating markers:** a hitbox is a drag on empty space; a point is a **Shift+click**, and a plain click on empty space only deselects ([ui/canvas.py:1386](../ui/canvas.py)). | A plain click on empty space creates a point, like a drag creates a box. **Done.** |
 | K3 | **List buttons:** images have "+ Add ▾ / Remove", frames, animations and mappings "+ New / Duplicate / Delete", scenes "New / Duplicate / Delete" next to a dropdown. Scenes are the only collection without thumbnails, rename in place, reordering or the Delete key (an open item since the UX audit). | Same labels everywhere; scenes in a thumbnail list like the rest. |
-| K4 | **Ping-pong, Play once and backwards differ between tabs** (C3). | One player. |
+| K4 | **Ping-pong, Play once and backwards differ between tabs** (C3). | One player. **Done** with C3. |
 | K5 | **Menus:** "Auto Modularize Image…" uses an ellipsis character, every other item three dots ([app.py:524](../app.py)). The Tools menu mixes current tools with older ones (Optimize Sprite Sheet, Optimize Nested Frame Combos, role tables) that the guide never mentions. | Consistent labels; group the older tools under "More tools" or document them. |
 | K6 | **Two time units:** animations count ticks at the animation's rate, scenes count frames at the scene's rate. It is documented, and the inspector shows seconds too. | Keep; show the other unit in tooltips where the two meet (a scene object's Start offset, Speed). |
 | K7 | **The preview mapping in exports:** the RetroAnimator export bakes the preview mapping, while `export_sgdk` takes `--mapping`. | Spell out the mapping choice in every export dialog. **Done:** the Mega Drive export has a Mappings choice; the RetroAnimator and GIF file dialogs name the mapping they draw with. |
@@ -286,6 +286,10 @@ toggles disappear entirely, and the Modules bar loses Names and Pivots. The cont
 
 **Fix:** let the bar wrap, or move the less used toggles into a "View ▾" menu; shorten labels ("Bounds", "Budget").
 
+**Done:** the bar wraps (a `WrapSizer` that grows a row), labels are shorter ("Bounds", "Key colour", the budget menu
+reads "No budget", the Grid checkbox leads its size). Every bar fits one row at 1440 px and two at 1280; the smoke test
+checks that nothing is cut off at 1100 px.
+
 ### U2 (Medium) Inspectors at laptop heights
 
 At 800 px high, the Animations inspector is filled by the animation settings: the selected step's frame, hold,
@@ -293,6 +297,10 @@ offset, rotation, flips and events are mostly below the fold. Those are the cont
 behaves the same way.
 
 **Fix:** collapsible sections that remember their state; put the step section first while steps are selected.
+
+**Done:** one `inspector_kit.Section` for every inspector (the three copies merged); the Animations, Timeline and Frames
+inspectors' sections fold at a click on their title and stay folded; the step section comes first while steps are
+selected.
 
 ### U3 (Medium) First run and getting help
 
@@ -302,6 +310,9 @@ Animations tab says "Select an animation in the list, or click + New", but nothi
 
 **Fix:** a welcome screen (recent projects, open an example, read the guide); Help ▸ User Guide and Help ▸ Example
 Projects; empty-state hints that point to the previous step ("No frames yet: make them in the Frames tab").
+
+**Done** as proposed (`ui/welcome.py`, `ui/first_steps.py`); the examples are found next to the program in builds (the
+Windows kit, or the examples download unpacked there), else the menu offers the download.
 
 ### U4 (Medium) The "sheet of whole sprites" workflow takes many clicks
 
@@ -314,6 +325,10 @@ This is the most common start for artists:
 **Fix:** "New frames from selected modules" (scoped to the selection); "New animation from selected frames" (in list
 order); "Grid slice → one animation per row" as an option in the slice dialog. Multi-select drag from the frame
 palette into the sequence.
+
+**Done:** Modules: **New frames** / **New animation** for the selected modules (inspector and menu); Grid slice:
+"Make a frame for every tile and an animation for every row"; Animations: the frame library selects several
+(Shift / Cmd), drags them in together and offers **New Animation from N Frames**. The first lesson uses it.
 
 ### U5 (Low-medium) Trackpad scrolling zooms
 
@@ -328,6 +343,9 @@ The window always opens at 1500×980 ([app.py:134](../app.py)), larger than many
 position are not remembered. Zoom, pan, grid size and the selected items are not kept per project. Remember the window
 geometry; store view state in a sidecar next to the project or in the preferences.
 
+**Done** for the window (size, position, maximized; a first start fits the screen). Per-project view state is still
+open.
+
 ### U7 (Low) Example data
 
 In PoP, the guard's replacement modules (used by the Normal mapping) are named `ZZZZ_… UNUSED`, which shows in the
@@ -335,10 +353,11 @@ Mappings tab and on the guide's pictures. Rename them (`guard_…`) and regenera
 
 ### U8 (Low) Smaller observations
 
-- The Timeline library's first tab reads "Animatio…" at the default width.
+- The Timeline library's first tab reads "Animatio…" at the default width. **Done:** the column is as wide as in the
+  other tabs.
 - With only a couple of layers, the dopesheet takes half the window and leaves the stage small. Let the user drag the
   splitter and remember its position.
-- The Modules view bar has "Grid 8 × 8" next to a checkbox also called "Grid".
+- The Modules view bar has "Grid 8 × 8" next to a checkbox also called "Grid". **Done** with U1.
 
 ---
 

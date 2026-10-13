@@ -124,9 +124,12 @@ ui/
     panel.py               MappingEditorPanel: mappings list, module map, Replace with picker, usage preview
   components/              CanvasDisplayControls (shared view bar), FramePalette, ModulePalette (module grid,
                            THUMBNAILS cache), ThumbList / Browser (thumbnail rows: rename, reorder, drag out),
-                           inspector_kit (section / row / spin helpers), confirm (remove uses / keep as missing)
+                           inspector_kit (foldable Section: rows on section.body; relayout; row / spin helpers),
+                           confirm (remove uses / keep as missing)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)
   preferences.py           The one-time copy of settings older versions kept in a second preferences store
+  welcome.py               The welcome screen (recent projects, the examples, the guide) shown before a project is open
+  first_steps.py           Empty-state hints: what a tab needs first (frames need modules, animations need frames...)
   check_dialog.py          Tools ▸ Check Project: the issue list, Go to, Fix / Fix All
   sgdk_export_dialog.py    File ▸ Export ▸ Mega Drive (SGDK): folder + mappings, the report (runs the SGDK exporter)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
@@ -242,7 +245,21 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   recovery copies out of the user's folder. On macOS wx ignores `$HOME`: never start the editor to try preference
   handling, it writes the user's real store; test with `wx.FileConfig` files.
 - **View options** belong in the canvas's `CanvasDisplayControls` (`add_toggle`, `add_control`), not in side
-  panels. **Status/hints** go through `app_services.show_status`, not modal dialogs.
+  panels. The bar is a `WrapSizer` that grows a row instead of cutting controls off on narrow windows (its EVT_SIZE
+  handler sets the height); keep labels short, one item per control and its label, and check new controls at
+  1280 px wide (the smoke test's "laptop UI" step checks every bar at 1100 px). **Status/hints** go through
+  `app_services.show_status`, not modal dialogs; an empty tab's hint names the step before it (`ui/first_steps.py`).
+- **Inspector sections** come from `inspector_kit.section(parent, sizer, title, scope)`: create the rows' widgets on
+  `section.body` (wx asserts if a row's parent is the section itself), show / hide whole sections on the section,
+  and finish a refresh with `relayout(inspector)`. With a `scope` (the inspector's name) the title folds the section
+  away and the preferences remember it. The Animations inspector puts the step section first while steps are selected.
+- **Selection**: one rule everywhere: Shift+click adds (a range in lists), Cmd+click adds or removes; a drag on empty
+  space is a marquee (Shift or Cmd keeps the selection). The Modules sheet keeps Shift for pivots and Cmd+drag for
+  its marquee (a plain drag draws a module). In Points mode a click on empty space places a point.
+- **Welcome screen and window**: without a project to open (and no crash recovery) the editor starts on
+  `ui/welcome.py` in place of the tabs (`MainFrame.show_welcome`; `select_tab` and opening a project leave it). The
+  window remembers its size, position and maximized state (`Window/Geometry`, only if its title bar is still on a
+  screen), else it opens at a size that fits the screen.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`
   (on macOS `wx.SearchCtrl` is *not* a `wx.TextCtrl`) and leave Cmd/Ctrl combos to the menus. Shared keys:
   H/V flip, R / Shift+R rotate, arrows nudge (Shift = 8 px), Enter play/pause, `,`/`.` step, Delete.

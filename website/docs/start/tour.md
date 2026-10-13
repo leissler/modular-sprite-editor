@@ -2,9 +2,16 @@
 
 The editor keeps one project open at a time: your images, the modules cut from them, the frames, animations, scenes and mappings. Five tabs show the same project from different sides.
 
+When it starts without a project, the editor shows its welcome screen: start a new project, open one, pick up a recent project, or open one of the example projects. **Help ▸ Welcome Screen** brings it back, and **Help ▸ User Guide** opens this guide.
+
+<figure class="ms-shot" markdown="span">
+  [![The welcome screen: New Project and Open, recent projects, the three example projects with what each one shows, and links to the user guide, the first lesson and the shortcuts](../assets/images/screens/welcome.png){ width="1440" height="900" loading="lazy" }](../assets/images/screens/welcome.png)
+  <figcaption>The welcome screen at the first start.</figcaption>
+</figure>
+
 <figure class="ms-shot" markdown="span">
   [![The Frames tab: the frames list and library on the left, a pose on the stage in the middle and the inspector on the right](../assets/images/screens/frames.png)](../assets/images/screens/frames.png)
-  <figcaption>The Frames tab. Every tab has the same layout: lists on the left, the canvas in the middle with its view bar below, and the inspector on the right.</figcaption>
+  <figcaption>The Frames tab. Every tab has the same layout: lists on the left, the canvas in the middle with its view bar below, and the inspector on the right. Click a section's title in the inspector to fold it away; it stays folded.</figcaption>
 </figure>
 
 ## The five tabs
@@ -38,10 +45,10 @@ Every canvas works the same way:
 - **Pan** by holding ++space++ and dragging, by dragging with ++alt++ held, or with the middle mouse button.
 - **Fit** everything into view with ++cmd+0++. ++cmd+shift+0++ shows actual pixels.
 
-The view bar under each canvas holds the view options: **Grid** and its size, **Backdrop** (a checkerboard or a colour), **Part bounds**, which outlines every module in a pose, and **Budget**, the [hardware budget overlay](../guide/hardware-budget.md). These only change what you see, never your project.
+The view bar under each canvas holds the view options: **Grid** and its size, the backdrop behind the artwork (**Checker** or a **Colour**), **Bounds**, which outlines every module in a pose, and the [hardware budget overlay](../guide/hardware-budget.md) (**No budget** until you choose a console mode). These only change what you see, never your project. On a narrow window the bar wraps into a second row.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The view bar of the Frames tab: grid size, Grid, Backdrop, Part bounds, Budget, Hitboxes and Points](../assets/images/screens/tour-viewbar.png){ width="841" height="36" loading="lazy" }](../assets/images/screens/tour-viewbar.png)
+  [![The view bar of the Frames tab: Grid and its size, the backdrop, Bounds, the budget menu, Hitboxes and Points](../assets/images/screens/tour-viewbar.png){ width="841" height="36" loading="lazy" }](../assets/images/screens/tour-viewbar.png)
   <figcaption>The view bar of the <strong>Frames</strong> tab.</figcaption>
 </figure>
 

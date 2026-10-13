@@ -11,6 +11,7 @@ from models import Project, TimelineKeyframe, TimelineObject, TimelineScene, gen
 from ui import app_services
 from ui.base_canvas import BACKDROP_COLOUR
 from ui.components.canvas_display_controls import CanvasDisplayControls
+from ui.components.inspector_kit import fit_choice
 from ui.scene_editor import ops
 from ui.scene_editor.inspector import SceneInspector
 from ui.scene_editor.library import SceneLibrary
@@ -124,6 +125,7 @@ class SceneEditorPanel(wx.Panel):
         self.screen_choice.SetToolTip(
             "Outline of a console screen, placed like the SGDK demo shows scenes: the scene origin centred, three quarters down"
         )
+        fit_choice(self.screen_choice)  # macOS sizes a Choice for its current item ("None")
         self.canvas_controls.add_control(self.screen_choice, "Screen")
         stage_sizer.Add(self.stage, 1, wx.EXPAND | wx.ALL, 2)
         stage_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
@@ -133,7 +135,7 @@ class SceneEditorPanel(wx.Panel):
         self.inner_split.SplitVertically(stage_panel, self.inspector, -320)
         self.inner_split.SetSashGravity(1.0)
         self.inner_split.SetMinimumPaneSize(240)
-        self.outer_split.SplitVertically(self.library, self.inner_split, 250)
+        self.outer_split.SplitVertically(self.library, self.inner_split, 270)  # like the other tabs: room for the Animations tab label
         self.outer_split.SetMinimumPaneSize(180)
         top_sizer = wx.BoxSizer(wx.VERTICAL)
         top_sizer.Add(self.outer_split, 1, wx.EXPAND)
