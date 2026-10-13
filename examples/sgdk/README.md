@@ -7,6 +7,10 @@ This folder contains a complete SGDK pipeline for modular sprite rendering from 
 - **Runtime**: a small SGDK/C library that draws a **module**, **frame**, **animation** or **timeline scene**, plays
   animations exactly like the editor, and gives the game the hitboxes and points of what it shows
 
+The editor's online documentation is at [modularsprites.bionic-productions.com](https://modularsprites.bionic-productions.com/);
+[For your programmer](https://modularsprites.bionic-productions.com/reference/programmers/) explains what the artist
+hands over and how this export fits in.
+
 ## How it works
 
 Mega Drive code should not parse JSON or transform images per frame, so the exporter bakes everything into

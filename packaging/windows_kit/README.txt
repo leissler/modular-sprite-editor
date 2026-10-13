@@ -1,7 +1,9 @@
 Modular Sprite Editor @VERSION@ - Windows kit
 =============================================
 
-The editor, two example projects and an SGDK demo that runs them on a Mega Drive.
+The editor, three example projects and an SGDK demo that runs them on a Mega Drive.
+The user guide, with pictures of every editor: https://modularsprites.bionic-productions.com/
+
 Unzip this folder to a path without spaces (for example C:\ModularSpriteEditor): SGDK's make
 does not handle spaces in paths.
 
@@ -13,7 +15,8 @@ does not handle spaces in paths.
   signed): click "More info", then "Run anyway".
 - File > Open:
     examples\sgdk\PoP_WW.json    Prince of Persia: 165 modules, 207 frames, 68 animations,
-                                 a timeline scene and 2 mappings (re-skins)
+                                 a timeline scene, 2 mappings (re-skins), hitboxes, points
+                                 and events
     examples\sonic\sonic.json    Sonic: 65 modules, 38 frames, 171 animations, hitboxes
     examples\adventurer\adventurer.json
                                  Adventurer: 15 frames, each one whole sprite
@@ -51,6 +54,11 @@ The HUD shows the time spent drawing, hardware sprites per frame and the CPU loa
 
 3. More
 -------
+
+The user guide, every editor explained with pictures:
+    https://modularsprites.bionic-productions.com/
+What to hand to a programmer, and how the Mega Drive export works:
+    https://modularsprites.bionic-productions.com/reference/programmers/
 
 examples\sgdk\README.md    how the export and the Mega Drive runtime work, the C API for your own
                            game (animation player, events, hitboxes, points), limits, performance
