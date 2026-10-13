@@ -84,6 +84,17 @@ The **Modules** list shows a thumbnail, the size and how often each module is us
 
 Select modules and copy them (++cmd+c++). Select another image and paste (++cmd+v++): the same areas are cut there. This is useful when you have a recoloured copy of a sheet with the same layout. A [mapping](mappings.md) can then swap between the two.
 
+## Repack a sheet
+
+A sheet collects gaps over time, and parts nobody uses any more. Select the image and choose **Optimize...** in the inspector (or **Tools ▸ Optimize Sprite Sheet...**): the editor packs its modules tightly into a new PNG next to the old one and moves the modules there. Every frame looks the same as before.
+
+- **Inner Padding** leaves pixels between the modules, **Border Padding** around the edge. **Max Width** and **Max Height** limit the new sheet.
+- **Current Image (Local)** repacks the selected image, **Global (All Images)** the modules of every image into one sheet. Images in different [palettes](#palettes) can't share a sheet: repack them one at a time.
+- **Delete Unused Modules** first deletes the modules no frame or mapping uses.
+- **Allow Rotation (Advanced)** stores some modules turned a quarter, to pack them tighter. The editor and its exports turn them back; a game that reads the sheet itself has to do the same.
+
+An image no module uses any more leaves the project; its file stays on disk. Undo takes the repack back.
+
 ## Palettes
 
 The Mega Drive shows each sprite with one of four **palettes** of 15 colours (plus transparent). Every image belongs to one of them: select the image and choose its **Palette** in the inspector. Images in the same palette share its colours, so give a character in other colours, such as an enemy, its own image and palette.

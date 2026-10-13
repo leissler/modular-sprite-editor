@@ -890,8 +890,9 @@ class ModuleEditorPanel(wx.Panel):
         if not success:
             wx.MessageBox(f"Optimization failed: {message}", "Optimize Sprite Sheet", wx.OK | wx.ICON_ERROR, self)
             return
-        SHARED.clear()
-        THUMBNAILS.clear()
+        if not app_services.notify_images_changed():  # a new sheet: every picture cache starts over
+            SHARED.clear()
+            THUMBNAILS.clear()
         self.refresh_sheets()
         if self.project.images:
             self.select_sheet(self.project.images[-1].id, fit=True)

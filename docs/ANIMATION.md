@@ -14,8 +14,8 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
   copy/paste); contextual inspector (animation settings and whole-animation mirror / rotate / reverse, step
   frame / hold / offset / rotation / flips); onion skin, mirror preview, part bounds; playback that follows the
   SGDK runtime tick by tick with ¼×–2× preview speed; GIF export of one cycle through the parity-checked renderer.
-- Collision boxes and control points live on frames; `compile_animation_role_tables()` turns their roles into
-  dense per-step lookup tables (`type + role → index`), validated by Tools ▸ Validate Roles.
+- Collision boxes and control points live on frames, each with a type and a role; the Mega Drive runtime finds them
+  per frame (`ms_find_hitbox` / `ms_find_point`), and Check Project warns when a frame repeats a type and role.
 - Mappings swap or hide modules for every frame of every animation (costume / damage / invisibility states),
   baked by the exporters.
 

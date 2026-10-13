@@ -1,317 +1,137 @@
-"""Sheet repacking (Tools ▸ Optimize Sprite Sheet) and nested-frame combo optimisation.
+"""Sheet repacking (Tools ▸ Optimize Sprite Sheet) and nested-frame combo optimisation (wx-free).
 
 Auto-modularisation lives in modularize.py.
 """
-import wx
-from itertools import combinations
-from typing import List, Tuple, Dict, Optional, Any
 import math
-from rect_packer import MaxRectsBinPack
-from models import Project, generate_id, Frame, FModule
 import os
+from itertools import combinations
+from typing import Any, Dict, List, Optional, Tuple
+
+import palettes
+from models import FModule, Frame, Project, RetroAnimatorExporter, generate_id
+from rect_packer import MaxRectsBinPack
+
+HEURISTICS = (
+    MaxRectsBinPack.FreeRectChoiceHeuristic.RectBestShortSideFit,
+    MaxRectsBinPack.FreeRectChoiceHeuristic.RectBestLongSideFit,
+    MaxRectsBinPack.FreeRectChoiceHeuristic.RectBestAreaFit,
+    MaxRectsBinPack.FreeRectChoiceHeuristic.RectBottomLeftRule,
+    MaxRectsBinPack.FreeRectChoiceHeuristic.RectContactPointRule,
+)
 
 
-def optimize_modules(project: Project, module_ids: List[str], config: Dict, output_dir: str = None, name_hint: str = None) -> Tuple[bool, str]:
-    """
-    Optimizes the packing of specified modules into a new sprite sheet.
-    Returns (Success, Message).
-    """
-    if not module_ids:
-        return False, "No modules to optimize."
+def optimize_modules(project: Project, module_ids: List[str], config: Dict, output_dir: Optional[str] = None,
+                     name_hint: Optional[str] = None) -> Tuple[bool, str]:
+    """Repack these modules' pixels into a new, smaller sheet and point the modules at it. Returns (success, message).
 
-    modules = [project.get_module(mid) for mid in module_ids if project.get_module(mid)]
+    Every module keeps its pixels and its pivot: the new sheet holds each module's upright image (the key colour cut
+    out), turned a quarter clockwise where ``allow_rotation`` packs it so (``Module.rotated``). Modules without
+    pixels (0×0) move to the new sheet too; images the repack left without modules leave the project (their files
+    stay)."""
+    from PIL import Image
+
+    modules = [m for m in (project.get_module(mid) for mid in module_ids) if m is not None]
     if not modules:
-        return False, "Modules not found."
+        return False, "No modules to optimize."
+    padding = int(config.get("padding", 2))
+    border = int(config.get("border_padding", 2))
+    max_w = int(config.get("max_w", 2048))
+    max_h = int(config.get("max_h", 2048))
+    allow_rotation = bool(config.get("allow_rotation", False))
 
-    # Group by current image_id to verify they exist on the specific image if needed?
-    # Actually, we can assume they might come from multiple images if we wanted to merge sheets.
-    # But for now, let's assume they are from the selected image as per UI logic.
-    
-    # 1. Extract Source Bitmaps
-    # We need to get the sub-bitmap for each module
-    
-    # Cache source images
-    source_images = {} # asset_id -> wx.Image
-    
-    padding = config.get("padding", 2)
-    border = config.get("border_padding", 2)
-    max_w = config.get("max_w", 2048)
-    max_h = config.get("max_h", 2048)
-    allow_rotation = config.get("allow_rotation", False)
-    
-    # List of (w, h, module)
-    rects_to_pack = []
-    
+    # Each module's upright image exactly as the renderers take it (key colour cut out, packed ones turned back):
+    # (padded width, padded height, module, image).
+    full_images: Dict[str, Any] = {}
+    module_images: Dict[str, Any] = {}
+    rects_to_pack: List[Tuple[int, int, Any, Any]] = []
+    empty = []
     for mod in modules:
-        if mod.image_id not in source_images:
-            asset = project.get_image(mod.image_id)
-            if not asset:
-                continue # Skip modules with missing assets
-            
-            # Load wx.Image
-            img = wx.Image(asset.file_path)
-            if not img.IsOk():
-                continue
-            
-            # Apply transparency if needed?
-            # Ideally we work with RGBA buffers.
-            if not img.HasAlpha() and asset.transparent_color:
-                img.SetMaskColour(*asset.transparent_color)
-                img.InitAlpha() # Converts mask to alpha
-            
-            source_images[mod.image_id] = img
-
-        # Validate size
-        if mod.rect[2] <= 0 or mod.rect[3] <= 0:
-            # Skip packing for empty modules, BUT preserve them as "null" modules (e.g. for hiding)
-            # We will update their image_id later so they don't hold onto the old image.
+        asset = project.get_image(mod.image_id) if mod.type == "MD_IMAGE" else None
+        if asset is None or not os.path.exists(asset.file_path):
+            continue  # shapes and modules of missing images stay as they are
+        if int(mod.rect[2]) <= 0 or int(mod.rect[3]) <= 0:
+            empty.append(mod)  # kept, without pixels (e.g. to hide parts in a mapping)
             continue
-
-        rects_to_pack.append((mod.rect[2] + padding, mod.rect[3] + padding, mod))
-
+        try:
+            image = RetroAnimatorExporter._load_module_rgba(project, mod, full_images, module_images)
+        except (OSError, ValueError):
+            continue
+        rects_to_pack.append((image.width + padding, image.height + padding, mod, image))
     if not rects_to_pack:
-         return False, "No valid modules/images found."
+        return False, "No valid modules/images found."
+    used_palettes = {palettes.palette_of(project.get_image(mod.image_id)) for _w, _h, mod, _img in rects_to_pack}
+    if len(used_palettes) > 1:
+        return False, ("These images use different palettes, and one sheet has one palette: optimize them one image "
+                       "at a time (Local).")
 
-    # 2. Pack
-    # 2. Pack - Iterative Sizing with Multi-Heuristic
-    heuristics = [
-        MaxRectsBinPack.FreeRectChoiceHeuristic.RectBestShortSideFit,
-        MaxRectsBinPack.FreeRectChoiceHeuristic.RectBestLongSideFit,
-        MaxRectsBinPack.FreeRectChoiceHeuristic.RectBestAreaFit,
-        MaxRectsBinPack.FreeRectChoiceHeuristic.RectBottomLeftRule,
-        MaxRectsBinPack.FreeRectChoiceHeuristic.RectContactPointRule
-    ]
-    
-    # Sort modules by max dimension descending for better stability
-    rects_to_pack.sort(key=lambda x: max(x[0], x[1]), reverse=True)
-    
-    # Determine minimum starting dimensions
-    total_area = sum(w*h for w, h, _ in rects_to_pack)
-    max_mod_w = max(w for w, h, _ in rects_to_pack) if rects_to_pack else 0
-    max_mod_h = max(h for w, h, _ in rects_to_pack) if rects_to_pack else 0
-    
-    min_side = int(math.ceil(math.sqrt(total_area)))
-    start_dim = max(min_side, max_mod_w, max_mod_h)
-    
-    # Quantize start_dim to next multiple of 32 for cleaner steps
-    start_dim = ((start_dim + 31) // 32) * 32
-    
-    best_result = None
-    
-    current_dim = start_dim
-    step_size = 32
-    
-    # Upper bound protection
-    limit_w = max_w
-    limit_h = max_h
-    
-    while current_dim <= max(limit_w, limit_h):
-        # We try a square bin of current_dim (clamped to limits)
-        # Note: We can allow rectangular growth, but square is a robust strategy for "texture atlases".
-        # If current_dim > limit_w, we clamp w but let h grow? 
-        # For simplicity, let's keep it squareish but respect max limits.
-        
-        test_w = min(current_dim, limit_w)
-        test_h = min(current_dim, limit_h)
-        
-        # If we reached limits and fail, we break loop
-        # We need to track if THIS size produced ANY valid results
-        valid_results_for_dim = []
-        
-        for h_type in heuristics:
-            packer = MaxRectsBinPack(test_w, test_h, allow_flip=allow_rotation)
-            current_packed = []
-            failed = False
-            
-            # Track bounds
-            mx = 0
-            my = 0
-            
-            for w, h, mod in rects_to_pack:
-                packed_rect = packer.insert(w, h, h_type)
-                if packed_rect.height == 0:
-                    failed = True
-                    break
-                current_packed.append((packed_rect, mod))
-                mx = max(mx, packed_rect.x + packed_rect.width)
-                my = max(my, packed_rect.y + packed_rect.height)
-                
-            if not failed:
-                area = mx * my
-                valid_results_for_dim.append((area, current_packed))
-        
-        if valid_results_for_dim:
-            # We found at least one fit at this dimension size!
-            # Pick the best one (smallest used area)
-            valid_results_for_dim.sort(key=lambda x: x[0])
-            best_at_dim = valid_results_for_dim[0]
-            
-            best_result = best_at_dim[1]
-            break # Stop growing! We found the smallest dimension that fits.
-            
-        # Prepare next step
-        if test_w == limit_w and test_h == limit_h:
-            # Cannot grow anymore
-            break
-            
-        current_dim += step_size
-
-    if not best_result:
+    packed = _pack(rects_to_pack, max_w, max_h, allow_rotation)
+    if packed is None:
         return False, "Could not pack modules. Sheet size limit reached or modules too large."
-        
-    packed_modules = best_result
-        
-    # 3. Generate New Image
-    # Determine actual size needed
-    final_w = 0
-    final_h = 0
-    for r, _ in packed_modules:
-        final_w = max(final_w, r.x + r.width)
-        final_h = max(final_h, r.y + r.height)
-        
-    # Add border padding?
-    # The 'border_padding' from config is usually for the edge of the sheet.
-    # Our packer started at 0,0.
-    # We should offset everything by 'border' and increase size by 2*border.
-    
-    final_w += 2 * border
-    final_h += 2 * border
-    
-    # Create empty bitmap
-    out_img = wx.Image(final_w, final_h)
-    out_img.InitAlpha()
-    # Set completely transparent
-    # wx.Image default is black. Alpha default is ? usually 0 if InitAlpha called fresh?
-    # Let's ensure it.
-    out_img.SetAlpha(bytes([0]*(final_w*final_h)))
-    
-    # Blit sub-images
-    # We need to iterate and place each module.
-    
-    for r, mod in packed_modules:
-        src_img = source_images[mod.image_id]
-        
-        # Source Rect
-        ox, oy, ow, oh = mod.rect
-        # Extraction might fail if out of bounds? Module rects should be valid.
-        sub = src_img.GetSubImage(wx.Rect(ox, oy, ow, oh))
-        
-        # Dest Rect
-        # r is the packed rect (including intra-module padding). 
-        # We need to strip the padding we added (which was appended to width/height).
-        # We treated 'padding' as "space dedicated to this module".
-        # Let's center the module in the packed rect or top-left?
-        # Usually padding is simply "gap".
-        # If we asked for W+P, H+P...
-        # Let's just place at r.x + border, r.y + border. 
-        # But wait, r includes padding.
-        # If we place at r.x, the next module might be at r.x + r.width.
-        # So the gap is effectively built-in on the right/bottom?
-        # It's cleaner to just not add padding to the rect size, but modify `insert` to check gaps, 
-        # but MaxRects doesn't support gaps natively.
-        # So inflating size is the standard way.
-        # We will place the image at (r.x + border, r.y + border).
-        # The visual gap will be the `padding` value on right/bottom edges mostly.
-        
-        dest_x = r.x + border
-        dest_y = r.y + border
-        
-        # Check for rotation
-        # If r.width != (mod.rect[2] + padding), it means it was flipped?
-        # Wait, comparison with float/int?
-        rotated = False
-        if allow_rotation:
-             # Check if dimensions are swapped
-             # We also check if w != h to avoid treating squares as rotated 
-             # (Packer prefers upright for ties, so squares stay upright)
-             if (r.width == (mod.rect[3] + padding) and 
-                 r.width != (mod.rect[2] + padding)):
-                 rotated = True
-        
-        if rotated:
-             sub = sub.Rotate90(clockwise=True)
-             pass
-        
-        out_img.Paste(sub, dest_x, dest_y)
-        
-        # 4. Update Module Data
-        # We need to update the module's rect and image_id to the new sheet.
-        # BUT we shouldn't modify the `mod` object yet until we save the image successfully.
-        # We'll do a second pass after saving.
-        
-    # generate unique filename
-    if output_dir and os.path.exists(output_dir):
-        base_dir = output_dir
-    else:
-        base_dir = os.path.dirname(project.images[0].file_path) if project.images else "."
-    
+
+    final_w = max(r.x + r.width for r, _entry in packed) + 2 * border
+    final_h = max(r.y + r.height for r, _entry in packed) + 2 * border
+    sheet = Image.new("RGBA", (final_w, final_h), (0, 0, 0, 0))
+    placed = []
+    for r, (_w, _h, mod, image) in packed:
+        # The packer reports a quarter turn as swapped sides (a square never turns).
+        turned = allow_rotation and image.width != image.height and r.width == image.height + padding
+        stored = image.transpose(Image.Transpose.ROTATE_270) if turned else image
+        sheet.paste(stored, (r.x + border, r.y + border))
+        placed.append((mod, (r.x + border, r.y + border, stored.width, stored.height), turned))
+
+    base_dir = output_dir if output_dir and os.path.isdir(output_dir) else (
+        os.path.dirname(project.images[0].file_path) if project.images else ".")
     if name_hint:
-        # Counter-based naming: name_hint_1.png, name_hint_2.png...
-        counter = 1
-        filename = f"{name_hint}.png"
+        filename, counter = f"{name_hint}.png", 1
         while os.path.exists(os.path.join(base_dir, filename)):
-             filename = f"{name_hint}_{counter}.png"
-             counter += 1
+            filename, counter = f"{name_hint}_{counter}.png", counter + 1
     else:
         filename = f"optimized_sheet_{generate_id('img')}.png"
-        
     out_path = os.path.join(base_dir, filename)
-    
     try:
-        out_img.SaveFile(out_path, wx.BITMAP_TYPE_PNG)
-    except Exception as e:
-        return False, f"Failed to save image: {e}"
-        
-    # Create new Asset
+        sheet.save(out_path, "PNG")
+    except (OSError, ValueError) as exc:
+        return False, f"Failed to save image: {exc}"
+
+    sources = {mod.image_id for mod, _rect, _turned in placed} | {mod.image_id for mod in empty}
     new_asset = project.create_image(out_path, final_w, final_h)
-    
-    # 5. Commit Module Changes
-    for r, mod in packed_modules:
+    new_asset.palette = used_palettes.pop()
+    for mod, rect, turned in placed:
+        mod.image_id, mod.rect, mod.rotated = new_asset.id, rect, turned  # the pivot stays: it is the upright one's
+    for mod in empty:
         mod.image_id = new_asset.id
-        
-        # Calculate new rect on the sheet
-        dest_x = r.x + border
-        dest_y = r.y + border
-        
-        w_orig = mod.rect[2]
-        h_orig = mod.rect[3]
-        
-        # Check if rotated (SAME logic as above)
-        is_rotated = False
-        if allow_rotation:
-             if (r.width == (h_orig + padding) and 
-                 r.width != (w_orig + padding)):
-                 is_rotated = True
-        
-        if is_rotated:
-             # It is rotated 90 CW.
-             # Rect: w=h_orig, h=w_orig on the sheet
-             mod.rect = (dest_x, dest_y, h_orig, w_orig)
-             mod.rotated = True
-             
-             # Pivot remains logical (original px, py relative to upright image)
-             # We rely on the renderer to un-rotate the image 
-             # and use the original pivot.
-        else:
-             mod.rect = (dest_x, dest_y, w_orig, h_orig)
-             mod.rotated = False
-             
-    # 5b. Update Skipped Modules (0x0 or otherwise skipped)
-    # They should also point to the new image so we can delete the old one.
-    packed_mods_set = {m.id for _, m in packed_modules}
-    for mod in modules:
-        if mod.id not in packed_mods_set:
-            # It was skipped (likely 0x0). Repoint it.
-            mod.image_id = new_asset.id
-            # Leave rect as is (presumably 0x0)
-             
-    # 6. Cleanup Old Images
-    # Find all images that are no longer used by any module
-    used_image_ids = {m.image_id for m in project.modules}
-    # Reassign the list entirely to filter out unused images
-    project.images = [img for img in project.images if img.id in used_image_ids]
-    
+    still_used = {m.image_id for m in project.modules}
+    project.images = [img for img in project.images if img.id not in sources or img.id in still_used]
     return True, "Optimization successful. Old images removed."
+
+
+def _pack(rects_to_pack: List[Tuple[int, int, Any, Any]], max_w: int, max_h: int, allow_rotation: bool) -> Optional[list]:
+    """The smallest square-ish bin (growing in 32 px steps) any heuristic fits everything into: [(rect, entry)]."""
+    rects_to_pack = sorted(rects_to_pack, key=lambda entry: max(entry[0], entry[1]), reverse=True)
+    total_area = sum(w * h for w, h, _mod, _img in rects_to_pack)
+    start = max(int(math.ceil(math.sqrt(total_area))), max(w for w, *_ in rects_to_pack), max(h for _w, h, *_ in rects_to_pack))
+    dim = ((start + 31) // 32) * 32
+    while dim <= max(max_w, max_h):
+        test_w, test_h = min(dim, max_w), min(dim, max_h)
+        best = None
+        for heuristic in HEURISTICS:
+            packer = MaxRectsBinPack(test_w, test_h, allow_flip=allow_rotation)
+            result = []
+            for entry in rects_to_pack:
+                rect = packer.insert(entry[0], entry[1], heuristic)
+                if rect.height == 0:
+                    break
+                result.append((rect, entry))
+            else:
+                area = max(r.x + r.width for r, _e in result) * max(r.y + r.height for r, _e in result)
+                if best is None or area < best[0]:
+                    best = (area, result)
+        if best is not None:
+            return best[1]
+        if test_w == max_w and test_h == max_h:
+            return None
+        dim += 32
+    return None
 
 
 def _rot_key(deg: float) -> int:

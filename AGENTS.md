@@ -98,7 +98,6 @@ ui/
     stage.py               FrameStage (FrameCanvas): marquee, origin marker, drops, no empty click boxes
     inspector.py           FrameInspector: frame tools, part(s), hitbox/point, types (inline)
     library.py             PartLibrary: modules (per image) and frames to drag or double-click
-    roles.py               Tools ▸ Validate Roles / Inspect Compiled Role Tables
     panel.py               FrameEditorPanel: Frames list + library, mode bar, stage, inspector + contents list
   animation_editor/        Animations tab, redesigned from scratch:
     ops.py                 wx-free: tick timing, Player (playback exactly like the SGDK runtime),

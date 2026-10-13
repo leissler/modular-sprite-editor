@@ -65,6 +65,8 @@ right-click › Open the first time.
   their pixels.
 - **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image;
   **modules list** with thumbnails, size and how often each is used.
+- **Optimize Sprite Sheet** repacks an image's modules (or every image's) into a tight new sheet; every frame stays
+  pixel-identical.
 - **Palettes**: each image belongs to one of the Mega Drive's four palettes; the inspector shows the palette's colours
   as the console shows them and warns when its images use more than 15. **View ▸ Mega Drive Colours** shows every
   canvas in the console's colours (3 bits per channel, through the export's palettes).

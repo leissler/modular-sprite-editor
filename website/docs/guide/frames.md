@@ -51,6 +51,8 @@ Select parts, copy them with ++cmd+c++, select another frame and paste with ++cm
 
 Drag a frame from the library onto the stage to use it as one part. A nested frame keeps its parts together: build a head with its hair and helmet once, and place it as a single piece in every pose. Flip or turn it like any part. Changes to the nested frame show everywhere it is used.
 
+**Tools ▸ Optimize Nested Frame Combos (All Frames)...** does this for you: it looks for groups of three or four parts that sit together the same way in several frames, makes each group a frame of its own (its name starts with *Combo*) and uses it in their place. The frames look the same as before. Undo takes it back.
+
 ## Work on the whole frame
 
 With nothing selected, the inspector shows the frame. **Whole frame** mirrors or turns every part at once. **Origin** has two helpers: **Feet on origin** moves all parts so the middle of the pose's bottom edge sits on the origin, and **Centre** puts the middle of the pose there.

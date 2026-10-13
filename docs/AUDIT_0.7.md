@@ -40,8 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6, F7, H1, H2, H4 and
-P1, most of F1, the SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
+Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6, F7, H1–H4 and P1, most
+of F1, the SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
 
 | # | What | Why | Size |
 |---|------|-----|------|
@@ -453,6 +453,14 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
 - **H3 Untested and undocumented tools:** Optimize Sprite Sheet (`optimization.py`, needs wx), Optimize Nested Frame
   Combos, Validate Roles and Inspect Compiled Role Tables. Optimize Sprite Sheet works: PoP repacked in 0.1 s, all
   207 frames render identically. Add that as a test, make it wx-free, and document or retire the others.
+
+  **Done:** Optimize Sprite Sheet works on Pillow from each module's upright image (`tests/test_optimize_sheet.py`:
+  PoP repacked three times draws all 621 frame / mapping combinations the same; a smoke test step). Fixed on the
+  way: repacking modules stored turned broke 520 of those 621 drawings, modules of missing images were moved onto
+  the new sheet, every image without modules left the project, on sheets with transparency the key colour's pixels
+  became visible, and sheets of different palettes would have merged. Both optimizers are in the guide. Validate
+  Roles is retired (Check Project warns about repeated roles, with Go to), and so are Inspect Compiled Role Tables
+  and `compile_animation_role_tables`: no export or runtime uses those tables.
 - **H4 Hygiene:** 40 pyflakes notes (unused imports and variables, a duplicated `import math`, string annotations
   without a `TYPE_CHECKING` import in `ui/utils.py`), two `print` calls in app code, nine broad `except Exception`.
 

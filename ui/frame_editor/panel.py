@@ -18,7 +18,7 @@ from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.module_palette import THUMBNAILS
 from ui.components.thumb_list import Browser, Row
-from ui.frame_editor import ops, roles
+from ui.frame_editor import ops
 from ui.frame_editor.inspector import FrameInspector
 from ui.frame_editor.library import PartLibrary
 from ui.frame_editor.stage import FrameStage
@@ -232,12 +232,6 @@ class FrameEditorPanel(wx.Panel):
         self.selected_frame_id = frame_id
         self.refresh_frames()
         self.show_frame(frame_id, fit=True)
-
-    def validate_roles(self) -> None:
-        roles.validate_roles(self, self.project)
-
-    def inspect_compiled_role_tables(self) -> None:
-        roles.inspect_role_tables(self, self.project)
 
     def on_optimize_nested_combos(self, _event: Optional[wx.CommandEvent] = None) -> None:
         if not self.project.frames:

@@ -1037,6 +1037,61 @@ def run():
 
     step("modules: auto modularize (dialog, apply keeps every frame, undo)", automod)
 
+    # ---- Optimize Sprite Sheet: the repacked sheet draws every frame the same; undo brings the old one back
+    def optimize_sheet():
+        import ui.optimize_dialog as optimize_dialog
+        from models import RetroAnimatorExporter as RA
+
+        def drawn():
+            images, modules = {}, {}
+            shown = []
+            for f in proj.frames:
+                image = RA._render_frame_variant(proj, f, None, ((1.0, 0.0), (0.0, 1.0)), (0.0, 0.0), images, modules)[0]
+                shown.append(image.tobytes() if image is not None else b"")
+            return shown
+
+        class Dialog:  # the options the dialog would return
+            def __init__(self, _parent):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+            def ShowModal(self):
+                return wx.ID_OK
+
+            def GetValues(self):
+                return {"padding": 1, "border_padding": 1, "max_w": 2048, "max_h": 2048, "allow_rotation": True,
+                        "scope": "local", "delete_unused": False}
+
+        frame.select_tab(0)
+        pump()
+        img = next(i for i in proj.images if any(m.image_id == i.id for m in proj.modules))
+        me.select_sheet(img.id)
+        me.select_modules([])
+        pump()
+        image_count, before = len(proj.images), drawn()
+        frame.history_checkpoint()
+        out = tempfile.mkdtemp(prefix="mse_smoke_sheet_")
+        saved, optimize_dialog.OptimizeDialog = optimize_dialog.OptimizeDialog, Dialog
+        try:
+            me.show_optimization_dialog(output_dir=out, name_hint="smoke")
+        finally:
+            optimize_dialog.OptimizeDialog = saved
+        pump()
+        check(any(os.path.dirname(i.file_path) == out for i in proj.images), "optimize: the new sheet is in the project")
+        check(drawn() == before, "optimize: every frame draws the same")
+        frame.on_undo(None)
+        pump()
+        check(len(proj.images) == image_count and proj.get_image(img.id) is not None, "undo brings the old sheet back")
+        check(drawn() == before, "and the frames draw from it again")
+        shutil.rmtree(out, ignore_errors=True)
+
+    step("modules: optimize sprite sheet (repack, frames unchanged, undo)", optimize_sheet)
+
     def dirty():
         frame.history_checkpoint()
         fp_now = project_fingerprint(proj)[0]
