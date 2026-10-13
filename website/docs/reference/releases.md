@@ -2,6 +2,10 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.7.1, October 2026
+
+**Smoother playback on slow computers.** Playing an animation or a scene no longer keeps a slow computer busy with drawing alone, especially on Windows, so the editor stays quick to respond while it plays. The sequence of a long animation also draws about ten times faster.
+
 ## 0.7, October 2026
 
 **A user guide with pictures.** This site is new: how to install the editor, a first lesson that turns a sprite sheet into a running animation, and a page with pictures for every editor.

@@ -25,7 +25,7 @@ from ui.scene_editor.panel import SceneEditorPanel
 
 APP_NAME = "Modular Sprite Editor"
 # The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
-APP_VERSION = "0.7"
+APP_VERSION = "0.7.1"
 TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
 
 # Shown in the status bar when a tab is activated.
