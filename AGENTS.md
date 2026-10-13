@@ -198,8 +198,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Undo:** do not add per-editor undo stacks. After a completed edit call
   `app_services.request_checkpoint()`. The main window also checkpoints on a 700 ms timer while no mouse button is
   held, so a drag becomes one step, but only after user input (`SpriteEditorApp.FilterEvent` → `MainFrame.note_input`:
-  mouse buttons and keys released, menu and control commands); without input it looks about every 10 s, never during
-  playback. An edit that follows no user input (a callback, a drop, a timer) calls `request_checkpoint()` itself.
+  mouse buttons and keys released, menu and control commands); without input it looks about every 10 s. During
+  playback it never looks (playback's own control updates can look like input on Windows): what happened meanwhile
+  is looked at once playback stops. An edit that follows no user input (a callback, a drop, a timer) calls
+  `request_checkpoint()` itself.
   Undo/redo replace the *contents* of the same `Project` object
   (`replace_project_contents` copies every saved field, `SAVED_FIELDS`), so object references held by panels go
   stale — always re-fetch by id. `tests/test_project_history.py` needs one change per saved field: add one when a

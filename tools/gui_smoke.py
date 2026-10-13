@@ -1111,13 +1111,16 @@ def run():
             anim = next((a for a in proj.animations if len(a.aframes) > 1), None)
             if anim:
                 ae.select_animation(anim.id)
-                frame._input_seen, frame._quiet_ticks = False, 0
                 ae.toggle_play()
                 check(ae.is_playing and frame.is_playing(), "playing")
+                frame.note_input()  # input during playback (or a playback update that looks like it)
                 for _ in range(app_mod.CHECKPOINT_FALLBACK_TICKS * 2):
                     frame._on_checkpoint_timer(None)
                 check(not calls, "the timer never serialises the project during playback")
                 ae.stop_playback()
+                frame._on_checkpoint_timer(None)
+                check(len(calls) == 1, "what happened during playback is looked at once it stops")
+            calls.clear()
             frame._input_seen, frame._quiet_ticks = False, 0
             for _ in range(3):
                 frame._on_checkpoint_timer(None)
