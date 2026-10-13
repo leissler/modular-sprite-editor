@@ -40,8 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6 and F7, most of F1, the
-SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
+Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6, F7, H1, H2 and H4,
+most of F1, the SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
 
 | # | What | Why | Size |
 |---|------|-----|------|
@@ -438,14 +438,23 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
   - `ui/utils.py`: `load_wx_bitmap_safely`, `get_derivative`.
   - Exporter: `_c_string`, `_effective_hw_flip`.
   - `ops.TICK_RATE_PRESETS`, `inspector_kit.full_row`.
+
+  **Done:** all removed (and what only they used: `MODE_OF_CANVAS`, the canvas' `_hit_test`).
 - **H2** The root-level `test_*.py` files are stale (open since the UX audit). `test_import_aurora.py` fails by design;
   `test_flip_parser.py` and `test_parser_fix.py` are scripts, not tests. Move the useful ones into `tests/`, delete
   the rest.
+
+  **Done:** their checks (ids, rects, flips on parts and steps, default names, separate imports) are in
+  `tests/test_import_aurora.py`; the four files are gone, `python3 -m pytest -q` passes from the root.
 - **H3 Untested and undocumented tools:** Optimize Sprite Sheet (`optimization.py`, needs wx), Optimize Nested Frame
   Combos, Validate Roles and Inspect Compiled Role Tables. Optimize Sprite Sheet works: PoP repacked in 0.1 s, all
   207 frames render identically. Add that as a test, make it wx-free, and document or retire the others.
 - **H4 Hygiene:** 40 pyflakes notes (unused imports and variables, a duplicated `import math`, string annotations
   without a `TYPE_CHECKING` import in `ui/utils.py`), two `print` calls in app code, nine broad `except Exception`.
+
+  **Done:** pyflakes is clean over the repository; the prints are gone; the silent broad handlers name what they
+  expect (the nine left show the error to the user and keep the editor running). Found on the way: AuroraGT line
+  shapes with a space in their name were dropped on import.
 - **H5 Size:** `models.py` (3,400 lines) mixes the data model, timeline evaluation, two importers and the RetroAnimator
   exporter; `ui/canvas.py` (1,500 lines) still carries pre-redesign interaction code. Split into `model/`,
   `timeline.py`, `importers/` and `exporters/`, and move hitbox / point editing into the Frames stage.

@@ -14,7 +14,6 @@ MODES: List[Tuple[str, str, str]] = [
     ("points", "Points", "point"),
 ]
 CANVAS_MODE = {key: canvas for key, _label, canvas in MODES}
-MODE_OF_CANVAS = {canvas: key for key, _label, canvas in MODES}
 
 TYPE_COLOURS = [
     (255, 80, 80), (80, 200, 255), (120, 230, 110), (255, 200, 60), (210, 120, 255),

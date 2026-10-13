@@ -3,7 +3,7 @@ Port of Jukka Jylänki's MaxRectsBinPack algorithm.
 Original C++ version released to Public Domain.
 """
 
-from typing import List, Tuple, Optional
+from typing import List
 
 class Rect:
     def __init__(self, x: int = 0, y: int = 0, width: int = 0, height: int = 0):
@@ -40,10 +40,6 @@ class MaxRectsBinPack:
         self.free_rectangles.append(Rect(0, 0, width, height))
 
     def insert(self, width: int, height: int, method: int) -> Rect:
-        new_node = Rect()
-        score1 = float('inf')  # Unused in some methods, initialized high
-        score2 = float('inf')
-
         if method == self.FreeRectChoiceHeuristic.RectBestShortSideFit:
             new_node = self._find_position_for_new_node_best_short_side_fit(width, height)
         elif method == self.FreeRectChoiceHeuristic.RectBottomLeftRule:
@@ -63,28 +59,6 @@ class MaxRectsBinPack:
         self._place_rect(new_node)
         return new_node
     
-    def insert_batch(self, rects: List[Tuple[int, int]], method: int) -> List[Rect]:
-        """
-        Inserts a list of (width, height) tuples.
-        Returns a list of packed Rects. If a rect could not be packed, its height will be 0.
-        """
-        packed_rects = []
-        # Copy to avoid modifying original list if we were sorting, 
-        # but here we process in order or should we sort? 
-        # The algorithm itself inserts one by one. 
-        # Caller might want to sort descending area/side for better results.
-        
-        for w, h in rects:
-            packed_rects.append(self.insert(w, h, method))
-        return packed_rects
-
-    def occupancy(self) -> float:
-        total_area = self.bin_width * self.bin_height
-        if total_area == 0:
-            return 0.0
-        used_area = sum(r.width * r.height for r in self.used_rectangles)
-        return used_area / total_area
-
     def _place_rect(self, node: Rect):
         num_rects_to_process = len(self.free_rectangles)
         i = 0
@@ -97,21 +71,6 @@ class MaxRectsBinPack:
         
         self._prune_free_list()
         self.used_rectangles.append(node)
-
-    def _score_rect(self, width: int, height: int, method: int, score1: int, score2: int) -> Rect:
-        new_node = Rect()
-        if method == self.FreeRectChoiceHeuristic.RectBestShortSideFit:
-            new_node = self._find_position_for_new_node_best_short_side_fit(width, height)
-        elif method == self.FreeRectChoiceHeuristic.RectBottomLeftRule:
-            new_node = self._find_position_for_new_node_bottom_left(width, height)
-        elif method == self.FreeRectChoiceHeuristic.RectContactPointRule:
-            new_node = self._find_position_for_new_node_contact_point(width, height)
-            score1 = -score1 # Reverse because CP maximizes score
-        elif method == self.FreeRectChoiceHeuristic.RectBestLongSideFit:
-            new_node = self._find_position_for_new_node_best_long_side_fit(width, height)
-        elif method == self.FreeRectChoiceHeuristic.RectBestAreaFit:
-            new_node = self._find_position_for_new_node_best_area_fit(width, height)
-        return new_node
 
     def _find_position_for_new_node_bottom_left(self, width: int, height: int) -> Rect:
         best_node = Rect()

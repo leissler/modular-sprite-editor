@@ -193,10 +193,6 @@ class SGDKBakeContext:
         return round(float(value), digits)
 
     @staticmethod
-    def _c_string(value: str) -> str:
-        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-    @staticmethod
     def _playback_code(playback_type: str) -> int:
         mode = str(playback_type or "loop").strip().lower()
         if mode in ("once", "forward"):
@@ -434,22 +430,6 @@ class SGDKBakeContext:
             role = self.role_index.get(str(cp.role or "").strip(), NO_ROLE)
             points.append((self.point_type_index.get(cp.type_id, UNKNOWN_TYPE), role, math.floor(px), math.floor(py)))
         return tuple(boxes), tuple(points)
-
-    @staticmethod
-    def _effective_hw_flip(rotation_degrees: float, flip_x: bool, flip_y: bool) -> Optional[Tuple[bool, bool]]:
-        rot_norm = float(rotation_degrees) % 360.0
-        rot_int = int(round(rot_norm)) % 360
-        if abs(rot_norm - float(rot_int)) > 1e-5:
-            return None
-        if rot_int not in (0, 180):
-            return None
-
-        hflip = bool(flip_x)
-        vflip = bool(flip_y)
-        if rot_int == 180:
-            hflip = not hflip
-            vflip = not vflip
-        return (hflip, vflip)
 
     @staticmethod
     def _extract_geom_axis_flip(a_mat: Matrix2) -> Optional[Tuple[bool, bool]]:

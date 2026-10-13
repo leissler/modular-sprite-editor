@@ -1,5 +1,5 @@
 import wx
-from typing import Optional, Callable, List, Tuple
+from typing import Optional, Callable, List
 from models import Project, Frame
 from ui.components.thumb_list import fit_text
 from ui.utils import ThumbnailGenerator
@@ -268,7 +268,7 @@ class FramePalette(wx.ScrolledWindow):
         data = wx.TextDataObject("FRAME:" + frame_ids)
         source = wx.DropSource(self)
         source.SetData(data)
-        res = source.DoDragDrop(wx.Drag_DefaultMove)
+        source.DoDragDrop(wx.Drag_DefaultMove)
 
     def on_double_click(self, event) -> None:
         idx = self._hit_test(event.GetPosition())

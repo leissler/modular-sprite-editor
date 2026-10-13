@@ -425,7 +425,7 @@ class BaseCanvas(wx.Panel):
     def _space_held(self) -> bool:
         try:
             return bool(wx.GetKeyState(wx.WXK_SPACE))
-        except Exception:
+        except wx.wxAssertionError:  # some ports only report modifier keys
             return False
 
     def begin_pan_if_requested(self, event: wx.MouseEvent) -> bool:

@@ -6,6 +6,7 @@ import ctypes
 import ctypes.util
 import functools
 import hashlib
+import importlib
 import json
 import os
 import sys
@@ -102,9 +103,8 @@ def _mac_force_app_menu_title(title: str) -> None:
             return
 
         msg_void(first_item, sel("setTitle:"), ns_title)
-    except Exception:
-        # If anything goes wrong, leave the default title to avoid crashing the app.
-        pass
+    except (OSError, AttributeError, ctypes.ArgumentError):
+        pass  # the menu keeps the default title
 
 
 def _focus_is_text_entry() -> Optional[wx.Window]:
@@ -1254,8 +1254,8 @@ class SpriteEditorApp(wx.App):
                 icon_path = resource_path(os.path.join("assets", "icon.ico"))
                 if os.path.exists(icon_path):
                     frame.SetIcon(wx.Icon(icon_path, wx.BITMAP_TYPE_ICO))
-            except Exception as e:
-                print(f"Failed to load icon: {e}")
+            except (OSError, wx.wxAssertionError):
+                pass  # the window keeps wx's default icon
 
         frame.Show()
         self.SetTopWindow(frame)
@@ -1287,7 +1287,7 @@ def run_smoke_test(args: List[str]) -> None:
     os.environ["MSE_PREFERENCES_FILE"] = os.path.join(prefs_dir, "preferences.ini")
     sys.argv = [sys.argv[0]] + args[:1]
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
-    import gui_smoke  # noqa: F401  (runs the test and exits)
+    importlib.import_module("gui_smoke")  # importing it runs the test and exits
 
 
 if __name__ == "__main__":

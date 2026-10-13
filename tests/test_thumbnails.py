@@ -21,8 +21,6 @@ SIZE = 640  # wider than the widest synthetic frame, so nothing is clipped at sc
 @unittest.skipIf(parity.wx is None, "wxPython display not available")
 class TestFrameThumbnails(unittest.TestCase):
     def test_thumbnails_match_the_canvas(self):
-        import wx
-
         from ui.animation_editor.stage import AnimationStage
         from ui.utils import ThumbnailGenerator
 

@@ -8,7 +8,7 @@ Shows only what applies to the current selection:
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Callable, Iterable, List, Optional, Set, Tuple
 
 import wx
 

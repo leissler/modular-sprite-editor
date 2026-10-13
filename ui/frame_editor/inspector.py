@@ -9,7 +9,7 @@ import wx
 from models import Frame, Project
 from ui import first_steps
 from ui.components.inspector_kit import (
-    COL_DIM, bind_spin, common, dim_text, hbox, relayout, row, section, set_spin, small_button, spin,
+    bind_spin, common, dim_text, hbox, relayout, row, section, set_spin, small_button, spin,
 )
 from ui.frame_editor import ops
 

@@ -17,7 +17,6 @@ from ui.console_colours import CONSOLE
 from ui.frame_geometry import orthogonal_cos_sin, part_bounds
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
 
-Color = Tuple[int, int, int]
 
 # Onion-skin styles: (red, green, blue, alpha) channel factors applied to ghost images.
 GHOST_PREVIOUS = (1.0, 0.55, 0.55, 0.38)
@@ -51,10 +50,6 @@ def _mask_to_alpha(img: wx.Image) -> wx.Image:
     img.SetMask(False)
     return img
 
-
-def _color_from_id(identifier: str) -> Color:
-    seed = sum(ord(c) for c in identifier)
-    return ((seed * 37) % 200 + 30, (seed * 57) % 200 + 30, (seed * 97) % 200 + 30)
 
 # One calculator for every canvas: it caches module images and their 8×8 block masks.
 BUDGET = BudgetCalculator()
@@ -97,7 +92,6 @@ class FrameCanvas(BaseCanvas):
         self.frame: Optional[Frame] = None
         self.selected_fmodules: list[str] = []
         self.show_collision = False # Default hidden in module mode
-        self.show_control_points = True
         self.on_selection_changed: Optional[Callable[[list[str]], None]] = None
         
         self._dragging_ids: list[str] = []
@@ -141,8 +135,6 @@ class FrameCanvas(BaseCanvas):
         self.selected_collision_rects: list[str] = []
         self.collision_type_colors: dict[str, tuple] = {}
         
-        self.grid_size = 16 # Default
-        
         # Collision Drag State
         self._col_drag_mode: str = "none" # "none", "move", "resize", "create"
         self._col_drag_handle: int = -1 # 0=TL, 1=TR, 2=BL, 3=BR
@@ -172,10 +164,6 @@ class FrameCanvas(BaseCanvas):
         self._selected_hit_on_mouse_down_id = None
         self.Refresh(False)
 
-    def set_frame_offset(self, offset: Tuple[float, float]) -> None:
-        self.frame_offset = offset
-        self.Refresh(False)
-        
     def clear_cache(self) -> None:
         self._bitmap_cache.clear()
         self._asset_image_cache.clear()
@@ -599,12 +587,6 @@ class FrameCanvas(BaseCanvas):
             gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
             # gc.DrawText(label, sx0 + 4, sy0 - 20) # Draw above?
 
-    def _get_pivot_offset(self, fm: FModule) -> Tuple[int, int]:
-        if fm.ref_type == "module":
-            mod = self.project.get_module(fm.ref_id)
-            if mod: return mod.pivot
-        return (0, 0)
-        
     def _draw_collision(self, gc: wx.GraphicsContext, cr) -> None:
         # cr is CollisionRect(id, type_id, rect=(x,y,w,h))
         rx, ry, rw, rh = cr.rect
@@ -973,17 +955,6 @@ class FrameCanvas(BaseCanvas):
         self.Refresh(False)
 
     # Helpers
-    def hit_test(self, transformed_world_pt: Tuple[float, float]) -> Optional[FModule]:
-        # This one is called from outside, usually with a point that is already in local space?
-        # No, hit_test typically takes a point that came from the screen.
-        # But FrameEditorPanel calls it with screen_to_world(pos).
-        # So we must convert to local.
-        return self._hit_test(self.world_to_local(transformed_world_pt))
-
-    def _hit_test(self, local_pt: Tuple[float, float]) -> Optional[FModule]:
-        hits = self._hit_test_all_local(local_pt)
-        return hits[0] if hits else None
-
     def hit_test_all(self, transformed_world_pt: Tuple[float, float]) -> List[FModule]:
         """Returns all modules under the cursor, sorted top-to-bottom."""
         return self._hit_test_all_local(self.world_to_local(transformed_world_pt))
@@ -1158,11 +1129,6 @@ class FrameCanvas(BaseCanvas):
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
         return part_bounds(self.project, fm, self.mapping)
 
-    def _get_width(self, fm: FModule) -> int:
-        bounds = self._fmodule_bounds(fm)
-        # _fmodule_bounds uses offset, but width is invariant
-        return int(bounds[2] - bounds[0])
-
     def _module_bitmap_key(self, mod: Module) -> str:
         console = CONSOLE.state(self.project)
         if mod.type == "MD_IMAGE":
@@ -1204,9 +1170,8 @@ class FrameCanvas(BaseCanvas):
                     bmp = sub_img.ConvertToBitmap()
                     self._bitmap_cache[key] = bmp
                     return bmp
-            except Exception as e:
-                print(f"Canvas bmp load fail: {e}")
-                return None
+            except (OSError, ValueError, wx.wxAssertionError):
+                return None  # an unreadable image: the part is not drawn (Check Project names the image)
         else:
              # Shape Rendering (on the console: its colour from the first palette)
              w, h = mod.rect[2], mod.rect[3]

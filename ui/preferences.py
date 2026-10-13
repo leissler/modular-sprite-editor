@@ -9,9 +9,19 @@ default store are copied over once.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import wx
 
 COPIED = "/Preferences/Copied"  # one flag per old store whose entries were copied
+
+
+def config() -> Optional[wx.ConfigBase]:
+    """The preferences store; None while there is no wx.App (widgets used without the editor, tests)."""
+    try:
+        return wx.Config.Get()
+    except RuntimeError:  # wx.PyNoAppError
+        return None
 
 
 def _names(config: wx.ConfigBase, groups: bool) -> list:

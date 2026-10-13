@@ -41,8 +41,7 @@ editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, `packaging/windo
 Windows with the vendored SGDK. Pin wxPython there to the version you test with. Set `APP_VERSION` in `app.py` to the
 release first: the About box and the macOS Info.plist show it, and the workflow stops if it releases another version.
 
-Known pre-existing test failure: `test_import_aurora.py` (repo root, stale) expects Aurora image ids to be
-file names; ids are generated on purpose.
+All tests live in `tests/`; `python3 -m pytest -q` from the repository root runs them.
 
 ## Layout
 
@@ -174,7 +173,7 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
   RetroAnimator export; it is shown/selected in the context bar. Timeline objects can carry their own
   (`TimelineObject.mapping_id`: `None` inherits from the parent, `TIMELINE_MAPPING_ORIGINAL`, or a mapping id),
   resolved by `TimelineScene.object_mapping(project, id, default)`.
-- Timeline: `TimelineScene.evaluate_object_state()` / `sample_draw_list()` evaluate keyframes (easing,
+- Timeline: `TimelineScene.evaluate_object_state()` evaluates keyframes (easing,
   linear/spline paths, per-key source switches, root motion from animation offsets). An animation swapped in at a
   later key plays from that key. Scale/opacity exist in the model but are not exposed or rendered.
 

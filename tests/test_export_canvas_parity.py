@@ -11,7 +11,7 @@ import unittest
 
 from PIL import Image
 
-from models import AFrame, FModule, Frame, Project, generate_id
+from models import AFrame, FModule, Project, generate_id
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools"))

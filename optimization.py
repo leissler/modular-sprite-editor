@@ -90,7 +90,6 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
     max_mod_w = max(w for w, h, _ in rects_to_pack) if rects_to_pack else 0
     max_mod_h = max(h for w, h, _ in rects_to_pack) if rects_to_pack else 0
     
-    import math
     min_side = int(math.ceil(math.sqrt(total_area)))
     start_dim = max(min_side, max_mod_w, max_mod_h)
     
@@ -98,7 +97,6 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
     start_dim = ((start_dim + 31) // 32) * 32
     
     best_result = None
-    min_used_area_overall = float('inf')
     
     current_dim = start_dim
     step_size = 32

@@ -6,7 +6,6 @@ ui.animation_editor.ops.Player, and compares which step of which animation shows
 Skipped when no C compiler is available.
 """
 
-import os
 import shutil
 import subprocess
 import sys

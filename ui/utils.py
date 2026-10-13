@@ -1,8 +1,10 @@
 import math
 import wx
-import math
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 from PIL import Image as PILImage
+
+if TYPE_CHECKING:
+    from models import ModuleMapping, Project
 
 def load_wx_image_safely(path: str) -> wx.Image:
     """Load image robustly; prefer Pillow decode to avoid libpng ICC warnings."""
@@ -14,18 +16,12 @@ def load_wx_image_safely(path: str) -> wx.Image:
             wx_img.SetData(rgba.convert("RGB").tobytes())
             wx_img.SetAlpha(rgba.getchannel("A").tobytes())
             return wx_img
-    except Exception:
+    except (OSError, ValueError):  # not an image Pillow reads: let wx try
         pass
 
     # Fallback to wx decoder with warnings suppressed.
     with wx.LogNull():
         return wx.Image(path)
-
-def load_wx_bitmap_safely(path: str) -> wx.Bitmap:
-    img = load_wx_image_safely(path)
-    if not img.IsOk():
-        return wx.Bitmap()
-    return wx.Bitmap(img)
 
 def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int, int, int], params: list) -> Optional[wx.Bitmap]:
     """
@@ -137,23 +133,6 @@ def render_pixel_shape_to_bitmap(mod_type: str, w: int, h: int, color: Tuple[int
                 eff_theta = -theta # Correct for Y-Down/CCW visual
                 return cx + rx * math.cos(eff_theta), cy + ry * math.sin(eff_theta)
             
-            # Helper: Get derivative (tangent vector) on ellipse for angle
-            # dx/dt = -rx * sin(-t) * (-1) = rx * sin(-t)
-            # dy/dt = ry * cos(-t) * (-1) = -ry * cos(-t)
-            # Wait, easier to compute Unit Circle tangent then scale.
-            # On Unit Circle (Standard CCW):
-            # P = (cos t, sin t). Tangent = (-sin t, cos t).
-            # Here eff_theta = -input_theta.
-            # P_unit = (cos(-t), sin(-t)).
-            # Tangent_unit_theta = d/dt P_unit = (-sin(-t)*(-1), cos(-t)*(-1)) = (sin(-t), -cos(-t)).
-            # Scale by (rx, ry).
-            def get_derivative(theta):
-                eff_theta = -theta
-                # dx = rx * sin(eff_theta) * (-1) ? No d/dTheta(cos(-theta)) = -sin(-theta)*(-1) = sin(-theta).
-                dx = rx * math.sin(eff_theta) # Derived correctly
-                dy = -ry * math.cos(eff_theta)
-                return dx, dy
-
             # Move to start
             p0 = get_pt(start_rad)
             if filled:
@@ -456,8 +435,8 @@ class ThumbnailGenerator:
                                 sub = sub.Scale(w_scaled, h_scaled, wx.IMAGE_QUALITY_NEAREST)
                                 sub_bmp = sub.ConvertToBitmap()
                                 dc.DrawBitmap(sub_bmp, int(off_x), int(off_y), True) 
-                     except Exception:
-                         pass
+                     except wx.wxAssertionError:
+                         pass  # an image wx cannot cut: the thumbnail stays empty
             else:
                  # Shape Module
                  shape_bmp = render_pixel_shape_to_bitmap(mod.type, mw, mh, mod.color, mod.params)

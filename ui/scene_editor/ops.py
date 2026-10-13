@@ -15,7 +15,7 @@ Conventions used by the editor:
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from models import (
     TIMELINE_EASINGS,
@@ -679,13 +679,6 @@ def delete_object(project: Project, scene: TimelineScene, object_id: str) -> Non
         set_parent_keep_world(project, scene, child, obj.parent_id)
     scene.objects = [o for o in scene.objects if o.id != object_id]
     normalize_draw_order(scene)
-
-
-def shift_all_keys(obj: TimelineObject, dx: float = 0.0, dy: float = 0.0, drot: float = 0.0) -> None:
-    for key in obj.keyframes:
-        key.x += dx
-        key.y += dy
-        key.rotation_degrees += drot
 
 
 def playback_signature(project: Project, obj: TimelineObject) -> Tuple[Any, ...]:

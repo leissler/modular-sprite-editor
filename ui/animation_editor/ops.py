@@ -11,8 +11,14 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from contextlib import contextmanager
 from typing import Iterator
 
+import playback
 from models import AFrame, Animation, EventType, Project, StepEvent, generate_id
-from playback import DEFAULT_TICK_RATE, Player, can_finish, hold, loop_start, tick_rate  # noqa: F401 (shared)
+from playback import DEFAULT_TICK_RATE, hold, tick_rate
+
+# The Animations tab plays and describes animations exactly like the runtime (playback.py).
+Player = playback.Player
+can_finish = playback.can_finish
+loop_start = playback.loop_start
 
 # (label, playback_type). Labels say what the game does; "backward" repeats like the SGDK runtime.
 PLAYBACK_MODES: List[Tuple[str, str]] = [
@@ -22,7 +28,6 @@ PLAYBACK_MODES: List[Tuple[str, str]] = [
     ("Loop backwards", "backward"),
 ]
 REPEATING_MODES = ("loop", "ping_pong", "backward")
-TICK_RATE_PRESETS = (10, 12, 15, 20, 24, 30, 50, 60)
 
 
 # ---------------------------------------------------------------------------- timing

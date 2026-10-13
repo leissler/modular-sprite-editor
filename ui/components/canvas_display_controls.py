@@ -6,6 +6,7 @@ import wx
 
 from hardware_budget import PROFILES, profile_by_key
 from ui.base_canvas import BACKDROP_CHECKER, BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR, BaseCanvas
+from ui.preferences import config as _config
 
 CONFIG_BACKDROP = "View/Backdrop/{}"  # per tab: "checker" | "colour"
 CONFIG_BACKDROP_COLOUR = "View/BackdropColour"  # "r,g,b", one preview colour shared by all tabs
@@ -17,12 +18,6 @@ GAP = 8  # between the bar's groups
 _LIVE_BARS: List["CanvasDisplayControls"] = []
 _shared_colour: Optional[Tuple[int, int, int]] = None
 
-
-def _config() -> Optional[wx.ConfigBase]:
-    try:
-        return wx.Config.Get()
-    except Exception:
-        return None
 
 
 def shared_backdrop_colour() -> Tuple[int, int, int]:

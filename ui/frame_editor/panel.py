@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import wx
 
-from models import CollisionRect, ControlPoint, FModule, Frame, Project
+from models import FModule, Frame, Project
 from optimization import optimize_nested_frame_combos
 from ui import app_services
 from ui.canvas import GHOST_NEXT, GHOST_PREVIOUS
@@ -511,10 +511,6 @@ class FrameEditorPanel(wx.Panel):
         app_services.request_checkpoint()
         app_services.show_status(f"Deleted frame '{frame.name}'")
 
-    def on_delete_frame(self, _event: Any = None) -> None:
-        """Older name of delete_frame."""
-        self.delete_frame()
-
     def _rename_frame(self, frame_id: str, name: str) -> None:
         frame = self.project.get_frame(frame_id)
         if frame and name != frame.name:
@@ -631,10 +627,6 @@ class FrameEditorPanel(wx.Panel):
         self.type_choice.GetContainingSizer().Layout()
         self.refresh(frames=False)
         app_services.show_status(MODE_HINTS[mode])
-
-    # old name
-    def set_edit_mode(self, canvas_mode: str) -> None:
-        self.set_mode(ops.MODE_OF_CANVAS.get(canvas_mode, canvas_mode))
 
     def _sync_types(self) -> None:
         """Stage colours / visibility and the type choice from the project's types."""
@@ -923,16 +915,6 @@ class FrameEditorPanel(wx.Panel):
         self._refresh_inspector()
         self._refresh_contents()
         app_services.request_checkpoint()
-
-    # kept for older callers
-    def _nudge_selection(self, dx: int, dy: int) -> None:
-        self.nudge(dx, dy)
-
-    def _toggle_flip(self, axis: str) -> None:
-        self._flip(axis)
-
-    def _rotate_selected(self, degrees: float) -> None:
-        self._on_part_tool("rot_cw" if degrees > 0 else "rot_ccw")
 
     def _flip(self, axis: str) -> None:
         """H / V: flip the selected parts as a group, or the whole frame's parts when nothing is selected."""

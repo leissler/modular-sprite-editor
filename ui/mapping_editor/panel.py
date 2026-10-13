@@ -6,7 +6,7 @@ duplicating frames. The selected mapping is the preview mapping of every tab (co
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional
+from typing import Callable, List, Optional
 
 import wx
 
@@ -223,10 +223,6 @@ class MappingEditorPanel(wx.Panel):
     def stop_playback(self) -> None:
         pass
 
-    # kept for the main window
-    def refresh_list_and_table(self) -> None:
-        self.on_tab_activated()
-
     # ================================================================== lists
     def _refresh_sheet_choices(self) -> None:
         keys: List[Optional[str]] = [None] + [img.id for img in self.project.images]
@@ -363,10 +359,6 @@ class MappingEditorPanel(wx.Panel):
         remaining = self.project.mappings
         self._set_active(remaining[min(index, len(remaining) - 1)] if remaining else None)
         app_services.request_checkpoint()
-
-    # old name (the main window's Delete key handling used it)
-    def on_del(self, _event: Any = None) -> None:
-        self.delete_mapping()
 
     def _rename(self, mapping_id: str, name: str) -> None:
         mapping = next((m for m in self.project.mappings if m.id == mapping_id), None)

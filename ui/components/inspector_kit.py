@@ -6,17 +6,13 @@ from typing import Any, Callable, List, Optional, Tuple
 
 import wx
 
+from ui.preferences import config as _config
+
 COL_SECTION = wx.Colour(150, 156, 170)
 COL_DIM = wx.Colour(150, 156, 170)
 COL_WARN = wx.Colour(255, 140, 120)
 CONFIG_FOLDED = "View/Folded/{}/{}"  # (inspector, section title): "1" while the section is folded away
 
-
-def _config() -> Optional[wx.ConfigBase]:
-    try:
-        return wx.Config.Get()
-    except Exception:
-        return None
 
 
 class Section(wx.Panel):
@@ -104,12 +100,6 @@ def row(grid: wx.FlexGridSizer, parent: wx.Window, label: str, item: Any) -> wx.
     grid.Add(text, 0, wx.ALIGN_CENTER_VERTICAL)
     grid.Add(item, 1, wx.EXPAND)
     return text
-
-
-def full_row(grid: wx.FlexGridSizer, item: Any) -> None:
-    """An item under the value column (no label)."""
-    grid.Add((0, 0))
-    grid.Add(item, 1, wx.EXPAND)
 
 
 def hbox(*items: Any, gap: int = 4) -> wx.BoxSizer:
