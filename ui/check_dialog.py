@@ -29,6 +29,15 @@ def level_icons() -> wx.ImageList:
     return icons
 
 
+def memory_issues(project: Project) -> List[pc.Issue]:
+    """Video memory as the Mega Drive export with every mapping fills it, once it gets tight (the export report and
+    the budget readout always show it)."""
+    from ui.canvas import BUDGET
+
+    issue = pc.tile_issue(BUDGET.export_tiles(project, [None] + list(project.mappings)))
+    return [issue] if issue.level != pc.INFO else []
+
+
 def describe_counts(issues: List[pc.Issue]) -> str:
     found = pc.counts(issues)
     if not any(found.values()):
@@ -92,7 +101,8 @@ class CheckProjectDialog(wx.Dialog):
 
     # ------------------------------------------------------------------ list
     def refresh(self) -> None:
-        self.issues = pc.check_project(self.project)
+        self.issues = sorted(pc.check_project(self.project) + memory_issues(self.project),
+                             key=lambda issue: pc.LEVEL_ORDER[issue.level])
         self.list.DeleteAllItems()
         levels = list(LEVEL_LABELS)
         for row, issue in enumerate(self.issues):

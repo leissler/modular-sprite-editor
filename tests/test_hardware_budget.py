@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "examples", "sgdk", "tools"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import hardware_budget as hb  # noqa: E402
-from models import AFrame, FModule, Project, RetroAnimatorExporter, generate_id  # noqa: E402
+from models import FModule, ModuleMapping, Project, RetroAnimatorExporter, TimelineKeyframe, generate_id  # noqa: E402
 
 
 def _transform(flip_x=False, flip_y=False, rotation=0.0, offset=(0.0, 0.0)):
@@ -61,6 +61,13 @@ class TestGridAndLines(unittest.TestCase):
         budget = self.calc.frame_budget(self.project, self._frame(self.holey), None, hb.MEGA_DRIVE_H40)
         self.assertEqual(budget.sprite_count, 3)  # the empty 8×8 corner block needs no sprite
         self.assertEqual(budget.tile_count, 24)
+
+    def test_a_new_key_colour_counts_again(self):
+        frame = self._frame(self.holey)
+        self.assertEqual(self.calc.frame_budget(self.project, frame, None, hb.MEGA_DRIVE_H40).sprite_count, 3)
+        self.project.images[0].transparent_color = None  # the hole shows its magenta pixels now
+        budget = self.calc.frame_budget(self.project, frame, None, hb.MEGA_DRIVE_H40)
+        self.assertEqual((budget.sprite_count, budget.tile_count), (4, 25))
 
     def test_hardware_flip_mirrors_the_block_layout(self):
         plain = self.calc.frame_budget(self.project, self._frame(self.big), None, hb.MEGA_DRIVE_H40)
@@ -121,6 +128,140 @@ class TestMatchesSgdkExporter(unittest.TestCase):
 
     def test_pop_testbed(self):
         self.assertGreater(self._check(Project.from_json(os.path.join(REPO_ROOT, "examples", "sgdk", "PoP_WW.json"))), 500)
+
+
+class TestVideoMemory(unittest.TestCase):
+    """Tiles the Mega Drive export keeps in video memory: each stored block once, the project's total as exported."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_repeated_and_flipped_parts_need_their_tiles_once(self):
+        sheet = self.folder / "sheet.png"
+        _sheet(sheet, size=(48, 48))
+        project = Project()
+        image = project.create_image(str(sheet), 48, 48)
+        big = project.create_module("big", image.id, (0, 0, 40, 40), (0, 0))
+        frame = project.create_frame("twice")
+        for position, flip in (((0, 0), False), ((48, 0), True)):
+            frame.fmodules.append(FModule(id=generate_id("fm"), ref_type="module", ref_id=big.id, position=position, flip_x=flip))
+        budget = hb.BudgetCalculator().frame_budget(project, frame, None, hb.MEGA_DRIVE_H40)
+        self.assertEqual((budget.tile_count, budget.unique_tiles), (50, 25))
+
+    def test_blocks_with_the_same_pixels_share_tiles(self):
+        sheet = self.folder / "tiles.png"
+        image = Image.new("RGBA", (32, 8), (0, 0, 0, 0))
+        for x in range(8):
+            for y in range(8):
+                image.putpixel((x, y), (200, 40 + 20 * y, 30 * x, 255))
+                image.putpixel((16 + x, y), (200, 40 + 20 * y, 30 * x, 255))  # the same 8×8 again
+        image.save(sheet)
+        project = Project()
+        asset = project.create_image(str(sheet), 32, 8)
+        first = project.create_module("first", asset.id, (0, 0, 8, 8), (0, 0))
+        again = project.create_module("again", asset.id, (16, 0, 8, 8), (0, 0))
+        calc = hb.BudgetCalculator()
+        parts = calc.module_parts(project, first.id, None, hb.MEGA_DRIVE_H40) + calc.module_parts(project, again.id, None, hb.MEGA_DRIVE_H40)
+        self.assertEqual((sum(p.tiles for p in parts), hb.vram_tiles(parts)), (2, 1))
+
+    def _exported_tiles(self, project, mappings):
+        import export_sgdk_example as sg
+
+        ctx = sg.SGDKBakeContext(project, mappings, self.folder / "out")
+        ctx.bake()
+        return len(ctx.tile_data) // 32
+
+    def test_project_total_matches_the_export(self):
+        import test_export_canvas_parity as parity
+
+        sheet = self.folder / "sheet.png"
+        parity._asymmetric_sheet(str(sheet))
+        project = parity._build_project(str(sheet))
+        # A second image in the second palette, a mapping to it and a scene that turns, mirrors and swaps.
+        other = self.folder / "other.png"
+        _sheet(other, size=(24, 16))
+        asset = project.create_image(str(other), 24, 16)
+        asset.palette = 1
+        green = project.create_module("green", asset.id, (0, 0, 20, 12), (3, 2))
+        wide = project.modules[0]
+        project.mappings.append(ModuleMapping(id="map_green", name="Green", map={wide.id: green.id}))
+        scene = project.create_timeline_scene("Turn")
+        scene.duration_seconds = 0.5
+        obj = scene.create_object("spinner", "frame", project.frames[1].id)
+        obj.keyframes = [TimelineKeyframe(id="k0", time=0.0, x=10.0), TimelineKeyframe(id="k1", time=0.4, x=40.0, rotation_degrees=50.0, flip_x=True)]
+        loose = scene.create_object("module", "module", green.id)
+        loose.keyframes = [TimelineKeyframe(id="k2", time=0.0, y=20.0, rotation_degrees=90.0)]
+        for mappings in ([None], [None] + project.mappings):
+            self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings), self._exported_tiles(project, mappings))
+
+    def test_testbed_totals_match_the_export(self):
+        for path in ("examples/sgdk/PoP_WW.json", "examples/adventurer/adventurer.json"):
+            project = Project.from_json(os.path.join(REPO_ROOT, path))
+            mappings = [None] + project.mappings
+            self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings), self._exported_tiles(project, mappings), path)
+
+    def test_the_palette_decides_which_blocks_match(self):
+        project = Project()
+        modules = []
+        for name, colour in (("red", (250, 10, 10, 255)), ("blue", (10, 10, 250, 255))):
+            path = self.folder / f"{name}.png"
+            Image.new("RGBA", (8, 8), colour).save(path)
+            asset = project.create_image(str(path), 8, 8)
+            modules.append(project.create_module(name, asset.id, (0, 0, 8, 8), (0, 0)))
+        calc = hb.BudgetCalculator()
+
+        def total():
+            return hb.vram_tiles([part for mod in modules for part in calc.module_parts(project, mod.id, None, hb.MEGA_DRIVE_H40)])
+
+        self.assertEqual(total(), 2, "two colours of one palette: different indices")
+        project.images[1].palette = 1
+        self.assertEqual(total(), 1, "each the first colour of its own palette: the same tile")
+
+
+class TestSnes(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        sheet = os.path.join(self.tmp.name, "sheet.png")
+        _sheet(sheet, size=(96, 48))
+        self.project = Project()
+        image = self.project.create_image(sheet, 96, 48)
+        self.big = self.project.create_module("big", image.id, (0, 0, 40, 40), (0, 0))
+        self.tile = self.project.create_module("tile", image.id, (48, 0, 8, 8), (0, 0))
+        self.square = self.project.create_module("square", image.id, (64, 0, 16, 16), (0, 0))
+        self.calc = hb.BudgetCalculator()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _sprites(self, module, profile, flip_x=False):
+        a, b = _transform(flip_x=flip_x)
+        return sorted((s.x, s.y, s.w, s.h) for p in self.calc.module_parts(self.project, module.id, None, profile, a, b) for s in p.sprites)
+
+    def test_small_and_large_square_sprites(self):
+        self.assertEqual(self._sprites(self.tile, hb.SNES_8_16), [(0, 0, 8, 8)])
+        self.assertEqual(self._sprites(self.square, hb.SNES_8_16), [(0, 0, 16, 16)])
+        self.assertEqual(self._sprites(self.square, hb.SNES_16_32), [(0, 0, 16, 16)])
+        # 40×40 with 16/32: one large sprite, small ones along the right and bottom edges.
+        self.assertEqual(self._sprites(self.big, hb.SNES_16_32), [
+            (0, 0, 32, 32), (0, 32, 16, 16), (16, 32, 16, 16), (32, 0, 16, 16), (32, 16, 16, 16), (32, 32, 16, 16)])
+
+    def test_flips_mirror_the_cells(self):
+        plain = self._sprites(self.big, hb.SNES_16_32)
+        mirrored = self._sprites(self.big, hb.SNES_16_32, flip_x=True)
+        self.assertEqual(sorted((-x - w, y, w, h) for x, y, w, h in mirrored), plain)
+
+    def test_line_limits(self):
+        parts = [hb.HwPart(i * 8, 0, 8, 8, False, False, [hb.HwSprite(i * 8, 0, 8, 8)]) for i in range(33)]
+        self.assertTrue(hb.Budget(hb.SNES_8_16, parts).over_budget(), "33 sprites on a line")
+        self.assertFalse(hb.Budget(hb.SNES_8_16, parts[:32]).over_budget())
+        wide = [hb.HwPart(0, 0, 32, 32, False, False, [hb.HwSprite(i * 32, 0, 32, 32)]) for i in range(9)]
+        self.assertEqual(hb.Budget(hb.SNES_16_32, wide).worst_line(), (9, 288))
+        self.assertTrue(hb.Budget(hb.SNES_16_32, wide).over_budget(), "288 px > 34 tiles on a line")
+        self.assertEqual(hb.SNES_16_32.vram_tiles, 0, "no SNES export yet: video memory is not counted")
 
 
 if __name__ == "__main__":

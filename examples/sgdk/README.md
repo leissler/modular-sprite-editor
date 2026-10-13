@@ -17,15 +17,18 @@ Mega Drive code should not parse JSON or transform images per frame, so the expo
 `res/gen/modsprite_blob.bin` (included by `res/resources.res` as `BIN MS_BLOB ...`, parsed by the generated
 `src/modsprite_data.c`):
 
-- **Tiles and palette**: every module image as it is used (flipped parts reuse the same tiles through the
+- **Tiles and palettes**: every module image as it is used (flipped parts reuse the same tiles through the
   sprite's flip bits; rotations are baked), cut into hardware sprites of at most 32×32 on the same grid as the
   editor's Budget overlay (`hardware_budget.py`), as 4 bpp tiles in VDP order, deduplicated; one 15-colour
-  palette.
+  palette per palette group (Modules tab ▸ sheet ▸ **Palette**, `ImageAsset.palette`), built from the colours its
+  images use (`palettes.py`, shared with the editor's View ▸ Mega Drive Colours).
 - **Pieces**: the hardware sprites of each image, laid out once for every flip combination a part uses.
 - **Render frames**: the parts of each frame, animation step and scene sample, with their hitboxes and points,
   sprite count and bounds; animations, scenes, mappings, step events and all names.
 
-At start `ms_init()` loads all tiles into VRAM (at `TILE_USER_INDEX`) and the palette (into `PAL1`). Drawing
+At start `ms_init()` loads all tiles into VRAM (at `TILE_USER_INDEX`) and the palettes into consecutive palette
+lines from `PAL1` (Palette 1 into `PAL1`, Palette 2 into `PAL2`, ...; a piece's tile offset carries its palette in
+the attribute's palette bits, so drawing adds it with the tile index). Drawing
 then only writes SGDK's sprite table cache: a part becomes its pieces plus the part's position and flip bits;
 frames that lie fully on screen are copied without per-sprite tests, others are culled sprite by sprite (a
 sprite at x = -128 would hide the sprites behind it). `ms_end_frame()` queues one sprite-table DMA, which
@@ -49,10 +52,13 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 - **VRAM**: all tiles stay resident. `PoP_WW` needs 309 tiles, `sonic` 658; they must fit between the tile
   base and SGDK's font (`TILE_FONT_INDEX`). With SGDK's default layout that is about 1424 tiles (1536 below the
   plane maps at `0xC000`, minus 16 system and 96 font tiles); the export reports how many the sprites need,
-  warns above three quarters of that and reports an error above it. `ms_tiles_fit()` reports at runtime whether
-  they fit; use `ms_init_ex(tile_index, palette)` to put them after a game's own tiles or into another palette.
-- **One palette**: 15 colours plus transparent. The export warns when the visible pixels of the images use more
-  and merges similar colours.
+  warns above three quarters of that and reports an error above it; the editor shows the same count in the
+  Budget readout (MD modes) and in Check Project. `ms_tiles_fit()` reports at runtime whether they fit; use
+  `ms_init_ex(tile_index, palette)` to put them after a game's own tiles or to start at another palette line.
+- **Palettes**: up to four, 15 colours plus transparent each. The runtime loads Palette 1 up to the last palette
+  used into consecutive lines (one left unused in between gets Palette 1's colours); `ms_palettes_fit()` is false
+  when they would run past `PAL3` (start at `PAL0` with `ms_init_ex(tile_index, PAL0)` for four). Check Project
+  and the export warn when a palette's images use more than 15 visible colours; similar colours merge.
 - **80 hardware sprites** per screen (H40); `ms_set_sprite_limit(64)` in H32 or to leave room for other sprites.
   Pieces that do not fit are counted in `MS_FrameProfile.sprites_dropped`.
 - **Scenes** are baked as one render frame per tick: they play back exactly, but objects cannot be moved
@@ -99,9 +105,11 @@ Both then list what the game would get differently from the editor, the same iss
 (it looks or behaves differently, e.g. more than 15 colours) and a note on video memory. `--strict` makes the
 command fail (exit code 1) when there are errors, for build scripts.
 
-Blob version 3 (2026-10-11): tiles, pieces and palette in the blob (no SGDK sprite resources), hitboxes and
-points, type and role names, sprite count and bounds per render frame. Version 2 added step events, loop-from,
-follow-up animation and repeat count. Regenerate the data with the exporter after updating.
+Blob version 4 (2026-10-13): several palettes (the header's spare field counts them, 16 colours each follow in
+the palette section) and the palette bits in the pieces' tile offsets. Version 3 (2026-10-11): tiles, pieces and
+palette in the blob (no SGDK sprite resources), hitboxes and points, type and role names, sprite count and bounds
+per render frame. Version 2 added step events, loop-from, follow-up animation and repeat count. Regenerate the
+data with the exporter after updating.
 
 ## Build the SGDK demo
 
@@ -123,7 +131,7 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 
 ## Runtime API summary (`inc/modsprite.h`)
 
-- `ms_init()` / `ms_init_ex(tile_index, palette)`, `ms_tiles_fit()`, `ms_tiles_used()`
+- `ms_init()` / `ms_init_ex(tile_index, palette)`, `ms_tiles_fit()`, `ms_tiles_used()`, `ms_palettes_fit()`
 - Per video frame: `ms_begin_frame()`, any number of draw calls, `ms_end_frame()`, then `SYS_doVBlankProcess()`
 - `ms_draw_module(index, x, y)`, `ms_draw_frame(index, x, y)`
 - `ms_anim_player_*()` for animation playback. The player follows the editor exactly

@@ -65,6 +65,9 @@ right-click › Open the first time.
   their pixels.
 - **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image;
   **modules list** with thumbnails, size and how often each is used.
+- **Palettes**: each image belongs to one of the Mega Drive's four palettes; the inspector shows the palette's colours
+  as the console shows them and warns when its images use more than 15. **View ▸ Mega Drive Colours** shows every
+  canvas in the console's colours (3 bits per channel, through the export's palettes).
 - **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
 
 ### Frames
@@ -117,9 +120,11 @@ right-click › Open the first time.
 - **Preview** of the frames the selected modules appear in, drawn with the mapping.
 
 ### Mega Drive / SGDK
-- **Budget overlay** in the Frames, Animations and Timeline view bars (H40 / H32): the hardware sprites each part
-  becomes, scanlines where sprites would drop out, sprite and tile counts. The numbers follow the exporter.
-- **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palette,
+- **Budget overlay** in the Frames, Animations and Timeline view bars (Mega Drive H40 / H32, and SNES with 8/16 or
+  16/32 sprites): the hardware sprites each part becomes, scanlines where sprites would drop out, sprite counts and,
+  for the Mega Drive, the video memory: tiles of what is shown, of the animation and of the whole project against the
+  ~1424 SGDK leaves free. The numbers follow the exporter exactly.
+- **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palettes,
   frames, animations, scenes, hitboxes, points, events and every mapping in one binary blob, written into the game's
   SGDK project (its own resources stay). It reports what the game gets: the video memory the sprites need, merged
   colours and anything Check Project finds.
@@ -200,6 +205,7 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 | **Canvas** | Zoom at cursor (settles on whole pixel sizes) | `Mouse Wheel` / two-finger scroll / pinch |
 | | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` |
 | | Fit / Actual pixels / Grid | `Cmd+0` / `Cmd+Shift+0` / `Cmd+G` |
+| | Mega Drive colours | `Cmd+Shift+P` |
 | **Modules** | New module / move / resize | Drag on the image / drag a module / drag a handle |
 | | Move pivot / select several / add or remove one | `Shift + Drag` / `Cmd + Drag` / `Cmd + Click` |
 | | Nudge 1 px / 8 px | `Arrows` / `Shift+Arrows` |

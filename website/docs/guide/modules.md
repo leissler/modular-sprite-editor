@@ -84,6 +84,19 @@ The **Modules** list shows a thumbnail, the size and how often each module is us
 
 Select modules and copy them (++cmd+c++). Select another image and paste (++cmd+v++): the same areas are cut there. This is useful when you have a recoloured copy of a sheet with the same layout. A [mapping](mappings.md) can then swap between the two.
 
+## Palettes
+
+The Mega Drive shows each sprite with one of four **palettes** of 15 colours (plus transparent). Every image belongs to one of them: select the image and choose its **Palette** in the inspector. Images in the same palette share its colours, so give a character in other colours, such as an enemy, its own image and palette.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Palette row of the inspector: Palette 1 chosen, 15 colours, and a strip of the 15 colours as the Mega Drive shows them](../assets/images/screens/modules-palette.png){ width="291" height="43" loading="lazy" }](../assets/images/screens/modules-palette.png)
+  <figcaption>The Prince of Persia sheet uses exactly the 15 colours a palette holds.</figcaption>
+</figure>
+
+Next to the palette, the inspector counts the colours its images use and shows them in a strip, as the console shows them. When they use more than 15, the console merges similar colours, and **Check Project** warns.
+
+**View ▸ Mega Drive Colours** (++cmd+shift+p++) shows every canvas in the console's colours: each image through its palette, with the console's 512 colours. Turn it on to see merged colours, and colours the console cannot show exactly, before you export.
+
 ## Shapes
 
 The **Shapes** entry in the **Images** list holds vector shapes: rectangles, ellipses, triangles, lines and markers, filled or outlined, in any colour. Drag on its canvas to make one and choose its kind in the inspector. Shapes work like any other module. They are good for placeholders, simple effects and quick markers, and they are drawn pixel-exact at every size.

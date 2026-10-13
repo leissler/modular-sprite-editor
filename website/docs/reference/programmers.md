@@ -27,7 +27,8 @@ The Mega Drive is the first console with an exporter and a runtime. More console
 
 `export_sgdk`, on the [release page](https://github.com/leissler/modular-sprite-editor/releases/latest) next to the editor, turns a project into data for a Mega Drive game made with [SGDK](https://github.com/Stephane-D/SGDK). The source code includes a small runtime that draws it.
 
-- Everything is baked into one data file: tiles and palette, frames, animations, scenes, hitboxes and points with their types and roles, step events, and every mapping.
+- Everything is baked into one data file: tiles and palettes, frames, animations, scenes, hitboxes and points with their types and roles, step events, and every mapping.
+- Each palette chosen in the Modules tab gets a palette line of its own: Palette 1 goes into the first line the game gives the runtime, Palette 2 into the next, and so on.
 - Animations play on the console exactly as in the editor's preview, tick for tick, including loop-from steps, repeat counts and follow-up animations.
 - The game chooses a mapping when it draws a character, so several characters can share one set of animations.
 - Scenes play as they look on the Timeline, including objects with their own mapping.

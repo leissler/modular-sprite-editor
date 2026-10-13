@@ -62,6 +62,7 @@ extern VDPSprite vdpSpriteCache[80];
 void VDP_updateSprites(u16 num, u16 tm);
 void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm);
 void PAL_setPalette(u16 num, const u16 *pal, u16 tm);
+void PAL_setColors(u16 index, const u16 *pal, u16 count, u16 tm);
 u16 VDP_getScreenWidth(void);
 u16 VDP_getScreenHeight(void);
 #endif
@@ -75,6 +76,7 @@ u16 g_stub_sprites_sent = 0;
 void VDP_updateSprites(u16 num, u16 tm) { g_stub_sprites_sent = num; }
 void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm) {}
 void PAL_setPalette(u16 num, const u16 *pal, u16 tm) {}
+void PAL_setColors(u16 index, const u16 *pal, u16 count, u16 tm) {}
 u16 VDP_getScreenWidth(void) { return 320; }
 u16 VDP_getScreenHeight(void) { return 224; }
 """
@@ -112,7 +114,7 @@ u16 ms_module_count = 0; u16 ms_frame_count = 0; u16 ms_animation_count = {len(a
 u16 ms_scene_count = 0; u16 ms_mapping_count = 1; u16 ms_anim_step_count = {len(steps)};
 u16 ms_scene_sample_count = 0; u16 ms_animation_record_count = {len(anims)}; u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 2; u16 ms_step_event_count = {max(1, len(events))};
-u16 ms_tile_count = 0; u16 ms_piece_count = 0; u16 ms_hitbox_count = 0; u16 ms_point_count = 0;
+u16 ms_tile_count = 0; u16 ms_palette_count = 1; u16 ms_piece_count = 0; u16 ms_hitbox_count = 0; u16 ms_point_count = 0;
 u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
 const MS_Variant *ms_variants = NULL; const MS_Piece *ms_pieces = NULL; const u32 *ms_tiles = NULL;
 const u16 *ms_palette = NULL; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;

@@ -22,6 +22,7 @@ from ui.animation_editor.panel import AnimationEditorPanel
 from ui.canvas import BUDGET
 import project_check
 from ui.check_dialog import CheckProjectDialog
+from ui.console_colours import CONSOLE
 from ui.components.module_palette import THUMBNAILS
 from ui.frame_render import SHARED
 from ui.image_watch import Stamp, changed_images, image_stamp, image_stamps, update_image_sizes
@@ -233,6 +234,7 @@ class MainFrame(wx.Frame):
             zoom=self.set_zoom_status,
             mapping_changed=self.sync_mapping_controls,
             images_changed=self.images_changed,
+            revision=lambda: self.history.fingerprint,
         )
 
         self.history.reset(self.project)
@@ -334,9 +336,18 @@ class MainFrame(wx.Frame):
 
     # ------------------------------------------------------------------ history
     def history_checkpoint(self) -> None:
+        before = self.history.fingerprint
         self.history.checkpoint(self.project)
         if self.history.is_dirty() != self._last_dirty_state:
             self._update_title()
+        if self.history.fingerprint != before:
+            canvas = self._active_budget_canvas()
+            if canvas is not None:
+                canvas.Refresh(False)  # its readout shows the whole project's tiles, worked out per checkpoint
+
+    def _active_budget_canvas(self) -> Optional[wx.Window]:
+        canvas = self._active_canvas()
+        return canvas if getattr(canvas, "budget_profile", None) is not None else None
 
     def _on_checkpoint_timer(self, _event: wx.TimerEvent) -> None:
         mouse = wx.GetMouseState()
@@ -352,8 +363,17 @@ class MainFrame(wx.Frame):
             if asset.id not in self._image_stamps:
                 self._image_stamps[asset.id] = image_stamp(asset.file_path)
 
+    def set_console_colours(self, shown: bool) -> None:
+        """View ▸ Mega Drive Colours: every canvas shows the art through the export's palettes."""
+        CONSOLE.enabled = bool(shown)
+        self.m_console.Check(CONSOLE.enabled)
+        self.images_changed()
+        self.set_status("Mega Drive colours: each image through its palette, 3 bits per channel" if shown
+                        else "The art's own colours")
+
     def images_changed(self) -> None:
         """Image pixels changed (reloaded, relinked, edited elsewhere): drop every cached picture and redraw."""
+        CONSOLE.touch()
         SHARED.clear()
         THUMBNAILS.clear()
         BUDGET.clear()
@@ -753,6 +773,9 @@ class MainFrame(wx.Frame):
         m_zoom_1x = view_menu.Append(wx.ID_ZOOM_100, "Actual &Pixels (1×)\tCtrl+Shift+0")
         view_menu.AppendSeparator()
         m_grid = view_menu.Append(wx.ID_ANY, "Toggle &Grid\tCtrl+G")
+        self.m_console = view_menu.AppendCheckItem(
+            wx.ID_ANY, "Mega Drive Colours\tCtrl+Shift+P",
+            "Show the art as the console will: each image's palette, 15 colours each, 3 bits per channel")
         view_menu.AppendSeparator()
         for idx, name in enumerate(TAB_NAMES):
             item = view_menu.Append(wx.ID_ANY, f"{name}\tCtrl+{idx + 1}")
@@ -762,6 +785,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self._view_command(lambda c: c.fit_to_content()), m_zoom_fit)
         self.Bind(wx.EVT_MENU, lambda e: self._view_command(lambda c: c.set_zoom_level(1.0)), m_zoom_1x)
         self.Bind(wx.EVT_MENU, self.on_toggle_grid, m_grid)
+        self.Bind(wx.EVT_MENU, lambda e: self.set_console_colours(e.IsChecked()), self.m_console)
         menubar.Append(view_menu, "&View")
 
         tools_menu = wx.Menu()

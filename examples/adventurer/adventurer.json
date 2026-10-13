@@ -1,5 +1,5 @@
 {
-  "format_version": 5,
+  "format_version": 6,
   "name": "Adventurer",
   "images": [
     {
@@ -7,7 +7,8 @@
       "file_path": "adventurer_sprite_sheet_v1.1.png",
       "width": 416,
       "height": 256,
-      "transparent_color": null
+      "transparent_color": null,
+      "palette": 0
     }
   ],
   "modules": [

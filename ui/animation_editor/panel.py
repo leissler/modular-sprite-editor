@@ -349,16 +349,19 @@ class AnimationEditorPanel(wx.Panel):
         profile = self.stage.budget_profile
         if profile is None or not anim or not anim.aframes:
             return None
+        from hardware_budget import vram_tiles
         from ui.animation_editor.render import step_affine
         from ui.canvas import BUDGET
 
         worst = None
+        parts = []
         for index, af in enumerate(anim.aframes):
             frame = self.project.get_frame(af.frame_id)
             if frame is None:
                 continue
             a, b = step_affine(af)
             budget = BUDGET.frame_budget(self.project, frame, self.project.active_mapping, profile, a, b)
+            parts += budget.parts
             rank = (budget.over_budget(), budget.sprite_count, budget.tile_count)
             if worst is None or rank > worst[0]:
                 worst = (rank, index, budget)
@@ -367,9 +370,11 @@ class AnimationEditorPanel(wx.Panel):
         _rank, index, budget = worst
         count, pixels = budget.worst_line()
         text = (
-            f"worst step {index + 1}: {budget.sprite_count} sprites, {budget.tile_count} tiles; "
+            f"worst step {index + 1}: {budget.sprite_count} sprites; "
             f"busiest line {count}/{profile.sprites_per_line} sprites, {pixels}/{profile.pixels_per_line} px"
         )
+        if profile.vram_tiles:
+            text += f"\nvideo memory: {vram_tiles(parts)} tiles for the animation"
         return text, budget.over_budget()
 
     def _refresh_stage(self) -> None:

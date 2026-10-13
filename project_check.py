@@ -12,7 +12,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from models import Project
+import palettes
+from models import ImageAsset, Project
 
 ERROR, WARNING, INFO = "error", "warning", "info"
 LEVEL_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
@@ -105,7 +106,8 @@ def _scene_source_missing(project: Project, source_type: Optional[str], source_i
 # ---------------------------------------------------------------------------- checks
 def _check_images(project: Project, pixels: bool) -> List[Issue]:
     issues: List[Issue] = []
-    colours: Set[Tuple[int, int, int]] = set()
+    colours: Dict[int, Set[Tuple[int, int, int]]] = {}  # palette -> the colours its images use
+    images_in: Dict[int, List[ImageAsset]] = {}
     modules_on: Counter = Counter(m.image_id for m in project.modules if m.type == "MD_IMAGE")
     for asset in project.images:
         name = os.path.basename(asset.file_path) or asset.id
@@ -131,10 +133,12 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
             continue
         key = tuple(int(c) for c in asset.transparent_color) if asset.transparent_color else None
         half = 0
+        palette = palettes.palette_of(asset)
+        images_in.setdefault(palette, []).append(asset)
         for count, (r, g, b, a) in rgba.getcolors(rgba.width * rgba.height) or []:
             if a == 0 or (r, g, b) == key:
                 continue
-            colours.add((r, g, b))
+            colours.setdefault(palette, set()).add((r, g, b))
             if a < 255:
                 half += count
         if half:
@@ -144,11 +148,18 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
                 "opaque.",
                 ("image", asset.id),
             ))
-    if len(colours) > MD_PALETTE_COLOURS:
+    for palette, used in sorted(colours.items()):
+        if len(used) <= MD_PALETTE_COLOURS:
+            continue
+        members = images_in[palette]
+        names = ", ".join(f"'{os.path.basename(a.file_path) or a.id}'" for a in members[:3]) + (" ..." if len(members) > 3 else "")
         issues.append(Issue(
             WARNING, "too-many-colours",
-            f"The images use {len(colours)} colours. A Mega Drive palette holds {MD_PALETTE_COLOURS}, so the export "
-            "merges similar colours.",
+            f"Palette {palette + 1} ({names}) uses {len(used)} colours. A Mega Drive palette holds "
+            f"{MD_PALETTE_COLOURS}, so the export merges similar colours"
+            + (": put some of its images in another palette (Modules tab, the image's Palette)." if len(members) > 1
+               else "."),
+            ("image", members[0].id),
         ))
     return issues
 
@@ -378,6 +389,17 @@ def tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
     level = WARNING if tiles > capacity * 3 // 4 else INFO
     return Issue(level, "tiles", f"The sprites need {tiles} of about {capacity} tiles of video memory, leaving "
                                  f"{capacity - tiles} for backgrounds and everything else.")
+
+
+def palette_issue(lines: int) -> Optional[Issue]:
+    """How many palette lines the exported sprites use (None for one: the runtime's default PAL1 fits)."""
+    if lines <= 1:
+        return None
+    if lines >= 4:
+        return Issue(WARNING, "palette-lines", "The sprites use all four palette lines: start them at PAL0 with "
+                                               "ms_init_ex(tile_index, PAL0), ms_init() starts at PAL1.")
+    return Issue(INFO, "palette-lines", f"The sprites use {lines} palette lines, PAL1 to PAL{lines} with ms_init() "
+                                        "(ms_init_ex() can start them elsewhere).")
 
 
 def counts(issues: Iterable[Issue]) -> Dict[str, int]:

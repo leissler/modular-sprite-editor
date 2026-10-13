@@ -26,6 +26,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from models import Frame, Module, ModuleMapping, Project, RetroAnimatorExporter, TimelineScene  # noqa: E402
+import palettes  # noqa: E402
 import project_check  # noqa: E402
 from project_check import Issue  # noqa: E402
 
@@ -76,7 +77,9 @@ UNKNOWN_TYPE = 0xFF
 # 2: step events, loop-from step, follow-up animation, repeat count
 # 3: tiles, pieces and palette in the blob (VRAM-resident runtime, no SGDK sprite resources),
 #    hitboxes and points per render frame, type and role names, sprite count and bounds per render frame
-BLOB_VERSION = 3
+# 4: a palette per image group (the header's former spare field counts them); a piece's tile offset carries its
+#    palette in bits 13-14, so drawing adds it to the sprite attribute like the tile index
+BLOB_VERSION = 4
 BLOB_COUNT_FIELDS = 20
 BLOB_SECTION_COUNT = 30
 BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
@@ -173,8 +176,9 @@ class SGDKBakeContext:
         self.mapping_ids: List[str] = [m.id if m else "" for m in self.mappings]
         self.mapping_names: List[str] = [m.name if m else "<none>" for m in self.mappings]
 
-        self.master_palette_15: List[Tuple[int, int, int]] = self._build_master_palette()
-        self.palette_lookup_cache: Dict[Tuple[int, int, int], int] = {}
+        # One palette per image group (ImageAsset.palette); the runtime loads them into consecutive palette lines.
+        self.palettes: Dict[int, List[Tuple[int, int, int]]] = palettes.project_palettes(project)
+        self.palette_lookup_caches: Dict[int, Dict[Tuple[int, int, int], int]] = {i: {} for i in self.palettes}
 
     @staticmethod
     def _identity_matrix() -> Matrix2:
@@ -226,10 +230,15 @@ class SGDKBakeContext:
             return None
         return mod
 
-    def _ensure_variant(self, image: Image.Image) -> int:
+    def _palette_of_module(self, mod: Module) -> int:
+        """The palette a module's pixels use: its image's (vector shapes use the first)."""
+        asset = self.project.get_image(mod.image_id) if mod.type == "MD_IMAGE" else None
+        return palettes.palette_of(asset) if asset is not None else 0
+
+    def _ensure_variant(self, image: Image.Image, palette: int = 0) -> int:
         rgba = image.convert("RGBA")
         digest = hashlib.sha1(rgba.tobytes()).hexdigest()
-        key = (rgba.width, rgba.height, digest)
+        key = (rgba.width, rgba.height, digest, palette)
         found = self.variant_lookup.get(key)
         if found is not None:
             return found
@@ -238,7 +247,7 @@ class SGDKBakeContext:
         out_h = max(TILE, ((rgba.height + TILE - 1) // TILE) * TILE)
         padded = Image.new("RGBA", (out_w, out_h), (0, 0, 0, 0))
         padded.alpha_composite(rgba, (0, 0))
-        indexed = self._to_indexed_4bpp(padded)
+        indexed = self._to_indexed_4bpp(padded, palette)
         pixels = indexed.tobytes()
         alpha = rgba.getchannel("A")
 
@@ -257,7 +266,8 @@ class SGDKBakeContext:
                     self.tile_data.extend(tiles)
                     self.piece_tiles_lookup[tiles] = offset
                 size_code = (((bw // TILE) - 1) << 2) | ((bh // TILE) - 1)
-                blocks.append((bx, by, size_code, offset))
+                # The palette rides in the attribute's palette bits: the runtime adds it with the tile index.
+                blocks.append((bx, by, size_code, offset | (palette << 13)))
 
         idx = len(self.variants)
         self.variant_lookup[key] = idx
@@ -340,68 +350,11 @@ class SGDKBakeContext:
         db = int(a[2]) - int(b[2])
         return dr * dr + dg * dg + db * db
 
-    def _build_master_palette(self) -> List[Tuple[int, int, int]]:
-        counts: Dict[Tuple[int, int, int], int] = {}
+    def _nearest_palette_index(self, rgb: Tuple[int, int, int], palette: int = 0) -> int:
+        """0-14: the closest colour of a palette (the tile stores it + 1, 0 is transparent)."""
+        return palettes.nearest(rgb, self.palettes[palette], self.palette_lookup_caches[palette])
 
-        for asset in self.project.images:
-            path = Path(asset.file_path)
-            if not path.exists():
-                continue
-
-            image = Image.open(path).convert("RGBA")
-            transparent = tuple(int(v) for v in asset.transparent_color) if asset.transparent_color else None
-            for count, px in image.getcolors(maxcolors=image.width * image.height) or []:
-                rgb = (int(px[0]), int(px[1]), int(px[2]))
-                if px[3] == 0 or (transparent is not None and rgb == transparent):
-                    continue  # transparent pixels take no palette entry
-                counts[rgb] = counts.get(rgb, 0) + int(count)
-
-        if not counts:
-            return [(255, 255, 255)] + [(0, 0, 0)] * 14
-
-        self.palette_note = ""
-        if len(counts) > 15:
-            self.palette_note = (f"warning: the images use {len(counts)} colours; the Mega Drive palette holds 15 "
-                                 "(plus transparent), so similar colours were merged")
-        if len(counts) <= 15:
-            ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-            base = [rgb for rgb, _count in ordered]
-        else:
-            canvas = Image.new("RGB", (len(counts), 1), (0, 0, 0))
-            for x, rgb in enumerate(counts.keys()):
-                canvas.putpixel((x, 0), rgb)
-            quant = canvas.quantize(colors=15, dither=Image.Dither.NONE)
-            raw_pal = quant.getpalette() or []
-            base = []
-            for i in range(15):
-                off = i * 3
-                if off + 2 >= len(raw_pal):
-                    break
-                base.append((int(raw_pal[off]), int(raw_pal[off + 1]), int(raw_pal[off + 2])))
-
-        if not base:
-            base = [(255, 255, 255)]
-        while len(base) < 15:
-            base.append(base[-1])
-        return base[:15]
-
-    def _nearest_master_palette_index(self, rgb: Tuple[int, int, int]) -> int:
-        cached = self.palette_lookup_cache.get(rgb)
-        if cached is not None:
-            return cached
-
-        best_index = 0
-        best_dist = self._rgb_distance_sq(rgb, self.master_palette_15[0])
-        for idx in range(1, 15):
-            dist = self._rgb_distance_sq(rgb, self.master_palette_15[idx])
-            if dist < best_dist:
-                best_dist = dist
-                best_index = idx
-
-        self.palette_lookup_cache[rgb] = best_index
-        return best_index
-
-    def _to_indexed_4bpp(self, rgba: Image.Image) -> Image.Image:
+    def _to_indexed_4bpp(self, rgba: Image.Image, palette: int = 0) -> Image.Image:
         alpha = rgba.getchannel("A")
         rgb = rgba.convert("RGB")
         src_rgb = rgb.tobytes()
@@ -410,18 +363,17 @@ class SGDKBakeContext:
         for i in range(len(src_alpha)):
             if src_alpha[i] != 0:
                 j = i * 3
-                nearest = self._nearest_master_palette_index((src_rgb[j], src_rgb[j + 1], src_rgb[j + 2]))
-                out_idx[i] = int(nearest + 1)
+                out_idx[i] = self._nearest_palette_index((src_rgb[j], src_rgb[j + 1], src_rgb[j + 2]), palette) + 1
 
-        palette = [0] * (256 * 3)
-        for i, rgb_color in enumerate(self.master_palette_15):
+        colours = [0] * (256 * 3)
+        for i, rgb_color in enumerate(self.palettes[palette]):
             dst_off = (i + 1) * 3
-            palette[dst_off] = int(rgb_color[0])
-            palette[dst_off + 1] = int(rgb_color[1])
-            palette[dst_off + 2] = int(rgb_color[2])
+            colours[dst_off] = int(rgb_color[0])
+            colours[dst_off + 1] = int(rgb_color[1])
+            colours[dst_off + 2] = int(rgb_color[2])
 
         out = Image.frombytes("P", rgba.size, bytes(out_idx))
-        out.putpalette(palette)
+        out.putpalette(colours)
         return out
 
     def _intern_render_frame(
@@ -563,7 +515,7 @@ class SGDKBakeContext:
             else:
                 draw_y = by - py_eff
 
-            variant_index = self._ensure_variant(base)
+            variant_index = self._ensure_variant(base, self._palette_of_module(mod))
             return (variant_index, int(draw_x), int(draw_y), int(hflip), int(vflip))
 
         rendered = self._render_transformed_instance_with_local_flip(
@@ -576,7 +528,7 @@ class SGDKBakeContext:
         if not rendered:
             return None
         img, draw_x, draw_y = rendered
-        variant_index = self._ensure_variant(img)
+        variant_index = self._ensure_variant(img, self._palette_of_module(mod))
         return (variant_index, int(draw_x), int(draw_y), 0, 0)
 
     def _render_transformed_instance_with_local_flip(
@@ -1188,10 +1140,12 @@ class SGDKBakeContext:
         for dx, dy, size_code, tile_offset in self.pieces:
             pieces_raw.extend(struct.pack(">hhBBH", int(dx), int(dy), int(size_code), 0, int(tile_offset)))
 
-        palette_raw = bytearray(self._be16(0))  # index 0 is transparent
-        for r, g, b in self.master_palette_15:
-            # Same rounding as rescomp: 3 bits per channel, truncated.
-            palette_raw.extend(self._be16(((int(b) >> 5) << 9) | ((int(g) >> 5) << 5) | ((int(r) >> 5) << 1)))
+        palette_raw = bytearray()
+        for index in range(len(self.palettes)):
+            palette_raw.extend(self._be16(0))  # index 0 is transparent
+            for rgb in self.palettes[index]:
+                # Same rounding as rescomp: 3 bits per channel, truncated.
+                palette_raw.extend(self._be16(palettes.md_word(rgb)))
 
         boxes_raw = bytearray()
         for box_type, role, x, y, w, h in self.boxes:
@@ -1303,7 +1257,7 @@ class SGDKBakeContext:
         header = bytearray()
         header.extend(b"MSB1")
         header.extend(self._be16(BLOB_VERSION))
-        header.extend(self._be16(0))
+        header.extend(self._be16(len(self.palettes)))  # palette lines the sprites use, from the first one
         header.extend(self._be16(len(self.variants)))
         header.extend(self._be16(len(self.project.modules)))
         header.extend(self._be16(len(self.project.frames)))
@@ -1481,6 +1435,7 @@ extern u16 ms_scene_record_count;
 extern u16 ms_event_type_count;
 extern u16 ms_step_event_count;
 extern u16 ms_tile_count;
+extern u16 ms_palette_count;
 extern u16 ms_piece_count;
 extern u16 ms_hitbox_count;
 extern u16 ms_point_count;
@@ -1503,6 +1458,7 @@ extern u16 ms_role_count;
 #define MS_EVENT_TYPE_COUNT (ms_event_type_count)
 #define MS_STEP_EVENT_COUNT (ms_step_event_count)
 #define MS_TILE_COUNT (ms_tile_count)
+#define MS_PALETTE_COUNT (ms_palette_count) /* palette lines (16 colours each) in ms_palette, loaded from the first */
 
 extern const MS_Variant *ms_variants;
 extern const MS_Piece *ms_pieces;
@@ -1625,6 +1581,7 @@ u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0;
 u16 ms_step_event_count = 0;
 u16 ms_tile_count = 0;
+u16 ms_palette_count = 0;
 u16 ms_piece_count = 0;
 u16 ms_hitbox_count = 0;
 u16 ms_point_count = 0;
@@ -1697,6 +1654,7 @@ static void ms_reset_data(void)
     ms_event_type_count = 0;
     ms_step_event_count = 0;
     ms_tile_count = 0;
+    ms_palette_count = 0;
     ms_piece_count = 0;
     ms_hitbox_count = 0;
     ms_point_count = 0;
@@ -1776,7 +1734,7 @@ void ms_data_init(void)
     if (ms_read_be16(ptr) != MS_BLOB_VERSION)
         return;
     ptr += 2;
-    ptr += 2; /* reserved */
+    ms_palette_count = ms_read_be16(ptr); ptr += 2;
 
     ms_variant_count = ms_read_be16(ptr); ptr += 2;
     ms_module_count = ms_read_be16(ptr); ptr += 2;
@@ -1937,15 +1895,17 @@ def export_project(
                 _copy_if_needed(image_path, output_demo_dir / "source" / image_path.name)
 
     tiles = len(bake.tile_data) // 32
-    if getattr(bake, "palette_note", "") and not any(issue.code == "too-many-colours" for issue in issues):
-        issues.append(Issue(project_check.WARNING, "too-many-colours", bake.palette_note.replace("warning: ", "", 1)))
     issues.append(project_check.tile_issue(tiles))
+    lines = project_check.palette_issue(len(bake.palettes))
+    if lines is not None:
+        issues.append(lines)
     summary = {
         "mapping_count": len(mappings),
         "mappings": ", ".join(bake.mapping_names),
         "variants": len(bake.variants),
         "hardware_sprite_pieces": len(bake.pieces),
         "tiles": tiles,
+        "palettes": len(bake.palettes),
         "hitboxes": len(bake.boxes),
         "points": len(bake.points),
         "parts": len(bake.parts),

@@ -25,6 +25,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Zoom in / out | Cmd+= / Cmd+- |
 | Fit content / actual pixels (1×) | Cmd+0 / Cmd+Shift+0 |
 | Toggle grid | Cmd+G |
+| Mega Drive colours (View menu) | Cmd+Shift+P |
 
 ## Modules
 

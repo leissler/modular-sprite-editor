@@ -38,12 +38,14 @@ typedef struct
     u16 sprites_dropped;  /* pieces that did not fit into the sprite table */
 } MS_FrameProfile;
 
-/* All tiles stay in VRAM: ms_init() loads them once at TILE_USER_INDEX with the palette in PAL1;
-   ms_init_ex() picks the place (e.g. after a game's background tiles). Drawing then only writes
+/* All tiles stay in VRAM: ms_init() loads them once at TILE_USER_INDEX with the palettes from PAL1 on;
+   ms_init_ex() picks the place (e.g. after a game's background tiles) and the first palette line: the
+   sprites use MS_PALETTE_COUNT lines from it (one per palette in the editor). Drawing then only writes
    the sprite table, which ms_end_frame() queues for DMA (SYS_doVBlankProcess() sends it). */
 void ms_init(void);
 void ms_init_ex(u16 tile_index, u16 palette);
 u8 ms_tiles_fit(void);          /* FALSE when the tiles did not fit below the font in VRAM */
+u8 ms_palettes_fit(void);       /* FALSE when the palettes need more lines than there are from the first one */
 u16 ms_tile_base(void);
 u16 ms_tiles_used(void);
 void ms_set_sprite_limit(u16 limit);  /* 80 in H40 (default), 64 in H32 */

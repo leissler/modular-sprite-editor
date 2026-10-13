@@ -54,11 +54,15 @@ app.py                     MainFrame: menus, tabs, context bar (preview mapping)
 models.py                  Dataclasses + JSON (to_dict/from_dict), format migration, timeline evaluation
                            (easing, spline paths, source switching), AuroraGT + RetroAnimator import,
                            RetroAnimator export (baked parts), role tables
-hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32): SGDK-exact part placement, ≤32×32 VDP
-                           sprite cut, per-screen / per-line limits — wx-free, tested against the SGDK exporter
+hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32): SGDK-exact part placement,
+                           ≤32×32 VDP sprite cut (SNES: square small / large sprites), per-screen / per-line limits,
+                           video memory (tiles stored like the export, the project's total) — wx-free, tested against
+                           the SGDK exporter
 modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
                            cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
+palettes.py                Mega Drive colours (3 bits per channel, CRAM words) and palettes: one per image group
+                           (ImageAsset.palette 0–3), the console preview image — wx-free, shared with the SGDK exporter
 playback.py                Animation playback exactly like the SGDK runtime (wx-free): Player (tick by tick, the
                            Animations tab's preview) and animation_at (Timeline objects and so the scene bakes)
 project_check.py           Check Project (wx-free, shared with the SGDK exporter): issues (error / warning / note) with
@@ -67,7 +71,9 @@ rect_packer.py             MaxRects bin packer
 safe_files.py              write_text_atomically: temp file + fsync + os.replace (+ name.json.bak), wx-free
 ui/
   app_services.py          Hooks panels use to reach the main window (checkpoint, status, zoom,
-                           mapping changed, images changed, text-focus test). No-ops without a main window.
+                           mapping changed, images changed, project revision, text-focus test). No-ops without a main
+                           window.
+  console_colours.py       View ▸ Mega Drive Colours: CONSOLE (on/off, console images per palette) for the canvases
   project_history.py       ProjectHistory: compressed Project.to_dict() snapshots, undo/redo, dirty flag
   autosave.py              Crash recovery copies (wx-free): recovery folder, write / find stale / load / remove
   image_watch.py           Image file stamps (mtime, size) to notice sheets edited elsewhere (wx-free)
@@ -174,7 +180,7 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
 
 ## File format
 
-Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **5**, constant
+Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **6**, constant
 `PROJECT_FORMAT_VERSION`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
@@ -204,7 +210,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   changes removes it, and a copy whose editor is no longer running is offered at the next start.
 - **Images changed:** after reloading, relinking or regenerating image files call
   `app_services.notify_images_changed()`. The main window then clears every picture cache (`frame_render.SHARED`,
-  `module_palette.THUMBNAILS`, `canvas.BUDGET`) and calls each panel's `refresh_after_history()`, which must rebuild
+  `module_palette.THUMBNAILS`, `canvas.BUDGET`, `console_colours.CONSOLE`) and calls each panel's
+  `refresh_after_history()`, which must rebuild
   that tab's own pictures. When the window becomes active it also reloads images whose file changed on disk
   (`MainFrame.check_images_on_disk`). A new cache of image pixels must be cleared there too.
 - **Canvases** subclass `BaseCanvas`. In mouse handlers start with
@@ -220,7 +227,18 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
   `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part` and its 32 px piece cut (`_ensure_variant`);
-  `tests/test_hardware_budget.py` compares them.
+  `tests/test_hardware_budget.py` compares them. Video memory (Mega Drive profiles): each part carries the ids of
+  the tile blocks the export stores for it (`HwPart.vram`, compared in palette indices, flips free), so
+  `Budget.unique_tiles` / `vram_tiles` count what a view, an animation or `export_tiles` (the whole export: every
+  module, frame, step and scene sample per mapping) needs; the test compares `export_tiles` with the exporter's
+  `tile_data`. The readouts take the project's total from `canvas.EXPORT_TILES` (worked out again per undo checkpoint,
+  `app_services.project_revision`).
+- **Palettes:** `palettes.py` builds each palette from its images' visible colours (≤15 kept, else merged by the
+  quantizer) and maps a colour to its nearest entry the way the exporter does; the exporter, Check Project
+  (`too-many-colours` per palette), the Modules inspector and View ▸ Mega Drive Colours (`ui/console_colours.py`,
+  canvases put `CONSOLE.state()` in their cache keys) all use it. The runtime loads Palette 1 up to the last one used
+  into consecutive lines from `ms_init_ex`'s first line; a piece's palette rides in bits 13–14 of its tile offset
+  (`attribute + tile_offset` adds both), so the first line plus the count must stay ≤ 4 (`ms_palettes_fit`).
 - **SGDK runtime:** the exporter writes everything into `modsprite_blob.bin` (`_emit_blob`) and generates the C
   record types and parser (`_emit_header`, `_emit_data_c`). Records are packed structs (`MS_RECORD`): when one
   changes, update the struct, the `struct.pack` format and the size list in `tests/test_sgdk_runtime_draw.py`, and
@@ -234,8 +252,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   Mega Drive (the editor builds carry the exporter: `pathex` + `hiddenimports` in the three editor specs). It writes
   the blob, the header and the parser and merges its `BIN MS_BLOB` line into the game's `res/resources.res`
   (`merged_resources`; never overwrite the game's file, and delete nothing in its folder but older exporters'
-  `var_NNNN.png` sheets). Its issues are `project_check`'s plus the merged palette and
-  the tile count (`tile_issue`): whatever the exporter leaves out or changes must show up as an issue there, not
+  `var_NNNN.png` sheets). Its issues are `project_check`'s plus the tile count (`tile_issue`) and the palette lines
+  (`palette_issue`): whatever the exporter leaves out or changes must show up as an issue there, not
   disappear silently. Name C symbols through `project_check.c_symbols` so Check Project's clash warning stays true.
 - **Preferences** go through `wx.Config.Get()`. `SpriteEditorApp.OnInit` names the app and makes the editor's store
   (`wx.Config(APP_NAME)`, created before the vendor name is set, which on Windows would change the registry path)

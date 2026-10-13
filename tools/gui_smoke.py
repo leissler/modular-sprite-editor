@@ -836,7 +836,8 @@ def run():
             ae.refresh()
             pump()
             check(ae.stage.budget_profile is hb.MEGA_DRIVE_H32, "animations: budget profile")
-            check(ae.inspector.budget_info.IsShown() and "worst step" in ae.inspector.budget_info.GetLabel(), "animations: worst step shown")
+            label = " ".join(ae.inspector.budget_info.GetLabel().split())  # the label wraps
+            check(ae.inspector.budget_info.IsShown() and "worst step" in label, "animations: worst step shown")
             ae.stage.Refresh()
             ae.stage.Update()
             ae.canvas_controls._set_budget("", persist=False)
@@ -853,6 +854,79 @@ def run():
         te.canvas_controls._set_budget("", persist=False)
 
     step("budget overlay: frames / animations / timeline", budget)
+
+    # ---- Palettes, Mega Drive colours, SNES budgets, video memory
+    def palettes_and_memory():
+        import hardware_budget as hb
+        from ui.canvas import BUDGET, EXPORT_TILES
+        from ui.console_colours import CONSOLE
+
+        frame.select_tab(0)
+        pump()
+        img = proj.images[0]
+        me.select_sheet(img.id)
+        pump()
+        check(me.inspector.palette_choice.IsShown(), "modules: a sheet shows its palette")
+        frame.history_checkpoint()
+        me._set_palette(1)
+        check(proj.get_image(img.id).palette == 1, "modules: the image moves to Palette 2")
+        frame.on_undo(None)
+        pump()
+        check(proj.get_image(img.id).palette == 0, "undo restores the palette")
+        frame.set_console_colours(True)
+        check(CONSOLE.enabled and frame.m_console.IsChecked(), "View > Mega Drive Colours on")
+        me.canvas.Refresh()
+        me.canvas.Update()
+        shown = CONSOLE.image(proj, proj.get_image(img.id))
+        levels = {v * 255 // 7 for v in range(8)}
+        visible = {rgba[:3] for _n, rgba in (shown.getcolors(1 << 22) or []) if rgba[3]} if shown is not None else set()
+        check(bool(visible) and all(v in levels for rgb in visible for v in rgb), "console colours: 3 bits per channel")
+        frame.select_tab(1)
+        pump()
+        fe.canvas.Refresh()
+        fe.canvas.Update()
+        frame.set_console_colours(False)
+        check(not CONSOLE.enabled and not frame.m_console.IsChecked(), "Mega Drive Colours off")
+
+        target = next((f for f in proj.frames if f.fmodules), None)
+        if target:
+            fe.select_frame_by_id(target.id)
+            fe.canvas_controls._set_budget("snes_16_32", persist=False)
+            pump()
+            b = fe.canvas.compute_budget()
+            check(b is not None and b.profile is hb.SNES_16_32 and b.sprite_count > 0, "frames: SNES budget")
+            fe.canvas.Refresh()
+            fe.canvas.Update()
+            fe.canvas_controls._set_budget("md_h40", persist=False)
+            b = fe.canvas.compute_budget()
+            check(0 < b.unique_tiles <= b.tile_count, "frames: the frame's tiles of video memory")
+            total = EXPORT_TILES.get(proj)
+            check(total == BUDGET.export_tiles(proj, [None] + proj.mappings) and total >= b.unique_tiles,
+                  "the whole project's tiles")
+            fe.canvas.Refresh()
+            fe.canvas.Update()
+            fe.canvas_controls._set_budget("", persist=False)
+        frame.select_tab(2)
+        pump()
+        anim = max(proj.animations, key=lambda a: len(a.aframes)) if proj.animations else None
+        if anim:
+            ae.select_animation(anim.id)
+            ae.canvas_controls._set_budget("md_h40", persist=False)
+            ae.refresh()
+            pump()
+            label = " ".join(ae.inspector.budget_info.GetLabel().split())  # the label wraps
+            check("video memory" in label, "animations: the animation's video memory")
+            ae.canvas_controls._set_budget("snes_8_16", persist=False)
+            ae.refresh()
+            pump()
+            label = " ".join(ae.inspector.budget_info.GetLabel().split())
+            check("worst step" in label and "video memory" not in label, "animations: SNES budget, no video memory")
+            ae.stage.Refresh()
+            ae.stage.Update()
+            ae.canvas_controls._set_budget("", persist=False)
+            ae.refresh()
+
+    step("palettes, Mega Drive colours, SNES budgets, video memory", palettes_and_memory)
 
     # ---- Mappings
     def mappings():

@@ -4,7 +4,7 @@
 
 **Auto Modularize**: a tool that cuts whole sprites into parts they share and rebuilds the frames from them.
 
-**Budget**: the overlay that shows what a pose or scene costs on a console in hardware sprites and tiles. It knows the Mega Drive first.
+**Budget**: the overlay that shows what a pose or scene costs on a console in hardware sprites and tiles. It knows the Mega Drive and the SNES.
 
 **Easing**: how an object speeds up and slows down between two keys in a scene.
 
@@ -33,6 +33,8 @@
 **Onion skin**: faint copies of neighbouring frames or steps, shown to compare poses.
 
 **Origin**: the point of a frame the game positions, usually between the feet.
+
+**Palette**: the colours a group of images shares on the console. The Mega Drive has four palettes of 15 colours plus transparent.
 
 **Part**: one use of a module or frame inside a frame, with its own position, flip and turn.
 

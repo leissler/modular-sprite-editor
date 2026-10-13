@@ -28,7 +28,8 @@ def generate_id(prefix: str) -> str:
 # 5 = timeline objects play an animation "as animated" (playback_mode "as_animated", the new default: its own
 #     playback, repeat count, loop-from step and follow-up, like the Animations tab and the game); existing objects
 #     keep their mode, "backward" joins the overrides. Flips and visibility switch at a key, not half-way to it.
-PROJECT_FORMAT_VERSION = 5
+# 6 = images belong to one of four palettes (ImageAsset.palette, 0-3, additive: existing images use the first).
+PROJECT_FORMAT_VERSION = 6
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -147,6 +148,12 @@ def _migrate_v4_to_v5(data: Dict[str, Any], notes: List[str]) -> None:
                      f"scene(s): {', '.join(flip_scenes)}.")
 
 
+def _migrate_v5_to_v6(data: Dict[str, Any], notes: List[str]) -> None:
+    """Additive: every image starts in the first palette, which is where the export put all colours before."""
+    for image in data.get("images", []) or []:
+        image.setdefault("palette", 0)
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -176,6 +183,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
         _migrate_v3_to_v4(migrated, notes)
     if version < 5:
         _migrate_v4_to_v5(migrated, notes)
+    if version < 6:
+        _migrate_v5_to_v6(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes
@@ -188,6 +197,7 @@ class ImageAsset:
     width: int
     height: int
     transparent_color: Optional[Tuple[int, int, int]] = None
+    palette: int = 0  # Mega Drive palette (0-3) its colours go into, see palettes.py
 
     def to_dict(self) -> Dict:
         return {
@@ -196,16 +206,19 @@ class ImageAsset:
             "width": self.width,
             "height": self.height,
             "transparent_color": list(self.transparent_color) if self.transparent_color else None,
+            "palette": self.palette,
         }
 
     @staticmethod
     def from_dict(data: Dict) -> "ImageAsset":
+        palette = data.get("palette", 0)
         return ImageAsset(
             id=data["id"],
             file_path=data["file_path"],
             width=int(data["width"]),
             height=int(data["height"]),
             transparent_color=tuple(data["transparent_color"]) if data.get("transparent_color") else None,  # type: ignore[arg-type]
+            palette=int(palette) if isinstance(palette, int) and 0 <= palette <= 3 else 0,
         )
 
 

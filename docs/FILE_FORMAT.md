@@ -11,12 +11,18 @@ string ids. Unknown keys are ignored on load (and dropped when the editor saves)
 | `2` | Legacy fields canonicalised (see below). Added 2026-10-09. |
 | `3` | Animation step events + project event types, loop-from step, follow-up animation. Added 2026-10-11. |
 | `4` | Timeline objects carry a module mapping (`mapping_id`); an animation swapped in at a later key plays from that key; root motion turns with the object. Added 2026-10-12. |
-| `5` | Current. Timeline objects play animations "as animated" (`playback_mode: "as_animated"`, the default for new objects; `"backward"` joins the overrides); flips and visibility switch at a key. Added 2026-10-13. |
+| `5` | Timeline objects play animations "as animated" (`playback_mode: "as_animated"`, the default for new objects; `"backward"` joins the overrides); flips and visibility switch at a key. Added 2026-10-13. |
+| `6` | Current. Every image belongs to one of four Mega Drive palettes (`images[].palette`, 0–3). Added 2026-10-13. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
-warning. v3 and v4 are additive: older builds open them with a warning and drop the new keys on save. A v5 object
-set to "as_animated" or "backward" plays as Loop in an older build.
+warning. v3, v4 and v6 are additive: older builds open them with a warning and drop the new keys on save. A v5 object
+set to "as_animated" or "backward" plays as Loop in an older build; an older build exports every image with one
+merged palette.
+
+v5 → v6 adds `palette: 0` to every image: all images share the first palette, as every export did before. Images
+in the same palette share its 15 colours; the Mega Drive export stores one palette per group and the runtime loads
+them into consecutive palette lines (see `examples/sgdk/README.md`). Out-of-range values load as 0.
 
 v4 → v5 writes `playback_mode: "loop"` where an object has none (the old default), so every existing object keeps
 playing as before. New objects play their animation *as animated*: with the animation's own playback, repeat
@@ -76,16 +82,21 @@ On 2026-10-13 all 19 project files (the three repo examples, the 13 in `~/Downlo
 *Swordfight*'s two objects already had `playback_mode: "once"`, and its 222 object states were compared frame by
 frame with the v4 evaluation: identical.
 
-## Schema (v5)
+Later on 2026-10-13 the same 19 files were migrated to v6 (originals in
+`~/Downloads/ModularSpriteEditor_format_v5_backup_2026-10-13.zip`); each was checked to equal its original except for
+`format_version` and the added `palette: 0`, and to load to the same project.
+
+## Schema (v6)
 
 ```jsonc
 {
-  "format_version": 5,
+  "format_version": 6,
   "name": "New Project",
   "images": [
     {"id": "img_…", "file_path": "modules_POP.bmp",      // relative to the project file
      "width": 778, "height": 635,
-     "transparent_color": [255, 0, 255]}                 // or null
+     "transparent_color": [255, 0, 255],                 // or null
+     "palette": 0}                                       // Mega Drive palette 0–3 (shown as Palette 1–4)
   ],
   "modules": [
     {"id": "mod_…", "name": "0cap01", "image_id": "img_…",
@@ -189,5 +200,5 @@ Not stored in the file: the active (preview) mapping, view state, grid size, zoo
 - **Import:** AuroraGT `.sprite` text (`AuroraSpriteParser`), RetroAnimator JSON (`RetroAnimatorParser`,
   `ProjectType: "RetroAnimator"`).
 - **Export:** RetroAnimator JSON with baked part PNGs (`RetroAnimatorExporter`, bakes the active mapping);
-  SGDK binary blob with tiles, palette, frames, animations, scenes, hitboxes and points
+  SGDK binary blob with tiles, palettes, frames, animations, scenes, hitboxes and points
   (`examples/sgdk/tools/export_sgdk_example.py`); animated GIF (Animations tab).

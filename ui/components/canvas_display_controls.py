@@ -10,7 +10,7 @@ from ui.base_canvas import BACKDROP_CHECKER, BACKDROP_COLOUR, DEFAULT_BACKDROP_C
 CONFIG_BACKDROP = "View/Backdrop/{}"  # per tab: "checker" | "colour"
 CONFIG_BACKDROP_COLOUR = "View/BackdropColour"  # "r,g,b", one preview colour shared by all tabs
 CONFIG_BUDGET = "View/Budget/{}"  # per tab: "" (off) or a hardware profile key
-BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32"}
+BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32", "snes_8_16": "SNES 8/16", "snes_16_32": "SNES 16/32"}
 GAP = 8  # between the bar's groups
 
 # Live view bars, so a new backdrop colour shows in every tab at once. Destroyed wx windows are falsy.
@@ -133,7 +133,8 @@ class CanvasDisplayControls(wx.Panel):
             self.budget_choice.SetMinSize((longest + 44, -1))
             self.budget_choice.SetToolTip(
                 "Hardware budget: outline the console's hardware sprites, mark scanlines where sprites would "
-                "drop out (red) and show sprite / tile counts. MD H40 = 320 px wide mode, H32 = 256 px."
+                "drop out (red) and show sprite counts and video memory. MD H40 = 320 px wide mode, H32 = 256 px; "
+                "SNES 8/16 and 16/32 = the game's two sprite sizes."
             )
             controls.Add(self.budget_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
             self.budget_choice.Bind(wx.EVT_CHOICE, self._on_budget_choice)

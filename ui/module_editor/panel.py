@@ -18,6 +18,7 @@ from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.module_palette import THUMBNAILS
 from ui.components.thumb_list import Browser, Row
+from ui.console_colours import CONSOLE
 from ui.frame_render import SHARED, fit_bitmap, to_wx_image
 from ui.module_editor import ops
 from ui.module_editor.canvas import SheetCanvas
@@ -122,6 +123,7 @@ class ModuleEditorPanel(wx.Panel):
         ins.on_field = self._on_field
         ins.on_preset = self._on_preset
         ins.on_tool = self._on_tool
+        ins.on_palette = self._set_palette
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
     # ================================================================== main-window interface
@@ -278,7 +280,10 @@ class ModuleEditorPanel(wx.Panel):
         if asset is None:
             self.canvas.set_sheet(self.sheet_key, None, (0, 0))
             return
-        image = SHARED.sheet(self.project, asset, keyed=not self.show_key_colour)
+        if CONSOLE.enabled and not self.show_key_colour:  # View ▸ Mega Drive Colours
+            image = CONSOLE.image(self.project, asset) or SHARED.sheet(self.project, asset, keyed=True)
+        else:
+            image = SHARED.sheet(self.project, asset, keyed=not self.show_key_colour)
         if image is None:
             self.canvas.set_sheet(self.sheet_key, None, (asset.width, asset.height), missing_file=asset.file_path)
             return
@@ -460,6 +465,17 @@ class ModuleEditorPanel(wx.Panel):
         self._load_sheet_image()
         self._commit()
         app_services.show_status(f"Key colour #{colour[0]:02X}{colour[1]:02X}{colour[2]:02X}" if colour else "No key colour")
+
+    def _set_palette(self, index: int) -> None:
+        """Put the image's colours into another Mega Drive palette (the export builds one per palette)."""
+        asset = self.asset()
+        if asset is None or asset.palette == index:
+            return
+        asset.palette = index
+        self._commit()
+        if CONSOLE.enabled:
+            app_services.notify_images_changed()  # the canvases show the new palettes
+        app_services.show_status(f"'{ops.image_label(asset)}' uses Palette {index + 1}")
 
     def _on_show_key_colour(self, shown: bool) -> None:
         self.show_key_colour = shown

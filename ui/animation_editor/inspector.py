@@ -89,7 +89,10 @@ class AnimationInspector(wx.ScrolledWindow):
         self.usage.SetForegroundColour(wx.Colour(150, 156, 170))
         row(grid, p, "Used in", self.usage)
         self.budget_info = wx.StaticText(p, label="")
-        self.budget_info.SetToolTip("The step that needs the most hardware sprites (view bar ▸ Budget)")
+        self.budget_info.SetToolTip(
+            "The step that needs the most hardware sprites, and the tiles of video memory all steps need together "
+            "(each part image once, also when it is flipped or used again) (view bar ▸ Budget)"
+        )
         self.budget_label = row(grid, p, "Budget", self.budget_info)
         self.btn_mirror_h = wx.Button(p, label="Mirror H", style=wx.BU_EXACTFIT)
         self.btn_mirror_v = wx.Button(p, label="Mirror V", style=wx.BU_EXACTFIT)

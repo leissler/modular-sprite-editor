@@ -7,7 +7,14 @@ Mega Drive model, matching the SGDK exporter and runtime (examples/sgdk):
   skips blocks that are completely transparent; rescomp's optimiser can occasionally do a little better, so the
   numbers are a safe estimate;
 - the VDP shows a limited number of sprites per screen and per scanline, and a limited number of sprite pixels per
-  scanline (the rest of the line's sprites disappear).
+  scanline (the rest of the line's sprites disappear);
+- video memory: the export stores each part image once (flips are hardware bits) as 4 bpp tiles in palette indices,
+  and hardware sprite blocks with the same pixels share their tiles (``SGDKBakeContext._ensure_variant``). The runtime
+  keeps every tile in VRAM, so the project's total (``export_tiles``) is what has to fit.
+
+SNES model (budget only, no exporter yet): a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16). Every part
+is padded to the large size and cut on that grid; a cell whose pixels sit in at most half of its small squares takes
+small sprites, otherwise one large sprite. The PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line.
 
 No wx here: the editor draws the result, tests check it.
 """
@@ -16,13 +23,16 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+import palettes
 from models import Frame, ModuleMapping, Project, RetroAnimatorExporter as _RA
+from project_check import MD_TILE_CAPACITY
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
 TILE = 8
+SPRITE_BLOCK = 32  # the export cuts part images into hardware sprites of at most 32×32 px
 
 
 @dataclass(frozen=True)
@@ -33,11 +43,15 @@ class HardwareProfile:
     sprites_per_line: int
     pixels_per_line: int
     max_sprite_tiles: int = 4  # VDP sprites are 1–4 tiles wide and high
+    sizes: Tuple[int, int] = (0, 0)  # square sprites of two sizes (small, large px), as on the SNES; (0, 0): any size
+    vram_tiles: int = 0  # tiles the Mega Drive export can keep in video memory (0: not counted for this console)
 
 
-MEGA_DRIVE_H40 = HardwareProfile("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320)
-MEGA_DRIVE_H32 = HardwareProfile("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256)
-PROFILES: List[HardwareProfile] = [MEGA_DRIVE_H40, MEGA_DRIVE_H32]
+MEGA_DRIVE_H40 = HardwareProfile("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320, vram_tiles=MD_TILE_CAPACITY)
+MEGA_DRIVE_H32 = HardwareProfile("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256, vram_tiles=MD_TILE_CAPACITY)
+SNES_8_16 = HardwareProfile("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, sizes=(8, 16))
+SNES_16_32 = HardwareProfile("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, sizes=(16, 32))
+PROFILES: List[HardwareProfile] = [MEGA_DRIVE_H40, MEGA_DRIVE_H32, SNES_8_16, SNES_16_32]
 
 
 def profile_by_key(key: Optional[str]) -> Optional[HardwareProfile]:
@@ -65,10 +79,19 @@ class HwPart:
     hflip: bool
     vflip: bool
     sprites: List[HwSprite] = field(default_factory=list)
+    vram: Tuple[Tuple[int, int], ...] = ()  # (tile block id, tiles) of each block the export stores for this part
 
     @property
     def tiles(self) -> int:
         return sum((s.w // TILE) * (s.h // TILE) for s in self.sprites)
+
+
+def vram_tiles(parts: Iterable[HwPart]) -> int:
+    """Tiles of video memory these parts need: each stored block once, however often it is drawn or flipped."""
+    blocks: Dict[int, int] = {}
+    for part in parts:
+        blocks.update(part.vram)
+    return sum(blocks.values())
 
 
 @dataclass
@@ -87,6 +110,11 @@ class Budget:
     @property
     def tile_count(self) -> int:
         return sum(part.tiles for part in self.parts)
+
+    @property
+    def unique_tiles(self) -> int:
+        """Tiles of video memory what is shown needs (a part drawn twice or flipped needs its tiles once)."""
+        return vram_tiles(self.parts)
 
     def lines(self) -> Dict[int, Tuple[int, int]]:
         """Scanline y -> (sprites on it, sprite pixels on it)."""
@@ -124,7 +152,7 @@ class Budget:
         count, pixels = self.worst_line()
         p = self.profile
         return (
-            f"{self.sprite_count}/{p.sprites_per_screen} sprites · {self.tile_count} tiles · "
+            f"{self.sprite_count}/{p.sprites_per_screen} sprites · "
             f"busiest line {count}/{p.sprites_per_line} sprites, {pixels}/{p.pixels_per_line} px"
         )
 
@@ -133,16 +161,31 @@ class BudgetCalculator:
     """Turns frames into hardware sprites. Caches module images and their 8×8 block masks."""
 
     def __init__(self) -> None:
+        self.generation = 0  # counts clear(): what was worked out before belongs to older pixels
         self._images: Dict[str, Any] = {}
         self._modules: Dict[str, Any] = {}
         self._module_keys: Dict[str, Any] = {}
         self._blocks: Dict[Any, List[Tuple[int, int, int, int]]] = {}
+        # Video memory: the export's palettes, each image's stored blocks and one id per distinct block of tiles.
+        self._palette_state: Any = None
+        self._image_info: Dict[str, Tuple[int, Tuple[int, ...]]] = {}  # image id -> (palette, key colour)
+        self._palettes: Dict[int, List[palettes.RGB]] = {}
+        self._nearest: Dict[int, Dict[palettes.RGB, int]] = {}
+        self._vram: Dict[Any, Tuple[Tuple[int, int], ...]] = {}
+        self._block_ids: Dict[bytes, int] = {}
 
     def clear(self) -> None:
+        self.generation += 1
         self._images.clear()
         self._modules.clear()
         self._module_keys.clear()
         self._blocks.clear()
+        self._palette_state = None
+        self._image_info.clear()
+        self._palettes.clear()
+        self._nearest.clear()
+        self._vram.clear()
+        self._block_ids.clear()
 
     # ------------------------------------------------------------------ public
     def frame_budget(
@@ -165,6 +208,7 @@ class BudgetCalculator:
         a: Matrix = IDENTITY,
         b: Tuple[float, float] = (0.0, 0.0),
     ) -> List[HwPart]:
+        self._sync_palettes(project)
         instances: List[Any] = []
         _RA._collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set())
         parts: List[HwPart] = []
@@ -183,16 +227,117 @@ class BudgetCalculator:
         a: Matrix = IDENTITY,
         b: Tuple[float, float] = (0.0, 0.0),
     ) -> List[HwPart]:
+        self._sync_palettes(project)
         mod = _RA._resolve_module(project, module_id, mapping)
         if mod is None:
             return []
         part = self._leaf_part(project, mod, a, b, False, False, profile)
         return [part] if part else []
 
+    def export_tiles(self, project: Project, mappings: Sequence[Optional[ModuleMapping]]) -> int:
+        """Tiles of video memory the Mega Drive export of the whole project needs: every module, frame, animation
+        step and scene sample for each mapping, as ``SGDKBakeContext.bake`` stores them."""
+        profile = MEGA_DRIVE_H40  # the stored blocks do not depend on the screen mode
+        blocks: Dict[int, int] = {}
+        seen: Dict[Any, Tuple[Tuple[int, int], ...]] = {}
+
+        def add_frame(frame: Frame, mapping: Optional[ModuleMapping], a: Matrix = IDENTITY,
+                      b: Tuple[float, float] = (0.0, 0.0)) -> None:
+            # Moved by whole pixels and turned in 90° steps, a frame's images stay the same (exactly): reuse them.
+            whole = all(v in (-1.0, 0.0, 1.0) for row in a for v in row) and all(float(v).is_integer() for v in b)
+            key = (frame.id, mapping.id if mapping else None, a) if whole else None
+            found = seen.get(key) if key is not None else None
+            if found is None:
+                found = tuple(pair for part in self.frame_parts(project, frame, mapping, profile, a, b) for pair in part.vram)
+                if key is not None:
+                    seen[key] = found
+            blocks.update(found)
+
+        for mapping in mappings:
+            for mod in project.modules:
+                for part in self.module_parts(project, mod.id, mapping, profile):
+                    blocks.update(part.vram)
+            for frame in project.frames:
+                add_frame(frame, mapping)
+            for anim in project.animations:
+                for af in anim.aframes:
+                    frame = project.get_frame(af.frame_id)
+                    if frame is not None:
+                        add_frame(frame, mapping, *frame_transform(
+                            af.offset, float(getattr(af, "rotation_degrees", 0.0)), bool(af.flip_x), bool(af.flip_y)))
+            for scene in project.timeline_scenes:
+                for uses in scene_uses(project, scene, mapping):
+                    for kind, source, use_mapping, a, b in uses:
+                        if kind == "module":
+                            for part in self.module_parts(project, source, use_mapping, profile, a, b):
+                                blocks.update(part.vram)
+                        else:
+                            add_frame(source, use_mapping, a, b)
+        return sum(blocks.values())
+
     # ------------------------------------------------------------------ internals
+    def _sync_palettes(self, project: Project) -> None:
+        """Blocks are compared in palette indices like the export's: start over when an image's palette or key colour
+        changes (edited image files clear the whole calculator)."""
+        state = tuple((a.id, a.file_path, palettes.palette_of(a), tuple(a.transparent_color or ()))
+                      for a in project.images)
+        if state != self._palette_state:
+            self._palette_state = state
+            self._image_info = {image_id: (palette, key) for image_id, _path, palette, key in state}
+            self._palettes = palettes.project_palettes(project)
+            self._nearest = {index: {} for index in self._palettes}
+            self._vram.clear()
+            self._block_ids.clear()
+
+    def _palette_of(self, mod: Any) -> int:
+        """The module's palette: its image's (vector shapes use the first), as SGDKBakeContext._palette_of_module."""
+        info = self._image_info.get(mod.image_id) if mod.type == "MD_IMAGE" else None
+        return info[0] if info else 0
+
+    def _stored_blocks(self, key: Any, image: Any, palette: int) -> Tuple[Tuple[int, int], ...]:
+        """(block id, tiles) of each hardware sprite block the export stores for this image: padded to whole tiles,
+        cut on the 32 px grid, empty blocks skipped; blocks with the same tiles (in palette indices) share an id."""
+        found = self._vram.get((key, palette))
+        if found is not None:
+            return found
+        from PIL import Image as PILImage
+
+        rgba = image.convert("RGBA")
+        colours = self._palettes.get(palette) or self._palettes.get(0) or []
+        lookup = self._nearest.setdefault(palette, {})
+        data = rgba.tobytes()
+        table: Dict[bytes, int] = {}
+        indices = bytearray(len(data) // 4)
+        for i in range(0, len(data), 4):
+            pixel = data[i:i + 4]
+            value = table.get(pixel)
+            if value is None:
+                value = 0 if pixel[3] == 0 else palettes.nearest((pixel[0], pixel[1], pixel[2]), colours, lookup) + 1
+                table[pixel] = value
+            indices[i >> 2] = value
+        pad_w, pad_h = _pad(rgba.width), _pad(rgba.height)
+        padded = PILImage.new("L", (pad_w, pad_h), 0)
+        padded.paste(PILImage.frombytes("L", rgba.size, bytes(indices)), (0, 0))
+        stored = []
+        for by in range(0, pad_h, SPRITE_BLOCK):
+            for bx in range(0, pad_w, SPRITE_BLOCK):
+                tiles_w, tiles_h = min(SPRITE_BLOCK, pad_w - bx) // TILE, min(SPRITE_BLOCK, pad_h - by) // TILE
+                if not padded.crop((bx, by, bx + tiles_w * TILE, by + tiles_h * TILE)).getbbox():
+                    continue
+                # Tiles in VDP sprite order: down each column, then the next column.
+                tiles = b"".join(
+                    padded.crop((bx + tx * TILE, by + ty * TILE, bx + (tx + 1) * TILE, by + (ty + 1) * TILE)).tobytes()
+                    for tx in range(tiles_w) for ty in range(tiles_h)
+                )
+                stored.append((self._block_ids.setdefault(tiles, len(self._block_ids)), tiles_w * tiles_h))
+        found = self._vram[(key, palette)] = tuple(stored)
+        return found
+
     def _module_image(self, project: Project, mod: Any) -> Any:
+        info = self._image_info.get(mod.image_id) if mod.type == "MD_IMAGE" else None
         key = (mod.type, tuple(mod.rect), tuple(mod.pivot), bool(getattr(mod, "rotated", False)), mod.image_id,
-               tuple(mod.color) if mod.color else None, tuple(mod.params) if mod.params else None)
+               tuple(mod.color) if mod.color else None, tuple(mod.params) if mod.params else None,
+               info[1] if info else None)  # the image's key colour decides which pixels are transparent
         if self._module_keys.get(mod.id) != key:
             self._modules.pop(mod.id, None)
             self._module_keys[mod.id] = key
@@ -223,42 +368,113 @@ class BudgetCalculator:
             px_eff = w - px if local_fx else px
             py_eff = h - py if local_fy else py
             bx, by = int(round(b_vec[0])), int(round(b_vec[1]))
-            pad_w, pad_h = _pad(w), _pad(h)
+            pad_w, pad_h = _pad(w, profile), _pad(h, profile)
             x = bx + px_eff - pad_w if hflip else bx - px_eff
             y = by + py_eff - pad_h if vflip else by - py_eff
-            blocks = self._image_blocks(("module", mod.id, self._module_keys.get(mod.id)), base, profile)
-            return _place(x, y, pad_w, pad_h, hflip, vflip, blocks)
+            key = ("module", mod.id, self._module_keys.get(mod.id))
+            part = _place(x, y, pad_w, pad_h, hflip, vflip, self._image_blocks(key, base, profile))
+            part.vram = self._stored_blocks(key, base, self._palette_of(mod))
+            return part
         # Rotated (non axis-aligned) parts are baked into a new image, padded right / down.
         image, x, y = _baked(base, mod, a_mat, b_vec, local_fx, local_fy)
         if image is None:
             return None
         key = ("baked", mod.id, self._module_keys.get(mod.id), a_mat, bool(local_fx), bool(local_fy))
-        blocks = self._image_blocks(key, image, profile)
-        return _place(x, y, _pad(image.size[0]), _pad(image.size[1]), False, False, blocks)
+        part = _place(x, y, _pad(image.size[0], profile), _pad(image.size[1], profile), False, False,
+                      self._image_blocks(key, image, profile))
+        part.vram = self._stored_blocks(key, image, self._palette_of(mod))
+        return part
 
     def _image_blocks(self, key: Any, image: Any, profile: HardwareProfile) -> List[Tuple[int, int, int, int]]:
-        """VDP sprite blocks (x, y, w, h in px, in the unflipped padded image) that hold any pixel."""
-        cached = self._blocks.get(key)
+        """Hardware sprite blocks (x, y, w, h in px, in the unflipped padded image) that hold any pixel."""
+        cache_key = (key, profile.max_sprite_tiles, profile.sizes)
+        cached = self._blocks.get(cache_key)
         if cached is not None:
             return cached
         alpha = image.getchannel("A") if image.mode == "RGBA" else None
-        pad_w, pad_h = _pad(image.size[0]), _pad(image.size[1])
-        step = profile.max_sprite_tiles * TILE
+        width, height = image.size
+
+        def filled(x: int, y: int, w: int, h: int) -> bool:
+            if alpha is None:
+                return x < width and y < height
+            if x >= width or y >= height:
+                return False
+            return bool(alpha.crop((x, y, min(x + w, width), min(y + h, height))).getbbox())
+
+        pad_w, pad_h = _pad(width, profile), _pad(height, profile)
         blocks = []
-        for by in range(0, pad_h, step):
-            for bx in range(0, pad_w, step):
-                bw, bh = min(step, pad_w - bx), min(step, pad_h - by)
-                if alpha is not None:
-                    crop = alpha.crop((bx, by, min(bx + bw, image.size[0]), min(by + bh, image.size[1])))
-                    if crop.size[0] <= 0 or crop.size[1] <= 0 or not crop.getbbox():
+        small, large = profile.sizes
+        if large:
+            # Square sprites: a large one per cell, or small ones where the pixels fill at most half of the cell.
+            for by in range(0, pad_h, large):
+                for bx in range(0, pad_w, large):
+                    squares = [(bx + sx, by + sy) for sy in range(0, large, small) for sx in range(0, large, small)]
+                    used = [(x, y) for x, y in squares if filled(x, y, small, small)]
+                    if not used:
                         continue
-                blocks.append((bx, by, bw, bh))
-        self._blocks[key] = blocks
+                    if 2 * len(used) <= len(squares):
+                        blocks += [(x, y, small, small) for x, y in used]
+                    else:
+                        blocks.append((bx, by, large, large))
+        else:
+            step = profile.max_sprite_tiles * TILE
+            for by in range(0, pad_h, step):
+                for bx in range(0, pad_w, step):
+                    bw, bh = min(step, pad_w - bx), min(step, pad_h - by)
+                    if filled(bx, by, bw, bh):
+                        blocks.append((bx, by, bw, bh))
+        self._blocks[cache_key] = blocks
         return blocks
 
 
-def _pad(size: int) -> int:
-    return max(TILE, ((int(size) + TILE - 1) // TILE) * TILE)
+def frame_transform(offset: Sequence[float], rotation: float, flip_x: bool, flip_y: bool) -> Tuple[Matrix, Tuple[float, float]]:
+    """A frame drawn flipped, then rotated, then moved (an animation step, a scene object): the export's matrix."""
+    a = _RA._mat_mul(_RA._rotation_matrix(float(rotation)), _RA._flip_matrix(bool(flip_x), bool(flip_y)))
+    return a, (float(offset[0]), float(offset[1]))
+
+
+def scene_uses(project: Project, scene: Any, mapping: Optional[ModuleMapping]) -> Iterable[List[Tuple[str, Any, Any, Matrix, Tuple[float, float]]]]:
+    """Per sample of a scene (at its fps, as the export samples it): (kind, module id or frame, mapping, a, b) of every
+    visible object. Objects with their own mapping keep it, the others follow ``mapping``."""
+    from ui.scene_editor import ops as scene_ops  # wx-free
+
+    fps = max(1, int(scene.fps))
+    for index in range(max(1, scene.duration_in_frames())):
+        states = scene_ops.evaluate_states(project, scene, float(index) / float(fps))
+        cache: Dict[str, Any] = {}
+        uses: List[Tuple[str, Any, Any, Matrix, Tuple[float, float]]] = []
+        for obj in scene.objects:
+            state = states.get(obj.id)
+            if not state or not bool(state.get("visible", True)):
+                continue
+            offset, rotation, flip_x, flip_y = _decompose(scene_ops.world_matrix(scene, states, obj.id, cache))
+            a, b = frame_transform(offset, rotation, flip_x, flip_y)
+            use_mapping = scene.object_mapping(project, obj.id, mapping)
+            source_type = str(state.get("source_type", "none") or "none").strip().lower()
+            if source_type == "module" and state.get("source_id") is not None:
+                uses.append(("module", str(state["source_id"]), use_mapping, a, b))
+            elif source_type in ("frame", "animation"):
+                frame_id = state.get("frame_id") or state.get("source_id")
+                frame = project.get_frame(str(frame_id)) if frame_id is not None else None
+                if frame is not None:
+                    uses.append(("frame", frame, use_mapping, a, b))
+        yield uses
+
+
+def _decompose(matrix: Sequence[float]) -> Tuple[Tuple[float, float], float, bool, bool]:
+    """(offset, rotation, flip x, flip y) of an object's matrix, as SGDKBakeContext._decompose_matrix_to_frame_transform."""
+    a, b, c, d, tx, ty = matrix
+    sx, sy = math.hypot(a, b), math.hypot(c, d)
+    if sx <= 1e-6 or sy <= 1e-6:
+        return (tx, ty), 0.0, False, False
+    flip_y = (a / sx) * (d / sy) - (b / sx) * (c / sy) < 0.0
+    return (tx, ty), math.degrees(math.atan2(b / sx, a / sx)), False, flip_y
+
+
+def _pad(size: int, profile: Optional[HardwareProfile] = None) -> int:
+    """Whole tiles (the export's padding); whole large sprites for a console with square sprites."""
+    grid = profile.sizes[1] if profile is not None and profile.sizes[1] else TILE
+    return max(grid, ((int(size) + grid - 1) // grid) * grid)
 
 
 def _axis_flip(a: Matrix) -> Optional[Tuple[bool, bool]]:

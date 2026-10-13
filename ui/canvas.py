@@ -10,8 +10,10 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 import wx
 
 from hardware_budget import Budget, BudgetCalculator, HardwareProfile
+from ui import app_services
 from models import Frame, FModule, Module, ModuleMapping, Project, CollisionRect, ControlPoint, generate_id
 from ui.base_canvas import BaseCanvas
+from ui.console_colours import CONSOLE
 from ui.frame_geometry import orthogonal_cos_sin, part_bounds
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
 
@@ -58,6 +60,32 @@ def _color_from_id(identifier: str) -> Color:
 BUDGET = BudgetCalculator()
 
 
+class ExportTiles:
+    """The whole project's tiles in the Mega Drive export (with every mapping, the export's default) for the budget
+    readouts: worked out again only after the project changed (a new undo checkpoint) or its images did."""
+
+    def __init__(self) -> None:
+        self._key: Any = None
+        self._tiles = 0
+
+    def get(self, project: Project) -> int:
+        revision = app_services.project_revision()
+        key = (id(project), revision, BUDGET.generation)
+        if revision is None or key != self._key:
+            self._tiles = BUDGET.export_tiles(project, [None] + list(project.mappings))
+            self._key = key
+        return self._tiles
+
+
+EXPORT_TILES = ExportTiles()
+
+
+def memory_text(here: int, total: int, capacity: int) -> str:
+    """The budget readout's video memory line."""
+    left = f"{capacity - total} left" if total <= capacity else f"{total - capacity} too many"
+    return f"Video memory: {here} tiles here · the whole project {total} of ~{capacity} ({left})"
+
+
 class FrameCanvas(BaseCanvas):
     """Canvas that can render a Frame and support selection/move of FModules."""
 
@@ -89,7 +117,7 @@ class FrameCanvas(BaseCanvas):
         # (mapping,) while drawing_mapping() overrides the preview mapping, e.g. for a scene object with its own.
         self._mapping_override: Optional[Tuple[Optional[ModuleMapping]]] = None
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
-        self._asset_image_cache: dict[str, wx.Image] = {}
+        self._asset_image_cache: dict[Any, wx.Image] = {}  # (image id, console colour state) -> the whole image
         # Zoomed/flipped/rotated module bitmaps, so paints during drags do not rescale images.
         self._scaled_cache: "OrderedDict[Any, wx.Bitmap]" = OrderedDict()
         self._scaled_cache_pixels = 0
@@ -102,6 +130,7 @@ class FrameCanvas(BaseCanvas):
         # "Budget" view: hardware sprites of what is shown, scanlines that would drop sprites, and a readout.
         self.budget_profile: Optional[HardwareProfile] = None
         self._budget_hud: Optional[Budget] = None  # drawn last, over everything else
+        self.budget_hud_rect: Optional[Tuple[float, float, float, float]] = None  # where the readout was drawn
         # Onion-skin layers drawn under the current frame:
         # dicts with frame, offset, flip_x, flip_y, rotation, style.
         self.ghost_layers: List[Dict[str, Any]] = []
@@ -516,7 +545,14 @@ class FrameCanvas(BaseCanvas):
             return
         over = budget.over_budget()
         lines = [budget.profile.name, budget.summary()]
-        if over:
+        capacity = budget.profile.vram_tiles
+        if capacity:
+            total = EXPORT_TILES.get(self.project)
+            lines.append(memory_text(budget.unique_tiles, total, capacity))
+            if total > capacity:
+                over = True
+                lines.append("Too many tiles: the game could not load the sprites (Check Project)")
+        if budget.over_budget():
             lines.append("Over the limit: sprites on the red lines would flicker or vanish")
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
         gc.SetFont(font, wx.Colour(255, 150, 150) if over else wx.Colour(235, 235, 240))
@@ -526,6 +562,7 @@ class FrameCanvas(BaseCanvas):
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(18, 19, 22, 215)))
         gc.DrawRoundedRectangle(8, 8, box_w, box_h, 5)
+        self.budget_hud_rect = (8.0, 8.0, float(box_w), float(box_h))
         y = 13.0
         for line, (_w, h) in zip(lines, extents):
             gc.DrawText(line, 16, y)
@@ -1081,16 +1118,23 @@ class FrameCanvas(BaseCanvas):
         return True
 
     def _get_asset_source_image(self, asset_id: str) -> Optional[wx.Image]:
-        cached = self._asset_image_cache.get(asset_id)
+        console = CONSOLE.state(self.project)
+        cached = self._asset_image_cache.get((asset_id, console))
         if cached and cached.IsOk():
             return cached
         asset = self.project.get_image(asset_id)
         if not asset:
             return None
-        img = load_wx_image_safely(asset.file_path)
+        if console is not None:  # View ▸ Mega Drive Colours
+            from ui.frame_render import to_wx_image
+
+            shown = CONSOLE.image(self.project, asset)
+            img = to_wx_image(shown) if shown is not None else None
+        else:
+            img = load_wx_image_safely(asset.file_path)
         if not img or not img.IsOk():
             return None
-        self._asset_image_cache[asset_id] = img
+        self._asset_image_cache[(asset_id, console)] = img
         return img
 
     def _get_module_source_image(self, mod: Module) -> Optional[wx.Image]:
@@ -1120,15 +1164,16 @@ class FrameCanvas(BaseCanvas):
         return int(bounds[2] - bounds[0])
 
     def _module_bitmap_key(self, mod: Module) -> str:
+        console = CONSOLE.state(self.project)
         if mod.type == "MD_IMAGE":
             asset = self.project.get_image(mod.image_id)
             transparent_color = asset.transparent_color if asset else None
             return (
                 f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
-                f"_{self.apply_key_colour}_{transparent_color}"
+                f"_{self.apply_key_colour}_{transparent_color}_{console}"
             )
         # For shapes, include visual properties in key
-        return f"{mod.id}_{mod.type}_{mod.color}_{mod.params}"
+        return f"{mod.id}_{mod.type}_{mod.color}_{mod.params}_{console}"
 
     def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
         key = self._module_bitmap_key(mod)
@@ -1163,9 +1208,10 @@ class FrameCanvas(BaseCanvas):
                 print(f"Canvas bmp load fail: {e}")
                 return None
         else:
-             # Shape Rendering
+             # Shape Rendering (on the console: its colour from the first palette)
              w, h = mod.rect[2], mod.rect[3]
-             bmp = render_pixel_shape_to_bitmap(mod.type, w, h, mod.color, mod.params)
+             colour = CONSOLE.colour(self.project, mod.color) if CONSOLE.enabled and mod.color else mod.color
+             bmp = render_pixel_shape_to_bitmap(mod.type, w, h, colour, mod.params)
              if bmp:
                  self._bitmap_cache[key] = bmp
                  return bmp

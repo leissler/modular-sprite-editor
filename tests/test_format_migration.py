@@ -133,6 +133,17 @@ class TestFormatMigration(unittest.TestCase):
         again, notes = migrate_project_dict(migrated)
         self.assertEqual((again, notes), (migrated, []))
 
+    def test_v5_to_v6_images_start_in_the_first_palette(self):
+        v5 = {"format_version": 5, "name": "v5", "modules": [], "frames": [],
+              "images": [{"id": "img", "file_path": "sheet.png", "width": 8, "height": 8, "transparent_color": None}]}
+        migrated, notes = migrate_project_dict(v5)
+        self.assertEqual((migrated["format_version"], migrated["images"][0]["palette"], notes), (PROJECT_FORMAT_VERSION, 0, []))
+        project = Project.from_dict(migrated)
+        project.images[0].palette = 2
+        self.assertEqual(Project.from_dict(project.to_dict()).images[0].palette, 2)
+        broken = dict(migrated, images=[dict(migrated["images"][0], palette=9)])
+        self.assertEqual(Project.from_dict(broken).images[0].palette, 0, "out of range counts as the first")
+
     def test_v3_events_loop_and_follow_up_round_trip(self):
         from models import AFrame, Animation, EventType, StepEvent
 

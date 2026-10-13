@@ -40,8 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1–C6, C8, C12, K1, K2, K4, K7, U1–U4, U6, F5, F6 and F7, the VRAM
-check of C7, the warning of C9 and parts of U8 (each entry says how).
+Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6 and F7, most of F1, the
+SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
 
 | # | What | Why | Size |
 |---|------|-----|------|
@@ -187,10 +187,10 @@ hand: a sheet repainted on disk shows up on the stage, the lists and the library
 **Fix:** see F1 (palettes); warn at export and in the budget overlay when unique tiles exceed the space
 `TILE_USER_INDEX`..`TILE_FONT_INDEX` leaves.
 
-**Partly done:** the export reports the tiles against about 1424 (SGDK's default layout: 1536 below the plane maps,
+**Done:** the export reports the tiles against about 1424 (SGDK's default layout: 1536 below the plane maps,
 minus 16 system and 96 font tiles; `project_check.tile_issue`), a warning above three quarters and an error above
-all of it. Colours are counted on visible pixels only (the Adventurer has 21, not 22) and reported in Check Project
-and the export report. Still open: palettes per image (F1) and the tile count in the budget overlay (F2).
+all of it. Colours are counted on visible pixels only (the Adventurer has 21, not 22). Each image has a palette (F1),
+and the budget readout and Check Project show the tiles (F2).
 
 ### C8 (Low-medium) Mirrored points land one pixel off the art
 
@@ -408,9 +408,9 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
 
 | # | Feature | Value | Notes |
 |---|---------|-------|-------|
-| F1 | **Palettes**: colours per image / module, the four Mega Drive palette lines, warnings over 15 colours, a preview in console colours (9-bit), palette swaps as variants (like mappings), palette cycling | High | Today one merged palette at export (C7). Needed for any real Mega Drive / SNES game. |
-| F2 | **Memory budget**: unique tiles per animation and per project (with flip dedupe), DMA per step, VRAM left | Medium | The overlay counts sprites and tiles per frame only. |
-| F3 | **More consoles**: SNES, GBA and NES sprite shapes and limits as budget profiles, then exporters | Medium (promised on the site) | The screen guide already knows five consoles; the budget knows the Mega Drive only. |
+| F1 | **Palettes**: colours per image / module, the four Mega Drive palette lines, warnings over 15 colours, a preview in console colours (9-bit), palette swaps as variants (like mappings), palette cycling | High | Today one merged palette at export (C7). Needed for any real Mega Drive / SNES game. **Done** except swaps and cycling: format v6 gives every image a palette (`ImageAsset.palette`, Modules inspector with its colours as the console shows them); `palettes.py` builds them for the exporter and the preview; blob v4 stores one per palette, the runtime loads them into consecutive lines (`ms_palettes_fit`), and the pieces carry their palette bits; Check Project warns per palette over 15 colours; View ▸ Mega Drive Colours shows every canvas through them. Tests: `tests/test_palettes.py`, two palettes drawn by the compiled runtime (`test_sgdk_runtime_draw`). |
+| F2 | **Memory budget**: unique tiles per animation and per project (with flip dedupe), DMA per step, VRAM left | Medium | The overlay counts sprites and tiles per frame only. **Done:** `hardware_budget` stores each part's tile blocks like the exporter (palette indices, flips free); the readout shows the tiles of the view and the project's total against the free space, the Animations inspector the animation's, Check Project warns when it gets tight. `export_tiles` equals the exporter's count on all 19 project files and a synthetic project with turning scene objects, two palettes and a mapping. DMA per step does not apply: the runtime keeps every tile in VRAM. |
+| F3 | **More consoles**: SNES, GBA and NES sprite shapes and limits as budget profiles, then exporters | Medium (promised on the site) | The screen guide already knows five consoles; the budget knows the Mega Drive only. **Partly done:** SNES 8/16 and 16/32 budget profiles (square small / large sprites, 128 per screen, 32 and 272 px per line). Open: GBA and NES, and exporters. |
 | F4 | **Interchange**: sprite sheet PNG + JSON export (generic, Godot, Unity), Aseprite import (tags → animations), PNG sequence export, scene export as GIF | Medium | Today: RetroAnimator JSON, animation GIF, AuroraGT import. |
 | F5 | **Check Project** (C5) | Medium | **Done**, see C5. |
 | F6 | **Autosave and crash recovery** | Medium | **Done:** `ui/autosave.py`, a recovery copy every 30 s while unsaved, offered after a crash (Restore / Discard / Later); `tests/test_autosave.py`, smoke test step "autosave", checked with a real SIGKILL. |

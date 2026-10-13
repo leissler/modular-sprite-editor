@@ -27,6 +27,7 @@ SCREEN_W, SCREEN_H = 320, 224
 POSITIONS = [(160, 112), (6, 10), (310, 216)]  # centre, across the top-left and the bottom-right edges
 VERSUS = [(100, 150), (220, 150)]  # hero, guard
 TILE_BASE = 16  # TILE_USER_INDEX in the stub
+FIRST_LINE = 1  # ms_init() puts the first palette on PAL1
 PROJECTS = [REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json"]
 
 
@@ -80,7 +81,7 @@ u16 ms_module_count = 0; u16 ms_frame_count = {frame_count}; u16 ms_animation_co
 u16 ms_scene_count = 0; u16 ms_mapping_count = {mapping_count}; u16 ms_anim_step_count = {len(ctx.anim_steps)};
 u16 ms_scene_sample_count = 0; u16 ms_animation_record_count = {len(ctx.anim_records) if animation_count else 0}; u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0; u16 ms_step_event_count = {len(ctx.step_events)};
-u16 ms_tile_count = {len(ctx.tile_data) // 32}; u16 ms_piece_count = {len(ctx.pieces)};
+u16 ms_tile_count = {len(ctx.tile_data) // 32}; u16 ms_palette_count = {len(ctx.palettes)}; u16 ms_piece_count = {len(ctx.pieces)};
 u16 ms_hitbox_count = 0; u16 ms_point_count = 0; u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
 const MS_Variant *ms_variants = g_variants; const MS_Piece *ms_pieces = g_pieces; const u32 *ms_tiles = NULL;
 const u16 *ms_palette = NULL; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
@@ -129,11 +130,13 @@ int main(void)
 
 
 def _rasterise(sprites, tiles: bytes):
-    """{{(x, y): palette index}} of the sprite list as the VDP shows it (earlier sprites in front)."""
+    """{{(x, y): (palette, colour index)}} of the sprite list as the VDP shows it (earlier sprites in front); the
+    palette counts from the first line the runtime loaded."""
     out = {}
     for x, y, size, attr in reversed(sprites):
         tw, th = ((size >> 2) & 3) + 1, (size & 3) + 1
         hflip, vflip = bool(attr & 0x0800), bool(attr & 0x1000)
+        palette = ((attr >> 13) & 3) - FIRST_LINE
         first = (attr & 0x07FF) - TILE_BASE
         for sy in range(th * 8):
             for sx in range(tw * 8):
@@ -143,7 +146,7 @@ def _rasterise(sprites, tiles: bytes):
                 byte = tiles[tile * 32 + (uy % 8) * 4 + (ux % 8) // 2]
                 index = (byte >> 4) if (ux % 2) == 0 else (byte & 0x0F)
                 if index and 0 <= x + sx < SCREEN_W and 0 <= y + sy < SCREEN_H:
-                    out[(x + sx, y + sy)] = index
+                    out[(x + sx, y + sy)] = (palette, index)
     return out
 
 
@@ -201,8 +204,9 @@ def _build_and_run(test: unittest.TestCase, ctx, tmp_path: Path, source: str):
     return subprocess.run([str(exe)], capture_output=True, text=True, check=True).stdout.splitlines()
 
 
-def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int):
-    """{(x, y): palette index} of an editor render drawn at (draw_x, draw_y), clipped to the screen."""
+def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, palette_at=lambda x, y: 0):
+    """{(x, y): (palette, colour index)} of an editor render drawn at (draw_x, draw_y), clipped to the screen;
+    ``palette_at(x, y)`` (render pixel) says which palette the image there uses."""
     rgba = image.convert("RGBA")
     pixels = {}
     for py in range(rgba.height):
@@ -210,7 +214,8 @@ def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int):
             r, g, b, a = rgba.getpixel((px, py))
             x, y = hx + px + draw_x, hy + py + draw_y
             if a and 0 <= x < SCREEN_W and 0 <= y < SCREEN_H:
-                pixels[(x, y)] = ctx._nearest_master_palette_index((r, g, b)) + 1
+                palette = palette_at(hx + px, hy + py)
+                pixels[(x, y)] = (palette, ctx._nearest_palette_index((r, g, b), palette) + 1)
     return pixels
 
 
@@ -253,6 +258,39 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                                          f"{project_path.name}: frame '{frame.name}' at {draw_x},{draw_y} differs on the console")
                     checked += 1
                 self.assertEqual(checked, len(project.frames))
+
+    def test_images_in_two_palettes(self):
+        """A frame with a part from an image in each palette: each sprite carries its palette line, the blob holds
+        both palettes and the colours come from the right one."""
+        import export_sgdk_example as sg
+        from PIL import Image
+
+        from models import FModule, ImageAsset, Module
+        from ui.frame_render import FrameRenderer
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            project = Project()
+            for index, (name, base) in enumerate((("warm.png", (200, 60, 40)), ("cool.png", (40, 80, 210)))):
+                image = Image.new("RGBA", (8, 8), (0, 0, 0, 0))
+                for x in range(8):
+                    for y in range(8):
+                        image.putpixel((x, y), (base[0] - 20 * (x % 3), base[1] + 10 * (y % 2), base[2], 255))
+                image.save(tmp_path / name)
+                project.images.append(ImageAsset(f"img{index}", str(tmp_path / name), 8, 8, palette=index))
+                project.modules.append(Module(f"m{index}", name, f"img{index}", (0, 0, 8, 8), (0, 0)))
+            frame = project.create_frame("both")
+            frame.fmodules += [FModule("a", "module", "m0", (0, 0)), FModule("b", "module", "m1", (16, 0))]
+            ctx = sg.SGDKBakeContext(project, [None], tmp_path / "out")
+            ctx.bake()
+            self.assertEqual(len(ctx.palettes), 2)
+            lines = _build_and_run(self, ctx, tmp_path, _harness(ctx, len(project.frames)))
+            image, hx, hy = FrameRenderer().render(project, frame, None)
+            fields = lines[1].split()
+            sprites = [tuple(int(v) for v in item.split(",")[:4]) for item in fields[4:]]
+            self.assertEqual(sorted((attr >> 13) & 3 for *_rest, attr in sprites), [FIRST_LINE, FIRST_LINE + 1])
+            expected = _palette_pixels(ctx, image, hx, hy, *POSITIONS[0], palette_at=lambda x, y: 1 if x >= 16 else 0)
+            self.assertEqual(_rasterise(sprites, bytes(ctx.tile_data)), expected)
 
     def test_two_players_with_their_own_mapping(self):
         """A guard re-skinned from the hero's animations: both in one sprite table, each with its own mapping."""

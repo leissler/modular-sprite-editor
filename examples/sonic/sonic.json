@@ -1,5 +1,5 @@
 {
-  "format_version": 5,
+  "format_version": 6,
   "name": "New Project",
   "images": [
     {
@@ -11,7 +11,8 @@
         255,
         0,
         255
-      ]
+      ],
+      "palette": 0
     }
   ],
   "modules": [

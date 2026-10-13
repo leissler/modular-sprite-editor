@@ -14,6 +14,7 @@ _status: Optional[Callable[[str], None]] = None
 _zoom: Optional[Callable[[float], None]] = None
 _mapping_changed: Optional[Callable[[], None]] = None
 _images_changed: Optional[Callable[[], None]] = None
+_revision: Optional[Callable[[], Optional[str]]] = None
 
 
 def install(
@@ -22,13 +23,15 @@ def install(
     zoom: Optional[Callable[[float], None]] = None,
     mapping_changed: Optional[Callable[[], None]] = None,
     images_changed: Optional[Callable[[], None]] = None,
+    revision: Optional[Callable[[], Optional[str]]] = None,
 ) -> None:
-    global _checkpoint, _status, _zoom, _mapping_changed, _images_changed
+    global _checkpoint, _status, _zoom, _mapping_changed, _images_changed, _revision
     _checkpoint = checkpoint
     _status = status
     _zoom = zoom
     _mapping_changed = mapping_changed
     _images_changed = images_changed
+    _revision = revision
 
 
 def text_entry_has_focus() -> bool:
@@ -47,6 +50,12 @@ def request_checkpoint() -> None:
     """Mark an undo step boundary now (call after a completed edit)."""
     if _checkpoint:
         _checkpoint()
+
+
+def project_revision() -> Optional[str]:
+    """Changes whenever the project does (the fingerprint of the last undo checkpoint); None without a main window,
+    so callers then work out again what they would cache."""
+    return _revision() if _revision else None
 
 
 def show_status(text: str) -> None:

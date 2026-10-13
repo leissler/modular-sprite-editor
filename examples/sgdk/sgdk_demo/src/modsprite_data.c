@@ -4,7 +4,7 @@
 #include "resources.h"
 
 #define MS_BLOB_MAGIC 0x4D534231u
-#define MS_BLOB_VERSION 3u
+#define MS_BLOB_VERSION 4u
 #define MS_BLOB_HEADER_SIZE 176u
 
 enum
@@ -57,6 +57,7 @@ u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0;
 u16 ms_step_event_count = 0;
 u16 ms_tile_count = 0;
+u16 ms_palette_count = 0;
 u16 ms_piece_count = 0;
 u16 ms_hitbox_count = 0;
 u16 ms_point_count = 0;
@@ -129,6 +130,7 @@ static void ms_reset_data(void)
     ms_event_type_count = 0;
     ms_step_event_count = 0;
     ms_tile_count = 0;
+    ms_palette_count = 0;
     ms_piece_count = 0;
     ms_hitbox_count = 0;
     ms_point_count = 0;
@@ -208,7 +210,7 @@ void ms_data_init(void)
     if (ms_read_be16(ptr) != MS_BLOB_VERSION)
         return;
     ptr += 2;
-    ptr += 2; /* reserved */
+    ms_palette_count = ms_read_be16(ptr); ptr += 2;
 
     ms_variant_count = ms_read_be16(ptr); ptr += 2;
     ms_module_count = ms_read_be16(ptr); ptr += 2;

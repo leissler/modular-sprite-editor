@@ -21,6 +21,7 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Every canvas", "Zoom in / out", f"{MOD}+= / {MOD}+-"),
     ("Every canvas", "Fit content / actual pixels (1×)", f"{MOD}+0 / {MOD}+Shift+0"),
     ("Every canvas", "Toggle grid", f"{MOD}+G"),
+    ("Every canvas", "Mega Drive colours (View menu)", f"{MOD}+Shift+P"),
     ("Modules", "New module (on an image) / shape (on Shapes)", "Drag on empty space"),
     ("Modules", "Select / move / resize", "Click / drag a module / drag a handle"),
     ("Modules", "Add or remove from the selection / select with a marquee", f"{MOD}+click / {MOD}+drag"),

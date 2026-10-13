@@ -6,6 +6,7 @@
 
 static u8 g_initialized = FALSE;
 static u8 g_tiles_fit = FALSE;
+static u8 g_palettes_fit = FALSE;
 static u16 g_active_mapping = 0;
 static MS_FrameProfile g_frame_profile = { 0, 0, 0, 0 };
 static u16 g_tile_base = TILE_USER_INDEX;
@@ -207,12 +208,20 @@ void ms_init_ex(u16 tile_index, u16 palette)
     g_palette = palette & 3;
     g_attr_base = TILE_ATTR_FULL(g_palette, FALSE, FALSE, FALSE, g_tile_base);
     g_tiles_fit = FALSE;
+    g_palettes_fit = FALSE;
     if (ms_data_is_ready())
     {
+        u16 lines = MS_PALETTE_COUNT ? MS_PALETTE_COUNT : 1;
+
         g_tiles_fit = ((u32)g_tile_base + (u32)MS_TILE_COUNT) <= (u32)TILE_FONT_INDEX;
         if (g_tiles_fit && MS_TILE_COUNT > 0)
             VDP_loadTileData(ms_tiles, g_tile_base, MS_TILE_COUNT, DMA);
-        PAL_setPalette(g_palette, ms_palette, DMA);
+        /* One line per palette from the first one; a piece's tile offset carries its palette in bits 13-14,
+           so the lines must fit below line 4 (the sum would run into the priority bit). */
+        g_palettes_fit = (g_palette + lines) <= 4;
+        if (!g_palettes_fit)
+            lines = 4 - g_palette;
+        PAL_setColors(g_palette * 16, ms_palette, lines * 16, DMA);
     }
     ms_set_mapping(0);
     g_initialized = TRUE;
@@ -221,6 +230,11 @@ void ms_init_ex(u16 tile_index, u16 palette)
 u8 ms_tiles_fit(void)
 {
     return g_tiles_fit;
+}
+
+u8 ms_palettes_fit(void)
+{
+    return g_palettes_fit;
 }
 
 u16 ms_tile_base(void)

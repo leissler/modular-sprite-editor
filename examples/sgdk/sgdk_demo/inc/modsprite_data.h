@@ -135,6 +135,7 @@ extern u16 ms_scene_record_count;
 extern u16 ms_event_type_count;
 extern u16 ms_step_event_count;
 extern u16 ms_tile_count;
+extern u16 ms_palette_count;
 extern u16 ms_piece_count;
 extern u16 ms_hitbox_count;
 extern u16 ms_point_count;
@@ -157,6 +158,7 @@ extern u16 ms_role_count;
 #define MS_EVENT_TYPE_COUNT (ms_event_type_count)
 #define MS_STEP_EVENT_COUNT (ms_step_event_count)
 #define MS_TILE_COUNT (ms_tile_count)
+#define MS_PALETTE_COUNT (ms_palette_count) /* palette lines (16 colours each) in ms_palette, loaded from the first */
 
 extern const MS_Variant *ms_variants;
 extern const MS_Piece *ms_pieces;
