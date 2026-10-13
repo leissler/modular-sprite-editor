@@ -24,6 +24,8 @@ from ui.shortcuts_dialog import ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 
 APP_NAME = "Modular Sprite Editor"
+# The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
+APP_VERSION = "0.7"
 TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
 
 # Shown in the status bar when a tab is activated.
@@ -741,7 +743,7 @@ class MainFrame(wx.Frame):
 
     def on_about(self, _: wx.CommandEvent) -> None:
         wx.MessageBox(
-            f"{APP_NAME}\nAssemble, animate and map modular pixel-art sprites for retro consoles.",
+            f"{APP_NAME}\nVersion {APP_VERSION}\n\nAssemble, animate and map modular pixel-art sprites for retro consoles.",
             f"About {APP_NAME}",
             wx.OK | wx.ICON_INFORMATION,
             self,

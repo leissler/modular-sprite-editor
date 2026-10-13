@@ -8,7 +8,7 @@ Tell us:
 
 - what you wanted to make, and what happened instead;
 - the shortest steps that show it;
-- the release you downloaded, for example 0.6, and your system: Windows, macOS or Linux;
+- the version of the editor, for example 0.7 (the About box shows it, see [Updating](../start/install.md#updating)), and your system: Windows, macOS or Linux;
 - a screenshot, and if you can, a small project that shows the problem.
 
 A small project with one image and a few frames is much easier to look at than a whole game. Only share artwork you are allowed to share.

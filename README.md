@@ -146,7 +146,8 @@ Releases come from the **Build And Release** workflow (Actions ▸ Run workflow,
 the SGDK exporter for all three platforms and tests every build: unit tests, the built editor drives every tab against
 both example projects (`--smoke-test PROJECT.json [LOG]`), and the built exporter must write exactly what the Python one
 writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz` and `export_sgdk-*`;
-with *publish* off it only builds and tests.
+with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first: the About box shows it,
+and the workflow stops if the two differ.
 
 The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
 `export_sgdk.exe`, the example projects and the SGDK demo with the SGDK it builds with, plus `export_to_sgdk.bat` /

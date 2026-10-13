@@ -1,6 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+import re
+
 block_cipher = None
+
+# The version from app.py, also for the app's Info.plist (Finder ▸ Get Info).
+with open(os.path.join(SPECPATH, 'app.py'), encoding='utf-8') as source:
+    APP_VERSION = re.search(r'^APP_VERSION = "(.*)"', source.read(), re.M).group(1)
 
 a = Analysis(
     ['app.py'],
@@ -55,4 +62,5 @@ app = BUNDLE(
     name='ModularSpriteEditor.app',
     icon='assets/icon.icns',
     bundle_identifier='com.martinth.modularspriteeditor',
+    version=APP_VERSION,
 )

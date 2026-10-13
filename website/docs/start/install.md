@@ -44,4 +44,6 @@ Open one with **File ▸ Open...** and keep the project file next to its image, 
 
 ## Updating
 
+**Help ▸ About** shows which version you have, from 0.7 on. On a Mac, choose **About Modular Sprite Editor** in the first menu after the Apple menu. The [release notes](../reference/releases.md) list what each version brings.
+
 Newer versions of the editor open projects made with older versions and upgrade them when you save. An older version opening a newer project shows a warning and can lose newer details when it saves, so keep everyone on a team on the same version.

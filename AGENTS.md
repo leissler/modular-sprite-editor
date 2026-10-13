@@ -37,7 +37,8 @@ Releases: `.github/workflows/build-and-release.yml` (manual, with a version; *pu
 builds and tests the editor and the SGDK exporter (`build_sgdk_exporter.spec`) on all three platforms; the release
 gets both. It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
 editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, `packaging/windows_kit/`), and builds its ROMs on
-Windows with the vendored SGDK. Pin wxPython there to the version you test with.
+Windows with the vendored SGDK. Pin wxPython there to the version you test with. Set `APP_VERSION` in `app.py` to the
+release first: the About box and the macOS Info.plist show it, and the workflow stops if it releases another version.
 
 Known pre-existing test failure: `test_import_aurora.py` (repo root, stale) expects Aurora image ids to be
 file names; ids are generated on purpose.

@@ -5,7 +5,7 @@ name: Build And Release
 # exactly what the Python exporter writes. The release gets the editor and the exporter for each platform.
 # On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
 # artifact): editor, exporter, examples and the SGDK demo, built into ROMs with the bundled SGDK.
-# With "publish" off it only builds and tests.
+# With "publish" off it only builds and tests. The version has to be APP_VERSION in app.py (the About box shows it).
 
 on:
   workflow_dispatch:
@@ -41,6 +41,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Check the version
+        shell: bash
+        run: |
+          app_version=$(python -c "import re; print(re.search(r'^APP_VERSION = \"(.*)\"', open('app.py', encoding='utf-8').read(), re.M).group(1))")
+          if [ "$app_version" != "${{ github.event.inputs.version }}" ]; then
+            echo "::error::app.py has APP_VERSION = \"$app_version\", this run releases ${{ github.event.inputs.version }}: update APP_VERSION first"
+            exit 1
+          fi
 
       - name: Install Linux system packages
         if: runner.os == 'Linux'
