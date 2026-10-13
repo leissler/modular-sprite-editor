@@ -252,10 +252,25 @@ class MainFrame(wx.Frame):
         self._autosave_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self._on_autosave_timer, self._autosave_timer)
         self._autosave_timer.Start(autosave.AUTOSAVE_INTERVAL_MS)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
 
         self._update_title()
         self._show_tab_hint()
         self._restore_geometry()
+
+    def _on_destroy(self, event: wx.WindowDestroyEvent) -> None:
+        """A wx.Timer outlives the window it reports to and crashes the process when it fires after the window is
+        gone. Closing the window stops them (on_close); this stops them however the window goes (scripts and tests
+        that destroy it directly)."""
+        event.Skip()
+        if event.GetEventObject() is not self:
+            return
+        self._checkpoint_timer.Stop()
+        self._autosave_timer.Stop()
+        for panel in self.panels:
+            timer = getattr(panel, "timer", None)  # the Animations and Timeline playback timers
+            if isinstance(timer, wx.Timer):
+                timer.Stop()
 
     # ------------------------------------------------------------------ window geometry
     def _restore_geometry(self) -> None:

@@ -256,6 +256,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Selection**: one rule everywhere: Shift+click adds (a range in lists), Cmd+click adds or removes; a drag on empty
   space is a marquee (Shift or Cmd keeps the selection). The Modules sheet keeps Shift for pivots and Cmd+drag for
   its marquee (a plain drag draws a module). In Points mode a click on empty space places a point.
+- **Timers** (`wx.Timer(self)`) outlive their window and crash the process (SIGSEGV in `wxTimerImpl::SendEvent`) if
+  they fire after it is gone: stop them on close and on destroy (`MainFrame._on_destroy` stops the main window's and
+  the playback timers). Scripts end the editor with `frame.Close(True)`, not `frame.Destroy()`.
 - **Welcome screen and window**: without a project to open (and no crash recovery) the editor starts on
   `ui/welcome.py` in place of the tabs (`MainFrame.show_welcome`; `select_tab` and opening a project leave it). The
   window remembers its size, position and maximized state (`Window/Geometry`, only if its title bar is still on a

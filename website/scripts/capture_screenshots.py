@@ -695,7 +695,7 @@ def run() -> None:
             errors.append(step.__name__)
     frame.recent_files = saved_recent
     frame._save_recent_files()
-    wx.CallAfter(lambda: (frame.Destroy(), app.ExitMainLoop()))
+    wx.CallAfter(lambda: (frame.Close(True), app.ExitMainLoop()))  # Close stops the window's timers (on_close)
 
 
 wx.CallLater(800, run)
