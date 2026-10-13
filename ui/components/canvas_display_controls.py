@@ -174,8 +174,15 @@ class CanvasDisplayControls(wx.Panel):
         width = self.GetClientSize().width - self.btn_fit.GetBestSize().width
         if width <= 0:
             return
-        self._sizer.InformFirstDirection(wx.HORIZONTAL, width, -1)
-        height = max(self._sizer.CalcMin().height, self.btn_fit.GetBestSize().height)
+        # The rows' size for this width. wxWidgets 3.3 (wxPython 4.3) replaced InformFirstDirection, a no-op on sizers
+        # there, with CalcMinSizeFromKnownDirection.
+        from_width = getattr(self._sizer, "CalcMinSizeFromKnownDirection", None)
+        if from_width is not None:
+            rows = from_width(wx.HORIZONTAL, width, -1)
+        else:
+            self._sizer.InformFirstDirection(wx.HORIZONTAL, width, -1)
+            rows = self._sizer.CalcMin()
+        height = max(rows.height, self.btn_fit.GetBestSize().height)
         if height != self._rows_height:
             self._rows_height = height
             self.SetMinSize((self.btn_fit.GetBestSize().width + 160, height))
