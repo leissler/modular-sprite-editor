@@ -26,8 +26,10 @@ MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
 SPEEDS: List[Tuple[str, float]] = [("1×", 1.0), ("½×", 0.5), ("¼×", 0.25), ("2×", 2.0)]
 HOLD_PRESETS = (1, 2, 3, 4, 6, 8)
 EVENT_FLASH_SECONDS = 0.6  # how long the events of a step that just started light up in the preview
-# Playback redraws at most this often. The timer is one-shot and re-armed after each frame: a periodic timer
-# whose frames take longer (slow machines) kept a timer message waiting on Windows, so wx.Yield never returned.
+# Playback shows a frame this often, but never before the last one has been drawn: the one-shot timer is armed on
+# the next idle event, with what is left of the interval. Armed before the drawing (or periodic), a frame that took
+# longer to draw than this (a slow machine) always left a timer message waiting on Windows, so wx.Yield never
+# returned.
 PLAY_INTERVAL_MS = 10
 
 # Copied steps, shared between animations for the session.
@@ -54,6 +56,8 @@ class AnimationEditorPanel(wx.Panel):
         self._view: List[Animation] = []
         self.on_edit_frame: Optional[Callable[[str], None]] = None  # set by the main window
         self.timer = wx.Timer(self)
+        self._arm_timer_when_idle = False  # see PLAY_INTERVAL_MS
+        self._frame_time = 0.0  # when the last playback frame started
 
         self._build_ui()
         self._bind()
@@ -195,6 +199,7 @@ class AnimationEditorPanel(wx.Panel):
         self.btn_delete.Bind(wx.EVT_BUTTON, lambda e: self.delete_steps())
         self.btn_fit_seq.Bind(wx.EVT_BUTTON, lambda e: self.sequence.fit())
         self.Bind(wx.EVT_TIMER, self._on_timer, self.timer)
+        self.Bind(wx.EVT_IDLE, self._on_idle)
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         st = self.stage
@@ -649,13 +654,22 @@ class AnimationEditorPanel(wx.Panel):
             self._note_fired(anim, self.player.step)
             self.tick = self.player.position()
             self._play_clock = (time.monotonic(), 0)
-            self.timer.StartOnce(PLAY_INTERVAL_MS)
+            self._frame_time = time.monotonic()
+            self._arm_timer_when_idle = True
         self.refresh(inspector=not self.is_playing)
 
     def _on_timer(self, _event: wx.TimerEvent) -> None:
+        self._frame_time = time.monotonic()
         self._play_frame()
-        if self.is_playing:
-            self.timer.StartOnce(PLAY_INTERVAL_MS)
+        self._arm_timer_when_idle = self.is_playing
+
+    def _on_idle(self, event: wx.IdleEvent) -> None:
+        event.Skip()
+        if self._arm_timer_when_idle:
+            self._arm_timer_when_idle = False
+            if self.is_playing:
+                spent = int((time.monotonic() - self._frame_time) * 1000)
+                self.timer.StartOnce(max(1, PLAY_INTERVAL_MS - spent))
 
     def _play_frame(self) -> None:
         anim = self.animation()

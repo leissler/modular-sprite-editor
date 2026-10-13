@@ -220,11 +220,12 @@ class SequenceWidget(wx.Panel):
             dc.SetTextForeground(COL_TEXT_DIM)
             dc.DrawText("Drag frames here from the library, or double-click a frame there.", LEFT_PAD + 4, CELL_TOP + CELL_H // 2 - 6)
         starts = self._starts()
+        layouts: Dict[int, Tuple[int, int, float, int, int]] = {}  # the strip's layout per thumbnail size
         for index, af in enumerate(anim.aframes):
             r = self.cell_rect(index, starts)
             if r.x > w or r.x + r.width < 0:
                 continue
-            self._paint_cell(dc, index, af, r)
+            self._paint_cell(dc, index, af, r, layouts)
         self._paint_loop_and_follow_up(dc, anim, starts, w)
         # Playhead through the middle of the tick being shown
         if anim.aframes:
@@ -271,7 +272,7 @@ class SequenceWidget(wx.Panel):
             dc.SetTextForeground(wx.WHITE)
             dc.DrawText(label, px - tw // 2, RULER_H - th - 3)
 
-    def _paint_cell(self, dc: wx.DC, index: int, af, r: wx.Rect) -> None:
+    def _paint_cell(self, dc: wx.DC, index: int, af, r: wx.Rect, layouts: Dict[int, Tuple[int, int, float, int, int]]) -> None:
         current = index == self.step
         chosen = index in self.selected
         dc.SetPen(wx.Pen(COL_SELECTED if chosen else COL_BORDER, 2 if chosen else 1))
@@ -280,7 +281,10 @@ class SequenceWidget(wx.Panel):
         # Same size for every cell (longer holds do not get bigger pictures), shared scale per animation.
         side = max(8, min(THUMB, int(self.tick_w) - 8, r.width - 6))
         if self.renderer and self.project and self.animation:
-            bmp = self.renderer.strip_thumbnail(self.project, self.animation, index, self.mapping, side)
+            layout = layouts.get(side)
+            if layout is None:  # once per repaint, not per cell: it looks at every step
+                layout = layouts[side] = self.renderer.strip_layout(self.project, self.animation, self.mapping, side)
+            bmp = self.renderer.strip_thumbnail(self.project, self.animation, index, self.mapping, side, layout=layout)
             dc.DrawBitmap(bmp, r.x + 3, r.y + 3)
         # Hold band: the rest of a long cell shows that the drawing holds.
         band_x = r.x + side + 6

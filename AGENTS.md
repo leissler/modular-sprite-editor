@@ -231,6 +231,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `ops.keep_loop_start(anim)` so "loop from" stays on its step. Thumbnails and GIF export
   render through `render.StepRenderer` (the parity-checked renderer), not `ThumbnailGenerator`. The stage's
   mirror preview reverses a step's rotation for an odd number of mirror axes (`AnimationStage.step_transform`).
+  Playback timers (here and in the Timeline) are one-shot and armed on the next idle event, once the frame has been
+  drawn: armed any earlier, frames slower than the interval kept wx.Yield from returning on Windows (the smoke
+  test's "playback with slow drawing" step checks it). Keep per-frame drawing cheap: the step strip works out its
+  layout once per repaint (`strip_layout`), not per cell.
 - **Modules / Frames / Mappings:** laid out like the animation editors (browser list with thumbnails | canvas
   with view bar | contextual inspector). Panels keep selections by id (`ModuleEditorPanel.selection`,
   the stage's `selected_*` lists, `MappingEditorPanel.selection`) and rebuild their lists from the data after

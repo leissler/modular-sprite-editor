@@ -74,6 +74,8 @@ class SceneEditorPanel(wx.Panel):
         self._play_start: Tuple[float, int] = (0.0, 0)
         self._fitted_scene_id: Optional[str] = None
         self.timer = wx.Timer(self)
+        self._arm_timer_when_idle = False  # see _on_timer
+        self._frame_time = 0.0  # when the last playback frame started
 
         self._build_ui()
         self._bind()
@@ -216,6 +218,7 @@ class SceneEditorPanel(wx.Panel):
         self.btn_group.Bind(wx.EVT_BUTTON, lambda e: self.add_object("none", None))
         self.btn_fit_time.Bind(wx.EVT_BUTTON, lambda e: self.timeline.fit_scene())
         self.Bind(wx.EVT_TIMER, self._on_timer, self.timer)
+        self.Bind(wx.EVT_IDLE, self._on_idle)
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         self.library.on_add = lambda source_type, source_id: self.add_object(source_type, source_id)
@@ -553,7 +556,8 @@ class SceneEditorPanel(wx.Panel):
                 self.frame = 0
             self.is_playing = True
             self._play_start = (time.monotonic(), self.frame)
-            self.timer.StartOnce(self._play_interval(scene))
+            self._frame_time = time.monotonic()
+            self._arm_timer_when_idle = True
         self._update_transport()
 
     @staticmethod
@@ -561,11 +565,19 @@ class SceneEditorPanel(wx.Panel):
         return max(8, int(1000 / max(1, scene.fps) / 2))
 
     def _on_timer(self, _event: wx.TimerEvent) -> None:
+        self._frame_time = time.monotonic()
         self._play_frame()
-        # One-shot, re-armed after each frame (see animation_editor.panel.PLAY_INTERVAL_MS).
-        scene = self.scene()
-        if self.is_playing and scene:
-            self.timer.StartOnce(self._play_interval(scene))
+        # One-shot, armed again once this frame has been drawn (see animation_editor.panel.PLAY_INTERVAL_MS).
+        self._arm_timer_when_idle = self.is_playing
+
+    def _on_idle(self, event: wx.IdleEvent) -> None:
+        event.Skip()
+        if self._arm_timer_when_idle:
+            self._arm_timer_when_idle = False
+            scene = self.scene()
+            if self.is_playing and scene:
+                spent = int((time.monotonic() - self._frame_time) * 1000)
+                self.timer.StartOnce(max(1, self._play_interval(scene) - spent))
 
     def _play_frame(self) -> None:
         scene = self.scene()

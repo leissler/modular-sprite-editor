@@ -749,6 +749,40 @@ def run():
 
     step("timeline: add, auto-key, easing, retime, parent, play, copy/paste, delete, undo", timeline)
 
+    def slow_playback():
+        # A slow machine: every frame takes longer to draw than the playback interval. Waiting for events while
+        # playing must still return and frames must keep coming (on Windows wx.Yield never returned while the
+        # timer was armed before the frame had been drawn).
+        import time as _time
+
+        anim = max(frame.project.animations, key=lambda a: len(a.aframes), default=None)
+        for tab, panel, label in ((2, ae, "Animations"), (3, te, "Timeline")):
+            frame.select_tab(tab)
+            if tab == 2 and anim is not None:
+                ae.select_animation(anim.id)
+            pump()
+            canvas, shown = panel.stage, [0]
+            canvas.Unbind(wx.EVT_PAINT)
+            canvas.Bind(wx.EVT_PAINT, lambda event, c=canvas: (c.on_paint(event), _time.sleep(0.03)))
+            play_frame = panel._play_frame
+            panel._play_frame = lambda f=play_frame: (shown.__setitem__(0, shown[0] + 1), f())
+            try:
+                panel.toggle_play()
+                if not panel.is_playing:
+                    continue  # nothing to play (no animation or scene)
+                start = _time.monotonic()
+                while _time.monotonic() - start < 1.0:
+                    pump(1)
+                    _time.sleep(0.002)
+                check(shown[0] >= 3, f"{label}: playback keeps showing frames that draw slowly ({shown[0]} in 1 s)")
+            finally:
+                panel.stop_playback()
+                del panel._play_frame
+                canvas.Unbind(wx.EVT_PAINT)
+                canvas.Bind(wx.EVT_PAINT, canvas.on_paint)
+
+    step("playback with slow drawing: waiting for events returns, frames keep coming", slow_playback)
+
     def budget():
         import hardware_budget as hb
 

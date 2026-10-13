@@ -113,12 +113,17 @@ class StepRenderer:
         mapping: Optional[ModuleMapping],
         size: int,
         background: Tuple[int, int, int] = (50, 50, 50),
+        layout: Optional[Tuple[int, int, float, int, int]] = None,
     ) -> wx.Bitmap:
-        """A step's thumbnail in its animation's shared layout (same scale and origin for every step)."""
+        """A step's thumbnail in its animation's shared layout (same scale and origin for every step).
+
+        Pass the strip_layout() when drawing many steps at once: working it out looks at every step.
+        """
         from PIL import Image as PILImage
 
         af = anim.aframes[index]
-        layout = self.strip_layout(project, anim, mapping, size)
+        if layout is None:
+            layout = self.strip_layout(project, anim, mapping, size)
         key = ("strip",) + self._step_key(project, af, mapping) + (mapping_key(mapping), int(size), background, layout)
         bmp = self._bitmaps.get(key)
         if bmp is None:
