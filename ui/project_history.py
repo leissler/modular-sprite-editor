@@ -8,12 +8,16 @@ instrumenting each operation.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import zlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from models import Project
+
+# Everything a project saves: the dataclass fields set by its constructor (active_mapping and load_notes are not).
+SAVED_FIELDS = tuple(f.name for f in dataclasses.fields(Project) if f.init)
 
 
 def project_fingerprint(project: Project) -> Tuple[str, bytes]:
@@ -22,17 +26,12 @@ def project_fingerprint(project: Project) -> Tuple[str, bytes]:
 
 
 def replace_project_contents(target: Project, source: Project) -> None:
-    """Swap all serialized data of ``target`` for ``source`` while keeping the same object."""
+    """Swap all saved data of ``target`` for ``source`` while keeping the same object (panels hold on to it).
+
+    Every saved field is copied, so a field added to Project later cannot be forgotten here."""
     active_mapping_id = target.active_mapping.id if target.active_mapping else None
-    target.name = source.name
-    target.images = source.images
-    target.modules = source.modules
-    target.frames = source.frames
-    target.animations = source.animations
-    target.timeline_scenes = source.timeline_scenes
-    target.mappings = source.mappings
-    target.collision_types = source.collision_types
-    target.point_types = source.point_types
+    for name in SAVED_FIELDS:
+        setattr(target, name, getattr(source, name))
     target.active_mapping = next((m for m in target.mappings if m.id == active_mapping_id), None)
 
 
@@ -95,6 +94,11 @@ class ProjectHistory:
         restored = Project.from_dict(self._entry_data(index))
         replace_project_contents(project, restored)
         self._last_fingerprint = self._entries[index][0]
+
+    @property
+    def fingerprint(self) -> Optional[str]:
+        """Fingerprint of the project as last checkpointed or checked."""
+        return self._last_fingerprint
 
     def mark_saved(self, project: Project) -> None:
         fingerprint, _payload = project_fingerprint(project)

@@ -33,6 +33,9 @@ right-click › Open the first time.
 
 ### Everywhere
 - **Project-wide undo/redo** for every editor, unsaved-change tracking and a save prompt on close.
+- **Safe saving**: a save replaces the file in one step and keeps the previous version as `name.json.bak`; unsaved
+  changes are autosaved every 30 s to a recovery folder and offered again after a crash.
+- **Images edited elsewhere reload by themselves** when you return to the editor.
 - **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag
   pans, `Cmd/Ctrl+0` fits.
 - **Preview mapping** above the tabs: the mapping every preview and export uses.

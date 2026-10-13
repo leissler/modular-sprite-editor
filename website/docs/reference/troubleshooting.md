@@ -4,6 +4,14 @@
 
 On macOS and Windows, the first start of an unsigned app needs one extra confirmation. [Get the editor](../start/install.md) explains it for each system. On Linux, check that your system is recent enough, for example Ubuntu 22.04 or newer.
 
+## The editor quit unexpectedly
+
+Start it again. It offers to restore the changes you had not saved, as they were at most half a minute before it quit. **Restore** opens them as an unsaved project: save to keep them. **Later** asks again at the next start, **Discard** throws them away.
+
+## A project does not open
+
+If a project file is damaged, the version before the last save is next to it as `name.json.bak`. Make a copy of it, remove `.bak` from the copy's name and open the copy.
+
 ## An image is missing
 
 The image file was moved or renamed after it was added. Select it in the **Images** list of the **Modules** tab and choose **Locate...** in the inspector. Keep images next to the project file, or in a folder below it, so the project finds them on another computer too.

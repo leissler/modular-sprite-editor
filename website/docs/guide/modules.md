@@ -15,6 +15,8 @@ PNG with transparency works best. If your sheet uses a background colour instead
 
 If you move an image on disk, its row shows that the file is missing. Select it and choose **Locate...** to point the project at the new place.
 
+When you change an image in another program, for example in Aseprite, the editor shows the new pixels as soon as you switch back to it, in every tab.
+
 ## Draw a module
 
 Drag a box on an empty part of the sheet to make a module. Then:

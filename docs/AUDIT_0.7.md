@@ -40,6 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
+Done since the audit, for the next version: C1, C2, C6 and F6 (each entry says how).
+
 | # | What | Why | Size |
 |---|------|-----|------|
 | 1 | Atomic saves with a backup, plus autosave / crash recovery (C1, F6) | A crash or error during save destroys the project | S / M |
@@ -69,6 +71,8 @@ shrank from 1,041,675 to 945,134 bytes and no longer loads (`JSONDecodeError`).
 **Fix:** serialise to a string first, write `name.json.tmp` in the same folder, flush and `fsync`, then `os.replace`;
 keep the previous version as `name.json.bak`. Add a test that a failing save leaves the old file intact.
 
+**Done:** `safe_files.write_text_atomically` (temporary file, fsync, `os.replace`, permissions and symlinks kept),
+used by `Project.to_json` (with `name.json.bak`) and the RetroAnimator export; `tests/test_safe_files.py`.
 
 ### C2 (High) Undo and redo ignore event types, then lose the redo steps
 
@@ -82,6 +86,8 @@ records it as a new state, which deletes the redo branch.
 **Fix:** copy every dataclass field of `Project` except the `init=False` ones (`dataclasses.fields`), so a new field
 can never be forgotten again; test that undo restores the exact fingerprint after changing each field.
 
+**Done:** `SAVED_FIELDS` in `ui/project_history.py`; `tests/test_project_history.py` changes every field, undoes and
+redoes it, and fails if a new field has no change of its own (it fails three ways against the old code).
 
 ### C3 (Medium-high) Scenes ignore an animation's own playback settings
 
@@ -146,6 +152,9 @@ either: artists who draw in Aseprite must remember to press Reload.
 **Fix:** one "images changed" notification that clears every cache (renderer, thumbnails, budget, every canvas, the
 step renderers); check image modification times when the window is activated and reload changed sheets.
 
+**Done:** `app_services.notify_images_changed()` → `MainFrame.images_changed`; `ui/image_watch.py` stamps;
+`MainFrame.check_images_on_disk` on activation (sizes re-read, status message). Smoke test step "images"; checked by
+hand: a sheet repainted on disk shows up on the stage, the lists and the library.
 
 ### C7 (Medium) SGDK export: one palette for everything, no VRAM check
 
@@ -352,7 +361,7 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
 | F3 | **More consoles**: SNES, GBA and NES sprite shapes and limits as budget profiles, then exporters | Medium (promised on the site) | The screen guide already knows five consoles; the budget knows the Mega Drive only. |
 | F4 | **Interchange**: sprite sheet PNG + JSON export (generic, Godot, Unity), Aseprite import (tags → animations), PNG sequence export, scene export as GIF | Medium | Today: RetroAnimator JSON, animation GIF, AuroraGT import. |
 | F5 | **Check Project** (C5) | Medium | Also the basis for export warnings. |
-| F6 | **Autosave and crash recovery** | Medium | Nothing is saved until Cmd+S; Python + wx crashes are rare but real. |
+| F6 | **Autosave and crash recovery** | Medium | **Done:** `ui/autosave.py`, a recovery copy every 30 s while unsaved, offered after a crash (Restore / Discard / Later); `tests/test_autosave.py`, smoke test step "autosave", checked with a real SIGKILL. |
 | F7 | **In-app Mega Drive export** (choose mappings and folder, show the report; optionally build and start an emulator) | Medium | Today `export_sgdk` is a command line tool for programmers. |
 | F8 | **Attachment points**: a scene object follows a parent's point role frame by frame (weapons, effects, riders) | Medium | Listed in ANIMATION.md. |
 | F9 | **Timing tools**: 50 / 60 Hz preview, spread presets (1-1-2-2…), batch edits across animations (tick rate, playback) | Low-medium | |

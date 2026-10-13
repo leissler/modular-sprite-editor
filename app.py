@@ -8,14 +8,19 @@ import functools
 import json
 import os
 import sys
-from typing import Callable, List, Optional
+import time
+from typing import Callable, Dict, List, Optional
 
 import wx
 import wx.lib.agw.flatnotebook as fnb
 
 from models import FModule, Project, generate_id
-from ui import app_services
+from ui import app_services, autosave
 from ui.animation_editor.panel import AnimationEditorPanel
+from ui.canvas import BUDGET
+from ui.components.module_palette import THUMBNAILS
+from ui.frame_render import SHARED
+from ui.image_watch import Stamp, changed_images, image_stamp, image_stamps, update_image_sizes
 from ui.frame_editor.panel import FrameEditorPanel
 from ui.mapping_editor.panel import MappingEditorPanel
 from ui.module_editor.panel import ModuleEditorPanel
@@ -206,6 +211,7 @@ class MainFrame(wx.Frame):
             status=self.set_status,
             zoom=self.set_zoom_status,
             mapping_changed=self.sync_mapping_controls,
+            images_changed=self.images_changed,
         )
 
         self.history.reset(self.project)
@@ -213,6 +219,19 @@ class MainFrame(wx.Frame):
         self._checkpoint_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self._on_checkpoint_timer, self._checkpoint_timer)
         self._checkpoint_timer.Start(CHECKPOINT_INTERVAL_MS)
+
+        # Images edited in another program reload when the window becomes active again.
+        self._image_stamps: Dict[str, Stamp] = image_stamps(self.project)
+        self.Bind(wx.EVT_ACTIVATE, self._on_activate)
+
+        # Unsaved changes are copied to the recovery folder, so a crash does not lose them (ui/autosave.py).
+        self._session_key = f"{os.getpid()}-{int(time.time())}"
+        self._recovery_file: Optional[str] = None
+        self._autosaved_fingerprint: Optional[str] = None
+        self._autosave_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._on_autosave_timer, self._autosave_timer)
+        self._autosave_timer.Start(autosave.AUTOSAVE_INTERVAL_MS)
+
         self._update_title()
         self._show_tab_hint()
 
@@ -256,6 +275,119 @@ class MainFrame(wx.Frame):
         if mouse.LeftIsDown() or mouse.MiddleIsDown() or mouse.RightIsDown():
             return  # never split a drag into several undo steps
         self.history_checkpoint()
+        self._remember_new_images()
+
+    # ------------------------------------------------------------------ images changed on disk
+    def _remember_new_images(self) -> None:
+        """Note the file state of images added since the last look, so a later edit elsewhere counts as a change."""
+        for asset in self.project.images:
+            if asset.id not in self._image_stamps:
+                self._image_stamps[asset.id] = image_stamp(asset.file_path)
+
+    def images_changed(self) -> None:
+        """Image pixels changed (reloaded, relinked, edited elsewhere): drop every cached picture and redraw."""
+        SHARED.clear()
+        THUMBNAILS.clear()
+        BUDGET.clear()
+        for panel in self.panels:
+            panel.refresh_after_history()  # each tab rebuilds its own pictures from the data
+        self._image_stamps = image_stamps(self.project)
+
+    def _on_activate(self, event: wx.ActivateEvent) -> None:
+        event.Skip()
+        if event.GetActive():
+            wx.CallAfter(self.check_images_on_disk)
+
+    def check_images_on_disk(self) -> List[str]:
+        """Reload images another program changed while the editor was in the background. Returns their ids."""
+        if not self:
+            return []
+        now = image_stamps(self.project)
+        changed = changed_images(self._image_stamps, now)
+        self._image_stamps.update(now)
+        if not changed:
+            return []
+        update_image_sizes(self.project, changed)
+        self.images_changed()
+        self.history_checkpoint()  # a sheet that grew is project data (its size)
+        names = [os.path.basename(self.project.get_image(i).file_path) for i in changed if self.project.get_image(i)]
+        shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+        self.set_status(f"Reloaded {shown}: changed on disk")
+        return changed
+
+    # ------------------------------------------------------------------ autosave and crash recovery
+    def _on_autosave_timer(self, _event: wx.TimerEvent) -> None:
+        mouse = wx.GetMouseState()
+        if mouse.LeftIsDown() or mouse.MiddleIsDown() or mouse.RightIsDown():
+            return  # a drag is still going on
+        self.autosave_now()
+
+    def autosave_now(self) -> None:
+        """Keep a recovery copy of unsaved changes; none while everything is saved."""
+        self.history_checkpoint()
+        target = autosave.recovery_file_for(self.current_path, self._session_key)
+        if self._recovery_file and self._recovery_file != target:
+            self._drop_recovery()  # saved under another name since the last copy
+        if not self.history.is_dirty():
+            self._drop_recovery()
+            return
+        if self._recovery_file and self._autosaved_fingerprint == self.history.fingerprint:
+            return  # nothing new since the last copy
+        try:
+            autosave.write_recovery(target, self.project, self.current_path)
+        except (OSError, TypeError, ValueError) as exc:
+            self.set_status(f"Autosave failed: {exc}")
+            return
+        self._recovery_file = target
+        self._autosaved_fingerprint = self.history.fingerprint
+
+    def _drop_recovery(self) -> None:
+        """The changes were saved or discarded: their recovery copy is not needed any more."""
+        autosave.remove_recovery(self._recovery_file)
+        self._recovery_file = None
+        self._autosaved_fingerprint = None
+
+    def _ask_recovery(self, recovery: autosave.Recovery) -> str:
+        """"restore", "discard" or "later" for a copy left by an editor that quit unexpectedly."""
+        name = os.path.basename(recovery.project_path) if recovery.project_path else "a new project"
+        when = time.strftime("%d %b %Y, %H:%M", time.localtime(recovery.saved_at))
+        dlg = wx.MessageDialog(
+            self,
+            f"Modular Sprite Editor quit before the changes to {name} were saved.\n\n"
+            f"Restore the changes it kept (autosaved {when})?",
+            "Restore Unsaved Changes",
+            wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION,
+        )
+        dlg.SetYesNoCancelLabels("Restore", "Discard", "Later")
+        result = dlg.ShowModal()
+        dlg.Destroy()
+        return {wx.ID_YES: "restore", wx.ID_NO: "discard"}.get(result, "later")
+
+    def offer_recovery(self) -> bool:
+        """Offer the changes an editor that quit unexpectedly kept. Returns True if a project was restored."""
+        for recovery in autosave.stale_recoveries():
+            answer = self._ask_recovery(recovery)
+            if answer == "discard":
+                autosave.remove_recovery(recovery.path)
+            if answer != "restore":
+                continue
+            try:
+                project = autosave.load_recovery(recovery)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                wx.MessageBox(f"The autosaved copy could not be read: {exc}", "Restore Unsaved Changes",
+                              wx.OK | wx.ICON_WARNING, self)
+                continue
+            self._set_project(project, recovery.project_path, saved=False)
+            self._recovery_file = recovery.path  # updated by the next autosave until the project is saved
+            when = time.strftime("%H:%M", time.localtime(recovery.saved_at))
+            self.set_status(f"Restored the changes autosaved at {when}. Save to keep them.")
+            return True
+        return False
+
+    def startup(self, path: Optional[str]) -> None:
+        """First thing after the window opens: offer crash recovery, then open the project from the command line."""
+        if not self.offer_recovery() and path:
+            self.load_project(path)
 
     def _after_history_restore(self) -> None:
         for panel in self.panels:
@@ -567,13 +699,16 @@ class MainFrame(wx.Frame):
             return False
         if result == wx.ID_YES:
             return self.save_project()
+        self._drop_recovery()  # the changes were discarded on purpose
         return True
 
     def _set_project(self, project: Project, path: Optional[str], saved: bool) -> None:
+        self._drop_recovery()  # the previous project's changes were saved or discarded by now
         self.project = project
         self.current_path = path
         self._reload_project_into_panels()
         self.history.reset(self.project, saved=saved)
+        self._image_stamps = image_stamps(self.project)
         self.context_bar.set_mappings(self.project)
         self._update_title()
         if project.load_notes:
@@ -624,6 +759,7 @@ class MainFrame(wx.Frame):
         self.current_path = target
         self.history_checkpoint()
         self.history.mark_saved(self.project)
+        self._drop_recovery()
         self.add_file_to_recent(target)
         self._update_title()
         self.set_status(f"Saved {target}")
@@ -823,6 +959,11 @@ class MainFrame(wx.Frame):
             event.Veto()
             return
         self._checkpoint_timer.Stop()
+        self._autosave_timer.Stop()
+        if not event.CanVeto() and self.history.is_dirty(self.project):
+            self.autosave_now()  # the system is shutting down: keep the changes for the next start
+        else:
+            self._drop_recovery()
         for panel in self.panels:
             stop = getattr(panel, "stop_playback", None)
             if stop:
@@ -875,10 +1016,9 @@ class SpriteEditorApp(wx.App):
         frame.Show()
         self.SetTopWindow(frame)
 
-        # Optional: open a project passed on the command line.
+        # Offer changes a crashed session kept, then open a project passed on the command line.
         paths = [arg for arg in sys.argv[1:] if arg.lower().endswith(".json") and os.path.exists(arg)]
-        if paths:
-            wx.CallAfter(frame.load_project, os.path.abspath(paths[0]))
+        wx.CallAfter(frame.startup, os.path.abspath(paths[0]) if paths else None)
         return True
 
 

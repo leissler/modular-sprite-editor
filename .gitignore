@@ -68,3 +68,6 @@ examples/sgdk/sgdk_demo/third_party/sgdk/sample/**/out/
 
 # Built website
 website/site/
+
+# Backups the editor keeps next to saved projects (name.json.bak)
+*.json.bak

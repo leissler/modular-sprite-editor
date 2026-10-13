@@ -13,6 +13,7 @@ _checkpoint: Optional[Callable[[], None]] = None
 _status: Optional[Callable[[str], None]] = None
 _zoom: Optional[Callable[[float], None]] = None
 _mapping_changed: Optional[Callable[[], None]] = None
+_images_changed: Optional[Callable[[], None]] = None
 
 
 def install(
@@ -20,12 +21,14 @@ def install(
     status: Optional[Callable[[str], None]] = None,
     zoom: Optional[Callable[[float], None]] = None,
     mapping_changed: Optional[Callable[[], None]] = None,
+    images_changed: Optional[Callable[[], None]] = None,
 ) -> None:
-    global _checkpoint, _status, _zoom, _mapping_changed
+    global _checkpoint, _status, _zoom, _mapping_changed, _images_changed
     _checkpoint = checkpoint
     _status = status
     _zoom = zoom
     _mapping_changed = mapping_changed
+    _images_changed = images_changed
 
 
 def text_entry_has_focus() -> bool:
@@ -60,3 +63,12 @@ def show_zoom(zoom: float) -> None:
 def notify_active_mapping_changed() -> None:
     if _mapping_changed:
         _mapping_changed()
+
+
+def notify_images_changed() -> bool:
+    """Image files were reloaded, relinked or edited elsewhere: every cached picture of them is stale. Returns False
+    without a main window (the caller then refreshes what it shows itself)."""
+    if _images_changed:
+        _images_changed()
+        return True
+    return False

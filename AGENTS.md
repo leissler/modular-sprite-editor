@@ -49,7 +49,8 @@ file names; ids are generated on purpose.
 ```
 app.py                     MainFrame: menus, tabs, context bar (preview mapping), status bar,
                            project lifecycle (new/open/save/import/export), unsaved-change prompt,
-                           project-wide undo/redo dispatch
+                           project-wide undo/redo dispatch, autosave timer + crash recovery prompt,
+                           images changed on disk (checked when the window becomes active)
 models.py                  Dataclasses + JSON (to_dict/from_dict), format migration, timeline evaluation
                            (easing, spline paths, source switching), AuroraGT + RetroAnimator import,
                            RetroAnimator export (baked parts), role tables
@@ -59,10 +60,13 @@ modularize.py              Auto-modularisation (wx-free): shared parts at any of
                            cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
 rect_packer.py             MaxRects bin packer
+safe_files.py              write_text_atomically: temp file + fsync + os.replace (+ name.json.bak), wx-free
 ui/
   app_services.py          Hooks panels use to reach the main window (checkpoint, status, zoom,
-                           mapping changed, text-focus test). No-ops without a main window.
+                           mapping changed, images changed, text-focus test). No-ops without a main window.
   project_history.py       ProjectHistory: compressed Project.to_dict() snapshots, undo/redo, dirty flag
+  autosave.py              Crash recovery copies (wx-free): recovery folder, write / find stale / load / remove
+  image_watch.py           Image file stamps (mtime, size) to notice sheets edited elsewhere (wx-free)
   base_canvas.py           BaseCanvas: pan/zoom model, integer zoom levels, fit, grid, checkerboard
   canvas.py                FrameCanvas (frame editing, collision/point modes, ghost layers, bitmap
                            caches, part bounds)
@@ -180,7 +184,19 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Undo:** do not add per-editor undo stacks. After a completed edit call
   `app_services.request_checkpoint()`. The main window also checkpoints every 700 ms while no mouse button is
   held, so a drag becomes one step. Undo/redo replace the *contents* of the same `Project` object
-  (`replace_project_contents`), so object references held by panels go stale — always re-fetch by id.
+  (`replace_project_contents` copies every saved field, `SAVED_FIELDS`), so object references held by panels go
+  stale — always re-fetch by id. `tests/test_project_history.py` needs one change per saved field: add one when a
+  field is added to `Project`.
+- **Saving:** `Project.to_json` writes through `safe_files.write_text_atomically` (the old file stays intact if
+  anything fails) and keeps the previous version as `name.json.bak`. Anything else that writes user files uses the
+  same helper. While a project has unsaved changes, the main window writes a recovery copy every 30 s
+  (`ui/autosave.py`, in the user's data folder; next to `MSE_PREFERENCES_FILE` in tests); saving or discarding the
+  changes removes it, and a copy whose editor is no longer running is offered at the next start.
+- **Images changed:** after reloading, relinking or regenerating image files call
+  `app_services.notify_images_changed()`. The main window then clears every picture cache (`frame_render.SHARED`,
+  `module_palette.THUMBNAILS`, `canvas.BUDGET`) and calls each panel's `refresh_after_history()`, which must rebuild
+  that tab's own pictures. When the window becomes active it also reloads images whose file changed on disk
+  (`MainFrame.check_images_on_disk`). A new cache of image pixels must be cleared there too.
 - **Canvases** subclass `BaseCanvas`. In mouse handlers start with
   `if self.begin_pan_if_requested(event): return` and `if self.handle_pan_motion(event): return`.
   Implement `get_content_bounds()` for Fit. Wheel/pinch zoom is continuous during a gesture and snaps to
@@ -205,8 +221,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   set the mapping per draw); scenes are baked once per mapping, objects with their own mapping keep it. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
   counter, not `getSubTick()` (it only advances per scanline and jumps around vblank).
 - **Preferences** go through `wx.Config.Get()`; because the main window is built before the app name is set, the
-  store is named after the launched script (`app` for `python3 app.py`). Test scripts therefore get their own store,
-  but must not leave preference changes behind anyway.
+  store is named after the launched script (`app` for `python3 app.py`). Tests set `MSE_PREFERENCES_FILE` to a
+  throwaway file (`--smoke-test` and `tools/gui_smoke.py` do), which also keeps their recovery copies out of the
+  user's folder.
 - **View options** belong in the canvas's `CanvasDisplayControls` (`add_toggle`, `add_control`), not in side
   panels. **Status/hints** go through `app_services.show_status`, not modal dialogs.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`

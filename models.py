@@ -11,6 +11,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from safe_files import write_text_atomically
+
 
 def generate_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
@@ -2939,8 +2941,7 @@ class RetroAnimatorExporter:
             data["Properties"]["active_mapping_name"] = active_mapping.name
             data["Properties"]["active_mapping_id"] = active_mapping.id
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        write_text_atomically(path, json.dumps(data, indent=2))
 
         return {
             "path": os.path.abspath(path),
@@ -3341,10 +3342,12 @@ class Project:
             "event_types": [et.to_dict() for et in self.event_types],
         }
 
-    def to_json(self, path: str) -> None:
+    def to_json(self, path: str, keep_backup: bool = True) -> None:
+        """Save the project. The file is replaced in one step, so a failed or interrupted save leaves the previous
+        version intact; with ``keep_backup`` that version also stays next to it as ``<name>.bak``."""
         base_path = os.path.dirname(os.path.abspath(path))
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(base_path=base_path), f, indent=2)
+        text = json.dumps(self.to_dict(base_path=base_path), indent=2)  # fails before the file is touched
+        write_text_atomically(path, text, keep_backup=keep_backup)
 
     def to_retro_animator_json(self, path: str, mapping: Optional[ModuleMapping] = None) -> Dict[str, Any]:
         return RetroAnimatorExporter.export(self, path=path, mapping=mapping)

@@ -7,15 +7,23 @@ exits non-zero on any exception or failed check. Nothing is saved.
 Usage:
     python3 tools/gui_smoke.py [PROJECT_JSON]     (default: examples/sgdk/PoP_WW.json)
 """
+import atexit
 import faulthandler
 import os
+import shutil
 import sys
+import tempfile
 import traceback
 
 repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 project_path = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(repo, "examples", "sgdk", "PoP_WW.json")
 sys.path.insert(0, repo)
 os.chdir(repo)
+if not os.environ.get("MSE_PREFERENCES_FILE"):
+    # This run's preferences and crash-recovery copies go to a throwaway folder, never the user's.
+    _prefs_dir = tempfile.mkdtemp(prefix="mse_gui_smoke_")
+    atexit.register(shutil.rmtree, _prefs_dir, True)
+    os.environ["MSE_PREFERENCES_FILE"] = os.path.join(_prefs_dir, "preferences.ini")
 
 import wx  # noqa: E402
 
@@ -947,6 +955,77 @@ def run():
         print("   title:", frame.GetTitle(), "dirty:", frame.history.is_dirty())
 
     step("dirty tracking/title", dirty)
+
+    def images_on_disk():
+        from ui.canvas import BUDGET
+        from ui.components.module_palette import THUMBNAILS
+        from ui.frame_render import SHARED
+
+        cleared = []
+        caches = (("renderer", SHARED), ("thumbnails", THUMBNAILS), ("budget", BUDGET))
+        for name, cache in caches:
+            cache.clear = (lambda n=name, original=cache.clear: (cleared.append(n), original()))
+        try:
+            frame.module_editor.reload_image()
+        finally:
+            for _name, cache in caches:
+                del cache.clear
+        check({"renderer", "thumbnails", "budget"} <= set(cleared), f"Reload clears every image cache ({cleared})")
+        asset = frame.project.images[0]
+        frame._image_stamps[asset.id] = (0, 0)  # as if the file had been different when the editor last looked
+        check(frame.check_images_on_disk() == [asset.id], "an image changed on disk is reloaded on activation")
+        check(frame.check_images_on_disk() == [], "and only once")
+
+    step("images: Reload and files changed on disk refresh every cache", images_on_disk)
+
+    def recovery():
+        import json
+
+        from ui import autosave
+
+        path = frame.current_path
+        anim = frame.project.animations[0]
+        original_name = anim.name
+        anim.name = original_name + " (autosave test)"
+        frame.autosave_now()
+        copy = frame._recovery_file
+        check(bool(copy) and os.path.exists(copy), "unsaved changes get a recovery copy")
+        check(not autosave.stale_recoveries(), "a running editor's copy is not offered")
+        dead_pid = next(pid for pid in (999_983, 888_887, 777_773) if not autosave.process_alive(pid))
+        with open(copy, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        data["pid"] = dead_pid  # the editor that wrote it is gone: it crashed
+        with open(copy, "w", encoding="utf-8") as handle:
+            json.dump(data, handle)
+        stale = autosave.stale_recoveries()
+        check(len(stale) == 1 and stale[0].project_path == os.path.abspath(path), "a crashed editor's copy is offered")
+        anim.name = original_name
+        frame._ask_recovery = lambda recovery: "restore"
+        try:
+            restored = frame.offer_recovery()
+        finally:
+            del frame._ask_recovery
+        pump()
+        check(restored and frame.project.animations[0].name == original_name + " (autosave test)",
+              "Restore brings back the autosaved changes")
+        check(frame.history.is_dirty() and frame.current_path == path, "restored changes are unsaved, in their file")
+        frame.load_project(path)  # discards the restored changes
+        pump()
+        check(not os.path.exists(copy), "the copy goes once the changes are discarded")
+        decoy = autosave.recovery_file_for(None, "decoy")
+        autosave.write_recovery(decoy, frame.project, None)
+        with open(decoy, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        data["pid"] = dead_pid
+        with open(decoy, "w", encoding="utf-8") as handle:
+            json.dump(data, handle)
+        frame._ask_recovery = lambda recovery: "discard"
+        try:
+            check(not frame.offer_recovery() and not os.path.exists(decoy), "Discard deletes the copy")
+        finally:
+            del frame._ask_recovery
+
+    step("autosave: a recovery copy while unsaved, offered after a crash, restore / discard", recovery)
 
     def close():
         frame.Close(True)

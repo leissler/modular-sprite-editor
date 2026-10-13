@@ -60,4 +60,6 @@ Lists work the same in every tab. **+ New**, **Duplicate** and **Delete** sit un
 
 The window title shows an asterisk when there are unsaved changes, and the editor asks before closing an unsaved project. Save with ++cmd+s++.
 
+Saving keeps the previous version of the file next to it, as `name.json.bak`. While there are unsaved changes, the editor also keeps a copy of them every 30 seconds: if it ever quits unexpectedly, the next start offers to restore them.
+
 The status bar at the bottom shows hints for the canvas under your mouse and the current zoom. **Help ▸ Keyboard & Mouse Shortcuts** (++cmd+slash++) lists every shortcut, and so does [Keyboard and mouse](../reference/shortcuts.md).

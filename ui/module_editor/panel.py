@@ -406,6 +406,10 @@ class ModuleEditorPanel(wx.Panel):
         app_services.show_status(f"{ops.image_label(asset)} now points to {path}")
 
     def reload_image(self) -> None:
+        """Read the images again (after editing them elsewhere). The main window drops every cached picture in every
+        tab, the budget overlay's too."""
+        if app_services.notify_images_changed():
+            return
         SHARED.clear()
         THUMBNAILS.clear()
         self._sheet_thumbs = {}
