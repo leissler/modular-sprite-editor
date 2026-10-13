@@ -2,6 +2,20 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.7, October 2026
+
+**A user guide with pictures.** This site is new: how to install the editor, a first lesson that turns a sprite sheet into a running animation, and a page with pictures for every editor.
+
+**A new icon**: an artist's wooden mannequin, drawn as pixel art.
+
+**The About box shows the version**, so you can tell which one you have.
+
+**Richer examples.** Every pose of the Prince of Persia example has hitboxes and points now, and its attacks and runs have events. The Adventurer example names its artist, Elthen.
+
+**Long frame names** are shortened to fit in the Frames, Animations and Timeline libraries instead of running into the next frame.
+
+Projects are still saved in file format 4, so 0.6 and 0.7 open each other's projects without losing anything.
+
 ## 0.6, October 2026
 
 **A mapping per object in scenes.** Each object on the Timeline can have its own mapping, so a hero and an enemy made from the same animations appear in one scene. The Prince of Persia example has a new scene, the Swordfight.
