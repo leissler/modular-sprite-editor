@@ -1,3 +1,5 @@
-wxPython
+# wxPython: the version the builds are tested with, the one the release workflow installs (tests/test_requirements.py).
+# Moving to 4.3 needs 4.3.2 or later: 4.3.1 cannot create a wx.ColourPickerCtrl on macOS (wxWidgets/Phoenix#2937).
+wxPython==4.2.5
 Pillow
 pyinstaller
