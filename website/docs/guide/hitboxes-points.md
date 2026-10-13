@@ -51,7 +51,7 @@ Right-click a frame in the list:
 
 ## They move with the animation
 
-In an animation, a step's offset, flips and turns move its frame's hitboxes and points too. Turn on **Collision** and **Points** in the **Animations** tab's view bar to see them while the animation plays. While you arrange parts in the **Frames** tab, **Hitboxes** and **Points** in the view bar keep them visible.
+In an animation, a step's offset, flips and turns move its frame's hitboxes and points too. A point marks one pixel, and a mirrored step puts it on the mirrored pixel, so it stays on the same spot of the art. Turn on **Collision** and **Points** in the **Animations** tab's view bar to see them while the animation plays. While you arrange parts in the **Frames** tab, **Hitboxes** and **Points** in the view bar keep them visible.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
   [![The Animations tab's stage with Collision and Points on: the slash step with its boxes and the points at the blade and the feet](../assets/images/screens/hitboxes-animation.png){ width="271" height="261" loading="lazy" }](../assets/images/screens/hitboxes-animation.png)

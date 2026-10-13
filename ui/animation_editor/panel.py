@@ -1066,7 +1066,10 @@ class AnimationEditorPanel(wx.Panel):
         if not anim or not anim.aframes:
             app_services.show_status("Select an animation with steps to export a GIF")
             return
-        with wx.FileDialog(self, "Export GIF", defaultFile=f"{anim.name}.gif", wildcard="GIF files (*.gif)|*.gif",
+        mapping = self.project.active_mapping
+        drawn = f"the mapping {mapping.name}" if mapping else "the original modules"
+        with wx.FileDialog(self, f"Export GIF, drawn with {drawn}", defaultFile=f"{anim.name}.gif",
+                           wildcard="GIF files (*.gif)|*.gif",
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
                 return

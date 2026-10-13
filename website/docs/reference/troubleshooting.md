@@ -32,6 +32,14 @@ Check **Tick rate** in the inspector of the **Animations** tab, and the holds of
 
 The animation never ends, so nothing can follow it. Choose **Play once**, or give a repeating animation a **Repeat** count. The inspector shows a warning while this is the case.
 
+## Something is missing in the game
+
+Choose **Tools ▸ Check Project**. It lists what an export leaves out or shows differently, for example steps whose frame was deleted, and can fix most of it. See [Check the project first](programmers.md#check-the-project-first).
+
+## The export says the sprites need too much video memory
+
+All of a project's tiles stay in the console's video memory. Every module, every turned copy of a module and every mapping's replacement counts. Export only the mappings the game needs, let [Auto Modularize](../guide/auto-modularize.md) find parts the sprites share, and reuse modules with flips: a flipped part costs no extra tiles.
+
 ## The budget overlay shows red lines
 
 Too many hardware sprites meet on those lines, and on the console some would disappear. [Stay within the console's limits](../guide/hardware-budget.md) has tips for bringing the number down.

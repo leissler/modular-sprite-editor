@@ -72,7 +72,7 @@ class TestTransforms(unittest.TestCase):
             old = boxes[fm.id]
             self.assertAlmostEqual((b[0] + b[2]) / 2, -(old[0] + old[2]) / 2, delta=1)
         self.assertEqual(frame.collision_rects[0].rect, (-4, -8, 8, 8))
-        self.assertEqual((frame.control_points[0].x, frame.control_points[0].y), (-3, -2))
+        self.assertEqual((frame.control_points[0].x, frame.control_points[0].y), (-4, -2), "the mirrored pixel")
         ops.mirror_frame(project, frame, "x", None)
         self.assertEqual(_state(frame), before)
 
@@ -82,6 +82,7 @@ class TestTransforms(unittest.TestCase):
         ops.rotate_frame(frame, 90)
         self.assertEqual(frame.fmodules[1].position, (3, 10))
         self.assertEqual(frame.collision_rects[0].rect, (0, -4, 8, 8))
+        self.assertEqual((frame.control_points[0].x, frame.control_points[0].y), (1, 3), "the turned pixel")
         ops.rotate_frame(frame, -90)
         self.assertEqual(_state(frame), before)
         for _ in range(4):

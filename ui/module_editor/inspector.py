@@ -246,7 +246,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.rotated_info.Show(single is not None and bool(getattr(single, "rotated", False)))
         self.btn_trim.Enable(any(m.type == "MD_IMAGE" for m in modules))
         parts, frames, entries = ops.usage(project, [m.id for m in modules])
-        self.usage.SetLabel(ops.describe_usage(parts, frames, entries))
+        self.usage.SetLabel(ops.describe_usage(parts, frames, entries, ops.scene_uses(project, [m.id for m in modules])))
         self.usage.Wrap(190)
         if single is not None:
             if not self.name.HasFocus():

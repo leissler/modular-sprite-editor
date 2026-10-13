@@ -40,7 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1, C2, C6 and F6 (each entry says how).
+Done since the audit, for the next version: C1, C2, C5, C6, C8, K7, F5, F6 and F7, the VRAM check of C7 and the
+warning of C9 (each entry says how).
 
 | # | What | Why | Size |
 |---|------|-----|------|
@@ -141,6 +142,13 @@ empty frames, zero-size boxes, steps whose frame is gone, C name collisions, col
 VRAM) shown in-app and printed by `export_sgdk`. On delete, offer "remove the parts / steps that use it" next to
 "leave them missing".
 
+**Done:** `project_check.py` (wx-free, shared with the exporter): errors, warnings and notes with a target and, for
+most reference problems, a fix; Tools ▸ Check Project (`ui/check_dialog.py`: Go to, Fix, Fix All, one undo step each).
+`export_project` reports the same issues (the command line prints them, `--strict` fails on errors). Deleting used
+modules, an image or a frame asks "remove the uses too" or "keep as missing" (`remove_module_uses`,
+`remove_frame_uses`, `scene ops.clear_sources`). Tests: `tests/test_project_check.py`, `tests/test_delete_cleanup.py`,
+smoke test step "check project".
+
 ### C6 (Medium) Reloaded images: the budget overlay keeps the old pixels
 
 **Reload** in the Modules tab ([ui/module_editor/panel.py:408](../ui/module_editor/panel.py)) clears the shared
@@ -169,6 +177,11 @@ hand: a sheet repainted on disk shows up on the stage, the lists and the library
 **Fix:** see F1 (palettes); warn at export and in the budget overlay when unique tiles exceed the space
 `TILE_USER_INDEX`..`TILE_FONT_INDEX` leaves.
 
+**Partly done:** the export reports the tiles against about 1424 (SGDK's default layout: 1536 below the plane maps,
+minus 16 system and 96 font tiles; `project_check.tile_issue`), a warning above three quarters and an error above
+all of it. Colours are counted on visible pixels only (the Adventurer has 21, not 22) and reported in Check Project
+and the export report. Still open: palettes per image (F1) and the tile count in the budget overlay (F2).
+
 ### C8 (Low-medium) Mirrored points land one pixel off the art
 
 A point is drawn as the pixel cell `[x, x+1)` ([ui/canvas.py:630](../ui/canvas.py)), but mirroring treats it as a grid
@@ -179,12 +192,18 @@ scene object, a `blade_tip` point sits one pixel beside the mirrored blade, in t
 **Fix:** decide that a point marks a pixel and mirror it to `-x - 1` in the editor, the mirror preview and the
 exporter together, so the runtime test still matches.
 
+**Done:** a transform moves the pixel's centre and floors: mirror `x → -x - 1`, quarter turn `(x, y) → (-y - 1, x)`
+in `frame ops` (`turn_pixel`), the canvas (`_draw_control_point`, so also the mirror preview) and the exporter's
+`_frame_markers`. The SGDK demo data is regenerated (only point records changed).
+
 ### C9 (Low) Semi-transparent pixels look different in the export
 
 The editor blends partly transparent pixels, while `_to_indexed_4bpp` makes every pixel with alpha > 0 opaque
 ([export_sgdk_example.py:398](../examples/sgdk/tools/export_sgdk_example.py)). Anti-aliased PNG edges look soft in the
 editor and hard in the game. Check Project (C5) should flag them; the Modules tab could offer "show what the console
 shows".
+
+**Done (the warning):** Check Project warns about half-transparent pixels per image; a console preview is part of F1.
 
 ### C10 (Low) Editing glitches on the canvas
 
@@ -238,7 +257,7 @@ canvases zoom in device pixels (`GetContentScaleFactor`). Check it in the Window
 | K4 | **Ping-pong, Play once and backwards differ between tabs** (C3). | One player. |
 | K5 | **Menus:** "Auto Modularize Image…" uses an ellipsis character, every other item three dots ([app.py:524](../app.py)). The Tools menu mixes current tools with older ones (Optimize Sprite Sheet, Optimize Nested Frame Combos, role tables) that the guide never mentions. | Consistent labels; group the older tools under "More tools" or document them. |
 | K6 | **Two time units:** animations count ticks at the animation's rate, scenes count frames at the scene's rate. It is documented, and the inspector shows seconds too. | Keep; show the other unit in tooltips where the two meet (a scene object's Start offset, Speed). |
-| K7 | **The preview mapping in exports:** the RetroAnimator export bakes the preview mapping, while `export_sgdk` takes `--mapping`. | Spell out the mapping choice in every export dialog. |
+| K7 | **The preview mapping in exports:** the RetroAnimator export bakes the preview mapping, while `export_sgdk` takes `--mapping`. | Spell out the mapping choice in every export dialog. **Done:** the Mega Drive export has a Mappings choice; the RetroAnimator and GIF file dialogs name the mapping they draw with. |
 
 ---
 
@@ -360,9 +379,9 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
 | F2 | **Memory budget**: unique tiles per animation and per project (with flip dedupe), DMA per step, VRAM left | Medium | The overlay counts sprites and tiles per frame only. |
 | F3 | **More consoles**: SNES, GBA and NES sprite shapes and limits as budget profiles, then exporters | Medium (promised on the site) | The screen guide already knows five consoles; the budget knows the Mega Drive only. |
 | F4 | **Interchange**: sprite sheet PNG + JSON export (generic, Godot, Unity), Aseprite import (tags → animations), PNG sequence export, scene export as GIF | Medium | Today: RetroAnimator JSON, animation GIF, AuroraGT import. |
-| F5 | **Check Project** (C5) | Medium | Also the basis for export warnings. |
+| F5 | **Check Project** (C5) | Medium | **Done**, see C5. |
 | F6 | **Autosave and crash recovery** | Medium | **Done:** `ui/autosave.py`, a recovery copy every 30 s while unsaved, offered after a crash (Restore / Discard / Later); `tests/test_autosave.py`, smoke test step "autosave", checked with a real SIGKILL. |
-| F7 | **In-app Mega Drive export** (choose mappings and folder, show the report; optionally build and start an emulator) | Medium | Today `export_sgdk` is a command line tool for programmers. |
+| F7 | **In-app Mega Drive export** (choose mappings and folder, show the report; optionally build and start an emulator) | Medium | **Done** without build / emulator: File ▸ Export ▸ Mega Drive (SGDK), folder and mappings remembered per project, a report with Check Project. Found on the way: the exporter overwrote the game's `res/resources.res` and deleted every `.png` / `.bin` in its `res/gen`; it now merges its line (`merged_resources`) and removes only older exporters' `var_NNNN.png` sheets. |
 | F8 | **Attachment points**: a scene object follows a parent's point role frame by frame (weapons, effects, riders) | Medium | Listed in ANIMATION.md. |
 | F9 | **Timing tools**: 50 / 60 Hz preview, spread presets (1-1-2-2…), batch edits across animations (tick rate, playback) | Low-medium | |
 | F10 | **Organising large projects**: folders or tags for animations and frames (Sonic has 171 animations), sort options | Low-medium | |

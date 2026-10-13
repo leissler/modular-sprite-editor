@@ -4,13 +4,13 @@ block_cipher = None
 
 a = Analysis(
     ['app.py'],
-    pathex=['tools'],  # gui_smoke: the --smoke-test self-test
+    pathex=['tools', 'examples/sgdk/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive exporter
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['wx.lib.agw.flatnotebook', 'PIL._tkinter_finder', 'app', 'gui_smoke'],
+    hiddenimports=['wx.lib.agw.flatnotebook', 'PIL._tkinter_finder', 'app', 'gui_smoke', 'export_sgdk_example'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

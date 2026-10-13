@@ -630,9 +630,11 @@ class FrameCanvas(BaseCanvas):
     def _draw_control_point(self, gc: wx.GraphicsContext, cp) -> None:
         if not hasattr(cp, 'type_id'): return # Safety
         
-        # Local -> World -> Screen
-        sx, sy = self.world_to_screen(self.local_to_world((cp.x, cp.y)))
-        
+        # A point marks a pixel: move the pixel's centre like the frame and draw the pixel it lands in (on a mirrored
+        # or turned step that is the mirrored / turned pixel, as in the export).
+        cx, cy = self.local_to_world((cp.x + 0.5, cp.y + 0.5))
+        sx, sy = self.world_to_screen((math.floor(cx), math.floor(cy)))
+
         # Color from type or default
         col = self.point_type_colors.get(cp.type_id, (0, 255, 0))
         r, g, b = int(col[0]), int(col[1]), int(col[2])

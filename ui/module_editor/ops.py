@@ -154,13 +154,22 @@ def frames_using(project: Project, module_id: str) -> List[str]:
     return [f.id for f in project.frames if any(fm.ref_type == "module" and fm.ref_id == module_id for fm in f.fmodules)]
 
 
-def describe_usage(parts: int, frames: int, entries: int = 0) -> str:
+def describe_usage(parts: int, frames: int, entries: int = 0, objects: int = 0) -> str:
     bits = []
     if parts:
         bits.append(f"{parts} part{'s' if parts != 1 else ''} in {frames} frame{'s' if frames != 1 else ''}")
     if entries:
         bits.append(f"{entries} mapping entr{'ies' if entries != 1 else 'y'}")
+    if objects:
+        bits.append(f"{objects} timeline object{'s' if objects != 1 else ''}")
     return ", ".join(bits) if bits else "not used"
+
+
+def scene_uses(project: Project, module_ids: Iterable[str]) -> int:
+    """Timeline objects that show one of the modules directly (as their source or at a key)."""
+    from ui.scene_editor.ops import source_uses
+
+    return source_uses(project, "module", module_ids)
 
 
 # ---------------------------------------------------------------------------- names
@@ -332,6 +341,25 @@ def delete_modules(project: Project, module_ids: Iterable[str]) -> int:
     before = len(project.modules)
     project.modules = [m for m in project.modules if m.id not in ids]
     return before - len(project.modules)
+
+
+def remove_module_uses(project: Project, module_ids: Iterable[str]) -> Tuple[int, int, int]:
+    """Remove what shows these modules: frame parts, mapping entries (a module replaced by one of them shows its
+    original again) and scene objects / key swaps (they show nothing). Returns (parts, mapping entries, scene uses)."""
+    from ui.scene_editor.ops import clear_sources
+
+    ids = set(module_ids)
+    parts = 0
+    for frame in project.frames:
+        kept = [fm for fm in frame.fmodules if not (fm.ref_type == "module" and fm.ref_id in ids)]
+        parts += len(frame.fmodules) - len(kept)
+        frame.fmodules = kept
+    entries = 0
+    for mapping in project.mappings:
+        for source in [src for src, dst in mapping.map.items() if src in ids or (dst is not None and dst in ids)]:
+            del mapping.map[source]
+            entries += 1
+    return parts, entries, clear_sources(project, "module", ids)
 
 
 def move_modules(project: Project, module_ids: Iterable[str], dx: int, dy: int) -> None:

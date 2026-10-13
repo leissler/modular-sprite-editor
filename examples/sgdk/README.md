@@ -47,10 +47,12 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 ### Limits
 
 - **VRAM**: all tiles stay resident. `PoP_WW` needs 309 tiles, `sonic` 658; they must fit between the tile
-  base and SGDK's font (`TILE_FONT_INDEX`). `ms_tiles_fit()` reports whether they did; use
-  `ms_init_ex(tile_index, palette)` to put them after a game's own tiles or into another palette.
-- **One palette**: 15 colours plus transparent. The exporter warns when the images use more and merges
-  similar colours.
+  base and SGDK's font (`TILE_FONT_INDEX`). With SGDK's default layout that is about 1424 tiles (1536 below the
+  plane maps at `0xC000`, minus 16 system and 96 font tiles); the export reports how many the sprites need,
+  warns above three quarters of that and reports an error above it. `ms_tiles_fit()` reports at runtime whether
+  they fit; use `ms_init_ex(tile_index, palette)` to put them after a game's own tiles or into another palette.
+- **One palette**: 15 colours plus transparent. The export warns when the visible pixels of the images use more
+  and merges similar colours.
 - **80 hardware sprites** per screen (H40); `ms_set_sprite_limit(64)` in H32 or to leave room for other sprites.
   Pieces that do not fit are counted in `MS_FrameProfile.sprites_dropped`.
 - **Scenes** are baked as one render frame per tick: they play back exactly, but objects cannot be moved
@@ -67,11 +69,15 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
   - `src/modsprite.c` - renderer and players
   - `src/modsprite_data.c` - generated blob parser and accessors
   - `src/main.c` - demo browser for modules, frames, animations and scenes with live profiling
-  - `res/resources.res` + `res/gen/modsprite_blob.bin` - generated data
+  - `res/gen/modsprite_blob.bin` - generated data, included by its line in `res/resources.res`
 
 ## Regenerate SGDK data
 
-Run from the repo root:
+In the editor: **File ▸ Export ▸ Mega Drive (SGDK)...**, choose the game's SGDK project folder (one with
+`src/modsprite.c` and `inc/modsprite.h`, like `sgdk_demo/`) and the mappings. The editor remembers the folder
+per project and shows what the game gets.
+
+From the command line (the same exporter; run from the repo root):
 
 ```bash
 python3 examples/sgdk/tools/export_sgdk_example.py \
@@ -81,6 +87,17 @@ python3 examples/sgdk/tools/export_sgdk_example.py \
 ```
 
 `--mapping all` bakes one data set per mapping plus index `0` as `<none>` (no mapping).
+
+Both write `res/gen/modsprite_blob.bin`, `inc/modsprite_data.h` and `src/modsprite_data.c`, and put one line,
+`BIN MS_BLOB ...`, into `res/resources.res`. The game's other resources, in that file and in `res/gen`, stay
+(earlier exporters replaced the whole file and deleted every image and binary in `res/gen`); only the sprite
+sheets of exporters before blob version 3 (`res/gen/var_0000.png` ... and their `SPRITE MS_VAR_...` lines) are
+removed.
+
+Both then list what the game would get differently from the editor, the same issues as the editor's
+**Tools ▸ Check Project**: errors (something is lost, e.g. a step whose frame was deleted is left out), warnings
+(it looks or behaves differently, e.g. more than 15 colours) and a note on video memory. `--strict` makes the
+command fail (exit code 1) when there are errors, for build scripts.
 
 Blob version 3 (2026-10-11): tiles, pieces and palette in the blob (no SGDK sprite resources), hitboxes and
 points, type and role names, sprite count and bounds per render frame. Version 2 added step events, loop-from,
@@ -119,7 +136,8 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
   - `ms_anim_player_event_started(&player, MS_EVENT_SFX)` — only on the tick the step starts (sounds, spawns,
     footsteps); `ms_anim_player_event_value(&player, MS_EVENT_SFX, 0)` gives the step's value
 - Hitboxes and points (editor: Frames ▸ Hitboxes / Points, with types and roles), relative to the draw
-  position and moved like the animation step (flip, rotation, offset):
+  position and moved like the animation step (flip, rotation, offset). A point marks a pixel, so a mirrored step
+  puts it on the mirrored pixel (`x` becomes `-x - 1`), where the art is:
   ```c
   const MS_Hitbox *boxes;
   u16 count = ms_anim_player_hitboxes(&player, &boxes);
@@ -172,6 +190,8 @@ counts. It redraws one text line per frame at most, because drawing many lines i
 - `tests/test_runtime_player.py` compiles the C animation player and compares it with the editor's preview
   tick by tick.
 - `tests/test_sgdk_markers.py` checks hitbox / point export (types, roles, step transforms, defines).
+- `tests/test_sgdk_export_project.py` checks the export into a game folder (its own resources stay) and the
+  issues it reports.
 - `tests/test_hardware_budget.py` keeps the editor's Budget overlay in step with the exporter.
 
 ## Troubleshooting
@@ -180,4 +200,4 @@ counts. It redraws one text line per frame at most, because drawing many lines i
   (`make debug CONVSYM=true`) and run the fresh `out/debug/rom.bin`.
 - `Error: tiles do not fit in VRAM`: the project needs more tiles than there is room for between the tile base
   and SGDK's font. Reduce the images: every module, every rotation of a module and every mapping target is
-  baked as its own image (the exporter prints the tile count).
+  baked as its own image (the export reports the tile count; exporting fewer mappings also helps).

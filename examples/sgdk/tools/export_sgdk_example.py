@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import math
+import re
 import shutil
 import struct
 import sys
@@ -25,6 +26,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from models import Frame, Module, ModuleMapping, Project, RetroAnimatorExporter, TimelineScene  # noqa: E402
+import project_check  # noqa: E402
+from project_check import Issue  # noqa: E402
 
 
 Matrix2 = Tuple[Tuple[float, float], Tuple[float, float]]
@@ -80,25 +83,35 @@ BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 
 SPRITE_BLOCK = 32  # largest Mega Drive sprite: 4×4 tiles (hardware_budget cuts parts the same way)
 TILE = 8
 
+# What the exporter writes into an SGDK project (paths relative to it).
+BLOB_FILE = Path("res") / "gen" / "modsprite_blob.bin"
+RESOURCE_FILE = Path("res") / "resources.res"
+HEADER_FILE = Path("inc") / "modsprite_data.h"
+DATA_C_FILE = Path("src") / "modsprite_data.c"
+RESOURCE_LINE = 'BIN MS_BLOB "gen/modsprite_blob.bin" 2 2 0 NONE FALSE'
+# Exporters before blob version 3 wrote one sprite sheet per variant (res/gen/var_0000.png ...) and a SPRITE line for
+# each; an export removes those, and only those, from the game's folder.
+LEGACY_VARIANT_FILE = re.compile(r"var_\d+\.png")
+LEGACY_RESOURCE_LINE = re.compile(r'\s*SPRITE\s+MS_VAR_\d+\s+"gen/var_\d+\.png"')
+
+
+def merged_resources(existing: Optional[str]) -> str:
+    """The game's resource file with the blob's line in it: an earlier MS_BLOB line is replaced and older exporters'
+    SPRITE lines are dropped; every other line (the game's own resources) stays as it is."""
+    lines = [line for line in (existing.splitlines() if existing else []) if not LEGACY_RESOURCE_LINE.match(line)]
+    blob_lines = [i for i, line in enumerate(lines) if line.split()[:2] == ["BIN", "MS_BLOB"]]
+    if blob_lines:
+        lines[blob_lines[0]] = RESOURCE_LINE
+        lines = [line for i, line in enumerate(lines) if i not in blob_lines[1:]]
+    else:
+        lines.append(RESOURCE_LINE)
+    return "\n".join(lines) + "\n"
+
 
 def _event_symbols(names: Sequence[str], prefix: str = "MS_EVENT_", fallback: str = "EVENT") -> List[str]:
-    """C identifiers for names: MS_EVENT_HIT_ON, unique, never starting with a digit."""
-    used: Dict[str, int] = {}
-    out: List[str] = []
-    for name in names:
-        core = "".join(ch if ch.isalnum() else "_" for ch in str(name).upper()).strip("_") or fallback
-        while "__" in core:
-            core = core.replace("__", "_")
-        if core[0].isdigit():
-            core = "E" + core
-        symbol = f"{prefix}{core}"
-        if symbol in used:
-            used[symbol] += 1
-            symbol = f"{symbol}_{used[symbol]}"
-        else:
-            used[symbol] = 1
-        out.append(symbol)
-    return out
+    """C identifiers for names: MS_EVENT_HIT_ON, unique, never starting with a digit (Check Project warns about
+    names that clash)."""
+    return project_check.c_symbols(names, prefix, fallback)
 
 
 @dataclass(frozen=True)
@@ -139,10 +152,7 @@ class SGDKBakeContext:
         self.point_type_index: Dict[str, int] = {t.id: i for i, t in enumerate(project.point_types)}
         self.box_type_symbols: List[str] = _event_symbols([t.name for t in project.collision_types], "MS_HITBOX_", "HITBOX")
         self.point_type_symbols: List[str] = _event_symbols([t.name for t in project.point_types], "MS_POINT_", "POINT")
-        self.role_names: List[str] = sorted(
-            {str(item.role).strip() for f in project.frames for item in list(f.collision_rects) + list(f.control_points)
-             if str(getattr(item, "role", "") or "").strip()}
-        )
+        self.role_names: List[str] = project_check.role_names(project)
         self.role_index: Dict[str, int] = {name: i for i, name in enumerate(self.role_names)}
         self.role_symbols: List[str] = _event_symbols(self.role_names, "MS_ROLE_", "ROLE")
         self.transformed_frame_parts_cache: Dict[Tuple[Any, ...], Tuple[PartEntry, ...]] = {}
@@ -194,9 +204,10 @@ class SGDKBakeContext:
         return 0
 
     def _prepare_output_dirs(self) -> None:
+        """Create res/gen and remove older exporters' sprite sheets from it; the game's own files there stay."""
         self.output_gen_dir.mkdir(parents=True, exist_ok=True)
         for child in self.output_gen_dir.iterdir():
-            if child.is_file() and child.suffix.lower() in (".png", ".bin"):
+            if child.is_file() and LEGACY_VARIANT_FILE.fullmatch(child.name):
                 child.unlink()
 
     def _set_current_mapping(self, mapping: Optional[ModuleMapping]) -> None:
@@ -337,12 +348,12 @@ class SGDKBakeContext:
             if not path.exists():
                 continue
 
-            image = Image.open(path).convert("RGB")
+            image = Image.open(path).convert("RGBA")
             transparent = tuple(int(v) for v in asset.transparent_color) if asset.transparent_color else None
             for count, px in image.getcolors(maxcolors=image.width * image.height) or []:
                 rgb = (int(px[0]), int(px[1]), int(px[2]))
-                if transparent is not None and rgb == transparent:
-                    continue
+                if px[3] == 0 or (transparent is not None and rgb == transparent):
+                    continue  # transparent pixels take no palette entry
                 counts[rgb] = counts.get(rgb, 0) + int(count)
 
         if not counts:
@@ -465,9 +476,11 @@ class SGDKBakeContext:
             boxes.append((self.box_type_index.get(cr.type_id, UNKNOWN_TYPE), role, x0, y0, x1 - x0, y1 - y0))
         points: List[PointEntry] = []
         for cp in frame.control_points:
-            px, py = move(cp.x, cp.y)
+            # A point marks a pixel: move the pixel's centre and take the pixel it lands in, so a mirrored or turned
+            # step marks the same pixel of the art (like hitboxes, which move pixel-exactly).
+            px, py = move(cp.x + 0.5, cp.y + 0.5)
             role = self.role_index.get(str(cp.role or "").strip(), NO_ROLE)
-            points.append((self.point_type_index.get(cp.type_id, UNKNOWN_TYPE), role, int(round(px)), int(round(py))))
+            points.append((self.point_type_index.get(cp.type_id, UNKNOWN_TYPE), role, math.floor(px), math.floor(py)))
         return tuple(boxes), tuple(points)
 
     @staticmethod
@@ -1546,11 +1559,11 @@ const char *ms_role_name_data(u16 index);
         path.write_text(text, encoding="utf-8")
 
     def _emit_resources(self, path: Path) -> None:
-        # Tiles, pieces and palette live in the blob: the runtime loads them into VRAM once.
-        lines: List[str] = ['BIN MS_BLOB "gen/modsprite_blob.bin" 2 2 0 NONE FALSE']
-        lines.append("")
+        """Put the blob's line into the resource file. Tiles, pieces and palette live in the blob: the runtime loads
+        them into VRAM once. The game's other resources in the file stay (older exporters replaced the whole file)."""
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(lines), encoding="utf-8")
+        existing = path.read_text(encoding="utf-8") if path.exists() else None
+        path.write_text(merged_resources(existing), encoding="utf-8")
 
     def _emit_data_c(self, path: Path) -> None:
         text = f"""#include <genesis.h>
@@ -1887,6 +1900,68 @@ def _copy_if_needed(source: Path, target: Path) -> None:
     shutil.copy2(source, target)
 
 
+@dataclass
+class ExportResult:
+    summary: Dict[str, Any]           # counts: tiles, sprites, steps, blob size, ...
+    issues: List[Issue]               # Check Project's errors and warnings, the colours and the tiles
+    files: List[Path]                 # what was written
+
+
+def export_project(
+    project: Project,
+    output_demo_dir: Path,
+    mapping_selector: str = "all",
+    project_path: Optional[Path] = None,
+    copy_assets: bool = False,
+) -> ExportResult:
+    """Bake a project into an SGDK project folder (its res/, inc/ and src/ get the data files) and report what the
+    game will see: Check Project's errors and warnings, merged colours and how the tiles fit in video memory."""
+    output_demo_dir = Path(output_demo_dir).resolve()
+    mappings = _resolve_mappings(project, mapping_selector)
+    issues = [issue for issue in project_check.check_project(project) if issue.level != project_check.INFO]
+
+    bake = SGDKBakeContext(project=project, mappings=mappings, output_demo_dir=output_demo_dir)
+    bake.bake()
+    files = [output_demo_dir / BLOB_FILE, output_demo_dir / HEADER_FILE, output_demo_dir / DATA_C_FILE,
+             output_demo_dir / RESOURCE_FILE]
+    bake._emit_blob(files[0])
+    bake._emit_header(files[1])
+    bake._emit_data_c(files[2])
+    bake._emit_resources(files[3])
+
+    if copy_assets and project_path is not None:
+        _copy_if_needed(Path(project_path), output_demo_dir / "source" / Path(project_path).name)
+        for asset in project.images:
+            image_path = Path(asset.file_path)
+            if image_path.exists():
+                _copy_if_needed(image_path, output_demo_dir / "source" / image_path.name)
+
+    tiles = len(bake.tile_data) // 32
+    if getattr(bake, "palette_note", "") and not any(issue.code == "too-many-colours" for issue in issues):
+        issues.append(Issue(project_check.WARNING, "too-many-colours", bake.palette_note.replace("warning: ", "", 1)))
+    issues.append(project_check.tile_issue(tiles))
+    summary = {
+        "mapping_count": len(mappings),
+        "mappings": ", ".join(bake.mapping_names),
+        "variants": len(bake.variants),
+        "hardware_sprite_pieces": len(bake.pieces),
+        "tiles": tiles,
+        "hitboxes": len(bake.boxes),
+        "points": len(bake.points),
+        "parts": len(bake.parts),
+        "render_frames": len(bake.render_frames),
+        "modules": len(project.modules),
+        "frames": len(project.frames),
+        "animations": len(project.animations),
+        "scenes": len(project.timeline_scenes),
+        "anim_steps": len(bake.anim_steps),
+        "scene_samples": len(bake.scene_samples),
+        "blob_size_bytes": bake.blob_size_bytes,
+    }
+    order = project_check.LEVEL_ORDER
+    return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Bake modular sprite project JSON into SGDK demo assets.")
     parser.add_argument(
@@ -1909,53 +1984,23 @@ def main() -> int:
         action="store_true",
         help="Copy source JSON and source atlas image into the demo directory for reference.",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit with 1 when the project has errors (Check Project), e.g. steps whose frame was deleted.",
+    )
 
     args = parser.parse_args()
     project_json_path = Path(args.project_json).resolve()
-    output_demo_dir = Path(args.output_demo_dir).resolve()
-
     project = Project.from_json(str(project_json_path))
-    mappings = _resolve_mappings(project, args.mapping)
+    result = export_project(project, Path(args.output_demo_dir), args.mapping, project_json_path, args.copy_assets)
 
-    bake = SGDKBakeContext(project=project, mappings=mappings, output_demo_dir=output_demo_dir)
-    bake.bake()
-
-    bake._emit_blob(output_demo_dir / "res" / "gen" / "modsprite_blob.bin")
-    bake._emit_header(output_demo_dir / "inc" / "modsprite_data.h")
-    bake._emit_data_c(output_demo_dir / "src" / "modsprite_data.c")
-    bake._emit_resources(output_demo_dir / "res" / "resources.res")
-
-    if args.copy_assets:
-        _copy_if_needed(project_json_path, output_demo_dir / "source" / project_json_path.name)
-        if project.images:
-            image_path = Path(project.images[0].file_path)
-            if image_path.exists():
-                _copy_if_needed(image_path, output_demo_dir / "source" / image_path.name)
-
-    summary = {
-        "mapping_count": len(mappings),
-        "mappings": ", ".join(bake.mapping_names),
-        "variants": len(bake.variants),
-        "hardware_sprite_pieces": len(bake.pieces),
-        "tiles": len(bake.tile_data) // 32,
-        "hitboxes": len(bake.boxes),
-        "points": len(bake.points),
-        "parts": len(bake.parts),
-        "render_frames": len(bake.render_frames),
-        "modules": len(project.modules),
-        "frames": len(project.frames),
-        "animations": len(project.animations),
-        "scenes": len(project.timeline_scenes),
-        "anim_steps": len(bake.anim_steps),
-        "scene_samples": len(bake.scene_samples),
-        "blob_size_bytes": bake.blob_size_bytes,
-    }
-
-    for key, value in summary.items():
+    for key, value in result.summary.items():
         print(f"{key}: {value}")
-    if getattr(bake, "palette_note", ""):
-        print(bake.palette_note)
-
+    for issue in result.issues:
+        print(f"{'note' if issue.level == project_check.INFO else issue.level}: {issue.text}")
+    if args.strict and any(issue.level == project_check.ERROR for issue in result.issues):
+        return 1
     return 0
 
 

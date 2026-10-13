@@ -46,7 +46,11 @@ def _mouse_state():
 wx.GetMouseState = _mouse_state  # type: ignore[assignment]
 
 import app as app_mod  # noqa: E402
+from ui.components import confirm  # noqa: E402
 from ui.project_history import project_fingerprint  # noqa: E402
+
+# Deleting something that is still used asks whether to remove its uses too; the steps keep them as missing.
+confirm.ask_remove_uses = lambda *a, **k: confirm.KEEP
 
 errors = []
 orig_hook = sys.excepthook
@@ -977,6 +981,62 @@ def run():
         check(frame.check_images_on_disk() == [], "and only once")
 
     step("images: Reload and files changed on disk refresh every cache", images_on_disk)
+
+    def check_and_export():
+        import tempfile
+
+        from ui.check_dialog import CheckProjectDialog
+        from ui.sgdk_export_dialog import ExportReportDialog, MegaDriveExportDialog, has_runtime
+
+        project = frame.project
+        anim = next(a for a in project.animations if a.aframes)
+        doomed = anim.aframes[0].frame_id
+        project.frames = [f for f in project.frames if f.id != doomed]  # deleted, its steps kept as missing
+        frame.history_checkpoint()
+        dlg = CheckProjectDialog(frame, project, frame._after_fix)
+        try:
+            issue = next((i for i in dlg.issues if i.code == "missing-step"), None)
+            check(issue is not None, "Check Project finds steps whose frame was deleted")
+            dlg.list.Select(dlg.issues.index(issue))
+            dlg._show_selected()
+            check(dlg.btn_fix.IsEnabled(), "and offers a fix")
+            dlg.fix_selected()
+            check(not any(i.code == "missing-step" and i.target == issue.target for i in dlg.issues), "Fix repairs it")
+            check(all(af.frame_id != doomed for af in anim.aframes), "the steps are gone")
+        finally:
+            dlg.Destroy()
+        frame.go_to(("animation", anim.id))
+        pump()
+        check(frame.book.GetSelection() == 2 and frame.animation_editor.selected_animation_id == anim.id,
+              "Go to shows the animation")
+        frame.on_undo(None)
+        frame.on_undo(None)
+        pump()
+        check(frame.project.get_frame(doomed) is not None, "undo brings the frame and its steps back")
+
+        folder = tempfile.mkdtemp(prefix="mse_sgdk_")
+        try:
+            for path, text in (("src/modsprite.c", "/* runtime */"), ("inc/modsprite.h", "/* runtime */"),
+                               ("res/resources.res", 'IMAGE TITLE "title.png" BEST\n')):
+                os.makedirs(os.path.dirname(os.path.join(folder, path)), exist_ok=True)
+                with open(os.path.join(folder, path), "w", encoding="utf-8") as handle:
+                    handle.write(text)
+            check(has_runtime(folder), "a game folder with the runtime")
+            dlg = MegaDriveExportDialog(frame, frame.project, folder, "all")
+            check(dlg.values() == (folder, "all"), "the export dialog offers the folder and all mappings")
+            dlg.Destroy()
+            result = frame.export_sgdk(folder, "all")
+            check(result is not None and result.summary["tiles"] > 0, "the Mega Drive export writes the data")
+            check(result is not None and all(os.path.exists(path) for path in result.files), "every data file is there")
+            with open(os.path.join(folder, "res", "resources.res"), encoding="utf-8") as handle:
+                resources = handle.read()
+            check("IMAGE TITLE" in resources and "MS_BLOB" in resources, "the game's own resources stay")
+            if result is not None:
+                ExportReportDialog(frame, folder, result).Destroy()
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    step("check project and the Mega Drive export: find, fix, go to, export into a game folder", check_and_export)
 
     def recovery():
         import json

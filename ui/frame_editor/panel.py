@@ -14,6 +14,7 @@ from models import CollisionRect, ControlPoint, FModule, Frame, Project
 from optimization import optimize_nested_frame_combos
 from ui import app_services
 from ui.canvas import GHOST_NEXT, GHOST_PREVIOUS
+from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.module_palette import THUMBNAILS
 from ui.components.thumb_list import Browser, Row
@@ -489,12 +490,18 @@ class FrameEditorPanel(wx.Panel):
         if frame is None:
             return
         refs = ops.frame_references(self.project, frame.id)
+        clean_up = False
         if any(refs[k] for k in ("animations", "frames", "scene_objects")):
-            message = (f"'{frame.name}' is used by {ops.describe_references(refs)}; those will point to a missing frame."
-                       "\n\nDelete it anyway? (Undo with Cmd/Ctrl+Z.)")
-            if wx.MessageBox(message, "Delete Frame", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            message = (f"Delete '{frame.name}'? It is used by {ops.describe_references(refs)}.\n\nRemove its steps "
+                       "and copies there too, or keep them as missing frames you can swap later?"
+                       "\n\n(Undo with Cmd/Ctrl+Z.)")
+            answer = confirm.ask_remove_uses(self, "Delete Frame", message, "Remove Uses Too")
+            if answer is None:
                 return
+            clean_up = answer == confirm.REMOVE
         index = self._view.index(frame) if frame in self._view else -1
+        if clean_up:
+            ops.remove_frame_uses(self.project, frame.id)
         ops.delete_frame(self.project, frame.id)
         self._view = [f for f in self._view if f.id != frame.id]
         neighbour = self._view[min(index, len(self._view) - 1)] if self._view and index >= 0 else None

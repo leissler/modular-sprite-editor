@@ -13,6 +13,7 @@ import wx
 
 from models import FModule, ImageAsset, Module, Project, generate_id
 from ui import app_services
+from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.module_palette import THUMBNAILS
 from ui.components.thumb_list import Browser, Row
@@ -354,15 +355,26 @@ class ModuleEditorPanel(wx.Panel):
             return
         mods = ops.modules_of_sheet(self.project, asset.id)
         parts, frames, entries = ops.usage(self.project, [m.id for m in mods])
+        objects = ops.scene_uses(self.project, [m.id for m in mods])
         message = f"Remove {ops.image_label(asset)} from the project?"
         if mods:
-            message += f"\n\nIts {len(mods)} module(s) go with it"
-            message += f"; {ops.describe_usage(parts, frames, entries)} will show as missing." if parts or entries else "."
-        message += "\n\n(Undo with Cmd/Ctrl+Z.)"
-        if wx.MessageBox(message, "Remove Image", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            message += f"\n\nIts {len(mods)} module(s) go with it."
+        clean_up = False
+        if parts or entries or objects:
+            message += (f" They are used by {ops.describe_usage(parts, frames, entries, objects)}.\n\nRemove those "
+                        "uses too, or keep them as missing, to swap for other modules later?"
+                        "\n\n(Undo with Cmd/Ctrl+Z.)")
+            answer = confirm.ask_remove_uses(self, "Remove Image", message, "Remove Uses Too")
+            if answer is None:
+                return
+            clean_up = answer == confirm.REMOVE
+        elif wx.MessageBox(message + "\n\n(Undo with Cmd/Ctrl+Z.)", "Remove Image", wx.YES_NO | wx.ICON_WARNING,
+                           self) != wx.YES:
             return
         keys = self._sheet_keys()
         index = keys.index(asset.id)
+        if clean_up:
+            ops.remove_module_uses(self.project, [m.id for m in mods])
         ops.remove_image(self.project, asset.id)
         self._view_states.pop(asset.id, None)
         remaining = self._sheet_keys()
@@ -627,14 +639,21 @@ class ModuleEditorPanel(wx.Panel):
         if not mods:
             return
         parts, frames, entries = ops.usage(self.project, [m.id for m in mods])
-        if parts or entries:
+        objects = ops.scene_uses(self.project, [m.id for m in mods])
+        clean_up = False
+        if parts or entries or objects:
             what = f"'{mods[0].name}'" if len(mods) == 1 else f"{len(mods)} modules"
-            message = (f"Delete {what}? It is used by {ops.describe_usage(parts, frames, entries)}, which will show as missing."
-                       "\n\n(Undo with Cmd/Ctrl+Z.)")
-            if wx.MessageBox(message, "Delete Modules", wx.YES_NO | wx.ICON_WARNING, self) != wx.YES:
+            message = (f"Delete {what}? {'It is' if len(mods) == 1 else 'They are'} used by "
+                       f"{ops.describe_usage(parts, frames, entries, objects)}.\n\nRemove those uses too, or keep "
+                       "them as missing, to swap for other modules later?\n\n(Undo with Cmd/Ctrl+Z.)")
+            answer = confirm.ask_remove_uses(self, "Delete Modules", message, "Remove Uses Too")
+            if answer is None:
                 return
+            clean_up = answer == confirm.REMOVE
         view = [m.id for m in self.sheet_modules()]
         first = view.index(mods[0].id) if mods[0].id in view else 0
+        if clean_up:
+            ops.remove_module_uses(self.project, self.selection)
         ops.delete_modules(self.project, self.selection)
         remaining = [m.id for m in self.sheet_modules()]
         self.selection = [remaining[min(first, len(remaining) - 1)]] if remaining else []

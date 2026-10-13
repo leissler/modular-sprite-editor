@@ -36,6 +36,9 @@ right-click › Open the first time.
 - **Safe saving**: a save replaces the file in one step and keeps the previous version as `name.json.bak`; unsaved
   changes are autosaved every 30 s to a recovery folder and offered again after a crash.
 - **Images edited elsewhere reload by themselves** when you return to the editor.
+- **Check Project** (Tools menu): everything an export would leave out or show differently, such as steps whose
+  frame was deleted, missing images, more colours than the console has or names that clash in C, with Go to and a
+  fix for most. Deleting something that is still used asks whether to remove its uses too.
 - **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag
   pans, `Cmd/Ctrl+0` fits.
 - **Preview mapping** above the tabs: the mapping every preview and export uses.
@@ -105,8 +108,10 @@ right-click › Open the first time.
 ### Mega Drive / SGDK
 - **Budget overlay** in the Frames, Animations and Timeline view bars (H40 / H32): the hardware sprites each part
   becomes, scanlines where sprites would drop out, sprite and tile counts. The numbers follow the exporter.
-- **Exporter** (`export_sgdk`): tiles, palette, frames, animations, scenes, hitboxes, points, events and every mapping
-  in one binary blob.
+- **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palette,
+  frames, animations, scenes, hitboxes, points, events and every mapping in one binary blob, written into the game's
+  SGDK project (its own resources stay). It reports what the game gets: the video memory the sprites need, merged
+  colours and anything Check Project finds.
 - **Runtime** (`examples/sgdk/sgdk_demo`): tiles stay in VRAM and drawing only writes the sprite table (on average 7 %
   of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
   scenes; characters can share animations and differ by mapping (`ms_draw_anim_player_mapped`). Tests compile it for

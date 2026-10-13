@@ -60,7 +60,7 @@ With nothing selected, the inspector shows the frame. **Whole frame** mirrors or
   <figcaption>With nothing selected, the inspector shows the frame.</figcaption>
 </figure>
 
-Right-click a frame in the list for the same tools, and for **Rename**, **Duplicate** and **Delete**.
+Right-click a frame in the list for the same tools, and for **Rename**, **Duplicate** and **Delete**. When animations, other frames or scenes still use a frame you delete, the editor asks whether to remove those uses too or to keep them as missing.
 
 ## Compare with neighbouring poses
 

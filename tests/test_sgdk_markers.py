@@ -61,12 +61,13 @@ class TestMarkerExport(unittest.TestCase):
         steps = self.ctx.anim_steps
         plain, mirrored, turned = (self.markers(step[0]) for step in steps)
         self.assertEqual(plain, self.markers(self.ctx.frame_render_frames[0]))
-        # Flip x then offset (3, 0): x -> 3 - x, boxes keep their size
+        # Flip x then offset (3, 0): x -> 3 - x, boxes keep their size; a point marks a pixel, which mirrors to
+        # 3 - x - 1 (the pixel beside the mirror line), exactly like a box's edge pixels
         self.assertEqual(mirrored[0][0], (0, 0, -1, -16, 8, 16))
-        self.assertEqual(mirrored[1], [(0, 1, -3, -10)])
-        # 90° clockwise: (x, y) -> (-y, x)
+        self.assertEqual(mirrored[1], [(0, 1, -4, -10)])
+        # 90° clockwise: (x, y) -> (-y, x) for corners; the pixel (x, y) -> (-y - 1, x)
         self.assertEqual(turned[0][0], (0, 0, 0, -4, 16, 8))
-        self.assertEqual(turned[1], [(0, 1, 10, 6)])
+        self.assertEqual(turned[1], [(0, 1, 9, 6)])
 
     def test_header_defines(self):
         path = Path(self.tmp.name) / "modsprite_data.h"

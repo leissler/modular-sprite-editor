@@ -634,6 +634,33 @@ def duplicate_object(scene: TimelineScene, object_id: str) -> Optional[TimelineO
     return top
 
 
+def source_uses(project: Project, source_type: str, ids: Iterable[str]) -> int:
+    """How many objects show one of these modules / frames / animations, as their source or at a key."""
+    ids = set(ids)
+    return sum(
+        1 for scene in project.timeline_scenes for obj in scene.objects
+        if (obj.source_type == source_type and obj.source_id in ids)
+        or any(key.source_id in ids and (key.source_type or obj.source_type) == source_type for key in obj.keyframes)
+    )
+
+
+def clear_sources(project: Project, source_type: str, ids: Iterable[str]) -> int:
+    """Objects and key swaps that show one of these (deleted) modules / frames / animations show nothing instead;
+    keys and motion stay. Returns how many objects and keys changed."""
+    ids = set(ids)
+    cleared = 0
+    for scene in project.timeline_scenes:
+        for obj in scene.objects:
+            for key in obj.keyframes:
+                if key.source_id in ids and (key.source_type or obj.source_type) == source_type:
+                    key.source_type, key.source_id = None, None
+                    cleared += 1
+            if obj.source_type == source_type and obj.source_id in ids:
+                obj.source_type, obj.source_id = "none", None
+                cleared += 1
+    return cleared
+
+
 def delete_object(project: Project, scene: TimelineScene, object_id: str) -> None:
     """Delete an object; its children move up to its parent and keep their world pose."""
     obj = scene.get_object(object_id)

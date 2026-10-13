@@ -25,7 +25,7 @@ Drag a box on an empty part of the sheet to make a module. Then:
 - nudge it with the arrow keys, ++shift++ for 8 pixels at a time;
 - turn on **Snap** in the view bar to snap to the grid size set next to **Grid**.
 
-Click a module to select it, ++cmd++-click to add more to the selection, and ++cmd++-drag a box to select every module inside it. ++delete++ removes the selected modules. The editor asks first when frames still use them.
+Click a module to select it, ++cmd++-click to add more to the selection, and ++cmd++-drag a box to select every module inside it. ++delete++ removes the selected modules. When frames still use them, the editor asks whether to remove those parts too or to keep them as missing parts, which **Tools ▸ Check Project** lists later.
 
 **Trim to content** shrinks a module to the pixels inside it, which is handy after a quick, generous box.
 

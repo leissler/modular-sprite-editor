@@ -99,6 +99,28 @@ def delete_frame(project: Project, frame_id: str) -> None:
     project.frames = [f for f in project.frames if f.id != frame_id]
 
 
+def remove_frame_uses(project: Project, frame_id: str) -> Tuple[int, int, int]:
+    """Remove what shows a frame: animation steps ("loop from" stays on its step), nested parts in other frames and
+    scene objects / key swaps (they show nothing). Returns (steps, nested parts, scene uses)."""
+    from ui.scene_editor.ops import clear_sources
+
+    steps = 0
+    for anim in project.animations:
+        if not any(af.frame_id == frame_id for af in anim.aframes):
+            continue
+        before_loop = sum(1 for af in anim.aframes[: anim.loop_start] if af.frame_id == frame_id)
+        kept = [af for af in anim.aframes if af.frame_id != frame_id]
+        steps += len(anim.aframes) - len(kept)
+        anim.aframes = kept
+        anim.loop_start = max(0, min(anim.loop_start - before_loop, len(kept) - 1)) if kept else 0
+    parts = 0
+    for frame in project.frames:
+        kept_parts = [fm for fm in frame.fmodules if not (fm.ref_type == "frame" and fm.ref_id == frame_id)]
+        parts += len(frame.fmodules) - len(kept_parts)
+        frame.fmodules = kept_parts
+    return steps, parts, clear_sources(project, "frame", [frame_id])
+
+
 def move_frame(project: Project, frame_id: str, before_id: Optional[str]) -> None:
     frame = project.get_frame(frame_id)
     if frame is None or frame_id == before_id:
@@ -265,16 +287,24 @@ def rotate_parts(frame: Frame, part_ids: Iterable[str], degrees: float) -> int:
 
 
 def mirror_frame(project: Project, frame: Frame, axis: str, mapping: Optional[ModuleMapping]) -> None:
-    """Mirror the whole frame about its origin: parts, hitboxes and points."""
+    """Mirror the whole frame about its origin: parts, hitboxes and points (a point marks a pixel: pixel x mirrors to
+    pixel -x - 1, like a hitbox's edge pixels)."""
     flip_parts(project, frame, None, axis, mapping)
     for cr in frame.collision_rects:
         x, y, w, h = cr.rect
         cr.rect = (-x - w, y, w, h) if axis == "x" else (x, -y - h, w, h)
     for cp in frame.control_points:
         if axis == "x":
-            cp.x = -cp.x
+            cp.x = -cp.x - 1
         else:
-            cp.y = -cp.y
+            cp.y = -cp.y - 1
+
+
+def turn_pixel(x: int, y: int, quarter_turns: int) -> Tuple[int, int]:
+    """The pixel a pixel lands on when the frame turns about its origin by quarter turns (clockwise, y down)."""
+    for _ in range(quarter_turns % 4):
+        x, y = -y - 1, x
+    return x, y
 
 
 def rotate_frame(frame: Frame, degrees: int) -> None:
@@ -298,7 +328,7 @@ def rotate_frame(frame: Frame, degrees: int) -> None:
         y0, y1 = sorted(c[1] for c in corners)
         cr.rect = (int(x0), int(y0), int(x1 - x0), int(y1 - y0))
     for cp in frame.control_points:
-        cp.x, cp.y = (int(v) for v in turn(cp.x, cp.y))
+        cp.x, cp.y = turn_pixel(int(cp.x), int(cp.y), steps)
 
 
 def offset_frame(frame: Frame, dx: int, dy: int) -> None:

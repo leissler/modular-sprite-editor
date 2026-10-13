@@ -316,6 +316,10 @@ class MappingEditorPanel(wx.Panel):
         self.preview.Refresh()
 
     # ================================================================== mapping list
+    def select_mapping(self, mapping_id: Optional[str]) -> None:
+        """Show a mapping (it becomes the preview mapping, like a click in the list)."""
+        self._set_active(next((m for m in self.project.mappings if m.id == mapping_id), None))
+
     def _set_active(self, mapping: Optional[ModuleMapping]) -> None:
         self.current_mapping = mapping
         self.project.active_mapping = mapping

@@ -8,7 +8,7 @@ exports). Uses throwaway preferences and restores the recent files list; nothing
 Usage (from the repository root):
     python3 website/scripts/capture_screenshots.py [NAME ...]
 
-NAME is a shot name (for example `hitboxes`) or a group: `pop`, `sonic`, `lesson`, `automod`.
+NAME is a shot name (for example `hitboxes`) or a group: `pop`, `sonic`, `lesson`, `automod`, `check`.
 """
 
 import os
@@ -42,7 +42,7 @@ WINDOW = (1440, 900)
 POP = REPO / "examples" / "sgdk" / "PoP_WW.json"
 SONIC = REPO / "examples" / "sonic" / "sonic.json"
 ADVENTURER = REPO / "examples" / "adventurer" / "adventurer_sprite_sheet_v1.1.png"
-GROUPS = {"pop", "sonic", "lesson", "automod"}
+GROUPS = {"pop", "sonic", "lesson", "automod", "check"}
 only = set(sys.argv[1:])
 errors = []
 
@@ -627,8 +627,59 @@ def run_automod() -> None:
     dialog.Destroy()
 
 
+def run_check() -> None:
+    """The Mega Drive export's report for PoP, then Check Project after a few typical slips."""
+    group = "check"
+    if not any(wanted(name, group) for name in ("export-report", "check-project")):
+        return
+    from collections import Counter
+
+    from models import Animation
+    from ui.check_dialog import CheckProjectDialog
+    from ui.sgdk_export_dialog import ExportReportDialog, short_path
+
+    load(POP)
+    proj = frame.project
+    if wanted("export-report", group):
+        folder = os.path.join(prefs_dir, "swordfight")
+        os.makedirs(folder)
+        result = frame.export_sgdk(folder, "all")
+        dialog = ExportReportDialog(frame, folder, result)
+        # a neutral example path instead of the temporary folder
+        dialog.lines.SetLabel(dialog.lines.GetLabel().replace(short_path(folder), "~/Games/swordfight"))
+        dialog.SetSize((760, 260))
+        dialog.CentreOnScreen()
+        dialog.Show()
+        shoot("export-report", dialog)
+        dialog.Destroy()
+    if wanted("check-project", group):
+        # a frame one animation shows and a module one frame uses are deleted, keeping their uses as missing; one box
+        # loses its size; a new animation has no steps yet
+        steps = Counter(af.frame_id for anim in proj.animations for af in anim.aframes)
+        shown_by = Counter(fid for anim in proj.animations for fid in {af.frame_id for af in anim.aframes})
+        doomed_frame = next(f for f in proj.frames if shown_by[f.id] == 1 and steps[f.id] >= 2)
+        proj.frames.remove(doomed_frame)
+        targets = {t for m in proj.mappings for t in m.map.values() if t}
+        uses = Counter(fm.ref_id for f in proj.frames for fm in f.fmodules if fm.ref_type == "module")
+        doomed_module = next(m for m in proj.modules if uses[m.id] == 1 and m.id not in targets)
+        proj.modules.remove(doomed_module)
+        box = next(cr for f in proj.frames for cr in f.collision_rects)
+        box.rect = (box.rect[0], box.rect[1], 0, box.rect[3])
+        proj.animations.append(Animation("anim_check_shot", "new animation"))
+        dialog = CheckProjectDialog(frame, proj, lambda message: None)
+        dialog.SetSize((820, 360))
+        dialog.CentreOnScreen()
+        dialog.Show()
+        pump(0.3)
+        dialog._wrap_details()
+        dialog.Layout()
+        shoot("check-project", dialog)
+        dialog.Destroy()
+    load(POP)  # nothing above is saved
+
+
 def run() -> None:
-    for step in (run_pop, run_sonic, run_lesson, run_automod):
+    for step in (run_pop, run_sonic, run_lesson, run_automod, run_check):
         try:
             step()
         except Exception:

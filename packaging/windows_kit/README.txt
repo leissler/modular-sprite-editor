@@ -40,6 +40,9 @@ Mega Drive emulator, e.g. BlastEm (https://www.retrodev.com/blastem/). SGDK itse
   it, or run for example
       export_to_sgdk.bat examples\sonic\sonic.json
   Without a project it exports examples\sgdk\PoP_WW.json. Save your edits in the editor first.
+- Or export from the editor: File > Export > Mega Drive (SGDK)..., choose the folder
+  examples\sgdk\sgdk_demo, then run build_sgdk_demo.bat. The editor shows what the game gets
+  (video memory, colours, anything Tools > Check Project finds).
 
 Demo controls (3- or 6-button pad):
   UP / DOWN        unit: Module, Frame, Animation, Scene

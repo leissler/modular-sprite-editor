@@ -5,11 +5,13 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import functools
+import hashlib
 import json
 import os
 import sys
 import time
-from typing import Callable, Dict, List, Optional
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
 import wx
 import wx.lib.agw.flatnotebook as fnb
@@ -18,6 +20,8 @@ from models import FModule, Project, generate_id
 from ui import app_services, autosave
 from ui.animation_editor.panel import AnimationEditorPanel
 from ui.canvas import BUDGET
+import project_check
+from ui.check_dialog import CheckProjectDialog
 from ui.components.module_palette import THUMBNAILS
 from ui.frame_render import SHARED
 from ui.image_watch import Stamp, changed_images, image_stamp, image_stamps, update_image_sizes
@@ -27,6 +31,7 @@ from ui.module_editor.panel import ModuleEditorPanel
 from ui.project_history import ProjectHistory
 from ui.shortcuts_dialog import ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
+from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
 
 APP_NAME = "Modular Sprite Editor"
 # The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
@@ -596,6 +601,7 @@ class MainFrame(wx.Frame):
         m_import_retro = import_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         file_menu.AppendSubMenu(import_menu, "Import")
         export_menu = wx.Menu()
+        m_export_sgdk = export_menu.Append(wx.ID_ANY, "Mega Drive (SGDK)...", "Bake the project into a Mega Drive game's SGDK folder")
         m_export_retro = export_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         m_export_gif = export_menu.Append(wx.ID_ANY, "Selected Animation as GIF...")
         file_menu.AppendSubMenu(export_menu, "Export")
@@ -608,6 +614,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_save_as, m_save_as)
         self.Bind(wx.EVT_MENU, self.on_import_aurora, m_import_aurora)
         self.Bind(wx.EVT_MENU, self.on_import_retro_animator, m_import_retro)
+        self.Bind(wx.EVT_MENU, self.on_export_sgdk, m_export_sgdk)
         self.Bind(wx.EVT_MENU, self.on_export_retro_animator, m_export_retro)
         self.Bind(wx.EVT_MENU, self.on_export_gif, m_export_gif)
         self.Bind(wx.EVT_MENU, lambda e: self.Close(), m_exit)
@@ -653,6 +660,8 @@ class MainFrame(wx.Frame):
         menubar.Append(view_menu, "&View")
 
         tools_menu = wx.Menu()
+        m_check = tools_menu.Append(wx.ID_ANY, "Check Project...", "What exports would drop or show differently, with fixes")
+        tools_menu.AppendSeparator()
         m_automod = tools_menu.Append(wx.ID_ANY, "Auto Modularize Image…", "Cut the selected image's sprites into shared hardware-sized parts")
         m_opt_sprite = tools_menu.Append(wx.ID_ANY, "Optimize Sprite Sheet...")
         m_opt_nested = tools_menu.Append(wx.ID_ANY, "Optimize Nested Frame Combos (All Frames)...")
@@ -661,6 +670,7 @@ class MainFrame(wx.Frame):
         tools_menu.AppendSeparator()
         m_validate_roles = tools_menu.Append(wx.ID_ANY, "Validate Roles (All Frames)")
         m_inspect_roles = tools_menu.Append(wx.ID_ANY, "Inspect Compiled Role Tables...")
+        self.Bind(wx.EVT_MENU, self.on_check_project, m_check)
         self.Bind(wx.EVT_MENU, self.on_tool_auto_modularize, m_automod)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize, m_opt_sprite)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize_nested, m_opt_nested)
@@ -831,9 +841,11 @@ class MainFrame(wx.Frame):
             return
 
         default_name = (self.project.name or "sprite").strip().replace(" ", "_") or "sprite"
+        mapping = self.project.active_mapping  # the preview mapping is baked into the pictures
+        drawn = f"the mapping {mapping.name}" if mapping else "the original modules (no preview mapping)"
         with wx.FileDialog(
             self,
-            "Export RetroAnimator Project",
+            f"Export RetroAnimator Project, drawn with {drawn}",
             defaultFile=f"{default_name}.json",
             wildcard="JSON files (*.json)|*.json|All files (*.*)|*.*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
@@ -867,7 +879,92 @@ class MainFrame(wx.Frame):
             summary.append("")
             summary.append("Important compatibility notes:")
             summary.extend([f"- {line}" for line in losses])
+        errors = project_check.counts(project_check.check_project(self.project, pixels=False))[project_check.ERROR]
+        if errors:
+            summary += ["", f"Tools ▸ Check Project finds {errors} error{'s' if errors != 1 else ''}: missing parts, "
+                        "steps or images are left out of the export."]
         wx.MessageBox("\n".join(summary), "Export Complete", wx.OK | wx.ICON_INFORMATION)
+
+    # ------------------------------------------------------------------ check and export
+    def go_to(self, target: Tuple[str, str]) -> None:
+        """Show the item an issue is about in its tab."""
+        kind, ident = target
+        if kind == "image":
+            self.select_tab(0)
+            self.module_editor.select_sheet(ident, fit=True)
+        elif kind == "module":
+            self.switch_to_module(ident)
+        elif kind == "frame":
+            self.switch_to_frame_editor(ident)
+        elif kind == "animation":
+            self.select_tab(2)
+            self.animation_editor.select_animation(ident)
+        elif kind == "mapping":
+            self.select_tab(4)
+            self.mapping_editor.select_mapping(ident)
+        elif kind == "scene":
+            self.select_tab(3)
+            self.timeline_editor.refresh_scenes(select_id=ident)
+
+    def _after_fix(self, message: str) -> None:
+        """Check Project changed the project: one undo step, every tab shows the result."""
+        self.history_checkpoint()
+        for panel in self.panels:
+            panel.refresh_after_history()
+        self.set_status(message)
+
+    def on_check_project(self, _event: Optional[wx.CommandEvent] = None) -> None:
+        with CheckProjectDialog(self, self.project, self._after_fix) as dlg:
+            dlg.ShowModal()
+            target = dlg.target
+        if target:
+            self.go_to(target)
+
+    def _export_preference(self) -> str:
+        """Preferences key for this project's Mega Drive export folder."""
+        path = os.path.abspath(self.current_path) if self.current_path else "untitled"
+        return "SGDKExport/" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
+
+    def export_sgdk(self, folder: str, selector: str):
+        """Bake the project into an SGDK project folder; the exporter's result, or None when it failed."""
+        try:
+            exporter = load_exporter()
+            with wx.BusyCursor():
+                result = exporter.export_project(self.project, Path(folder), selector,
+                                                 Path(self.current_path) if self.current_path else None)
+        except Exception as exc:  # the exporter reports bad data as exceptions; keep the editor running
+            wx.MessageBox(f"The export failed: {exc}", "Export for the Mega Drive", wx.OK | wx.ICON_ERROR, self)
+            return None
+        self.set_status(f"Exported for the Mega Drive to {folder}")
+        return result
+
+    def on_export_sgdk(self, _event: Optional[wx.CommandEvent] = None) -> None:
+        key = self._export_preference()
+        default = os.path.dirname(os.path.abspath(self.current_path)) if self.current_path else os.path.expanduser("~")
+        folder, selector = self.config.Read(key, default), self.config.Read(key + "Mapping", "all")
+        with MegaDriveExportDialog(self, self.project, folder, selector) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            folder, selector = dlg.values()
+        if not folder or not os.path.isdir(folder):
+            wx.MessageBox("Choose a folder that exists.", "Export for the Mega Drive", wx.OK | wx.ICON_WARNING, self)
+            return
+        if not has_runtime(folder) and wx.MessageBox(
+            "This folder has no Mega Drive runtime (src/modsprite.c and inc/modsprite.h), so it does not look like "
+            "the game's SGDK project. Export into it anyway?",
+            "Export for the Mega Drive", wx.YES_NO | wx.ICON_QUESTION, self,
+        ) != wx.YES:
+            return
+        self.config.Write(key, folder)
+        self.config.Write(key + "Mapping", selector)
+        self.config.Flush()
+        result = self.export_sgdk(folder, selector)
+        if result is None:
+            return
+        with ExportReportDialog(self, folder, result) as report:
+            answer = report.ShowModal()
+        if answer == ID_CHECK_PROJECT:
+            self.on_check_project()
 
     def on_export_gif(self, event: wx.CommandEvent) -> None:
         self.select_tab(2)

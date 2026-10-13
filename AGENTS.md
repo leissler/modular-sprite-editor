@@ -59,6 +59,8 @@ hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32): SGDK-exa
 modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
                            cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
+project_check.py           Check Project (wx-free, shared with the SGDK exporter): issues (error / warning / note) with
+                           a target to go to and a fix, C symbol names, the Mega Drive tile capacity
 rect_packer.py             MaxRects bin packer
 safe_files.py              write_text_atomically: temp file + fsync + os.replace (+ name.json.bak), wx-free
 ui/
@@ -120,8 +122,10 @@ ui/
     panel.py               MappingEditorPanel: mappings list, module map, Replace with picker, usage preview
   components/              CanvasDisplayControls (shared view bar), FramePalette, ModulePalette (module grid,
                            THUMBNAILS cache), ThumbList / Browser (thumbnail rows: rename, reorder, drag out),
-                           inspector_kit (section / row / spin helpers)
+                           inspector_kit (section / row / spin helpers), confirm (remove uses / keep as missing)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)
+  check_dialog.py          Tools ▸ Check Project: the issue list, Go to, Fix / Fix All
+  sgdk_export_dialog.py    File ▸ Export ▸ Mega Drive (SGDK): folder + mappings, the report (runs the SGDK exporter)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
                            to frame_render)
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
@@ -220,6 +224,13 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   characters with different mappings share one set of animations (`ms_draw_anim_player_mapped`, as AuroraGT games
   set the mapping per draw); scenes are baked once per mapping, objects with their own mapping keep it. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
   counter, not `getSubTick()` (it only advances per scanline and jumps around vblank).
+- **SGDK export:** `export_project()` in the exporter is the one entry point for the command line and File ▸ Export ▸
+  Mega Drive (the editor builds carry the exporter: `pathex` + `hiddenimports` in the three editor specs). It writes
+  the blob, the header and the parser and merges its `BIN MS_BLOB` line into the game's `res/resources.res`
+  (`merged_resources`; never overwrite the game's file, and delete nothing in its folder but older exporters'
+  `var_NNNN.png` sheets). Its issues are `project_check`'s plus the merged palette and
+  the tile count (`tile_issue`): whatever the exporter leaves out or changes must show up as an issue there, not
+  disappear silently. Name C symbols through `project_check.c_symbols` so Check Project's clash warning stays true.
 - **Preferences** go through `wx.Config.Get()`; because the main window is built before the app name is set, the
   store is named after the launched script (`app` for `python3 app.py`). Tests set `MSE_PREFERENCES_FILE` to a
   throwaway file (`--smoke-test` and `tools/gui_smoke.py` do), which also keeps their recovery copies out of the
@@ -263,7 +274,11 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   all its pixels equal the sprite's, every opaque pixel is covered. Its cost model is the SGDK exporter's
   (`part_tiles`); keep them in step. Measure changes with `tools/automod_bench.py` (flattened testbeds, exactness,
   tiles, hardware sprites) — `tests/test_modularize.py` covers the rewrite of flipped / rotated references.
-- **Destructive actions** confirm when they break references (count the references) and stay undoable.
+- **Destructive actions** confirm when they break references (count the references) and stay undoable. Deleting
+  modules, an image or a frame that is still used asks through `confirm.ask_remove_uses` (call it module-qualified,
+  the smoke test patches it): remove the uses too (`module_editor.ops.remove_module_uses`,
+  `frame_editor.ops.remove_frame_uses`, `scene_editor.ops.clear_sources`) or keep them as missing, which Check
+  Project lists with a fix. A new kind of reference needs a check and, where possible, a fix in `project_check.py`.
 - **Lists** use Add / Duplicate / Delete buttons, Delete key, double-click/F2 rename, drag to reorder and a filter
   (`wx.SearchCtrl`); new lists use `components.thumb_list.Browser` / `ThumbList`. Lists show a filtered view:
   map rows to objects by id, never index `project.frames[...]` with a list index.
@@ -278,6 +293,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Part flip** (`FModule.flip_x/y` on a module): mirrors the module image *in place* — the part's bounds do
   not move, regardless of where the pivot is.
 - **Part rotation**: about the pivot, 90° steps (use exact cos/sin at 90° multiples, never raw `math.cos`).
+- **Points** mark a pixel: a transform moves the pixel's centre (`x + 0.5`, `y + 0.5`) and floors, so a mirror maps
+  `x` to `-x - 1` and a clockwise quarter turn `(x, y)` to `(-y - 1, x)` (`frame_editor.ops.turn_pixel`, the canvas'
+  `_draw_control_point`, the exporter's `_frame_markers`). Hitboxes are areas: their corners transform as they are.
 - **Nested frame part, animation step, mirror preview, timeline object**: geometric transform about the
   anchor/origin — flip first, then rotate. A mirrored parent (odd number of flips) reverses the direction of
   its children's rotation (`final_rot = parent_rot - child_rot`). A timeline object's root motion (the step's
