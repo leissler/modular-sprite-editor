@@ -40,8 +40,8 @@ The weak spots are elsewhere:
 
 ### Top recommendations for the next version
 
-Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6, F7, H1, H2 and H4,
-most of F1, the SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
+Done since the audit, for the next version: C1–C8, C12, K1, K2, K4, K7, U1–U4, U6, F2, F5, F6, F7, H1, H2, H4 and
+P1, most of F1, the SNES part of F3, the warning of C9 and parts of U8 (each entry says how).
 
 | # | What | Why | Size |
 |---|------|-----|------|
@@ -383,6 +383,10 @@ thread, so playback stutters at that rhythm in big projects.
 
 **Fix:** checkpoint after user input (mouse up, key up, text commit) or when an editor calls `request_checkpoint`;
 skip the timer while playing.
+
+**Done:** `SpriteEditorApp.FilterEvent` notes user input (mouse buttons and keys released, menu and control commands,
+about 1 µs per event); the timer serialises only after input, otherwise every ~10 s, and never during playback.
+Smoke test step "undo checkpoint after input, never during playback".
 
 ### P2 (Low) Linear lookups by id
 

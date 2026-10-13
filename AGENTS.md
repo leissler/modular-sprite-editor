@@ -197,8 +197,11 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `edit_copy/edit_cut/edit_paste/edit_duplicate/edit_select_all`, `stop_playback()`; the Timeline panel
   also gets `on_tab_activated()` (fits the stage/timeline the first time a scene is shown).
 - **Undo:** do not add per-editor undo stacks. After a completed edit call
-  `app_services.request_checkpoint()`. The main window also checkpoints every 700 ms while no mouse button is
-  held, so a drag becomes one step. Undo/redo replace the *contents* of the same `Project` object
+  `app_services.request_checkpoint()`. The main window also checkpoints on a 700 ms timer while no mouse button is
+  held, so a drag becomes one step, but only after user input (`SpriteEditorApp.FilterEvent` → `MainFrame.note_input`:
+  mouse buttons and keys released, menu and control commands); without input it looks about every 10 s, never during
+  playback. An edit that follows no user input (a callback, a drop, a timer) calls `request_checkpoint()` itself.
+  Undo/redo replace the *contents* of the same `Project` object
   (`replace_project_contents` copies every saved field, `SAVED_FIELDS`), so object references held by panels go
   stale — always re-fetch by id. `tests/test_project_history.py` needs one change per saved field: add one when a
   field is added to `Project`.

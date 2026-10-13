@@ -1046,6 +1046,41 @@ def run():
 
     step("dirty tracking/title", dirty)
 
+    # ---- The undo checkpoint looks for changes after user input only (never during playback)
+    def checkpoint_on_input():
+        calls = []
+        frame.history_checkpoint = lambda: calls.append(1)  # count instead of serialising
+        try:
+            frame.select_tab(2)
+            pump()
+            anim = next((a for a in proj.animations if len(a.aframes) > 1), None)
+            if anim:
+                ae.select_animation(anim.id)
+                frame._input_seen, frame._quiet_ticks = False, 0
+                ae.toggle_play()
+                check(ae.is_playing and frame.is_playing(), "playing")
+                for _ in range(app_mod.CHECKPOINT_FALLBACK_TICKS * 2):
+                    frame._on_checkpoint_timer(None)
+                check(not calls, "the timer never serialises the project during playback")
+                ae.stop_playback()
+            frame._input_seen, frame._quiet_ticks = False, 0
+            for _ in range(3):
+                frame._on_checkpoint_timer(None)
+            check(not calls, "idle: nothing to look at without input")
+            up = wx.MouseEvent(wx.wxEVT_LEFT_UP)
+            up.SetEventObject(ae.stage)
+            ae.stage.GetEventHandler().ProcessEvent(up)
+            check(frame._input_seen, "a mouse-up anywhere counts as input")
+            frame._on_checkpoint_timer(None)
+            check(len(calls) == 1, "the next tick looks for changes")
+            for _ in range(app_mod.CHECKPOINT_FALLBACK_TICKS):
+                frame._on_checkpoint_timer(None)
+            check(len(calls) == 2, "and now and then without input, in case something else changed the project")
+        finally:
+            del frame.history_checkpoint
+
+    step("undo checkpoint after input, never during playback", checkpoint_on_input)
+
     def images_on_disk():
         from ui.canvas import BUDGET
         from ui.components.module_palette import THUMBNAILS

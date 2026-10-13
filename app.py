@@ -54,6 +54,14 @@ TAB_HINTS = {
 }
 
 CHECKPOINT_INTERVAL_MS = 700
+CHECKPOINT_FALLBACK_TICKS = 15  # without input, look for changes about every 10 s anyway (never while playing)
+# Events from the user that can change the project: the next undo checkpoint looks for changes after them.
+INPUT_EVENTS = frozenset((
+    wx.wxEVT_LEFT_UP, wx.wxEVT_RIGHT_UP, wx.wxEVT_MIDDLE_UP, wx.wxEVT_KEY_UP, wx.wxEVT_KILL_FOCUS,
+    wx.wxEVT_MENU, wx.wxEVT_BUTTON, wx.wxEVT_CHECKBOX, wx.wxEVT_CHOICE, wx.wxEVT_COMBOBOX, wx.wxEVT_RADIOBUTTON,
+    wx.wxEVT_SLIDER, wx.wxEVT_SPINCTRL, wx.wxEVT_SPINCTRLDOUBLE, wx.wxEVT_TEXT_ENTER, wx.wxEVT_COLOURPICKER_CHANGED,
+    wx.wxEVT_LIST_END_LABEL_EDIT, wx.wxEVT_DROP_FILES,
+))
 
 
 def _mac_force_app_menu_title(title: str) -> None:
@@ -239,6 +247,10 @@ class MainFrame(wx.Frame):
 
         self.history.reset(self.project)
         self.context_bar.set_mappings(self.project)
+        # Serialising the project for a checkpoint costs milliseconds (tens in big projects), so the timer only
+        # looks after user input (note_input), and now and then in case something else changed it.
+        self._input_seen = False
+        self._quiet_ticks = 0
         self._checkpoint_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self._on_checkpoint_timer, self._checkpoint_timer)
         self._checkpoint_timer.Start(CHECKPOINT_INTERVAL_MS)
@@ -349,10 +361,22 @@ class MainFrame(wx.Frame):
         canvas = self._active_canvas()
         return canvas if getattr(canvas, "budget_profile", None) is not None else None
 
+    def note_input(self) -> None:
+        """The user did something that can change the project (SpriteEditorApp.FilterEvent sees every event)."""
+        self._input_seen = True
+
+    def is_playing(self) -> bool:
+        return any(getattr(panel, "is_playing", False) for panel in self.panels)
+
     def _on_checkpoint_timer(self, _event: wx.TimerEvent) -> None:
         mouse = wx.GetMouseState()
         if mouse.LeftIsDown() or mouse.MiddleIsDown() or mouse.RightIsDown():
             return  # never split a drag into several undo steps
+        self._quiet_ticks += 1
+        if not self._input_seen and (self._quiet_ticks < CHECKPOINT_FALLBACK_TICKS or self.is_playing()):
+            return  # nothing the user did: playback and idle time change nothing
+        self._input_seen = False
+        self._quiet_ticks = 0
         self.history_checkpoint()
         self._remember_new_images()
 
@@ -1229,6 +1253,14 @@ def resource_path(relative_path):
 
 
 class SpriteEditorApp(wx.App):
+    _main: Optional["MainFrame"] = None
+
+    def FilterEvent(self, event: wx.Event) -> int:  # type: ignore[N802]
+        """Every event passes here first: user input tells the main window to look for changes to checkpoint."""
+        if event.GetEventType() in INPUT_EVENTS and self._main:
+            self._main.note_input()
+        return wx.EventFilter.Event_Skip  # then handled as usual
+
     def OnInit(self) -> bool:  # type: ignore[N802]
         # wx's default name, the launched program's: older versions kept the view settings in a store named so.
         old_name = self.GetAppName()
@@ -1246,7 +1278,7 @@ class SpriteEditorApp(wx.App):
             wx.Config.Set(config)
         self.SetVendorName(APP_NAME)
         self.SetVendorDisplayName(APP_NAME)
-        frame = MainFrame()
+        frame = self._main = MainFrame()
 
         # Set Icon (Windows needs explicit setting for Taskbar/Window)
         if sys.platform == "win32":
