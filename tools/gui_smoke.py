@@ -1185,13 +1185,14 @@ def run():
             frame.on_undo(None) if frame.history.is_dirty() else None
             fe.set_mode("parts")
 
-        # The window opens where it was
-        frame.SetSize((1200, 800))
-        frame.SetPosition((60, 50))
+        # The window opens where it was, at a size that fits the screen it is on (CI screens are small)
+        area = wx.Display(max(0, wx.Display.GetFromWindow(frame))).GetClientArea()
+        size = (max(800, min(1000, area.width - 40)), max(560, min(700, area.height - 40)))
+        frame.SetSize(area.x + 20, area.y + 20, *size)
         frame._save_geometry()
-        frame.SetSize((900, 600))
+        frame.SetSize((800, 560))
         frame._restore_geometry()
-        check(tuple(frame.GetSize()) == (1200, 800), "the window keeps its size")
+        check(tuple(frame.GetSize()) == size, f"the window keeps its size ({tuple(frame.GetSize())}, saved {size})")
         frame.SetSize(old_size)
         pump()
 
