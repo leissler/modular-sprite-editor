@@ -34,7 +34,7 @@ The `export_sgdk` downloads are for programmers who build Mega Drive games. You 
 
 ## Get the example projects
 
-The example projects are part of the source code. On the release page, download **Source code (zip)** and unpack it. The examples are in its `examples` folder:
+On the release page, download `ModularSpriteEditor-examples.zip` and unpack it. The examples are in its `examples` folder:
 
 - `examples/sgdk/PoP_WW.json`: Prince of Persia, with the Swordfight scene
 - `examples/sonic/sonic.json`: Sonic

@@ -2,7 +2,8 @@ name: Build And Release
 
 # Builds the editor and the SGDK exporter for macOS, Windows and Linux and tests every build: unit tests, the
 # built editor drives every tab against both example projects (--smoke-test), the built exporter must write
-# exactly what the Python exporter writes. The release gets the editor and the exporter for each platform.
+# exactly what the Python exporter writes. The release gets the editor and the exporter for each platform, and
+# the example projects (ModularSpriteEditor-examples.zip, made by the Linux job).
 # On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
 # artifact): editor, exporter, examples and the SGDK demo, built into ROMs with the bundled SGDK.
 # With "publish" off it only builds and tests. The version has to be APP_VERSION in app.py (the About box shows it).
@@ -136,6 +137,10 @@ jobs:
             tail -n 1 "$log"
           done
           tar -czf dist/release/ModularSpriteEditor-linux.tar.gz -C dist/linux ModularSpriteEditor
+
+      - name: Zip the example projects
+        if: runner.os == 'Linux'
+        run: python tools/make_examples_zip.py dist/release/ModularSpriteEditor-examples.zip --version "${{ github.event.inputs.version }}"
 
       - name: Build Windows exe and kit
         if: runner.os == 'Windows'

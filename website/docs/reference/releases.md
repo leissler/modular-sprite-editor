@@ -10,7 +10,7 @@ Downloads for every version are on the [releases page](https://github.com/leissl
 
 **The About box shows the version**, so you can tell which one you have.
 
-**Richer examples.** Every pose of the Prince of Persia example has hitboxes and points now, and its attacks and runs have events. The Adventurer example names its artist, Elthen.
+**Richer examples.** Every pose of the Prince of Persia example has hitboxes and points now, and its attacks and runs have events. The Adventurer example names its artist, Elthen. The examples are a small download of their own on the release page, `ModularSpriteEditor-examples.zip`.
 
 **Long frame names** are shortened to fit in the Frames, Animations and Timeline libraries instead of running into the next frame.
 

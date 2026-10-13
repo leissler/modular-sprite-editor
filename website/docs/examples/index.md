@@ -1,6 +1,6 @@
 # The example projects
 
-Three example projects come with the editor's source code. Download **Source code (zip)** from the [latest release](https://github.com/leissler/modular-sprite-editor/releases/latest), unpack it and open a project with **File ▸ Open...**. Keep each project next to its image.
+Three example projects come with the editor. Download `ModularSpriteEditor-examples.zip` from the [latest release](https://github.com/leissler/modular-sprite-editor/releases/latest), unpack it and open a project with **File ▸ Open...**. Keep each project next to its image.
 
 The sprite art in the examples belongs to its owners and is included only to show and test the editor. See [Credits](../reference/credits.md).
 

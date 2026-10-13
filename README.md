@@ -16,8 +16,9 @@ editor shows it.
 ## Download
 
 The editor and the SGDK exporter (`export_sgdk`) for Windows, macOS and Linux are on the
-[Releases](https://github.com/leissler/modular-sprite-editor/releases) page. The builds are not signed: on Windows
-choose "More info › Run anyway", on macOS right-click › Open the first time.
+[Releases](https://github.com/leissler/modular-sprite-editor/releases) page, with the example projects in
+`ModularSpriteEditor-examples.zip`. The builds are not signed: on Windows choose "More info › Run anyway", on macOS
+right-click › Open the first time.
 
 ## Status
 
@@ -145,7 +146,8 @@ build_windows.bat     # Windows
 Releases come from the **Build And Release** workflow (Actions ▸ Run workflow, with a version). It builds the editor and
 the SGDK exporter for all three platforms and tests every build: unit tests, the built editor drives every tab against
 both example projects (`--smoke-test PROJECT.json [LOG]`), and the built exporter must write exactly what the Python one
-writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz` and `export_sgdk-*`;
+writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`, `export_sgdk-*` and
+the example projects, `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`, `packaging/examples/`);
 with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first: the About box shows it,
 and the workflow stops if the two differ.
 

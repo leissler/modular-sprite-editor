@@ -35,7 +35,8 @@ python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project fil
 
 Releases: `.github/workflows/build-and-release.yml` (manual, with a version; *publish* off = build and test only)
 builds and tests the editor and the SGDK exporter (`build_sgdk_exporter.spec`) on all three platforms; the release
-gets both. It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
+gets both, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: the example projects in the repo's
+`examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
 editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, `packaging/windows_kit/`), and builds its ROMs on
 Windows with the vendored SGDK. Pin wxPython there to the version you test with. Set `APP_VERSION` in `app.py` to the
 release first: the About box and the macOS Info.plist show it, and the workflow stops if it releases another version.
@@ -122,7 +123,8 @@ ui/
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
-                           make_windows_kit.py, make_readme_banner.py (README banner from the PoP example),
+                           make_windows_kit.py, make_examples_zip.py (the examples download of a release),
+                           make_readme_banner.py (README banner from the PoP example),
                            make_app_icon.py (the pixel-art app icon, a wooden mannequin: every size, nearest-neighbour only),
                            make_logo.py (the product logo: the icon's mannequin over a pixel wordmark, no example art)
 website/                   Product site + user guide for artists (MkDocs Material, deployed to
