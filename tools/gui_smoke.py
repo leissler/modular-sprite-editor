@@ -1103,7 +1103,12 @@ def run():
 
     # ---- The undo checkpoint looks for changes after user input only (never during playback)
     def checkpoint_on_input():
+        from ui import autosave
+
         calls = []
+        # Only the ticks below count: the editor's own timers would call history_checkpoint during pump() too.
+        frame._checkpoint_timer.Stop()
+        frame._autosave_timer.Stop()
         frame.history_checkpoint = lambda: calls.append(1)  # count instead of serialising
         try:
             frame.select_tab(2)
@@ -1113,7 +1118,8 @@ def run():
                 ae.select_animation(anim.id)
                 ae.toggle_play()
                 check(ae.is_playing and frame.is_playing(), "playing")
-                frame.note_input()  # input during playback (or a playback update that looks like it)
+                calls.clear()
+                frame.note_input()  # the user did something while it plays
                 for _ in range(app_mod.CHECKPOINT_FALLBACK_TICKS * 2):
                     frame._on_checkpoint_timer(None)
                 check(not calls, "the timer never serialises the project during playback")
@@ -1136,6 +1142,8 @@ def run():
             check(len(calls) == 2, "and now and then without input, in case something else changed the project")
         finally:
             del frame.history_checkpoint
+            frame._checkpoint_timer.Start(app_mod.CHECKPOINT_INTERVAL_MS)
+            frame._autosave_timer.Start(autosave.AUTOSAVE_INTERVAL_MS)
 
     step("undo checkpoint after input, never during playback", checkpoint_on_input)
 

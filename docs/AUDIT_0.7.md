@@ -385,9 +385,9 @@ thread, so playback stutters at that rhythm in big projects.
 skip the timer while playing.
 
 **Done:** `SpriteEditorApp.FilterEvent` notes user input (mouse buttons and keys released, menu and control commands,
-about 1 µs per event); the timer serialises only after input, otherwise every ~10 s, and never during playback
-(on Windows the Animations tab's tick spin control raises events while it plays): what happened meanwhile is looked
-at once playback stops. Smoke test step "undo checkpoint after input, never during playback".
+about 1 µs per event); the timer serialises only after input, otherwise every ~10 s, and never during playback:
+what happened meanwhile is looked at once playback stops. Smoke test step "undo checkpoint after input, never during
+playback" (it stops the editor's own timers while it counts).
 
 ### P2 (Low) Linear lookups by id
 

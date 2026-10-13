@@ -373,9 +373,7 @@ class MainFrame(wx.Frame):
         if mouse.LeftIsDown() or mouse.MiddleIsDown() or mouse.RightIsDown():
             return  # never split a drag into several undo steps
         if self.is_playing():
-            # Playback changes nothing, and its own updates can look like input (a spin control's new value on
-            # Windows): anything the user did meanwhile is looked at once it stops.
-            return
+            return  # playback changes nothing: anything the user did meanwhile is looked at once it stops
         self._quiet_ticks += 1
         if not self._input_seen and self._quiet_ticks < CHECKPOINT_FALLBACK_TICKS:
             return  # nothing the user did: idle time changes nothing
