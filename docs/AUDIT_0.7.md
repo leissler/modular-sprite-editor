@@ -472,6 +472,15 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
   exporter; `ui/canvas.py` (1,500 lines) still carries pre-redesign interaction code. Split into `model/`,
   `timeline.py`, `importers/` and `exporters/`, and move hitbox / point editing into the Frames stage.
 
+  **Done:** `models.py` is the package `models/` (`core`, `timeline`, `migration`, `project`; `from models import`
+  works as before), with `importers/` (AuroraGT, RetroAnimator), `exporters/retroanimator.py` and `compositor.py`:
+  the renderer that previews, the budget, Optimize Sprite Sheet and the SGDK exporter had been reaching into as the
+  RetroAnimator exporter's private methods, now public (its two copies of the instance renderer made one).
+  `FrameCanvas` only draws (644 lines); the Frames stage has all the editing: parts, hitboxes, points, hit-testing,
+  drops and the selection look. The PoP export is byte-identical, the export parity check passes on all three
+  testbeds, the stages draw pixel for pixel as before, and the smoke test now also resizes a hitbox, places and drags
+  a point and drags a part.
+
 ---
 
 ## 8. Suggested plan for the next version

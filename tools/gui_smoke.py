@@ -9,6 +9,7 @@ Usage:
 """
 import atexit
 import faulthandler
+import math
 import os
 import shutil
 import sys
@@ -368,10 +369,50 @@ def run():
         f = proj.get_frame(target.id)
         check(len(f.collision_rects) == boxes + 1 and f.collision_rects[-1].rect[2:] == (6, 5), "drag draws a hitbox")
         check(fe.inspector.marker_panel.IsShown(), "the new hitbox shows in the inspector")
+        x, y, w, h = f.collision_rects[-1].rect
+        corner = st.world_to_screen((x + w, y + h))
+        drag(st, fnames, corner, (corner[0] + 2 * st.zoom, corner[1] + 2 * st.zoom))
+        f = proj.get_frame(target.id)
+        check(tuple(f.collision_rects[-1].rect) == (x, y, w + 2, h + 2), f"the corner handle resizes the hitbox {f.collision_rects[-1].rect}")
+        frame.on_undo(None)
         frame.on_undo(None)
         pump()
         check(len(proj.get_frame(target.id).collision_rects) == boxes, "undo the hitbox")
+
+        # Points: a click on empty space places one where it was clicked, the same drag moves it
+        if proj.point_types:
+            fe.set_mode("points")
+            points = len(f.control_points)
+            spot = (12, 12)
+            wx_, wy = st.screen_to_world(wx.Point(*spot))
+            drag(st, fnames, spot, (spot[0] + 3 * st.zoom, spot[1] + 2 * st.zoom))
+            f = proj.get_frame(target.id)
+            placed = f.control_points[-1] if len(f.control_points) == points + 1 else None
+            check(placed is not None and (placed.x, placed.y) == (math.floor(wx_) + 3, math.floor(wy) + 2),
+                  f"a click places a point, a drag moves it {(placed.x, placed.y) if placed else None}")
+            frame.on_undo(None)
+            pump()
+            check(len(proj.get_frame(target.id).control_points) == points, "undo the point")
+
+        # Parts: a drag moves the part under the mouse
         fe.set_mode("parts")
+        f = proj.get_frame(target.id)
+        x0, y0, x1, y1 = st.get_content_bounds()
+        grab = next(((x + 0.5, y + 0.5) for y in range(int(y0), int(y1)) for x in range(int(x0), int(x1))
+                     if st.hit_test_all((x + 0.5, y + 0.5))), None)
+        check(grab is not None, "a part to grab on the stage")
+        if grab is not None:
+            part = st.hit_test_all(grab)[0]
+            before = tuple(part.position)
+            start = st.world_to_screen(grab)
+            drag(st, fnames, start, (start[0] + 2 * st.zoom, start[1] + st.zoom))
+            moved = next(fm for fm in proj.get_frame(target.id).fmodules if fm.id == part.id)
+            check(st.selected_fmodules == [part.id] and tuple(moved.position) == (before[0] + 2, before[1] + 1),
+                  f"a drag moves the part {before} -> {tuple(moved.position)}")
+            frame.on_undo(None)
+            pump()
+            moved = next(fm for fm in proj.get_frame(target.id).fmodules if fm.id == part.id)
+            check(tuple(moved.position) == before, "undo the part move")
 
     step("modules + frames: mouse on the canvases", editors_mouse)
 
@@ -1352,12 +1393,15 @@ def run():
         if fe.frame() is not None and frame.project.point_types:
             fe.set_mode("points")
             points_before = len(fe.frame().control_points)
-            event = wx.MouseEvent(wx.wxEVT_LEFT_DOWN)
-            fe.stage.on_point_left_down(event, wx.Point(5, 5))
-            if fe.stage.HasCapture():
-                fe.stage.ReleaseMouse()
+            for kind, handler in ((wx.wxEVT_LEFT_DOWN, fe.stage.on_left_down), (wx.wxEVT_LEFT_UP, fe.stage.on_left_up)):
+                event = wx.MouseEvent(kind)
+                event.SetPosition(wx.Point(5, 5))
+                event.SetLeftDown(kind == wx.wxEVT_LEFT_DOWN)
+                handler(event)
             check(len(fe.frame().control_points) == points_before + 1, "a click on empty space makes a point")
-            frame.on_undo(None) if frame.history.is_dirty() else None
+            frame.on_undo(None)
+            pump()
+            check(len(fe.frame().control_points) == points_before, "undo the point")
             fe.set_mode("parts")
 
         # The window opens where it was, at a size that fits the screen it is on (CI screens are small)

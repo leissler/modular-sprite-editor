@@ -155,7 +155,6 @@ class FrameEditorPanel(wx.Panel):
         st.on_interaction = self._stage_interaction
         st.on_live = self._stage_live
         st.on_drop = lambda ref_type, ref_id, world: self.add_part(ref_type, ref_id, (int(world[0] // 1), int(world[1] // 1)))
-        st.on_modify_started = None
         st.on_modify_ended = self._commit
         st.Bind(wx.EVT_RIGHT_DOWN, self._on_stage_right_down)
 

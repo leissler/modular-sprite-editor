@@ -87,8 +87,8 @@ ui/
   autosave.py              Crash recovery copies (wx-free): recovery folder, write / find stale / load / remove
   image_watch.py           Image file stamps (mtime, size) to notice sheets edited elsewhere (wx-free)
   base_canvas.py           BaseCanvas: pan/zoom model, integer zoom levels, fit, grid, checkerboard
-  canvas.py                FrameCanvas (frame editing, collision/point modes, ghost layers, bitmap
-                           caches, part bounds)
+  canvas.py                FrameCanvas: draws a frame (parts, mapping, hitboxes / points when shown, ghost layers,
+                           part bounds, budget overlay, bitmap caches); no editing — the stages add theirs
   frame_geometry.py        wx-free part bounds (module pivot/rotation, nested frames, mapping) — the one
                            implementation FrameCanvas, the Frames ops and hit-testing share
   module_editor/           Modules tab, redesigned from scratch:
@@ -105,7 +105,9 @@ ui/
     ops.py                 wx-free: frames (new/duplicate/delete/move/references), items (paste with cycle
                            check, nudge, delete, reorder), group flip, mirror/rotate frame, origin, hitbox /
                            point copy to frames, types — unit-tested
-    stage.py               FrameStage (FrameCanvas): marquee, origin marker, drops, no empty click boxes
+    stage.py               FrameStage (FrameCanvas): all mouse editing — parts (select, click-cycle, drag),
+                           hitboxes (draw, move, corner handles), points (click places, drag) — pixel hit-testing,
+                           marquee, origin marker, drops, selection look (handles, roles, dimming)
     inspector.py           FrameInspector: frame tools, part(s), hitbox/point, types (inline)
     library.py             PartLibrary: modules (per image) and frames to drag or double-click
     panel.py               FrameEditorPanel: Frames list + library, mode bar, stage, inspector + contents list

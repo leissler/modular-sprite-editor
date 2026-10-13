@@ -31,7 +31,7 @@ class StageCanvas(FrameCanvas):
     """Scene preview with object picking, dragging and motion-path editing."""
 
     def __init__(self, parent: wx.Window, project: Project):
-        super().__init__(parent, project, read_only=True)
+        super().__init__(parent, project)
         self.scene: Optional[TimelineScene] = None
         self.time_value: float = 0.0
         self.selected_object_id: Optional[str] = None
@@ -64,9 +64,6 @@ class StageCanvas(FrameCanvas):
         self._drag_start_world: Optional[Tuple[float, float]] = None
         self._last_hit_cycle: Tuple[Optional[Tuple[int, int, Tuple[str, ...]]], int] = (None, -1)
 
-        self.Unbind(wx.EVT_LEFT_DOWN)
-        self.Unbind(wx.EVT_LEFT_UP)
-        self.Unbind(wx.EVT_MOTION)
         self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
         self.Bind(wx.EVT_MOTION, self._on_motion)

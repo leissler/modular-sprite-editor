@@ -30,7 +30,7 @@ class _FrameDropTarget(wx.TextDropTarget):
 
 class AnimationStage(FrameCanvas):
     def __init__(self, parent: wx.Window, project: Project):
-        super().__init__(parent, project, read_only=True)
+        super().__init__(parent, project)
         self.zoom = 4.0
         self.max_zoom = 24.0
         self.show_points = False
@@ -55,6 +55,9 @@ class AnimationStage(FrameCanvas):
         self.on_drag_end: Optional[Callable[[bool], None]] = None  # moved?
         self.on_drop_frames: Optional[Callable[[List[str]], None]] = None
         self.SetDropTarget(_FrameDropTarget(self))
+        self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
+        self.Bind(wx.EVT_LEFT_UP, self.on_left_up)
+        self.Bind(wx.EVT_MOTION, self.on_mouse_drag)
 
     # ------------------------------------------------------------------ data
     def set_project(self, project: Project) -> None:

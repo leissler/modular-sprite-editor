@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from models import CollisionRect, CollisionType, ControlPoint, FModule, Frame, ModuleMapping, PointType, Project, generate_id
 from ui.frame_geometry import frame_bounds, part_bounds, union
 
-# Edit modes: key, label, FrameCanvas.edit_mode
+# Edit modes: key, label, FrameStage.edit_mode
 MODES: List[Tuple[str, str, str]] = [
     ("parts", "Parts", "module"),
     ("hitboxes", "Hitboxes", "collision"),
