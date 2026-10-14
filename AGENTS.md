@@ -174,7 +174,8 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
 ## Data model essentials (`models/`)
 
 - `Project` holds lists of `ImageAsset`, `Module`, `Frame`, `Animation`, `TimelineScene`, `ModuleMapping`,
-  `CollisionType`, `PointType`. Lookups are linear `get_*` by id. Everything is referenced **by id**.
+  `CollisionType`, `PointType`. Look things up with `get_*` by id: O(1) through positions checked on every use, so the
+  lists can be edited in place. Everything is referenced **by id**.
 - `Module.rect` is in sheet pixels, `Module.pivot` is relative to the rect's top-left. `rotated=True` means the
   packer stored the region rotated 90° CCW (pivot is logical, canvas converts).
 - `FModule` (a frame part): `ref_type` `"module"` or `"frame"` (nesting; cycles are rejected via

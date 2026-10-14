@@ -422,6 +422,11 @@ playback" (it stops the editor's own timers while it counts).
 grow with project size × parts (0.23 s for all signatures at 10×). Add id dictionaries kept in step with the lists, or
 build a lookup once per paint or export.
 
+**Done:** `Project.get_*` remember where each id was found and check that position on every use (the lists are edited
+in place everywhere, so nothing is trusted): a hit costs O(1), anything else scans as before. At 10× PoP, the
+signatures of every frame take 17 ms instead of 440 and every part's bounds 30 ms instead of 400
+(`tests/test_project_lookups.py` edits the lists every way the editors do).
+
 ### P3 (Low) Grid lines at low zoom
 
 `_draw_grid` ([ui/base_canvas.py:322](../ui/base_canvas.py)) draws every line however close together: an 8 px grid at

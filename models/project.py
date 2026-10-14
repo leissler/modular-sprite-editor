@@ -41,27 +41,48 @@ class Project:
     active_mapping: Optional[ModuleMapping] = field(default=None, init=False)
     load_notes: List[str] = field(default_factory=list, init=False)
     imported_from: str = field(default="", init=False)  # e.g. "AuroraGT sprite"; empty for the editor's own files
+    # Where each id was found in its list (see _find); the lists are edited in place everywhere, so positions are
+    # checked on every use, never trusted.
+    _positions: Dict[str, Dict[str, int]] = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    def _find(self, kind: str, items: List[Any], item_id: Optional[str]) -> Any:
+        """The item with this id. A hit costs O(1): the position found last time, checked; anything else scans the list
+        as a plain lookup would and remembers every position again if the id is there. Two items with one id (only a
+        broken project has them): a scan finds the first, a remembered position may later hold the other."""
+        positions = self._positions.get(kind)
+        if positions is not None:
+            index = positions.get(item_id)  # type: ignore[arg-type]
+            if index is not None and index < len(items) and items[index].id == item_id:
+                return items[index]
+        for index, item in enumerate(items):
+            if item.id == item_id:
+                fresh: Dict[str, int] = {}
+                for n in range(len(items) - 1, -1, -1):  # backwards: the first of two equal ids wins
+                    fresh[items[n].id] = n
+                self._positions[kind] = fresh
+                return item
+        return None
 
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
-        return next((img for img in self.images if img.id == image_id), None)
+        return self._find("images", self.images, image_id)
 
     def get_module(self, module_id: str) -> Optional[Module]:
-        return next((m for m in self.modules if m.id == module_id), None)
+        return self._find("modules", self.modules, module_id)
 
     def get_frame(self, frame_id: str) -> Optional[Frame]:
-        return next((f for f in self.frames if f.id == frame_id), None)
+        return self._find("frames", self.frames, frame_id)
 
     def get_animation(self, animation_id: str) -> Optional[Animation]:
-        return next((a for a in self.animations if a.id == animation_id), None)
+        return self._find("animations", self.animations, animation_id)
 
     def get_mapping(self, mapping_id: str) -> Optional[ModuleMapping]:
-        return next((m for m in self.mappings if m.id == mapping_id), None)
+        return self._find("mappings", self.mappings, mapping_id)
 
     def get_event_type(self, type_id: str) -> Optional[EventType]:
-        return next((t for t in self.event_types if t.id == type_id), None)
+        return self._find("event_types", self.event_types, type_id)
 
     def get_timeline_scene(self, scene_id: str) -> Optional[TimelineScene]:
-        return next((scene for scene in self.timeline_scenes if scene.id == scene_id), None)
+        return self._find("timeline_scenes", self.timeline_scenes, scene_id)
 
     def frame_has_cycle(self, frame_id: str, new_child_id: Optional[str] = None) -> bool:
         """Checks if a cycle exists (or would exist if new_child_id is added to frame_id)."""
