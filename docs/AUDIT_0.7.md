@@ -7,7 +7,7 @@ GIF, the SGDK exporter and the Mega Drive runtime), the build tooling and the us
 **Status (release 0.8, 2026-10-14):** the plan in section 8 is done. C1–C13, U1–U5, U7, U8, P1–P3, K1, K2, K4, K7,
 F2, F5–F7 and H1–H5 are fixed (each finding says how).
 
-**Status (after 0.8, 2026-10-14):** everything else is done too, except F3's GBA and NES budget profiles and further
+**Status (release 0.9, 2026-10-14):** everything else is done too, except F3's GBA and NES budget profiles and further
 consoles' exporters (left for later on purpose): K3, K5, K6, U6's per-project view state, F1's palette swaps and
 cycling (file format 7, blob version 5, see `docs/PALETTES.md`), F4 and F8–F12. F11 has no theme setting (see F11).
 The console database (`consoles.py`) prepares the other consoles.

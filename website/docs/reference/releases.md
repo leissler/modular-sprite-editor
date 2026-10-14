@@ -2,7 +2,7 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
-## Next version (not released yet)
+## 0.9, October 2026
 
 **Palettes, palette swaps and colour cycles.** A new **Palettes** tab holds the project's palettes with their colours in fixed slots, palette swaps that recolour them without touching an image, and colour cycles that make colours move. Choose a swap for the preview, per scene object or, in the game, per character: the guard of the *Swordfight* example now fights in blue. A swap costs no video memory on the console. See [Colours, palettes and swaps](../guide/palettes.md).
 
@@ -16,7 +16,7 @@ Downloads for every version are on the [releases page](https://github.com/leissl
 
 **Consoles.** The editor keeps what it knows about the Mega Drive, the SNES, the NES, the Game Boy Advance and the Game Boy in one place, the start for more consoles. See [Consoles](consoles.md).
 
-Projects are saved in file format 7. Older projects are upgraded when you open them; version 0.8 cannot keep the new palettes, swaps, attachments and groups. For programmers: the Mega Drive data changed (blob version 5), so take the runtime from this version together with the new export.
+Projects are saved in file format 7. Older projects are upgraded when you open them. Version 0.8 opens format 7 projects with a warning, but puts every image into the first palette and forgets palettes, swaps, attachments and groups when it saves. For programmers: the Mega Drive data changed (blob version 5), so take the runtime from this version together with the new export.
 
 ## 0.8, October 2026
 
