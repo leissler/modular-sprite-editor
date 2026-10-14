@@ -49,6 +49,15 @@ def snap_zoom_level(zoom: float, gesture_start: float, levels) -> float:
     return target
 
 
+def grid_step(spacing: float, zoom: float, min_gap: float) -> float:
+    """The grid spacing to draw: every line while they are at least ``min_gap`` screen pixels apart, else every 2nd,
+    4th ... line (closer lines were slow to draw and looked like a grey fill)."""
+    step = float(spacing)
+    while step * zoom < min_gap:
+        step *= 2
+    return step
+
+
 class WheelGestureFilter:
     """
     Locks a scroll gesture to one axis.
@@ -334,7 +343,8 @@ class BaseCanvas(wx.Panel):
         right_world = bottom_right[0]
         bottom_world = bottom_right[1]
 
-        spacing_x, spacing_y = self.grid_spacing
+        spacing_x = grid_step(self.grid_spacing[0], self.zoom, px(4))
+        spacing_y = grid_step(self.grid_spacing[1], self.zoom, px(4))
 
         grid_pen = wx.Pen(wx.Colour(100, 100, 100), width=1, style=wx.PENSTYLE_SOLID)
         gc.SetPen(grid_pen)

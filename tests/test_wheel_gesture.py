@@ -3,6 +3,7 @@ import unittest
 from ui.base_canvas import (
     ZOOM_LEVELS,
     WheelGestureFilter,
+    grid_step,
     nearest_zoom_level,
     snap_zoom_level,
     wheel_zoom_factor,
@@ -96,6 +97,17 @@ class TestZoomSnapping(unittest.TestCase):
     def test_overshoot_snaps_to_nearest_and_wiggle_stays(self):
         self.assertEqual(snap_zoom_level(4.3, 3.0, ZOOM_LEVELS), 4.0)
         self.assertEqual(snap_zoom_level(4.01, 4.0, ZOOM_LEVELS), 4.0)
+
+
+class TestGridStep(unittest.TestCase):
+    def test_every_line_while_they_are_far_enough_apart(self):
+        self.assertEqual(grid_step(8, 1.0, 4), 8)
+        self.assertEqual(grid_step(8, 0.5, 4), 8)  # 4 px apart: still every line
+
+    def test_every_second_fourth_line_once_they_crowd(self):
+        self.assertEqual(grid_step(8, 0.25, 4), 16)  # 2 px apart before
+        self.assertEqual(grid_step(4, 0.25, 4), 16)
+        self.assertEqual(grid_step(32, 0.0625, 8), 128)
 
 
 if __name__ == "__main__":

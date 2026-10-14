@@ -428,6 +428,8 @@ build a lookup once per paint or export.
 0.25× is a line every 2 screen pixels, which is slow with GDI and looks like a grey fill. Skip lines closer than about
 4 px.
 
+**Done:** below 4 screen pixels the grid draws every 2nd, 4th … line (`grid_step`).
+
 Fixed in 0.7.1: the step sequence worked out its layout once per cell (25×25 signatures per repaint, now once per
 repaint), and playback timers no longer starve the event queue on slow machines.
 
