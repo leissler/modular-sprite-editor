@@ -383,7 +383,8 @@ Mappings tab and on the guide's pictures. Rename them (`guard_…`) and regenera
 - The Timeline library's first tab reads "Animatio…" at the default width. **Done:** the column is as wide as in the
   other tabs.
 - With only a couple of layers, the dopesheet takes half the window and leaves the stage small. Let the user drag the
-  splitter and remember its position.
+  splitter and remember its position. **Done:** the dopesheet and the Animations step sequence keep the height they are
+  dragged to (`ui/components/split_memory.py`).
 - The Modules view bar has "Grid 8 × 8" next to a checkbox also called "Grid". **Done** with U1.
 
 ---

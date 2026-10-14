@@ -1483,6 +1483,24 @@ def run():
 
     step("laptop UI: wrapping view bars, folding sections, welcome screen, sheet to animation, points, window", laptop_ui)
 
+    def splitter_memory():
+        """The Timeline's dopesheet and the Animations' step sequence keep the height they are dragged to."""
+        for index, panel, key in ((3, frame.timeline_editor, "Timeline/DopesheetHeight"),
+                                  (2, frame.animation_editor, "Animations/SequenceHeight")):
+            frame.select_tab(index)
+            pump(3)
+            split = panel.vsplit
+            split.SetSashPosition(split.GetClientSize().height - dpi.px(300))
+            pump(2)
+            event = wx.SplitterEvent(wx.wxEVT_SPLITTER_SASH_POS_CHANGED, split)
+            event.SetEventObject(split)
+            split.GetEventHandler().ProcessEvent(event)
+            stored = wx.Config.Get().ReadInt(key, 0)
+            shown = round(split.GetWindow2().GetSize().height / dpi.SCALE)
+            check(stored == shown and abs(stored - 300) <= 12, f"{key}: the dragged height is kept ({stored}, shows {shown})")
+
+    step("splitters remember their heights", splitter_memory)
+
     def open_foreign_file():
         """Opening another editor's file imports it: Save asks for a new file instead of writing over that one."""
         saved_recent = list(frame.recent_files)

@@ -141,8 +141,9 @@ ui/
                            between two images or by name, frames using modules (through nesting) — unit-tested
     table.py               MapTable: module → replacement rows (drop target)
     panel.py               MappingEditorPanel: mappings list, module map, Replace with picker, usage preview
-  components/              CanvasDisplayControls (shared view bar), FramePalette, ModulePalette (module grid,
-                           THUMBNAILS cache), ThumbList / Browser (thumbnail rows: rename, reorder, drag out),
+  components/              CanvasDisplayControls (shared view bar), split_memory (splitters that keep their height),
+                           FramePalette, ModulePalette (module grid, THUMBNAILS cache), ThumbList / Browser
+                           (thumbnail rows: rename, reorder, drag out),
                            inspector_kit (foldable Section: rows on section.body; relayout; row / spin helpers),
                            confirm (remove uses / keep as missing)
   shortcuts_dialog.py      Help ▸ Keyboard & Mouse Shortcuts (single source for the shortcut table)

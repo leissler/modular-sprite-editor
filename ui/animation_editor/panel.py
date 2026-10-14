@@ -17,6 +17,7 @@ from ui.animation_editor.sequence import SequenceView
 from ui.animation_editor.stage import ONION_MODES, AnimationStage
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.dpi import px
+from ui.components.split_memory import split_bottom_remembered
 
 MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
     ("Off", (False, False)),
@@ -157,7 +158,7 @@ class AnimationEditorPanel(wx.Panel):
         bottom_sizer.Add(self.sequence_view, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom.SetSizer(bottom_sizer)
 
-        self.vsplit.SplitHorizontally(top, bottom, -px(194))
+        split_bottom_remembered(self.vsplit, top, bottom, "Animations/SequenceHeight", 194)  # as the user dragged it last
         self.vsplit.SetSashGravity(1.0)
         self.vsplit.SetMinimumPaneSize(px(140))
         root.Add(self.vsplit, 1, wx.EXPAND)

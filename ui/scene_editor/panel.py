@@ -18,6 +18,7 @@ from ui.scene_editor.library import SceneLibrary
 from ui.scene_editor.stage import SCREEN_GUIDES, StageCanvas
 from ui.scene_editor.timeline import TimelineView
 from ui.dpi import px
+from ui.components.split_memory import split_bottom_remembered
 
 Selection = Dict[str, Set[str]]
 
@@ -185,7 +186,7 @@ class SceneEditorPanel(wx.Panel):
         bottom_sizer.Add(self.timeline_view, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom.SetSizer(bottom_sizer)
 
-        self.vsplit.SplitHorizontally(top, bottom, -px(260))
+        split_bottom_remembered(self.vsplit, top, bottom, "Timeline/DopesheetHeight", 260)  # as the user dragged it last
         self.vsplit.SetSashGravity(1.0)
         self.vsplit.SetMinimumPaneSize(px(160))
         root.Add(self.vsplit, 1, wx.EXPAND)
