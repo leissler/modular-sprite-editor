@@ -22,6 +22,7 @@ from ui.scene_editor.thumbnails import scene_image
 from ui.scene_editor.timeline import TimelineView
 from ui.dpi import px
 from ui.components.split_memory import split_bottom_remembered
+from ui.refresh_rate import REFRESH
 
 Selection = Dict[str, Set[str]]
 
@@ -687,7 +688,8 @@ class SceneEditorPanel(wx.Panel):
             return
         start_time, start_frame = self._play_start
         length = ops.scene_length_frames(scene)
-        frame = start_frame + int((time.monotonic() - start_time) * scene.fps)
+        # The game shows a scene sample per video frame: at 50 Hz (View menu) it plays at 5/6 of the speed.
+        frame = start_frame + int((time.monotonic() - start_time) * scene.fps * REFRESH.speed(self.project))
         if frame > length:
             if scene.loop:
                 frame %= length + 1

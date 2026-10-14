@@ -35,6 +35,7 @@ from ui.mapping_editor.panel import MappingEditorPanel
 from ui.palette_editor.panel import PaletteEditorPanel
 from ui.module_editor.panel import ModuleEditorPanel
 from ui.project_history import ProjectHistory
+from ui.refresh_rate import REFRESH
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
@@ -467,6 +468,19 @@ class MainFrame(wx.Frame):
         self.m_scroll_moves.Check(moves)
         self.set_status(f"Scrolling moves the view; pinch or {MOD}+scroll zooms" if moves
                         else "Scrolling zooms; Shift / Alt + scroll moves the view")
+
+    def set_play_at_50hz(self, pal: bool) -> None:
+        """View ▸ Play at 50 Hz (PAL): every preview plays at a 50 Hz console's speed (kept in the preferences)."""
+        for panel in self.panels:
+            stop = getattr(panel, "stop_playback", None)
+            if stop:
+                stop()
+        REFRESH.set(pal)
+        self.m_play_50hz.Check(REFRESH.pal)
+        self.animation_editor.refresh()  # its inspector shows the timing at this rate
+        hz = REFRESH.hz(self.project)
+        self.set_status(f"Previews play at {hz} Hz" + (" (PAL): 5/6 of the speed, as a 50 Hz console shows the game"
+                                                      if hz == 50 else ""))
 
     def set_console_colours(self, shown: bool) -> None:
         """View ▸ Console Colours: every canvas shows the art through the export's palettes, as the console shows it."""
@@ -912,6 +926,10 @@ class MainFrame(wx.Frame):
             wx.ID_ANY, "Scroll Moves the View",
             f"Mouse wheel and two-finger scroll move the view; pinch or {MOD}+scroll zooms (off: scrolling zooms)")
         self.m_scroll_moves.Check(SCROLL.moves)
+        self.m_play_50hz = view_menu.AppendCheckItem(
+            wx.ID_ANY, "Play at 50 Hz (PAL)",
+            "Previews play as a 50 Hz console shows the game: animations, scenes and colour cycles at 5/6 of the speed")
+        self.m_play_50hz.Check(REFRESH.pal)
         view_menu.AppendSeparator()
         for idx, name in enumerate(TAB_NAMES):
             item = view_menu.Append(wx.ID_ANY, f"{name}\tCtrl+{idx + 1}")
@@ -923,6 +941,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_toggle_grid, m_grid)
         self.Bind(wx.EVT_MENU, lambda e: self.set_console_colours(e.IsChecked()), self.m_console)
         self.Bind(wx.EVT_MENU, lambda e: self.set_scroll_moves(e.IsChecked()), self.m_scroll_moves)
+        self.Bind(wx.EVT_MENU, lambda e: self.set_play_at_50hz(e.IsChecked()), self.m_play_50hz)
         menubar.Append(view_menu, "&View")
 
         tools_menu = wx.Menu()
@@ -933,11 +952,14 @@ class MainFrame(wx.Frame):
         m_opt_nested = tools_menu.Append(wx.ID_ANY, "Optimize Nested Frame Combos (All Frames)...")
         tools_menu.AppendSeparator()
         m_ref_frames = tools_menu.Append(wx.ID_ANY, "Create Reference Frames From All Image Modules...")
+        m_change_anims = tools_menu.Append(wx.ID_ANY, "Change Animations...",
+                                           "One tick rate, playback, repeat count or group for many animations")
         self.Bind(wx.EVT_MENU, self.on_check_project, m_check)
         self.Bind(wx.EVT_MENU, self.on_tool_auto_modularize, m_automod)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize, m_opt_sprite)
         self.Bind(wx.EVT_MENU, self.on_tool_optimize_nested, m_opt_nested)
         self.Bind(wx.EVT_MENU, self.on_tool_create_reference_frames, m_ref_frames)
+        self.Bind(wx.EVT_MENU, lambda e: (self.select_tab(2), self.animation_editor.change_animations()), m_change_anims)
         menubar.Append(tools_menu, "&Tools")
 
         help_menu = wx.Menu()

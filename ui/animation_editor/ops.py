@@ -140,6 +140,44 @@ def set_hold(anim: Animation, indices: Iterable[int], ticks: int) -> None:
         anim.aframes[i].duration_frames = max(1, int(ticks))
 
 
+# Hold ▸ Spread: hold patterns for several steps, in units of the shortest hold among them.
+SPREADS: List[Tuple[str, str]] = [
+    ("1-1-2-2", "pairs"),
+    ("1-2", "one_two"),
+    ("2-1", "two_one"),
+    ("Slow start", "slow_start"),
+    ("Slow end", "slow_end"),
+    ("Slow start and end", "slow_both"),
+]
+_PATTERNS = {"pairs": (1, 1, 2, 2), "one_two": (1, 2), "two_one": (2, 1)}
+
+
+def spread_holds(kind: str, count: int, unit: int = 1) -> List[int]:
+    """Holds for ``count`` steps in a row: a repeating pattern, or holds that shrink from 3 units to 1 (slow start),
+    grow (slow end) or both, the way a motion leaves or reaches a pose."""
+    unit = max(1, int(unit))
+    if kind in _PATTERNS:
+        pattern = _PATTERNS[kind]
+        return [unit * pattern[i % len(pattern)] for i in range(count)]
+    holds = []
+    for i in range(count):
+        x = i / (count - 1) if count > 1 else 0.0
+        far = {"slow_start": 1.0 - x, "slow_end": x}.get(kind, abs(2.0 * x - 1.0))  # 1 where it is slowest
+        holds.append(unit * (1 + int(2.0 * far * far + 0.5)))
+    return holds
+
+
+def spread(anim: Animation, indices: Iterable[int], kind: str) -> List[int]:
+    """Give the steps the holds of a spread (in step order); returns the steps changed."""
+    steps = sorted(set(_valid(anim, indices)))
+    if not steps:
+        return []
+    unit = min(hold(anim.aframes[i]) for i in steps)
+    for i, ticks in zip(steps, spread_holds(kind, len(steps), unit)):
+        anim.aframes[i].duration_frames = ticks
+    return steps
+
+
 def change_hold(anim: Animation, indices: Iterable[int], delta: int) -> None:
     for i in _valid(anim, indices):
         anim.aframes[i].duration_frames = max(1, hold(anim.aframes[i]) + int(delta))
@@ -278,6 +316,40 @@ def move_animation(project: Project, anim_id: str, to_index: int) -> None:
         return
     project.animations.remove(anim)
     project.animations.insert(max(0, min(int(to_index), len(project.animations))), anim)
+
+
+def change_tick_rate(anim: Animation, rate: int, keep_timing: bool) -> bool:
+    """Set the tick rate. With ``keep_timing`` every hold is scaled so its step lasts as long as before, rounded to
+    whole ticks; False when rounding changed a step's length."""
+    old, rate = tick_rate(anim), max(1, int(rate))
+    exact = True
+    if keep_timing and rate != old:
+        for af in anim.aframes:
+            scaled = hold(af) * rate / float(old)
+            ticks = max(1, int(scaled + 0.5))
+            exact = exact and abs(ticks - scaled) < 1e-9
+            af.duration_frames = ticks
+    anim.fps = rate
+    return exact
+
+
+def change_animations(project: Project, ids: Iterable[str], rate: Optional[int] = None, keep_timing: bool = True,
+                      playback_type: Optional[str] = None, loop_count: Optional[int] = None,
+                      group: Optional[str] = None) -> Tuple[int, List[str]]:
+    """Change several animations at once (the settings given, the others stay); returns how many there were and the
+    names of those whose timing had to be rounded."""
+    rounded: List[str] = []
+    anims = [a for a in (project.get_animation(i) for i in ids) if a is not None]
+    for anim in anims:
+        if rate is not None and not change_tick_rate(anim, rate, keep_timing):
+            rounded.append(anim.name)
+        if playback_type is not None:
+            anim.playback_type = playback_type
+        if loop_count is not None:
+            anim.loop_count = max(0, int(loop_count))
+        if group is not None:
+            anim.group = group.strip()
+    return len(anims), rounded
 
 
 def scene_usage(project: Project, anim_id: str) -> int:

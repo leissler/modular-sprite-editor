@@ -30,6 +30,7 @@ from models import (  # noqa: E402
     TIMELINE_MAPPING_ORIGINAL, Frame, Module, ModuleMapping, PaletteSwap, Project, TimelineScene, state_shows,
 )
 import palettes  # noqa: E402
+import playback  # noqa: E402
 import project_check  # noqa: E402
 from project_check import Issue  # noqa: E402
 
@@ -1054,10 +1055,7 @@ class SGDKBakeContext:
                         boxes, points = self._frame_markers(frame, off, rot, fx, fy)
                         render_idx = self._intern_render_frame(parts, boxes, points)
 
-                    duration_ticks = max(
-                        1,
-                        int(round((max(1.0, float(af.duration_frames)) / float(source_fps)) * 60.0)),
-                    )
+                    duration_ticks = playback.console_frames(anim, af)  # video frames, as the editor previews them
                     first_event = len(self.step_events)
                     for event in getattr(af, "events", []) or []:
                         type_index = self.event_type_index.get(event.type_id)

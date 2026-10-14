@@ -755,6 +755,63 @@ def run():
 
     step("animations: events, loop from, follow-up", animation_events_loop_next)
 
+    def timing_tools():
+        """The game's timing in the preview (video frames, View ▸ Play at 50 Hz), spread presets and Change
+        Animations (one tick rate for every animation, timing kept), undone."""
+        import playback
+        from ui.animation_editor import batch_dialog
+        from ui.animation_editor import ops as anim_ops
+        from ui.refresh_rate import REFRESH
+
+        ae = frame.animation_editor
+        frame.select_tab(2)
+        pump()
+        anim = next(a for a in frame.project.animations if len(a.aframes) >= 3)
+        ae.select_animation(anim.id)
+        frame.history_checkpoint()
+
+        def timing():
+            return [(a.fps, [af.duration_frames for af in a.aframes]) for a in frame.project.animations]
+
+        start = timing()
+        ae.select_steps([0, 1, 2])
+        ae.spread_selected("slow_end")
+        holds = [anim_ops.hold(anim.aframes[i]) for i in range(3)]
+        check(holds[0] <= holds[1] <= holds[2] and holds[0] < holds[2], f"spread: a slow end {holds}")
+        ae.toggle_play()
+        pump()
+        check(ae.is_playing and ae.player.hold_of is not playback.hold, "the preview counts the game's video frames")
+        frame.set_play_at_50hz(True)
+        check(not ae.is_playing and REFRESH.hz(frame.project) == 50 and "50 Hz" in ae.inspector.tick_ms.GetLabel(),
+              "Play at 50 Hz: playback stops, the inspector shows the timing at 50 Hz")
+        frame.set_play_at_50hz(False)
+        check(REFRESH.hz(frame.project) == 60 and not frame.m_play_50hz.IsChecked(), "back to 60 Hz")
+
+        def answer(dialog):
+            dialog._tick_shown(True)
+            dialog._use(dialog.use_rate)
+            dialog.rate.SetValue(20)
+            return wx.ID_OK
+
+        before = timing()
+        original = batch_dialog.ChangeAnimationsDialog.ShowModal
+        batch_dialog.ChangeAnimationsDialog.ShowModal = answer
+        try:
+            ae.change_animations()
+        finally:
+            batch_dialog.ChangeAnimationsDialog.ShowModal = original
+        pump()
+        after = timing()
+        check(all(rate == 20 for rate, _holds in after), "Change Animations: every animation at 20 ticks a second")
+        check(all(new == [max(1, h) * 20 // rate for h in old] for (rate, old), (_r, new) in zip(before, after)
+                  if 20 % rate == 0), "their timing is kept (holds scaled)")
+        for _ in range(2):
+            frame.on_undo(None)
+        pump()
+        check(timing() == start, "undo: the holds and tick rates as they were")
+
+    step("animations: timing tools (video frames, 50 Hz, spread, Change Animations)", timing_tools)
+
     def groups_and_order():
         """Groups for frames and animations: set in the inspector's field, one group shown, sorted by name, undone."""
         from ui.grouping import natural_key

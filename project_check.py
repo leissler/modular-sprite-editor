@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set,
 
 import consoles
 import palettes
+import playback
 from models import ImageAsset, Project, generate_id
 
 ERROR, WARNING, INFO = "error", "warning", "info"
@@ -315,6 +316,20 @@ def _check_animations(project: Project) -> List[Issue]:
                     "count.",
                     target,
                 ))
+        if anim.aframes and not playback.converts_exactly(anim):
+            rate = playback.tick_rate(anim)
+            ticks = sum(playback.hold(af) for af in anim.aframes)
+            frames = sum(playback.console_frames(anim, af) for af in anim.aframes)
+            game, edited = frames / float(playback.VIDEO_RATE), ticks / float(rate)
+            length = ("together they last as long" if abs(game - edited) < 1e-9
+                      else f"together they last {game:.2f} s instead of {edited:.2f} s")
+            issues.append(Issue(
+                INFO, "rounded-holds",
+                f"Animation '{anim.name}' runs at {rate} ticks a second, which does not divide the game's 60 video "
+                f"frames a second: each step is rounded to whole frames ({length}; the preview plays it so). 10, 12, "
+                "15, 20 or 30 ticks a second convert exactly.",
+                target,
+            ))
     return issues
 
 

@@ -98,6 +98,20 @@ class BrokenReferencesTest(unittest.TestCase):
         self.assertEqual(codes(pc.check_project(p, pixels=False)), [])
 
 
+class TimingTest(unittest.TestCase):
+    def test_holds_the_export_rounds(self) -> None:
+        """A tick rate that does not divide 60: the game rounds each step to whole video frames, and says so."""
+        project = Project.from_json(str(POP))
+        anim = project.animations[0]
+        anim.fps = 8
+        anim.aframes[0].duration_frames = 1  # 7.5 video frames (PoP's even holds would still convert exactly)
+        issues = [i for i in pc.check_project(project, pixels=False) if i.code == "rounded-holds"]
+        self.assertEqual([i.target for i in issues], [("animation", anim.id)])
+        self.assertIn("8 ticks a second", issues[0].text)
+        anim.fps = 12
+        self.assertNotIn("rounded-holds", codes(pc.check_project(project, pixels=False)))
+
+
 class MarkersAndNamesTest(unittest.TestCase):
     def setUp(self) -> None:
         self.project = Project.from_json(str(POP))

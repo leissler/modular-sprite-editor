@@ -6,11 +6,13 @@ from typing import Any, Callable, List, Optional, Tuple
 
 import wx
 
+import playback
 from models import AFrame, Animation, Project
 from ui import first_steps, grouping
 from ui.animation_editor import ops
 from ui.components.inspector_kit import hbox, relayout, row, section
 from ui.dpi import px
+from ui.refresh_rate import REFRESH
 
 
 class AnimationInspector(wx.ScrolledWindow):
@@ -82,7 +84,8 @@ class AnimationInspector(wx.ScrolledWindow):
         self.fps = wx.SpinCtrl(p, min=1, max=60, initial=10, size=(px(64), -1))
         self.fps.SetToolTip(
             "Ticks per second: one tick of hold lasts 1/rate seconds.\n"
-            "The SGDK export converts holds to 60 Hz frames (10 ticks/s = 6 frames per tick)."
+            "In the game every hold becomes whole video frames at 60 a second (10 ticks/s = 6 frames per tick); "
+            "with a rate that does not divide 60 each step is rounded, and the preview plays it so."
         )
         self.fps_info = wx.StaticText(p, label="ticks / s")
         self.tick_ms = wx.StaticText(p, label="")
@@ -131,6 +134,11 @@ class AnimationInspector(wx.ScrolledWindow):
         self.hold.SetToolTip("How many ticks this step stays on screen. Drag a step's right edge in the sequence, or press [ / ].")
         self.hold_info = wx.StaticText(p, label="")
         row(grid, p, "Hold", hbox(self.hold, self.hold_info))
+        self.btn_spread = wx.Button(p, label="Spread ▾", style=wx.BU_EXACTFIT)
+        self.btn_spread.SetToolTip("Hold patterns over the selected steps: 1-1-2-2, 1-2, or holds that grow or shrink "
+                                   "(a slow start or end), in units of their shortest hold")
+        grid.Add((0, 0))
+        grid.Add(self.btn_spread, 0)
         self.off_x = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(px(64), -1))
         self.off_y = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(px(64), -1))
         self.offset_label = row(grid, p, "Offset", hbox(wx.StaticText(p, label="X"), self.off_x, 6, wx.StaticText(p, label="Y"), self.off_y))
@@ -227,6 +235,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.event_name.Bind(wx.EVT_COMBOBOX, add_event)
         self.btn_manage_events.Bind(wx.EVT_BUTTON, lambda e: self.on_manage_events and self.on_manage_events())
         self.hold.Bind(wx.EVT_SPINCTRL, lambda e: step("hold", self.hold.GetValue()))
+        self.btn_spread.Bind(wx.EVT_BUTTON, lambda e: self._spread_menu())
         self.hold.Bind(wx.EVT_TEXT_ENTER, lambda e: step("hold", self.hold.GetValue()))
         for spin, field in ((self.off_x, "x"), (self.off_y, "y")):
             spin.Bind(wx.EVT_SPINCTRL, lambda e, f=field, s=spin: step(f, s.GetValue()))
@@ -300,8 +309,20 @@ class AnimationInspector(wx.ScrolledWindow):
         self._fill_next(anim)
         rate = ops.tick_rate(anim)
         self.fps.SetValue(rate)
-        self.tick_ms.SetLabel(f"1 tick = {1000.0 / rate:.0f} ms  ·  {60.0 / rate:g} frames at 60 Hz")
-        self.length.SetLabel(ops.describe_length(anim))
+        hz = REFRESH.hz(self.project)
+        timing = f"1 tick = {1000.0 / rate:.0f} ms  ·  {60.0 / rate:.3g} frames at 60 Hz"
+        if hz != playback.VIDEO_RATE:
+            timing += f"\n{60000.0 / rate / hz:.0f} ms at {hz} Hz"
+        if not playback.converts_exactly(anim):
+            timing += "\nThe game rounds each step to whole frames."
+        self.tick_ms.SetLabel(timing)
+        self.tick_ms.Wrap(px(230))  # (a long label would widen the whole inspector)
+        length = ops.describe_length(anim)
+        frames = sum(playback.console_frames(anim, af) for af in anim.aframes)
+        if anim.aframes and (hz != playback.VIDEO_RATE or not playback.converts_exactly(anim)):
+            length += f"\nin the game: {frames / float(hz):.2f} s"
+        self.length.SetLabel(length)
+        self.length.Wrap(px(230))
         uses = ops.scene_usage(self.project, anim.id) if self.project else 0
         self.usage.SetLabel(f"{uses} timeline object{'s' if uses != 1 else ''}" if uses else "no timeline scenes")
         text, over = self.budget if self.budget else ("", False)
@@ -330,6 +351,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.btn_edit_frame.Enable(single and frame is not None)
         holds = {ops.hold(anim.aframes[i]) for i in indices}
         self.hold.SetValue(min(holds))
+        self.btn_spread.Show(not single)
         rate = ops.tick_rate(anim)
         self.hold_info.SetLabel(
             f"ticks = {ops.hold(first) / rate:.2f} s" if len(holds) == 1 else "ticks (mixed: sets all)"
@@ -351,6 +373,13 @@ class AnimationInspector(wx.ScrolledWindow):
             self.hold_info.SetLabel("ticks (stored as 0: plays as 1)")
         self._fill_events(anim, indices)
 
+    def _spread_menu(self) -> None:
+        menu = wx.Menu()
+        for label, kind in ops.SPREADS:
+            item = menu.Append(wx.ID_ANY, label)
+            self.Bind(wx.EVT_MENU, lambda e, k=kind: self.on_step_change and self.on_step_change("spread", k), item)
+        self.btn_spread.PopupMenu(menu, (0, self.btn_spread.GetSize().height))
+        menu.Destroy()
 
     def _fill_next(self, anim: Animation) -> None:
         others = [a for a in self.project.animations if a.id != anim.id] if self.project else []

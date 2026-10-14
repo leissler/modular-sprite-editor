@@ -30,6 +30,52 @@ class TestTiming(unittest.TestCase):
         self.assertEqual(ops.describe_length(anim), "3 steps · 4 ticks · 0.40 s")
 
 
+class TestSpread(unittest.TestCase):
+    def test_patterns_and_slow_starts_and_ends(self):
+        self.assertEqual(ops.spread_holds("pairs", 6), [1, 1, 2, 2, 1, 1])
+        self.assertEqual(ops.spread_holds("one_two", 5, unit=2), [2, 4, 2, 4, 2])
+        self.assertEqual(ops.spread_holds("two_one", 3), [2, 1, 2])
+        self.assertEqual(ops.spread_holds("slow_start", 6), [3, 2, 2, 1, 1, 1])
+        self.assertEqual(ops.spread_holds("slow_end", 6), [1, 1, 1, 2, 2, 3])
+        self.assertEqual(ops.spread_holds("slow_both", 6), [3, 2, 1, 1, 2, 3])
+        self.assertEqual(ops.spread_holds("slow_end", 1), [1])
+        for _label, kind in ops.SPREADS:
+            self.assertEqual(len(ops.spread_holds(kind, 7)), 7, kind)
+
+    def test_spread_counts_in_the_shortest_hold(self):
+        anim = _anim((4, 2, 6, 2, 9))
+        self.assertEqual(ops.spread(anim, [3, 1, 2, 99], "slow_end"), [1, 2, 3])
+        self.assertEqual([af.duration_frames for af in anim.aframes], [4, 2, 4, 6, 9], "steps 1-3, unit 2")
+
+
+class TestChangeAnimations(unittest.TestCase):
+    def test_tick_rate_keeps_the_timing_or_the_holds(self):
+        anim = _anim((1, 2, 3))
+        self.assertTrue(ops.change_tick_rate(anim, 30, keep_timing=True))
+        self.assertEqual(([af.duration_frames for af in anim.aframes], anim.fps), ([3, 6, 9], 30))
+        self.assertFalse(ops.change_tick_rate(anim, 12, keep_timing=True), "3 ticks at 30/s are 1.2 at 12/s")
+        self.assertEqual([af.duration_frames for af in anim.aframes], [1, 2, 4])
+        ops.change_tick_rate(anim, 60, keep_timing=False)
+        self.assertEqual(([af.duration_frames for af in anim.aframes], anim.fps), ([1, 2, 4], 60))
+
+    def test_several_at_once(self):
+        project = Project()
+        a, b, c = _anim((1, 2)), _anim((2,)), _anim((2, 2))
+        for ident, anim in zip("abc", (a, b, c)):
+            anim.id, anim.name = ident, ident.upper()
+            project.animations.append(anim)
+        b.fps = 15
+        count, rounded = ops.change_animations(project, ["a", "b", "gone"], rate=20, playback_type="ping_pong",
+                                               loop_count=2, group=" Moves ")
+        self.assertEqual((count, rounded), (2, ["B"]), "2 ticks at 15/s are 2.67 at 20/s")
+        self.assertEqual([af.duration_frames for af in a.aframes], [2, 4])
+        self.assertEqual([af.duration_frames for af in b.aframes], [3])
+        self.assertEqual({(x.fps, x.playback_type, x.loop_count, x.group) for x in (a, b)}, {(20, "ping_pong", 2, "Moves")})
+        self.assertEqual((c.fps, c.playback_type, c.group), (10, "loop", ""), "not ticked: unchanged")
+        ops.change_animations(project, ["c"], group="")
+        self.assertEqual(c.group, "")
+
+
 class TestPlayer(unittest.TestCase):
     def test_loop_follows_holds_and_wraps(self):
         shown, _ = _play(_anim((1, 2)), 7)

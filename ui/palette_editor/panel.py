@@ -23,6 +23,7 @@ from ui.dpi import px
 from ui.palette_editor import ops
 from ui.palette_editor.inspector import PaletteInspector
 from ui.palette_editor.preview import PalettePreview
+from ui.refresh_rate import REFRESH
 
 ORIGINAL = "__original__"  # the swap list's first row: the palettes as they are
 FRAME_MS = 33  # the cycle preview's timer
@@ -254,7 +255,7 @@ class PaletteEditorPanel(wx.Panel):
             self.timer.Stop()
             return
         now = time.monotonic()
-        self.cycle_frame += (now - self._last_tick) * 60.0  # video frames
+        self.cycle_frame += (now - self._last_tick) * REFRESH.hz(self.project)  # video frames
         self._last_tick = now
         self._update_preview()
 

@@ -140,5 +140,64 @@ class AnimationAtTest(unittest.TestCase):
         self.assertEqual(playback.animation_at(anim, -0.5, playback.own_rules(anim), lambda _id: None)[1], 2)
 
 
+
+class ConsoleTimingTest(unittest.TestCase):
+    """The game counts video frames: the export turns each hold into whole frames at 60 a second, and a Player with
+    console_hold steps through those frames the way the runtime does (what the Animations preview plays)."""
+
+    def test_holds_become_whole_video_frames(self):
+        anim = _anim("a", [1, 3, 2, 1], fps=8)  # 7.5, 22.5, 15 and 7.5 frames
+        self.assertEqual([playback.console_frames(anim, af) for af in anim.aframes], [8, 22, 15, 8])
+        self.assertFalse(playback.converts_exactly(anim))
+        for rate in (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60):
+            even = _anim("b", [1, 2, 7], fps=rate)
+            self.assertTrue(playback.converts_exactly(even), rate)
+            self.assertEqual([playback.console_frames(even, af) for af in even.aframes],
+                             [h * 60 // rate for h in (1, 2, 7)])
+
+    def test_the_player_counts_frames_like_the_game(self):
+        anim = _anim("a", [1, 3, 2], playback_type="forward", fps=8)
+        player = playback.Player(anim, repeat=False, hold_of=playback.console_hold(anim))
+        player.start()
+        steps, ticks = [], []
+        while True:
+            steps.append(player.step)
+            ticks.append(player.position())
+            if not player.advance():
+                break
+        self.assertEqual([steps.count(i) for i in range(3)], [8, 22, 15])
+        self.assertEqual(ticks[:8], [0] * 8)
+        self.assertEqual(ticks[8:30], [1] * 8 + [2] * 7 + [3] * 7, "the step's ticks share its frames")
+        self.assertEqual(ticks[30:], [4] * 8 + [5] * 7)
+
+    def test_ticks_stay_ticks_without_console_holds(self):
+        anim = _anim("a", [2, 1], fps=8)
+        player = playback.Player(anim)
+        player.start()
+        shown = []
+        for _ in range(6):
+            shown.append(player.position())
+            player.advance()
+        self.assertEqual(shown, [0, 1, 2, 0, 1, 2])
+
+    def test_the_export_holds_the_same_frames(self):
+        import tempfile
+
+        sys.path.insert(0, str(ROOT / "examples" / "sgdk" / "tools"))
+        import export_sgdk_example as sg
+        from models import Frame
+
+        project = Project()
+        project.frames.append(Frame("f", "pose"))
+        anim = _anim("a", [1, 3, 2], fps=8)
+        for af in anim.aframes:
+            af.frame_id = "f"
+        project.animations.append(anim)
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = sg.SGDKBakeContext(project, [None], Path(tmp))
+            ctx.bake()
+        self.assertEqual([step[1] for step in ctx.anim_steps], [8, 22, 15])
+
+
 if __name__ == "__main__":
     unittest.main()

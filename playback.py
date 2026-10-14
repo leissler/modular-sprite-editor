@@ -6,7 +6,8 @@ follows the same rules without stepping through every tick. ``tests/test_runtime
 with the C runtime, ``tests/test_playback.py`` the shortcut with the Player.
 
 Units: a step holds its frame for ``duration_frames`` ticks (below 1 counts as 1); ``Animation.fps`` is ticks per
-second.
+second. The runtime itself counts video frames: the SGDK export turns each hold into whole frames at 60 a second
+(``console_frames``), which a ``Player`` with ``hold_of=console_hold(anim)`` steps through like the game.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ if TYPE_CHECKING:  # models imports this module
     from models import AFrame, Animation
 
 DEFAULT_TICK_RATE = 10
+VIDEO_RATE = 60  # video frames a second the export converts holds to (a 50 Hz console shows them more slowly)
 PLAYBACKS = ("forward", "backward", "loop", "ping_pong")  # Animation.playback_type
 
 # Timeline object modes (TimelineObject.playback_mode): play the animation as animated, or override how it plays.
@@ -32,6 +34,24 @@ def hold(af: "AFrame") -> int:
 
 def tick_rate(anim: "Animation") -> int:
     return int(anim.fps) if int(anim.fps) > 0 else DEFAULT_TICK_RATE
+
+
+def console_frames(anim: "Animation", af: "AFrame") -> int:
+    """Video frames a step shows in the game: its hold at the animation's tick rate, rounded to whole frames (the SGDK
+    export's conversion). Tick rates that divide 60 convert exactly; others make some steps a little longer or
+    shorter."""
+    return max(1, int(round(hold(af) * VIDEO_RATE / float(tick_rate(anim)))))
+
+
+def console_hold(anim: "Animation") -> Callable[["AFrame"], int]:
+    """``Player(anim, hold_of=console_hold(anim))`` advances one video frame per call, as the runtime does."""
+    return lambda af: console_frames(anim, af)
+
+
+def converts_exactly(anim: "Animation") -> bool:
+    """Whether every hold is a whole number of video frames (the game shows the timing the editor counts)."""
+    rate = tick_rate(anim)
+    return all(abs(hold(af) * VIDEO_RATE / float(rate) - console_frames(anim, af)) < 1e-9 for af in anim.aframes)
 
 
 def playback_of(anim: "Animation") -> str:
@@ -60,9 +80,10 @@ class Player:
     editor's Repeat toggle restarts a finished preview from the beginning.
     """
 
-    def __init__(self, anim: "Animation", repeat: bool = True):
+    def __init__(self, anim: "Animation", repeat: bool = True, hold_of: Optional[Callable[["AFrame"], int]] = None):
         self.anim = anim
         self.repeat = repeat
+        self.hold_of = hold_of or hold  # what one advance() counts: ticks, or the game's video frames (console_hold)
         self.step = 0
         self.ticks_left = 1
         self.direction = 1
@@ -85,15 +106,19 @@ class Player:
 
     def _enter(self, step: int) -> None:
         self.step = step
-        self.ticks_left = hold(self.anim.aframes[step])
+        self.ticks_left = self.hold_of(self.anim.aframes[step])
         self.step_started = True
 
     def position(self) -> int:
-        """Tick on the strip that is showing now."""
+        """Tick on the strip that is showing now (with a console ``hold_of``: the tick the game's frame falls in)."""
         if not self.anim.aframes:
             return 0
-        start = sum(hold(af) for af in self.anim.aframes[: self.step])
-        return start + hold(self.anim.aframes[self.step]) - max(1, self.ticks_left)
+        step = min(self.step, len(self.anim.aframes) - 1)  # steps may have been deleted while it plays
+        af = self.anim.aframes[step]
+        start = sum(hold(a) for a in self.anim.aframes[:step])
+        length = self.hold_of(af)
+        shown = max(0, min(length - 1, length - max(1, self.ticks_left)))
+        return start + shown * hold(af) // length
 
     def _cycle_done(self) -> bool:
         """Count a finished cycle; True when the animation should stop."""

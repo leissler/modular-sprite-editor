@@ -7,9 +7,11 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import wx
 
+import playback
 from models import AFrame, Animation, Project
 from ui import app_services, grouping
 from ui.animation_editor import ops
+from ui.animation_editor.batch_dialog import ChangeAnimationsDialog
 from ui.animation_editor.browser import AnimationBrowser, FrameLibrary
 from ui.animation_editor.inspector import AnimationInspector
 from ui.animation_editor.render import StepRenderer, export_gif
@@ -18,6 +20,7 @@ from ui.animation_editor.stage import ONION_MODES, AnimationStage
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.group_bar import group_menu
 from ui.dpi import px
+from ui.refresh_rate import REFRESH
 from ui.components.split_memory import split_bottom_remembered
 
 MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
@@ -389,7 +392,7 @@ class AnimationEditorPanel(wx.Panel):
     def _refresh_stage(self) -> None:
         anim = self.animation()
         # Colour cycles turn while it plays: video frames since playback started (none while it stands).
-        self.stage.colour_frame = ((time.monotonic() - self._play_clock[0]) * 60.0 * self.speed
+        self.stage.colour_frame = ((time.monotonic() - self._play_clock[0]) * REFRESH.hz(self.project) * self.speed
                                    if self.is_playing else None)
         self.stage.set_view(
             anim,
@@ -559,6 +562,7 @@ class AnimationEditorPanel(wx.Panel):
             ("Duplicate", self.duplicate_animation),
             ("Delete", self.delete_animation),
             None,
+            ("Change Animations…", self.change_animations),
             ("Export GIF…", self.export_gif),
         ]
         for entry in entries:
@@ -574,6 +578,25 @@ class AnimationEditorPanel(wx.Panel):
                    lambda name: self._on_animation_field("group", name))
         self.browser.list.PopupMenu(menu)
         menu.Destroy()
+
+    def change_animations(self) -> None:
+        """Change Animations…: one setting (tick rate, playback, repeats, group) for many animations, one undo step."""
+        if not self.project.animations:
+            return
+        chosen = [self.selected_animation_id] if self.selected_animation_id else []
+        with ChangeAnimationsDialog(self, self.project, chosen) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            ids, settings = dlg.chosen_ids(), dlg.settings()
+        self.stop_playback()
+        count, rounded = ops.change_animations(self.project, ids, **settings)
+        self.refresh_animations()
+        app_services.request_checkpoint()
+        message = f"Changed {count} animation{'s' if count != 1 else ''}"
+        if rounded:
+            names = ", ".join(f"'{n}'" for n in rounded[:3]) + (" …" if len(rounded) > 3 else "")
+            message += f"; the holds of {len(rounded)} ({names}) are rounded to whole ticks"
+        app_services.show_status(message)
 
     def _on_animation_field(self, field: str, value: Any) -> None:
         anim = self.animation()
@@ -600,7 +623,7 @@ class AnimationEditorPanel(wx.Panel):
             anim.group = group
             app_services.show_status(f"'{anim.name}' is in the group '{group}'" if group else f"'{anim.name}' has no group")
         if self.is_playing:
-            self.player = ops.Player(anim, self.repeat)
+            self.player = ops.Player(anim, self.repeat, playback.console_hold(anim))
             self.player.start(self.current_step())
             self._play_clock = (time.monotonic(), 0)
         self.refresh_animations()
@@ -675,7 +698,8 @@ class AnimationEditorPanel(wx.Panel):
             self._fired = None
         else:
             self.is_playing = True
-            self.player = ops.Player(anim, self.repeat)
+            # The game's timing: one advance per video frame, each step held for the frames the export gives it.
+            self.player = ops.Player(anim, self.repeat, playback.console_hold(anim))
             start = self.current_step()
             last = len(anim.aframes) - 1
             if anim.playback_type == "forward" and start >= last:
@@ -707,7 +731,7 @@ class AnimationEditorPanel(wx.Panel):
             self.stop_playback()
             return
         started, done = self._play_clock
-        due = int((time.monotonic() - started) * ops.tick_rate(anim) * self.speed)
+        due = int((time.monotonic() - started) * REFRESH.hz(self.project) * self.speed)  # video frames
         running = True
         fired = -1
         while done < due and running:
@@ -872,6 +896,16 @@ class AnimationEditorPanel(wx.Panel):
             ops.set_hold(anim, targets, ticks)
             self._commit()
 
+    def spread_selected(self, kind: str) -> None:
+        """Hold ▸ Spread: a hold pattern over the selected steps."""
+        anim = self.animation()
+        targets = self._targets()
+        if anim and len(targets) > 1:
+            steps = ops.spread(anim, targets, kind)
+            self.selection = set(steps)
+            self._commit()
+            app_services.show_status("Holds " + "-".join(str(ops.hold(anim.aframes[i])) for i in steps))
+
     def flip_selected(self, axis: str) -> None:
         anim = self.animation()
         targets = self._targets()
@@ -901,6 +935,9 @@ class AnimationEditorPanel(wx.Panel):
             return
         if field == "hold":
             ops.set_hold(anim, targets, int(value))
+        elif field == "spread":
+            self.spread_selected(str(value))
+            return
         elif field in ("x", "y"):
             af = anim.aframes[targets[0]]
             x, y = af.offset
@@ -994,6 +1031,9 @@ class AnimationEditorPanel(wx.Panel):
             holds = wx.Menu()
             for ticks in HOLD_PRESETS:
                 add(f"{ticks} tick{'s' if ticks != 1 else ''}", lambda t=ticks: self.set_hold(t), target=holds)
+            holds.AppendSeparator()
+            for label, kind in ops.SPREADS:
+                add(f"Spread {label}", lambda k=kind: self.spread_selected(k), len(self._targets()) > 1, target=holds)
             menu.AppendSubMenu(holds, "Hold")
             add("Flip H\tH", lambda: self.flip_selected("x"))
             add("Flip V\tV", lambda: self.flip_selected("y"))
