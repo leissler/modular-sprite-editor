@@ -346,7 +346,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.step_title.SetLabel(title.upper())
         frame = self.project.get_frame(first.frame_id) if self.project else None
         same_frame = all(anim.aframes[i].frame_id == first.frame_id for i in indices)
-        label = (frame.name.strip() or frame.id) if frame and same_frame else ("(different frames)" if not same_frame else "(missing frame)")
+        label = (frame.name.strip() or frame.id) if frame and same_frame else ("(mixed)" if not same_frame else "(missing frame)")
         self.frame_btn.SetLabel(_short(label))
         self.btn_edit_frame.Enable(single and frame is not None)
         holds = {ops.hold(anim.aframes[i]) for i in indices}

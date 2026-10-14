@@ -15,6 +15,7 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Global", "Undo / Redo (all editors)", f"{MOD}+Z / {MOD}+Shift+Z"),
     ("Global", "New / Open / Save / Save As", f"{MOD}+N / {MOD}+O / {MOD}+S / {MOD}+Shift+S"),
     ("Global", "Switch tab", f"{MOD}+1 … {MOD}+6"),
+    ("Global", "Preferences", f"{MOD}+,"),
     ("Global", "This help", f"{MOD}+/"),
     ("Every canvas", "Zoom at cursor (smooth, settles on whole pixel sizes)",
      f"Mouse wheel / two-finger scroll / pinch (View ▸ Scroll Moves the View: pinch / {MOD}+scroll)"),

@@ -410,6 +410,26 @@ class SceneInspector(wx.ScrolledWindow):
         if 0 <= idx < len(self._mapping_ids):
             self._emit(self.on_object_change, "mapping", self._mapping_ids[idx])
 
+    def _unit_tips(self, project: Project, obj: TimelineObject, fps: int) -> None:
+        """Where the scene's frames meet the animation's ticks, the tooltips give the other unit too."""
+        anim = project.get_animation(obj.source_id) if obj.source_type == "animation" and obj.source_id else None
+        if anim is None:
+            self.pb_offset.SetToolTip("Start the animation this many scene frames in")
+            self.pb_speed.SetToolTip("How fast the animation plays: 1× is its own tick rate")
+            return
+
+        def number(value: float) -> str:
+            return f"{value:.2f}".rstrip("0").rstrip(".")
+
+        rate = max(1, int(anim.fps or 10))
+        seconds = float(obj.playback_offset)
+        self.pb_offset.SetToolTip(
+            f"Start the animation this many scene frames in: {number(seconds)} s, which is {number(seconds * rate)} of "
+            f"'{anim.name}'s ticks ({rate} a second; the scene shows {fps} frames a second)")
+        self.pb_speed.SetToolTip(
+            f"1× plays '{anim.name}' at its own {rate} ticks a second. The scene shows {fps} frames a second, so at "
+            f"{number(obj.playback_speed)}× each scene frame moves it on {number(rate * obj.playback_speed / max(1, fps))} ticks")
+
     def _on_swap_choice(self, _event: wx.CommandEvent) -> None:
         idx = self.obj_swap.GetSelection()
         if 0 <= idx < len(self._swap_ids):
@@ -584,6 +604,7 @@ class SceneInspector(wx.ScrolledWindow):
         self.pb_speed.SetValue(obj.playback_speed)
         self.pb_offset.SetValue(int(round(obj.playback_offset * fps)))
         self.pb_root.SetValue(obj.use_source_root_motion)
+        self._unit_tips(project, obj, fps)
 
         # Transform at the playhead
         key = self._key_here()

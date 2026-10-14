@@ -12,7 +12,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import wx
 import wx.lib.agw.flatnotebook as fnb
@@ -21,8 +21,10 @@ import consoles
 import palettes
 from models import FModule, Project, generate_id
 from ui import app_services, autosave, preferences, view_memory
+from ui.animation_editor import ops as anim_ops
 from ui.animation_editor.panel import AnimationEditorPanel
 from ui.base_canvas import SCROLL
+from ui.components.canvas_display_controls import set_shared_backdrop_colour, shared_backdrop_colour
 from ui.canvas import BUDGET
 import project_check
 from ui.check_dialog import CheckProjectDialog
@@ -34,6 +36,7 @@ from ui.frame_editor.panel import FrameEditorPanel
 from ui.mapping_editor.panel import MappingEditorPanel
 from ui.palette_editor.panel import PaletteEditorPanel
 from ui.module_editor.panel import ModuleEditorPanel
+from ui.preferences_dialog import PreferencesDialog
 from ui.project_history import ProjectHistory
 from ui.refresh_rate import REFRESH
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
@@ -48,6 +51,8 @@ APP_VERSION = "0.8"
 TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings", "Palettes"]
 CONFIG_WINDOW = "Window/Geometry"  # "x,y,width,height" when the editor last closed
 CONFIG_WINDOW_MAXIMIZED = "Window/Maximized"
+CONFIG_NEW_TICK_RATE = "Animations/NewTickRate"  # Preferences ▸ New animations
+CONFIG_AUTOSAVE_SECONDS = "Autosave/Seconds"  # Preferences ▸ Safety
 DEFAULT_WINDOW = (1500, 980)
 
 # Shown in the status bar when a tab is activated.
@@ -227,6 +232,7 @@ class MainFrame(wx.Frame):
 
         # Preferences and Recent Files (Custom MRU): the one store SpriteEditorApp.OnInit sets up (tests use a file)
         self.config = wx.Config.Get()
+        anim_ops.set_new_tick_rate(self.config.ReadInt(CONFIG_NEW_TICK_RATE, anim_ops.DEFAULT_TICK_RATE))
         self.recent_files: list[str] = []
         self._load_recent_files()
 
@@ -338,7 +344,7 @@ class MainFrame(wx.Frame):
         self._autosaved_fingerprint: Optional[str] = None
         self._autosave_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self._on_autosave_timer, self._autosave_timer)
-        self._autosave_timer.Start(autosave.AUTOSAVE_INTERVAL_MS)
+        self._autosave_timer.Start(self._autosave_ms())
         self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
 
         self._update_title()
@@ -468,6 +474,49 @@ class MainFrame(wx.Frame):
         self.m_scroll_moves.Check(moves)
         self.set_status(f"Scrolling moves the view; pinch or {MOD}+scroll zooms" if moves
                         else "Scrolling zooms; Shift / Alt + scroll moves the view")
+
+    # ------------------------------------------------------------------ preferences
+    def _autosave_ms(self) -> int:
+        seconds = self.config.ReadInt(CONFIG_AUTOSAVE_SECONDS, autosave.AUTOSAVE_INTERVAL_MS // 1000)
+        return max(5, seconds) * 1000
+
+    def preference_values(self) -> Dict[str, Any]:
+        """What the Preferences window shows, read from where each setting lives."""
+        return {
+            "scroll_moves": SCROLL.moves,
+            "play_50hz": REFRESH.pal,
+            "backdrop_colour": shared_backdrop_colour(),
+            "tick_rate": anim_ops.new_tick_rate(),
+            "autosave_seconds": self._autosave_ms() // 1000,
+            "welcome": self.config.ReadBool(CONFIG_SHOW, True),
+            "recent_count": len(self.recent_files),
+        }
+
+    def apply_preferences(self, values: Dict[str, Any]) -> None:
+        if bool(values["scroll_moves"]) != SCROLL.moves:
+            self.set_scroll_moves(bool(values["scroll_moves"]))
+        if bool(values["play_50hz"]) != REFRESH.pal:
+            self.set_play_at_50hz(bool(values["play_50hz"]))
+        if tuple(values["backdrop_colour"]) != shared_backdrop_colour():
+            set_shared_backdrop_colour(values["backdrop_colour"])
+        anim_ops.set_new_tick_rate(int(values["tick_rate"]))
+        self.config.WriteInt(CONFIG_NEW_TICK_RATE, anim_ops.new_tick_rate())
+        if int(values["autosave_seconds"]) * 1000 != self._autosave_ms():
+            self.config.WriteInt(CONFIG_AUTOSAVE_SECONDS, int(values["autosave_seconds"]))
+            self._autosave_timer.Start(self._autosave_ms())
+        self.config.WriteBool(CONFIG_SHOW, bool(values["welcome"]))
+        self.config.Flush()
+
+    def on_preferences(self, _event: Optional[wx.CommandEvent] = None) -> None:
+        with PreferencesDialog(self, self.preference_values(), self.clear_recent_files) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.apply_preferences(dialog.values())
+                self.set_status("Preferences saved")
+
+    def clear_recent_files(self) -> None:
+        self.recent_files = []
+        self._save_recent_files()
+        self._rebuild_recent_menu()
 
     def set_play_at_50hz(self, pal: bool) -> None:
         """View ▸ Play at 50 Hz (PAL): every preview plays at a 50 Hz console's speed (kept in the preferences)."""
@@ -901,6 +950,8 @@ class MainFrame(wx.Frame):
         m_dup = edit_menu.Append(wx.ID_DUPLICATE, "&Duplicate\tCtrl+D")
         edit_menu.AppendSeparator()
         m_select_all = edit_menu.Append(wx.ID_SELECTALL, "Select &All\tCtrl+A")
+        edit_menu.AppendSeparator()
+        m_prefs = edit_menu.Append(wx.ID_PREFERENCES, "Preferences...\tCtrl+,")  # macOS: the application menu
         self.Bind(wx.EVT_MENU, self.on_undo, m_undo)
         self.Bind(wx.EVT_MENU, self.on_redo, m_redo)
         self.Bind(wx.EVT_MENU, self.on_cut, m_cut)
@@ -908,6 +959,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_paste, m_paste)
         self.Bind(wx.EVT_MENU, self.on_duplicate, m_dup)
         self.Bind(wx.EVT_MENU, self.on_select_all, m_select_all)
+        self.Bind(wx.EVT_MENU, self.on_preferences, m_prefs)
         self.Bind(wx.EVT_UPDATE_UI, self.on_update_undo_ui, m_undo)
         self.Bind(wx.EVT_UPDATE_UI, self.on_update_redo_ui, m_redo)
         menubar.Append(edit_menu, "&Edit")
@@ -947,7 +999,7 @@ class MainFrame(wx.Frame):
         tools_menu = wx.Menu()
         m_check = tools_menu.Append(wx.ID_ANY, "Check Project...", "What exports would drop or show differently, with fixes")
         tools_menu.AppendSeparator()
-        m_automod = tools_menu.Append(wx.ID_ANY, "Auto Modularize Image…", "Cut the selected image's sprites into shared hardware-sized parts")
+        m_automod = tools_menu.Append(wx.ID_ANY, "Auto Modularize Image...", "Cut the selected image's sprites into shared hardware-sized parts")
         m_opt_sprite = tools_menu.Append(wx.ID_ANY, "Optimize Sprite Sheet...")
         m_opt_nested = tools_menu.Append(wx.ID_ANY, "Optimize Nested Frame Combos (All Frames)...")
         tools_menu.AppendSeparator()

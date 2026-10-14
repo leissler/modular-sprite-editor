@@ -29,6 +29,17 @@ PLAYBACK_MODES: List[Tuple[str, str]] = [
 ]
 REPEATING_MODES = ("loop", "ping_pong", "backward")
 
+_new_tick_rate = DEFAULT_TICK_RATE  # animations made from scratch (Preferences ▸ New animations)
+
+
+def set_new_tick_rate(rate: int) -> None:
+    global _new_tick_rate
+    _new_tick_rate = max(1, min(60, int(rate)))
+
+
+def new_tick_rate() -> int:
+    return _new_tick_rate
+
 
 # ---------------------------------------------------------------------------- timing
 # hold, tick_rate, loop_start, can_finish and the Player live in playback.py, shared with Timeline objects.
@@ -274,7 +285,7 @@ def new_animation(project: Project, after_id: Optional[str] = None, name: str = 
         id=generate_id("anim"),
         name=unique_name(project, name),
         playback_type="loop",
-        fps=tick_rate(after) if after else DEFAULT_TICK_RATE,
+        fps=tick_rate(after) if after else _new_tick_rate,
     )
     index = project.animations.index(after) + 1 if after in project.animations else len(project.animations)
     project.animations.insert(index, anim)

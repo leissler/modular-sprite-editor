@@ -1967,6 +1967,37 @@ def run():
 
     step("scrolling moves or zooms (View menu)", scroll_choice)
 
+    def preferences_window():
+        """Preferences: tick rate of new animations, autosave interval, 50 Hz previews (the View menu follows),
+        then everything back as it was."""
+        from models import Project
+        from ui import preferences_dialog
+        from ui.animation_editor import ops as anim_ops
+        from ui.refresh_rate import REFRESH
+
+        before = frame.preference_values()
+
+        def answer(dialog):
+            dialog.tick_rate.SetValue(12)
+            dialog.autosave.SetSelection(2)  # 1 minute
+            dialog.play_50hz.SetValue(True)
+            return wx.ID_OK
+
+        original = preferences_dialog.PreferencesDialog.ShowModal
+        preferences_dialog.PreferencesDialog.ShowModal = answer
+        try:
+            frame.on_preferences()
+        finally:
+            preferences_dialog.PreferencesDialog.ShowModal = original
+        check(anim_ops.new_tick_rate() == 12 and anim_ops.new_animation(Project()).fps == 12,
+              "new animations get the tick rate from the preferences")
+        check(frame._autosave_ms() == 60000 and frame._autosave_timer.GetInterval() == 60000, "autosave every minute")
+        check(REFRESH.pal and frame.m_play_50hz.IsChecked(), "50 Hz previews, and the View menu shows it")
+        frame.apply_preferences(before)
+        check(frame.preference_values() == before, "everything back as it was")
+
+    step("preferences window (tick rate, autosave, 50 Hz)", preferences_window)
+
     def view_memory():
         """Reopening a project brings back where it was left: the tab, the preview mapping, each tab's selection, the
         canvas' zoom and pan and the grid (kept per project file in the preferences)."""
