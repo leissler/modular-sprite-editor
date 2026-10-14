@@ -21,7 +21,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 
 def shortcuts():
     """The SHORTCUTS table, read without importing wx: f-strings with MOD become Cmd."""
-    tree = ast.parse((REPO / "ui" / "shortcuts_dialog.py").read_text())
+    tree = ast.parse((REPO / "ui" / "shortcuts_dialog.py").read_text(encoding="utf-8"))
     table = next(node.value for node in tree.body if isinstance(node, ast.AnnAssign) and node.target.id == "SHORTCUTS")
     rows = []
     for item in table.elts:
