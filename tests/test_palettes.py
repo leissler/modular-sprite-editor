@@ -53,7 +53,7 @@ class ColoursTest(unittest.TestCase):
     def test_the_console_sets_the_size(self):
         project = Project()
         self.assertEqual(palettes.capacity(project), 15)
-        project.console = "gameboy"  # not offered yet, but the rules come from the database
+        project.console = "gameboy"
         self.assertEqual(palettes.capacity(project), 3)
 
     def test_nearest_takes_the_first_exact_match(self):
@@ -211,6 +211,92 @@ class ProjectPalettesTest(unittest.TestCase):
         self.assertEqual(pc.palette_issue(3).level, pc.INFO)
         self.assertEqual(pc.palette_issue(4).level, pc.WARNING)
         self.assertIn("ms_load_palette", pc.palette_issue(5).text)
+
+
+
+class OtherConsolesTest(unittest.TestCase):
+    """A project's palettes follow its console: a NES palette holds 3 colours, picked from the PPU's 64."""
+
+    YELLOW = (220, 220, 0)
+
+    def setUp(self):
+        from ui.palette_editor import ops
+
+        self.ops = ops
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name)
+        self.project = Project()
+        self.palette = self.project.default_palette()
+        self.palette.id = "pal_1"
+        # Pixels: red 5, yellow 2, dark, blue and green 1 each.
+        self.project.images.append(_sheet(self.folder, "hero.png", [RED, DARK, BLUE, GREEN, self.YELLOW]))
+        self.palette.colours = [DARK, BLUE, GREEN, RED, self.YELLOW]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_every_console_can_be_the_target(self):
+        for console in consoles.CONSOLES:
+            self.ops.set_console(self.project, console.key)
+            self.assertEqual(self.project.console, console.key)
+            self.assertEqual(palettes.capacity(self.project), console.palette.visible)
+        self.ops.set_console(self.project, "no such console")
+        self.assertEqual(self.project.console, "megadrive")
+
+    def test_a_smaller_console_shows_the_first_colours_and_keeps_the_rest(self):
+        self.assertEqual(self.ops.longer_palettes(self.project, "nes"), [self.palette])
+        self.assertEqual(self.ops.longer_palettes(self.project, "snes"), [])
+        self.assertEqual(self.ops.set_console(self.project, "nes"), 0)
+        self.assertEqual(palettes.colours_of(self.project, self.palette), [DARK, BLUE, GREEN])
+        self.assertEqual(palettes.stored_colours(self.project, self.palette), self.palette.colours)
+        self.assertEqual(palettes.over_capacity(self.project), [self.palette])
+        self.assertEqual(palettes.export_entries(self.project)[0].colours, (DARK, BLUE, GREEN))
+        usage = palettes.slot_usage(self.project, self.palette)
+        self.assertEqual((len(usage), usage[3:], sum(usage)), (5, [0, 0], 10), "the waiting slots draw nothing")
+        self.assertEqual(palettes.unused_slots(self.project, self.palette)[-2:], [3, 4])
+        codes = [i.code for i in pc.check_project(self.project)]
+        self.assertIn("palette-too-long", codes)
+        self.assertIn("too-many-colours", codes, "the art has five colours")
+        self.assertNotIn("colours-not-in-palette", codes, "the palette's length is the issue, not missing colours")
+        # Back on the Mega Drive every colour shows again.
+        self.ops.set_console(self.project, "megadrive")
+        self.assertEqual(palettes.colours_of(self.project, self.palette), self.palette.colours)
+        self.assertNotIn("palette-too-long", [i.code for i in pc.check_project(self.project)])
+
+    def test_keeping_the_most_used_colours(self):
+        swap = PaletteSwap("s", "S", {"pal_1": PaletteChange(colours=[None, (1, 2, 3), None, None, (4, 5, 6)])})
+        self.project.palette_swaps.append(swap)
+        self.assertEqual(self.ops.set_console(self.project, "nes", keep_most_used=True), 2)
+        self.assertEqual(self.palette.colours, [DARK, RED, self.YELLOW], "red and yellow, then the first of the rest")
+        self.assertEqual(swap.palettes["pal_1"].colours, [None, None, (4, 5, 6)], "yellow's replacement moved with it")
+        self.assertEqual(palettes.over_capacity(self.project), [])
+
+    def test_check_project_fixes_a_long_palette(self):
+        self.project.console = "gameboy"
+        issue = next(i for i in pc.check_project(self.project) if i.code == "palette-too-long")
+        self.assertEqual((issue.level, issue.target, issue.fix), (pc.WARNING, ("palette", "pal_1"), "keep-most-used-colours"))
+        self.assertIn("a Game Boy palette 3", issue.text)
+        self.assertEqual(pc.fix(self.project, issue), 2)
+        self.assertEqual(self.palette.colours, [DARK, RED, self.YELLOW])
+
+    def test_fixed_colours_in_the_console_view(self):
+        self.project.console = "nes"
+        shown = palettes.shown_colours(self.project, self.palette, console_view=True)
+        self.assertTrue(all(rgb in consoles.NES.palette.fixed_colours for rgb in shown))
+        self.assertEqual(shown[0], (0, 0, 0), "dark grey shows as the NES's black")
+
+    def test_the_mega_drive_export_of_another_console(self):
+        import export_sgdk_example as sg
+
+        self.assertIsNone(pc.console_issue(self.project))
+        self.project.console = "nes"
+        issue = pc.console_issue(self.project)
+        self.assertEqual((issue.level, issue.code), (pc.WARNING, "other-console"))
+        self.assertIn("follow the NES", issue.text)
+        words = sg.SGDKBakeContext(self.project, [None], self.folder / "out").packed_palette_words()
+        self.assertEqual(len(words), 16, "a Mega Drive palette line, whatever the console")
+        self.assertEqual(words[1:4], [palettes.md_word(c) for c in (DARK, BLUE, GREEN)])
+        self.assertEqual(words[4:], [0] * 12, "the slots the NES has no room for are black")
 
 
 if __name__ == "__main__":

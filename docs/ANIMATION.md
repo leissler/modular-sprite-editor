@@ -44,11 +44,11 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 ## Gaps that matter for retro work
 
-1. **Hardware budget feedback (done for Mega Drive and SNES).** The view bar's *Budget* choice (MD H40 / H32, SNES
-   8/16 and 16/32) in Frames, Animations and Timeline outlines the hardware sprites, marks scanlines over the sprite /
-   pixel limit in red and shows sprites, tiles and the busiest line; the Animations inspector names the worst step.
-   For the Mega Drive it also counts video memory as the export stores it (flips free): the view's tiles, the
-   animation's and the whole project's against the ~1424 SGDK leaves free. Still missing: GBA and NES.
+1. **Hardware budget feedback (done for every console in the database).** The view bar's *Budget* choice (MD H40 /
+   H32, SNES 8/16 and 16/32, NES and GB 8×8 / 8×16, GBA) in Frames, Animations and Timeline outlines the hardware
+   sprites, marks scanlines over the sprite / pixel limit in red and shows sprites, tiles and the busiest line; the
+   Animations inspector names the worst step. For the Mega Drive it also counts video memory as the export stores it
+   (flips free): the view's tiles, the animation's and the whole project's against the ~1424 SGDK leaves free.
 2. **Animation events (done, format v3).** Steps carry events from a project-wide list (name, colour, export
    number) with an optional value; they fire when the step starts and are active while it shows. The SGDK runtime
    answers `ms_anim_player_has_event` / `_event_started` / `_event_value`.
@@ -71,15 +71,18 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 ## Recommended extensions (priority order)
 
-### 1. Hardware budget overlay (Mega Drive and SNES done)
+### 1. Hardware budget overlay (done)
 - Done: `hardware_budget.py` places parts exactly like the SGDK exporter (tested against it), cuts them into
   ≤32×32 VDP sprites on the 8 px grid (skipping empty blocks), and checks sprites per screen / per line and sprite
-  pixels per line for MD H40 and H32; the SNES profiles cover parts with square small and large sprites. UI: *Budget*
+  pixels per line for MD H40 and H32; the SNES profiles cover parts with square small and large sprites, the NES and
+  Game Boy ones with sprites of one size (8×8 or 8×16), the GBA one with the cheapest cover of its twelve shapes (a
+  sprite weighing 8 tiles; 1210 drawing cycles a line). UI: *Budget*
   in the view bars (per tab, app preference), red scanlines, readout, worst step in the Animations inspector,
   whole-scene budget in the Timeline. Video memory: each part carries the tile blocks the export stores for it
   (`Budget.unique_tiles`, `export_tiles` equals the exporter's count).
-- Next: GBA / NES profiles and a per-project target (additive in the file format). Tiles streamed per step (DMA)
-  do not apply: the runtime keeps every tile in VRAM.
+- The project's target console (`Project.console`, format 7) sets its palettes; the budget menu offers every
+  console's profiles whatever the target. Tiles streamed per step (DMA) do not apply: the runtime keeps every tile in
+  VRAM. Next: exporters (and video memory counts) for the other consoles.
 
 ### 2. Step events (done)
 - Data (format v3): `Project.event_types` (id, name, colour; order = export number), `AFrame.events`
@@ -111,8 +114,8 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 - Done (format v7): palettes as project data in slot order (the Palettes tab), palette swaps chosen per draw like
   mappings (no tiles of their own in the export), colour cycles, the console database (`consoles.py`) that sizes
   palettes per console.
-- Next: palettes for the other consoles in the database (SNES 15 colours in 5 bits a channel, NES and Game Boy
-  fixed colour sets), with their exporters.
+- Done: palettes for every console in the database (the Palettes tab's Console: SNES and GBA 15 colours in 5 bits a
+  channel, NES and Game Boy 3 from their fixed colours, picked from a grid). Next: their exporters.
 
 ### 7. Attachment & constraints (done)
 - Done (format v7): a Timeline object follows a point role of its parent's frames (Inspector ▸ Follows): weapons,

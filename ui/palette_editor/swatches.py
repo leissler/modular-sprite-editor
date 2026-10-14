@@ -1,8 +1,9 @@
 """SwatchGrid: a palette's slots as big swatches to select, reorder and edit.
 
 Slot 0 (transparent) comes first, then every slot the console's palettes have: the palette's colours, then its free
-slots. With a palette swap, a swatch shows what the slot shows under the swap and keeps the original in a corner.
-Colour cycles are brackets under their run of slots.
+slots. Colours a palette stores past the console's palette size (kept from a console with bigger palettes) follow,
+crossed out. With a palette swap, a swatch shows what the slot shows under the swap and keeps the original in a
+corner. Colour cycles are brackets under their run of slots.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ RGB = Tuple[int, int, int]
 CYCLE_COLOURS = (wx.Colour(255, 176, 64), wx.Colour(120, 210, 255), wx.Colour(170, 230, 120), wx.Colour(240, 130, 220))
 COL_SELECTED = wx.Colour(255, 255, 255)
 COL_DROP = wx.Colour(140, 210, 255)
+COL_WAITING = wx.Colour(235, 70, 70)  # the cross over a colour the console does not show
 
 
 class SwatchGrid(wx.Panel):
@@ -69,8 +71,12 @@ class SwatchGrid(wx.Panel):
         self.Refresh()
 
     # ------------------------------------------------------------------ geometry
+    def _slots(self) -> int:
+        """The console's slots, and the colours stored past them."""
+        return max(self.capacity, len(self.colours))
+
     def _cells(self) -> int:
-        return self.capacity + 1  # slot 0 (transparent) first
+        return self._slots() + 1  # slot 0 (transparent) first
 
     def _rows(self) -> int:
         return (self._cells() + self.columns - 1) // self.columns
@@ -109,7 +115,7 @@ class SwatchGrid(wx.Panel):
         dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
         dc.Clear()
         self._draw_transparent(dc, self._cell_rect(0))
-        for slot in range(self.capacity):
+        for slot in range(self._slots()):
             rect = self._cell_rect(slot + 1)
             if slot >= len(self.colours):
                 draw_empty_slot(dc, rect.x, rect.y, rect.width)
@@ -126,7 +132,11 @@ class SwatchGrid(wx.Panel):
                 dc.DrawPolygon([wx.Point(rect.x + rect.width, rect.y + rect.height - corner),
                                 wx.Point(rect.x + rect.width, rect.y + rect.height),
                                 wx.Point(rect.x + rect.width - corner, rect.y + rect.height)])
-            if self.usage and slot < len(self.usage) and self.usage[slot] == 0:  # nothing uses it
+            if slot >= self.capacity:  # the console does not show it
+                dc.SetPen(wx.Pen(COL_WAITING, 2))
+                dc.DrawLine(rect.x + 2, rect.y + 2, rect.x + rect.width - 2, rect.y + rect.height - 2)
+                dc.DrawLine(rect.x + rect.width - 2, rect.y + 2, rect.x + 2, rect.y + rect.height - 2)
+            elif self.usage and slot < len(self.usage) and self.usage[slot] == 0:  # nothing uses it
                 dc.SetPen(wx.Pen(wx.Colour(150, 156, 170)))
                 dc.DrawLine(rect.x + 2, rect.y + 2, rect.x + px(6), rect.y + 2)
             if slot in self.selected:
@@ -136,7 +146,7 @@ class SwatchGrid(wx.Panel):
         for index, cycle in enumerate(self.cycles):
             self._draw_cycle(dc, cycle, CYCLE_COLOURS[index % len(CYCLE_COLOURS)], index)
         if self._drop is not None:
-            rect = self._cell_rect(self._drop + 1) if self._drop < self.capacity else self._cell_rect(self.capacity)
+            rect = self._cell_rect(self._drop + 1) if self._drop < self._slots() else self._cell_rect(self._slots())
             x = rect.x - self.gap // 2 - 1 if self._drop < len(self.colours) else rect.x + rect.width + 1
             dc.SetPen(wx.Pen(COL_DROP, 2))
             dc.DrawLine(x, rect.y - 2, x, rect.y + rect.height + 2)
@@ -237,6 +247,9 @@ class SwatchGrid(wx.Panel):
         if self.usage and slot < len(self.usage):
             used = self.usage[slot]
             lines.append(f"{used} pixel{'s' if used != 1 else ''}" if used else "No pixel uses it")
-        if slot in self.art:
+        if slot >= self.capacity:
+            lines.append(f"Past the console's {self.capacity} colours a palette: not shown, it waits for a console "
+                         "with bigger palettes (drag it to an earlier slot, or Remove unused)")
+        elif slot in self.art:
             lines.append("The images have this colour: recolour it with a palette swap")
         return "\n".join(lines)

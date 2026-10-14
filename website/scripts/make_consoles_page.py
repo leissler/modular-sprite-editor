@@ -21,9 +21,9 @@ line, the shapes a sprite can have, and palettes of a few colours. The editor ke
 them for the [budget overlay](../guide/hardware-budget.md), the Timeline's screen guides and the
 [palettes](../guide/palettes.md).
 
-The Mega Drive is the first console the editor exports for, and the one its palettes follow. The others are listed
-with what the editor already knows about them: their screen guides on the Timeline, and for the SNES the budget
-overlay. More consoles will follow.
+A project's palettes follow the console you choose in the **Palettes** tab: how many colours a palette holds and
+which colours it can show. Every console here has its budget overlay and its screen guide on the Timeline. The Mega
+Drive is the one the editor exports for so far.
 """
 
 MODELS = {

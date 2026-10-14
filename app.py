@@ -723,6 +723,9 @@ class MainFrame(wx.Frame):
     def on_update_redo_ui(self, event: wx.UpdateUIEvent) -> None:
         event.Enable(self.history.can_redo() or _focus_is_text_entry() is not None)
 
+    def on_update_play_50hz_ui(self, event: wx.UpdateUIEvent) -> None:
+        event.Enable(len(consoles.console_by_key(self.project.console).refresh_rates) > 1)  # no PAL Game Boys
+
     # ------------------------------------------------------------------ edit commands
     def _dispatch_edit(self, method_name: str, text_method: str) -> None:
         text = _focus_is_text_entry()
@@ -1011,6 +1014,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.set_console_colours(e.IsChecked()), self.m_console)
         self.Bind(wx.EVT_MENU, lambda e: self.set_scroll_moves(e.IsChecked()), self.m_scroll_moves)
         self.Bind(wx.EVT_MENU, lambda e: self.set_play_at_50hz(e.IsChecked()), self.m_play_50hz)
+        self.Bind(wx.EVT_UPDATE_UI, self.on_update_play_50hz_ui, self.m_play_50hz)
         menubar.Append(view_menu, "&View")
 
         tools_menu = wx.Menu()

@@ -32,14 +32,14 @@ class DatabaseTest(unittest.TestCase):
                     self.assertGreaterEqual(len(palette.fixed_colours), palette.colours)
                 for setup in console.budgets:
                     self.assertIsNotNone(console.mode(setup.mode), setup.key)
-                    if setup.sizes != (0, 0):
-                        self.assertIn(((setup.sizes[0],) * 2, (setup.sizes[1],) * 2), console.sprites.size_sets)
+                    if setup.sizes:
+                        self.assertIn(setup.sizes, console.sprites.size_sets)
 
     def test_lookups(self) -> None:
         self.assertIs(consoles.console_by_key("snes"), consoles.SNES)
         self.assertIs(consoles.console_by_key("no such console"), consoles.MEGA_DRIVE)
         self.assertIs(consoles.console_by_key(None), consoles.DEFAULT)
-        self.assertEqual(consoles.palette_consoles(), [consoles.MEGA_DRIVE], "only the Mega Drive has palettes so far")
+        self.assertEqual(consoles.palette_consoles(), list(consoles.CONSOLES), "every console has palettes")
 
     def test_the_mega_drive(self) -> None:
         md = consoles.MEGA_DRIVE
@@ -50,16 +50,22 @@ class DatabaseTest(unittest.TestCase):
 
 
 class ProvidedListsTest(unittest.TestCase):
-    def test_budget_profiles_as_they_were(self) -> None:
-        found = [(p.key, p.name, p.sprites_per_screen, p.sprites_per_line, p.pixels_per_line, p.sizes, p.vram_tiles)
+    def test_budget_profiles(self) -> None:
+        found = [(p.key, p.name, p.sprites_per_screen, p.sprites_per_line, p.pixels_per_line, p.cut, p.vram_tiles)
                  for p in hb.PROFILES]
         self.assertEqual(found, [
-            ("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320, (0, 0), 1424),
-            ("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256, (0, 0), 1424),
-            ("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, (8, 16), 0),
-            ("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, (16, 32), 0),
+            ("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320, hb.GRID, 1424),
+            ("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256, hb.GRID, 1424),
+            ("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("nes_8x8", "NES, 8×8 sprites", 64, 8, 0, hb.CELLS, 0),
+            ("nes_8x16", "NES, 8×16 sprites", 64, 8, 0, hb.CELLS, 0),
+            ("gba", "Game Boy Advance", 128, 128, 1210, hb.SHAPES, 0),
+            ("gb_8x8", "Game Boy, 8×8 sprites", 40, 10, 0, hb.CELLS, 0),
+            ("gb_8x16", "Game Boy, 8×16 sprites", 40, 10, 0, hb.CELLS, 0),
         ])
         self.assertEqual(hb.MEGA_DRIVE_H40.max_sprite_tiles, 4)
+        self.assertEqual(hb.SNES_16_32.shapes, ((16, 16), (32, 32)))
 
     def test_screen_guides_in_the_order_the_preferences_keep(self) -> None:
         self.assertEqual(consoles.screen_guides(), [

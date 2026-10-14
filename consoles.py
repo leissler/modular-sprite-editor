@@ -64,11 +64,12 @@ class PaletteHardware:
 
 @dataclass(frozen=True)
 class BudgetSetup:
-    """A budget overlay profile: one screen mode, and for consoles whose games pick two sprite sizes, the pair."""
+    """A budget overlay profile: one screen mode, and for consoles whose games pick their sprite sizes (SNES, NES,
+    Game Boy), the size set."""
     key: str
     name: str
     mode: str
-    sizes: Size = (0, 0)  # (small, large) square sprites; (0, 0): any of the console's sizes
+    sizes: Tuple[Size, ...] = ()  # one of the console's size sets; (): any of its sizes
 
 
 @dataclass(frozen=True)
@@ -154,9 +155,10 @@ SNES = Console(
     backgrounds=TileHardware(flips=True, rotation="mode7"),
     palette=PaletteHardware(colours=16, palettes=8, colour_model="bgr555", shared_with_backgrounds=False),
     budgets=(
-        BudgetSetup("snes_8_16", "SNES, 8×8 and 16×16 sprites", "256x224", (8, 16)),
-        BudgetSetup("snes_16_32", "SNES, 16×16 and 32×32 sprites", "256x224", (16, 32)),
+        BudgetSetup("snes_8_16", "SNES, 8×8 and 16×16 sprites", "256x224", ((8, 8), (16, 16))),
+        BudgetSetup("snes_16_32", "SNES, 16×16 and 32×32 sprites", "256x224", ((16, 16), (32, 32))),
     ),
+    palettes_supported=True,
     vram_note="64 KB for tiles and maps",
 )
 
@@ -177,6 +179,11 @@ NES = Console(
         colours=4, palettes=4, colour_model="fixed", shared_with_backgrounds=False, fixed_colours=_NES_COLOURS,
         fixed_note="a palette picks its colours from the PPU's 64 entries",
     ),
+    budgets=(
+        BudgetSetup("nes_8x8", "NES, 8×8 sprites", "256x240", ((8, 8),)),
+        BudgetSetup("nes_8x16", "NES, 8×16 sprites", "256x240", ((8, 16),)),
+    ),
+    palettes_supported=True,
     vram_note="2 KB for name tables; tiles come from the cartridge's CHR memory",
 )
 
@@ -199,6 +206,8 @@ GBA = Console(
     ),
     backgrounds=TileHardware(flips=True, rotation="affine"),
     palette=PaletteHardware(colours=16, palettes=16, colour_model="bgr555", shared_with_backgrounds=False),
+    budgets=(BudgetSetup("gba", "Game Boy Advance", "240x160"),),
+    palettes_supported=True,
     vram_note="96 KB, 32 KB of it for sprite tiles",
 )
 
@@ -220,6 +229,11 @@ GAME_BOY = Console(
         fixed_colours=((0x9B, 0xBC, 0x0F), (0x8B, 0xAC, 0x0F), (0x30, 0x62, 0x30), (0x0F, 0x38, 0x0F)),
         fixed_note="four shades of the green screen, as usually shown",
     ),
+    budgets=(
+        BudgetSetup("gb_8x8", "Game Boy, 8×8 sprites", "160x144", ((8, 8),)),
+        BudgetSetup("gb_8x16", "Game Boy, 8×16 sprites", "160x144", ((8, 16),)),
+    ),
+    palettes_supported=True,
     vram_note="8 KB for tiles and maps",
 )
 

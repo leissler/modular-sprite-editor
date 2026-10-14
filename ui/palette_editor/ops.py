@@ -1,7 +1,8 @@
 """Palettes tab operations (wx-free): palettes, palette swaps and colour cycles as the editor changes them.
 
 A palette's colours come from its images: slots their pixels use exactly stay as they are (recolour with a swap);
-free slots and slots no pixel uses can take any colour, snapped to what the console can show.
+free slots and slots no pixel uses can take any colour, snapped to what the console can show. The project's console
+decides how many colours a palette holds and which colours it can show.
 """
 
 from __future__ import annotations
@@ -9,10 +10,28 @@ from __future__ import annotations
 import copy
 from typing import List, Optional, Sequence, Tuple
 
+import consoles
 import palettes
 from models import ColourCycle, Palette, PaletteChange, PaletteSwap, Project, generate_id
 
 RGB = Tuple[int, int, int]
+
+
+# ---------------------------------------------------------------------------- the console
+def longer_palettes(project: Project, console_key: str) -> List[Palette]:
+    """Palettes that store more colours than a palette of this console holds."""
+    room = consoles.console_by_key(console_key).palette.visible
+    return [p for p in project.palettes if p.colours is not None and len(p.colours) > room]
+
+
+def set_console(project: Project, console_key: str, keep_most_used: bool = False) -> int:
+    """Make the project's palettes follow another console. ``keep_most_used`` fits palettes that store more colours
+    than it shows to its palette size (each keeps the colours its images use most); otherwise the console shows their
+    first colours and the others wait. Returns how many slots went."""
+    project.console = consoles.console_by_key(console_key).key
+    if not keep_most_used:
+        return 0
+    return sum(palettes.keep_most_used(project, palette) for palette in palettes.over_capacity(project))
 
 
 # ---------------------------------------------------------------------------- palettes
@@ -25,7 +44,7 @@ def new_palette(project: Project) -> Palette:
 def duplicate_palette(project: Project, palette: Palette) -> Palette:
     """A copy with the same colours and cycles (no images use it yet)."""
     copied = Palette(id=generate_id("pal"), name=_copy_name(palette.name, {p.name for p in project.palettes}),
-                     colours=list(palettes.colours_of(project, palette)), cycles=copy.deepcopy(palette.cycles))
+                     colours=palettes.stored_colours(project, palette), cycles=copy.deepcopy(palette.cycles))
     project.palettes.insert(project.palettes.index(palette) + 1, copied)
     return copied
 

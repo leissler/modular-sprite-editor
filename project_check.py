@@ -161,6 +161,15 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
         built = palettes.colours_of(project, palette)
         held = set(built)
         missing = len(used - held)
+        stored = len(palette.colours or [])
+        if stored > room:
+            issues.append(Issue(
+                WARNING, "palette-too-long",
+                f"Palette '{palette.name}' holds {stored} colours, and a {console_name(project)} palette {room}: the "
+                f"console shows the first {room}, and pixels of the other colours take the nearest of those. Keep the "
+                "colours its images use most, or remove colours in the Palettes tab.",
+                ("palette", palette.id), "keep-most-used-colours",
+            ))
         if len(used) > room:
             issues.append(Issue(
                 WARNING, "too-many-colours",
@@ -170,7 +179,7 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
                    else "."),
                 ("palette", palette.id),
             ))
-        elif missing:
+        elif missing and stored <= room:
             free = room - len(built)
             issues.append(Issue(
                 WARNING, "colours-not-in-palette",
@@ -591,6 +600,17 @@ def tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
                                  f"{capacity - tiles} for backgrounds and everything else.")
 
 
+def console_issue(project: Project) -> Optional[Issue]:
+    """The Mega Drive export of a project whose palettes follow another console (None for a Mega Drive project)."""
+    console = consoles.console_by_key(project.console)
+    if console is consoles.MEGA_DRIVE:
+        return None
+    return Issue(WARNING, "other-console",
+                 f"The project's palettes follow the {console.name} (Palettes tab, Console): the Mega Drive export "
+                 f"makes Mega Drive palettes of them, {console.palette.visible} colours each, in the colours the Mega "
+                 "Drive shows.")
+
+
 def palette_issue(lines: int) -> Optional[Issue]:
     """How the exported palette entries (palettes, then the swaps' versions of them) fit the Mega Drive's four palette
     lines (None for one: the runtime's default PAL1 fits)."""
@@ -760,6 +780,12 @@ def _fix_palette_colours(project: Project, target: Optional[Target]) -> int:
                if not target or target == ("palette", palette.id))
 
 
+def _fix_long_palettes(project: Project, target: Optional[Target]) -> int:
+    """Fit palettes that store more colours than the console shows: keep those the images use most."""
+    return sum(palettes.keep_most_used(project, palette) for palette in palettes.over_capacity(project)
+               if not target or target == ("palette", palette.id))
+
+
 def _fix_empty_hitboxes(project: Project, target: Optional[Target]) -> int:
     removed = 0
     for frame in project.frames:
@@ -825,6 +851,7 @@ FIXES: Dict[str, Tuple[str, Callable[[Project, Optional[Target]], int]]] = {
     "clear-missing-scene-sources": ("Clear those sources", _fix_missing_scene_sources),
     "remove-empty-hitboxes": ("Remove empty hitboxes", _fix_empty_hitboxes),
     "add-palette-colours": ("Add the colours", _fix_palette_colours),
+    "keep-most-used-colours": ("Keep the most used", _fix_long_palettes),
     "new-ids-in-frames": ("Give each its own id", _fix_ids_in_frames),
     "new-ids-in-scenes": ("Give each its own id", _fix_ids_in_scenes),
 }

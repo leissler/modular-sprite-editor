@@ -1,5 +1,5 @@
-"""PaletteInspector: the selected palette (its slots, colours and cycles) and, with a palette swap selected, what the
-swap makes of it."""
+"""PaletteInspector: the selected palette (its slots, colours and cycles, as the project's console holds them) and,
+with a palette swap selected, what the swap makes of it."""
 
 from __future__ import annotations
 
@@ -16,15 +16,17 @@ from ui.dpi import px
 from ui.palette_editor import ops
 from ui.palette_editor.swatches import SwatchGrid
 
-MODELS = {"rgb333": "3 bits a channel (512 colours)", "bgr555": "5 bits a channel (32,768 colours)",
-          "fixed": "picked from the console's fixed colours"}
+MODELS = {"rgb333": "3 bits a channel (512 colours)", "bgr555": "5 bits a channel (32,768 colours)"}
 
 
 def console_line(project: Project) -> str:
+    """What a palette is on the project's console."""
     console = consoles.console_by_key(project.console)
     spec = console.palette
-    return (f"{console.name}: {spec.visible} colours and transparent, {MODELS.get(spec.colour_model, '')}; "
-            f"{spec.palettes} palettes on screen at once" + (", shared with the backgrounds" if spec.shared_with_backgrounds else ""))
+    model = (f"picked from the console's {len(spec.fixed_colours)}" if spec.colour_model == "fixed"
+             else MODELS.get(spec.colour_model, ""))
+    return (f"{console.name}: {spec.visible} colours and transparent, {model}; {spec.palettes} palettes on screen at "
+            "once" + (", shared with the backgrounds" if spec.shared_with_backgrounds else ""))
 
 
 class PaletteInspector(wx.ScrolledWindow):
@@ -162,7 +164,7 @@ class PaletteInspector(wx.ScrolledWindow):
         count, names = palettes.describe(project, palette)
         self.images.SetLabel((f"{len(names)}: " + ", ".join(names[:3]) + (" …" if len(names) > 3 else "")) if names else "none")
         self.images.SetToolTip("\n".join(names) if names else "No image uses this palette yet (Modules tab, the image's Palette)")
-        colours = palettes.colours_of(project, palette)
+        colours = palettes.stored_colours(project, palette)  # with those waiting past the console's palette size
         replacements = None
         if swap is not None:
             change = swap.palettes.get(palette.id)
@@ -185,8 +187,8 @@ class PaletteInspector(wx.ScrolledWindow):
         else:
             text = "click a slot, or a pixel of the image"
         self.slot_info.SetLabel(text)
-        lacking = len(palettes.missing_colours(project, palette))
         full = len(colours) >= palettes.capacity(project)
+        lacking = len(palettes.missing_colours(project, palette)) if len(colours) <= palettes.capacity(project) else 0
         in_swap = swap is not None
         art_selected = bool(set(slots) & set(art))
         self.btn_add.Show(not in_swap)

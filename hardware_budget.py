@@ -12,9 +12,20 @@ Mega Drive model, matching the SGDK exporter and runtime (examples/sgdk):
   and hardware sprite blocks with the same pixels share their tiles (``SGDKBakeContext._ensure_variant``). The runtime
   keeps every tile in VRAM, so the project's total (``export_tiles``) is what has to fit.
 
-SNES model (budget only, no exporter yet): a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16). Every part
-is padded to the large size and cut on that grid; a cell whose pixels sit in at most half of its small squares takes
-small sprites, otherwise one large sprite. The PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line.
+The other consoles have budgets but no exporter yet, so their cut is a model of what a game would do; parts are
+placed and flipped as on the Mega Drive (every console here flips sprites both ways), turned parts are baked, and video
+memory is not counted:
+
+- SNES: a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16). Every part is padded to the large size and
+  cut on that grid; a cell whose pixels sit in at most half of its small squares takes small sprites, otherwise one
+  large sprite. The PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line.
+- NES and Game Boy: every sprite has the one size the game chose (8×8, or 8×16 where the hardware stacks two tiles).
+  Parts are padded to that size and every cell that holds a pixel is a sprite. The NES shows 64, 8 per line; the Game
+  Boy 40, 10 per line.
+- Game Boy Advance: twelve shapes from 8×8 to 64×64 (squares, 2:1 and 4:1). Parts are cut on a 64 px grid and each
+  cell's pixels are covered with the shapes that cost least, a sprite counting as much as 8 tiles (the GBA has 1024
+  sprite tiles for 128 sprites): guillotine cuts of the cell, every piece one shape (which may stick out past the
+  pixels) or two smaller pieces. A line has 1210 drawing cycles, one per pixel of an ordinary sprite.
 
 No wx here: the editor draws the result, tests check it.
 """
@@ -31,9 +42,18 @@ import palettes
 from models import Frame, ModuleMapping, Project, state_shows
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
+Size = Tuple[int, int]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
 TILE = 8
 SPRITE_BLOCK = 32  # the export cuts part images into hardware sprites of at most 32×32 px
+SHAPE_CELL = 64  # the GBA cut covers a part 64×64 px at a time (its largest sprite)
+SPRITE_WEIGHT = 8  # tiles a GBA sprite counts as when the cut picks shapes: 1024 sprite tiles for 128 sprites
+
+# How a profile cuts a part into hardware sprites (see the module docstring).
+GRID = "grid"  # any width and height in tiles up to the largest (Mega Drive): blocks of the largest size
+SQUARES = "squares"  # two square sizes (SNES): large cells, small ones where a cell is mostly empty
+CELLS = "cells"  # one size (NES, Game Boy): every cell that holds a pixel
+SHAPES = "shapes"  # a few shapes (GBA): the cheapest cover of each 64 px cell
 
 
 @dataclass(frozen=True)
@@ -42,22 +62,37 @@ class HardwareProfile:
     name: str
     sprites_per_screen: int
     sprites_per_line: int
-    pixels_per_line: int
-    max_sprite_tiles: int = 4  # VDP sprites are 1–4 tiles wide and high
-    sizes: Tuple[int, int] = (0, 0)  # square sprites of two sizes (small, large px), as on the SNES; (0, 0): any size
+    pixels_per_line: int = 0  # sprite pixels a line can show (0: only the number of sprites per line limits it)
+    cut: str = GRID
+    shapes: Tuple[Size, ...] = ((32, 32),)  # the sprite sizes the cut uses, px (GRID: the largest one)
     vram_tiles: int = 0  # tiles the Mega Drive export can keep in video memory (0: not counted for this console)
+
+    @property
+    def max_sprite_tiles(self) -> int:
+        """The longest side of a sprite, in tiles."""
+        return max(max(w, h) for w, h in self.shapes) // TILE
 
 
 def _profile(console: consoles.Console, setup: consoles.BudgetSetup) -> HardwareProfile:
-    """A budget profile from the console database: the setup's screen mode, and video memory where an export keeps
-    the tiles (the Mega Drive's SGDK export)."""
+    """A budget profile from the console database: the setup's screen mode, how its sprites cut a part, and video
+    memory where an export keeps the tiles (the Mega Drive's SGDK export)."""
     mode = console.mode(setup.mode)
     assert mode is not None, setup.key
-    largest = max(max(w, h) for w, h in console.sprites.sizes)
+    sizes = tuple(setup.sizes or console.sprites.sizes)
+    largest = max(max(w, h) for w, h in sizes)
+    every_size = {(w, h) for w in range(TILE, largest + 1, TILE) for h in range(TILE, largest + 1, TILE)}
+    if len(setup.sizes) == 1:
+        cut, shapes = CELLS, sizes
+    elif len(setup.sizes) == 2:
+        assert all(w == h for w, h in sizes), setup.key  # small and large squares
+        cut, shapes = SQUARES, tuple(sorted(sizes))
+    elif set(sizes) == every_size:
+        cut, shapes = GRID, ((largest, largest),)
+    else:
+        cut, shapes = SHAPES, sizes
     return HardwareProfile(
         setup.key, setup.name, mode.sprites_per_screen, mode.sprites_per_line, mode.sprite_pixels_per_line,
-        max_sprite_tiles=largest // console.tile_size, sizes=setup.sizes,
-        vram_tiles=console.sprites.tiles if console.exporter else 0,
+        cut=cut, shapes=shapes, vram_tiles=console.sprites.tiles if console.exporter else 0,
     )
 
 
@@ -70,6 +105,16 @@ def profile_by_key(key: Optional[str]) -> Optional[HardwareProfile]:
 
 MEGA_DRIVE_H40, MEGA_DRIVE_H32 = profile_by_key("md_h40"), profile_by_key("md_h32")
 SNES_8_16, SNES_16_32 = profile_by_key("snes_8_16"), profile_by_key("snes_16_32")
+NES_8X8, NES_8X16 = profile_by_key("nes_8x8"), profile_by_key("nes_8x16")
+GBA = profile_by_key("gba")
+GAME_BOY_8X8, GAME_BOY_8X16 = profile_by_key("gb_8x8"), profile_by_key("gb_8x16")
+
+
+def line_summary(profile: HardwareProfile, count: int, pixels: int) -> str:
+    """A line's use against the profile's limits: "busiest line 10/20 sprites, 136/320 px" (without pixels on
+    consoles whose lines only count sprites)."""
+    text = f"busiest line {count}/{profile.sprites_per_line} sprites"
+    return text + (f", {pixels}/{profile.pixels_per_line} px" if profile.pixels_per_line else "")
 
 
 @dataclass
@@ -147,9 +192,10 @@ class Budget:
 
     def over_lines(self) -> List[Tuple[int, int]]:
         """Runs of scanlines (first, last) where sprites would drop out."""
+        limit = self.profile.pixels_per_line
         bad = sorted(
             y for y, (count, pixels) in self.lines().items()
-            if count > self.profile.sprites_per_line or pixels > self.profile.pixels_per_line
+            if count > self.profile.sprites_per_line or (limit and pixels > limit)
         )
         runs: List[Tuple[int, int]] = []
         for y in bad:
@@ -164,11 +210,7 @@ class Budget:
 
     def summary(self) -> str:
         count, pixels = self.worst_line()
-        p = self.profile
-        return (
-            f"{self.sprite_count}/{p.sprites_per_screen} sprites · "
-            f"busiest line {count}/{p.sprites_per_line} sprites, {pixels}/{p.pixels_per_line} px"
-        )
+        return f"{self.sprite_count}/{self.profile.sprites_per_screen} sprites · " + line_summary(self.profile, count, pixels)
 
 
 class BudgetCalculator:
@@ -384,7 +426,7 @@ class BudgetCalculator:
             px_eff = w - px if local_fx else px
             py_eff = h - py if local_fy else py
             bx, by = int(round(b_vec[0])), int(round(b_vec[1]))
-            pad_w, pad_h = _pad(w, profile), _pad(h, profile)
+            pad_w, pad_h = _pad(w, profile), _pad(h, profile, 1)
             x = bx + px_eff - pad_w if hflip else bx - px_eff
             y = by + py_eff - pad_h if vflip else by - py_eff
             key = ("module", mod.id, self._module_keys.get(mod.id))
@@ -396,14 +438,14 @@ class BudgetCalculator:
         if image is None:
             return None
         key = ("baked", mod.id, self._module_keys.get(mod.id), a_mat, bool(local_fx), bool(local_fy))
-        part = _place(x, y, _pad(image.size[0], profile), _pad(image.size[1], profile), False, False,
+        part = _place(x, y, _pad(image.size[0], profile), _pad(image.size[1], profile, 1), False, False,
                       self._image_blocks(key, image, profile))
         part.vram = self._stored_blocks(key, image, self._palette_of(mod))
         return part
 
     def _image_blocks(self, key: Any, image: Any, profile: HardwareProfile) -> List[Tuple[int, int, int, int]]:
         """Hardware sprite blocks (x, y, w, h in px, in the unflipped padded image) that hold any pixel."""
-        cache_key = (key, profile.max_sprite_tiles, profile.sizes)
+        cache_key = (key, profile.cut, profile.shapes)
         cached = self._blocks.get(cache_key)
         if cached is not None:
             return cached
@@ -417,11 +459,11 @@ class BudgetCalculator:
                 return False
             return bool(alpha.crop((x, y, min(x + w, width), min(y + h, height))).getbbox())
 
-        pad_w, pad_h = _pad(width, profile), _pad(height, profile)
+        pad_w, pad_h = _pad(width, profile), _pad(height, profile, 1)
         blocks = []
-        small, large = profile.sizes
-        if large:
+        if profile.cut == SQUARES:
             # Square sprites: a large one per cell, or small ones where the pixels fill at most half of the cell.
+            small, large = profile.shapes[0][0], profile.shapes[1][0]
             for by in range(0, pad_h, large):
                 for bx in range(0, pad_w, large):
                     squares = [(bx + sx, by + sy) for sy in range(0, large, small) for sx in range(0, large, small)]
@@ -432,6 +474,20 @@ class BudgetCalculator:
                         blocks += [(x, y, small, small) for x, y in used]
                     else:
                         blocks.append((bx, by, large, large))
+        elif profile.cut == CELLS:
+            cell_w, cell_h = profile.shapes[0]
+            blocks = [(bx, by, cell_w, cell_h) for by in range(0, pad_h, cell_h) for bx in range(0, pad_w, cell_w)
+                      if filled(bx, by, cell_w, cell_h)]
+        elif profile.cut == SHAPES:
+            shapes = [(w // TILE, h // TILE) for w, h in profile.shapes]
+            for by in range(0, pad_h, SHAPE_CELL):
+                for bx in range(0, pad_w, SHAPE_CELL):
+                    cols, rows = min(SHAPE_CELL, pad_w - bx) // TILE, min(SHAPE_CELL, pad_h - by) // TILE
+                    occupied = [[filled(bx + tx * TILE, by + ty * TILE, TILE, TILE) for tx in range(cols)]
+                                for ty in range(rows)]
+                    edges = (bx + SHAPE_CELL >= pad_w, by + SHAPE_CELL >= pad_h)  # the last cells end the image
+                    blocks += [(bx + tx * TILE, by + ty * TILE, tw * TILE, th * TILE)
+                               for tx, ty, tw, th in cover_with_shapes(occupied, shapes, open_edges=edges)]
         else:
             step = profile.max_sprite_tiles * TILE
             for by in range(0, pad_h, step):
@@ -441,6 +497,82 @@ class BudgetCalculator:
                         blocks.append((bx, by, bw, bh))
         self._blocks[cache_key] = blocks
         return blocks
+
+
+def cover_with_shapes(occupied: Sequence[Sequence[bool]], shapes: Sequence[Size], weight: int = SPRITE_WEIGHT,
+                      open_edges: Tuple[bool, bool] = (True, True)) -> List[Tuple[int, int, int, int]]:
+    """Sprites (x, y, w, h in tiles) of the given shapes (w, h in tiles) that cover every occupied tile of the grid
+    (rows of booleans), costing least: the tiles they hold plus ``weight`` per sprite, then fewer sprites.
+
+    Guillotine cuts: every piece is trimmed to its occupied tiles and either takes the smallest shape that holds it or
+    is cut in two along a tile line. A shape bigger than its piece sits at one of the piece's corners, never over
+    another piece's tiles: inside the grid, or sticking out past its right or bottom edge where that is open
+    (``open_edges``: the image ends there, no other cell's sprites lie beyond)."""
+    Box = Tuple[int, int, int, int]
+    Cover = Tuple[int, int, Tuple[Box, ...]]  # (cost, sprites, the sprites)
+    height = len(occupied)
+    width = max((len(row) for row in occupied), default=0)
+    rows = [sum(1 << x for x, used in enumerate(row) if used) for row in occupied]
+    memo: Dict[Box, Cover] = {}
+    by_area = sorted(shapes, key=lambda s: (s[0] * s[1], s[1], s[0]))
+
+    def span(x0: int, x1: int) -> int:
+        return ((1 << x1) - 1) ^ ((1 << max(0, x0)) - 1)
+
+    def trimmed(x0: int, y0: int, x1: int, y1: int) -> Optional[Box]:
+        mask = span(x0, x1)
+        used = [y for y in range(y0, y1) if rows[y] & mask]
+        if not used:
+            return None
+        either = 0
+        for y in used:
+            either |= rows[y] & mask
+        return (either & -either).bit_length() - 1, used[0], either.bit_length(), used[-1] + 1
+
+    def anchors(low: int, high: int, size: int, limit: int, open_edge: bool) -> List[int]:
+        inside = [a for a in dict.fromkeys((low, high - size)) if 0 <= a and a + size <= limit]
+        return inside + ([low] if open_edge and low + size > limit else [])
+
+    def covers_others(box: Box, x: int, y: int, w: int, h: int) -> bool:
+        x0, y0, x1, y1 = box
+        for row in range(max(0, y), min(height, y + h)):
+            others = rows[row] & span(x, x + w)
+            if y0 <= row < y1:
+                others &= ~span(x0, x1)
+            if others:
+                return True
+        return False
+
+    def one_sprite(box: Box) -> Optional[Box]:
+        x0, y0, x1, y1 = box
+        for w, h in by_area:
+            if w < x1 - x0 or h < y1 - y0:
+                continue
+            for y in anchors(y0, y1, h, height, open_edges[1]):
+                for x in anchors(x0, x1, w, width, open_edges[0]):
+                    if not covers_others(box, x, y, w, h):
+                        return x, y, w, h
+        return None
+
+    def best(x0: int, y0: int, x1: int, y1: int) -> Cover:
+        box = trimmed(x0, y0, x1, y1)
+        if box is None:
+            return 0, 0, ()
+        found = memo.get(box)
+        if found is not None:
+            return found
+        x0, y0, x1, y1 = box
+        options: List[Cover] = []
+        sprite = one_sprite(box)
+        if sprite is not None:
+            options.append((sprite[2] * sprite[3] + weight, 1, (sprite,)))
+        halves = [(best(x0, y0, x, y1), best(x, y0, x1, y1)) for x in range(x0 + 1, x1)]
+        halves += [(best(x0, y0, x1, y), best(x0, y, x1, y1)) for y in range(y0 + 1, y1)]
+        options += [(a[0] + b[0], a[1] + b[1], a[2] + b[2]) for a, b in halves]
+        found = memo[box] = min(options, key=lambda option: option[:2])  # the first of equals: one sprite, then cuts
+        return found
+
+    return list(best(0, 0, width, height)[2])
 
 
 def frame_transform(offset: Sequence[float], rotation: float, flip_x: bool, flip_y: bool) -> Tuple[Matrix, Tuple[float, float]]:
@@ -487,9 +619,14 @@ def _decompose(matrix: Sequence[float]) -> Tuple[Tuple[float, float], float, boo
     return (tx, ty), math.degrees(math.atan2(b / sx, a / sx)), False, flip_y
 
 
-def _pad(size: int, profile: Optional[HardwareProfile] = None) -> int:
-    """Whole tiles (the export's padding); whole large sprites for a console with square sprites."""
-    grid = profile.sizes[1] if profile is not None and profile.sizes[1] else TILE
+def _pad(size: int, profile: Optional[HardwareProfile] = None, axis: int = 0) -> int:
+    """A width (``axis`` 0) or height (1) in whole tiles (the export's padding); in whole sprites for a console whose
+    sprites have one size, or two square ones (padded to the large one)."""
+    grid = TILE
+    if profile is not None and profile.cut == SQUARES:
+        grid = profile.shapes[-1][axis]
+    elif profile is not None and profile.cut == CELLS:
+        grid = profile.shapes[0][axis]
     return max(grid, ((int(size) + grid - 1) // grid) * grid)
 
 

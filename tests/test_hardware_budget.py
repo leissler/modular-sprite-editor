@@ -266,5 +266,103 @@ class TestSnes(unittest.TestCase):
         self.assertEqual(hb.SNES_16_32.vram_tiles, 0, "no SNES export yet: video memory is not counted")
 
 
+
+class TestNesGameBoyAndGba(unittest.TestCase):
+    """The consoles without an exporter: one sprite size per game (NES, Game Boy), shapes (GBA)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        sheet = os.path.join(self.tmp.name, "sheet.png")
+        # A transparent hole of 16×8 px at (8, 16)-(24, 24) inside the "holey" module (the second one).
+        _sheet(sheet, size=(176, 48), hole=(56, 16, 72, 24))
+        self.project = Project()
+        image = self.project.create_image(sheet, 176, 48)
+        image.transparent_color = (255, 0, 255)
+        self.big = self.project.create_module("big", image.id, (0, 0, 40, 40), (0, 0))
+        self.holey = self.project.create_module("holey", image.id, (48, 0, 40, 40), (0, 0))
+        self.wide = self.project.create_module("wide", image.id, (88, 0, 88, 8), (0, 0))
+        self.calc = hb.BudgetCalculator()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _parts(self, module, profile, flip_x=False, flip_y=False):
+        a, b = _transform(flip_x=flip_x, flip_y=flip_y)
+        return self.calc.module_parts(self.project, module.id, None, profile, a, b)
+
+    def _sprites(self, module, profile, flip_x=False, flip_y=False):
+        return sorted((s.x, s.y, s.w, s.h) for p in self._parts(module, profile, flip_x, flip_y) for s in p.sprites)
+
+    def _covered(self, sprites):
+        return {(x + dx, y + dy) for x, y, w, h in sprites for dy in range(0, h, 8) for dx in range(0, w, 8)}
+
+    def test_profiles_from_the_database(self):
+        self.assertEqual((hb.NES_8X8.sprites_per_screen, hb.NES_8X8.sprites_per_line, hb.NES_8X8.pixels_per_line), (64, 8, 0))
+        self.assertEqual((hb.GAME_BOY_8X16.sprites_per_screen, hb.GAME_BOY_8X16.sprites_per_line), (40, 10))
+        self.assertEqual((hb.GBA.sprites_per_screen, hb.GBA.pixels_per_line, hb.GBA.max_sprite_tiles), (128, 1210, 8))
+        self.assertEqual((hb.NES_8X16.cut, hb.NES_8X16.shapes), (hb.CELLS, ((8, 16),)))
+        self.assertEqual(hb.GBA.cut, hb.SHAPES)
+        self.assertEqual(len(hb.GBA.shapes), 12)
+        for profile in (hb.NES_8X8, hb.NES_8X16, hb.GBA, hb.GAME_BOY_8X8, hb.GAME_BOY_8X16):
+            self.assertEqual(profile.vram_tiles, 0, f"{profile.key}: no export, so video memory is not counted")
+
+    def test_one_size_takes_every_cell_with_a_pixel(self):
+        self.assertEqual(len(self._sprites(self.big, hb.NES_8X8)), 25)
+        holey = self._sprites(self.holey, hb.NES_8X8)
+        self.assertEqual(len(holey), 23, "the two empty tiles need no sprite")
+        self.assertNotIn((8, 16, 8, 8), holey)
+        # 8×16: the 40 px high part is padded to 48 and cut into 5 × 3 cells.
+        tall = self._sprites(self.big, hb.NES_8X16)
+        self.assertEqual(len(tall), 15)
+        self.assertTrue(all((w, h) == (8, 16) for _x, _y, w, h in tall))
+        part = self._parts(self.big, hb.NES_8X16)[0]
+        self.assertEqual((part.w, part.h), (40, 48))
+        self.assertEqual(self._sprites(self.big, hb.GAME_BOY_8X16), tall, "the Game Boy cuts like the NES")
+
+    def test_one_size_mirrors_its_cells(self):
+        plain = self._sprites(self.big, hb.NES_8X16)
+        flipped = self._sprites(self.big, hb.NES_8X16, flip_y=True)
+        self.assertEqual(sorted((x, -y - h, w, h) for x, y, w, h in flipped), plain)
+
+    def test_lines_count_sprites_only(self):
+        parts = [hb.HwPart(i * 8, 0, 8, 8, False, False, [hb.HwSprite(i * 8, 0, 8, 8)]) for i in range(9)]
+        self.assertTrue(hb.Budget(hb.NES_8X8, parts).over_budget(), "9 sprites on a line")
+        self.assertFalse(hb.Budget(hb.NES_8X8, parts[:8]).over_budget())
+        self.assertFalse(hb.Budget(hb.GAME_BOY_8X8, parts).over_budget(), "the Game Boy shows 10 a line")
+        self.assertNotIn("px", hb.Budget(hb.NES_8X8, parts).summary())
+        self.assertEqual(hb.Budget(hb.NES_8X8, parts).summary(), "9/64 sprites · busiest line 9/8 sprites")
+
+    def test_gba_shapes_cover_each_pixel_once(self):
+        for module in (self.big, self.holey, self.wide):
+            for flip_x in (False, True):
+                with self.subTest(module=module.name, flip_x=flip_x):
+                    sprites = self._sprites(module, hb.GBA, flip_x=flip_x)
+                    self.assertTrue(all((w, h) in hb.GBA.shapes for _x, _y, w, h in sprites))
+                    tiles = [(x + dx, y + dy) for x, y, w, h in sprites for dy in range(0, h, 8) for dx in range(0, w, 8)]
+                    self.assertEqual(len(tiles), len(set(tiles)), "no tile drawn twice")
+        # 40×40 (5×5 tiles): four sprites holding 25 tiles beat one 64×64 sprite (64 tiles).
+        big = self._sprites(self.big, hb.GBA)
+        self.assertEqual((len(big), sum(w * h for _x, _y, w, h in big) // 64), (4, 25))
+        self.assertEqual(self._covered(big), {(x, y) for x in range(0, 40, 8) for y in range(0, 40, 8)})
+        # 88×8: cut at 64 px; the first cell takes two 32×8 sprites, the last 24 px a 32×8 sticking out past the end.
+        self.assertEqual(self._sprites(self.wide, hb.GBA), [(0, 0, 32, 8), (32, 0, 32, 8), (64, 0, 32, 8)])
+
+    def test_gba_line_cycles(self):
+        wide = [hb.HwPart(0, 0, 64, 8, False, False, [hb.HwSprite(i * 64, 0, 64, 8)]) for i in range(19)]
+        self.assertEqual(hb.Budget(hb.GBA, wide).worst_line(), (19, 1216))
+        self.assertTrue(hb.Budget(hb.GBA, wide).over_budget(), "1216 drawing cycles > 1210")
+        self.assertFalse(hb.Budget(hb.GBA, wide[:18]).over_budget())
+
+    def test_cover_prefers_a_shape_to_many_small_ones(self):
+        shapes = [(w // 8, h // 8) for w, h in hb.GBA.shapes]
+        full = lambda w, h: [[True] * w for _ in range(h)]  # noqa: E731
+        self.assertEqual(hb.cover_with_shapes(full(3, 3), shapes), [(0, 0, 4, 4)])
+        self.assertEqual(hb.cover_with_shapes(full(7, 2), shapes), [(0, 0, 4, 2), (4, 0, 4, 2)])
+        # A closed edge (another cell beyond it): nothing may stick out there.
+        closed = hb.cover_with_shapes(full(7, 2), shapes, open_edges=(False, True))
+        self.assertTrue(all(x + w <= 7 for x, _y, w, _h in closed))
+        self.assertEqual(hb.cover_with_shapes([[False, False], [False, False]], shapes), [])
+
+
 if __name__ == "__main__":
     unittest.main()

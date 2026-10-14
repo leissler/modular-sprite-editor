@@ -1,8 +1,9 @@
 """Palettes tab: Palettes and palette swaps | one of a palette's images as it shows | the palette inspector.
 
-A palette holds its colours in the console's slots, in the artist's order. A palette swap recolours without touching an
-image (a guard in other clothes) and is chosen per draw like a mapping: above the tabs for every preview, per object on
-the Timeline, per draw in the game. Colour cycles move a run of slots along while things play.
+A palette holds its colours in the console's slots, in the artist's order; the project's console (Console, above the
+palettes) decides how many and which colours. A palette swap recolours without touching an image (a guard in other
+clothes) and is chosen per draw like a mapping: above the tabs for every preview, per object on the Timeline, per draw
+in the game. Colour cycles move a run of slots along while things play.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import wx
 
+import consoles
 import palettes
 from models import Palette, PaletteSwap, Project
 from ui import app_services, first_steps, view_memory
@@ -20,13 +22,33 @@ from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.palette_swatches import draw_empty_slot
 from ui.components.thumb_list import Browser, Row
 from ui.dpi import px
-from ui.palette_editor import ops
+from ui.palette_editor import fixed_colours, ops
 from ui.palette_editor.inspector import PaletteInspector
 from ui.palette_editor.preview import PalettePreview
 from ui.refresh_rate import REFRESH
 
 ORIGINAL = "__original__"  # the swap list's first row: the palettes as they are
 FRAME_MS = 33  # the cycle preview's timer
+CONSOLES = consoles.palette_consoles()
+
+
+def ask_fit_palettes(parent: wx.Window, console: consoles.Console, count: int) -> Optional[bool]:
+    """Switching to a console with smaller palettes: True keeps each palette's most used colours, False keeps them
+    all (the console shows the first ones), None keeps the console as it was."""
+    room = console.palette.visible
+    which = "One palette holds" if count == 1 else f"{count} palettes hold"
+    dialog = wx.MessageDialog(
+        parent,
+        f"{which} more colours than a {console.name} palette ({room} and transparent).\n\n"
+        f"Keep the Most Used: each palette keeps the {room} colours its images use most; pixels of the others show "
+        "as the nearest of those.\n\n"
+        f"Keep All: the {console.name} shows the first {room} of each palette; the others wait in their slots for a "
+        "console with bigger palettes (drag the ones you want to the front).",
+        f"Palettes for the {console.name}", wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
+    dialog.SetYesNoCancelLabels("Keep the Most Used", "Keep All", "Cancel")
+    answer = dialog.ShowModal()
+    dialog.Destroy()
+    return None if answer == wx.ID_CANCEL else answer == wx.ID_YES
 
 
 class PaletteEditorPanel(wx.Panel):
@@ -56,6 +78,15 @@ class PaletteEditorPanel(wx.Panel):
         self.outer_split = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         left = wx.Panel(self.outer_split)
         lsizer = wx.BoxSizer(wx.VERTICAL)
+        console_row = wx.BoxSizer(wx.HORIZONTAL)
+        console_label = wx.StaticText(left, label="Console")
+        self.console_choice = wx.Choice(left, choices=[c.name for c in CONSOLES])
+        self.console_choice.SetToolTip("The console the project's palettes follow: how many colours a palette holds and "
+                                       "which colours it can show (View ▸ Console Colours shows the art that way)")
+        self.console_choice.Bind(wx.EVT_CHOICE, self._on_console_choice)
+        console_row.Add(console_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, px(8))
+        console_row.Add(self.console_choice, 1, wx.ALIGN_CENTER_VERTICAL)
+        lsizer.Add(console_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, px(8))
         self.palette_browser = Browser(left, "Palettes", row_h=44, thumb=36, reorder=True)
         self.palette_browser.search.Hide()
         self.palette_browser.add_button("+ New", "New palette (empty: put images into it in the Modules tab)", self.new_palette)
@@ -223,14 +254,18 @@ class PaletteEditorPanel(wx.Panel):
 
     def refresh(self) -> None:
         palette, swap = self.palette(), self.swap()
+        console = consoles.console_by_key(self.project.console)
+        self.console_choice.SetSelection(CONSOLES.index(console) if console in CONSOLES else wx.NOT_FOUND)
         rows = []
+        capacity = palettes.capacity(self.project)
         for p in self.project.palettes:
             images = len(palettes.palette_images(self.project, p))
-            colours = len(palettes.colours_of(self.project, p))
-            lacking = len(palettes.missing_colours(self.project, p))
-            rows.append(Row(p.id, p.name, f"{images} image{'s' if images != 1 else ''} · {colours} of "
-                                          f"{palettes.capacity(self.project)}" + (f" · {lacking} missing" if lacking else ""),
-                            warn=bool(lacking)))
+            colours = len(palettes.stored_colours(self.project, p))
+            # Over the console's size, the colours it leaves out are the news (they are not missing from the palette).
+            lacking = len(palettes.missing_colours(self.project, p)) if colours <= capacity else 0
+            rows.append(Row(p.id, p.name, f"{images} image{'s' if images != 1 else ''} · {colours} of {capacity}"
+                                          + (f" · {lacking} missing" if lacking else ""),
+                            warn=bool(lacking) or colours > capacity))
         self._thumbs.clear()
         self.palette_browser.list.set_rows(rows, [self.palette_id] if self.palette_id else [])
         preview_swap = self.project.active_palette_swap
@@ -477,6 +512,9 @@ class PaletteEditorPanel(wx.Panel):
         self._slots_selected([slot])
 
     def _pick_colour(self, initial) -> Optional[tuple]:
+        console = consoles.console_by_key(self.project.console)
+        if console.palette.colour_model == "fixed" and console.palette.fixed_colours:
+            return fixed_colours.pick(self, console.name, console.palette.fixed_colours, initial)
         data = wx.ColourData()
         data.SetChooseFull(True)
         if initial is not None:
@@ -513,14 +551,44 @@ class PaletteEditorPanel(wx.Panel):
         palette = self.palette()
         if palette is None or self.swap() is not None:
             return
-        order = list(range(len(palettes.colours_of(self.project, palette))))
+        order = list(range(len(palettes.stored_colours(self.project, palette))))
         order.insert(target, order.pop(slot))
         if palette.colours is None:
-            palette.colours = palettes.colours_of(self.project, palette)
+            palette.colours = palettes.stored_colours(self.project, palette)
         dropped = palettes.reorder(self.project, palette, order)
         self.slots = [target]
         self._done(f"Moved slot {slot + 1} to {target + 1}" + (f"; {dropped} colour cycle(s) split apart and removed"
                                                                  if dropped else ""))
+
+    # ================================================================== the console
+    def _on_console_choice(self, _event: wx.CommandEvent) -> None:
+        index = self.console_choice.GetSelection()
+        if 0 <= index < len(CONSOLES):
+            self.set_console(CONSOLES[index].key)
+
+    def set_console(self, key: str) -> None:
+        """Make the project's palettes follow another console. Palettes with more colours than it shows keep their
+        most used ones, or all of them (the user chooses), or the console stays."""
+        console = consoles.console_by_key(key)
+        if console.key == consoles.console_by_key(self.project.console).key:
+            return
+        longer = ops.longer_palettes(self.project, console.key)
+        keep_most_used = False
+        if longer:
+            answer = ask_fit_palettes(self, console, len(longer))
+            if answer is None:
+                self.refresh()  # the choice shows the console as it was
+                return
+            keep_most_used = answer
+        removed = ops.set_console(self.project, console.key, keep_most_used)
+        app_services.notify_images_changed()  # every picture shows the art through the new console's palettes
+        spec = console.palette
+        message = f"The palettes follow the {console.name}: {spec.visible} colours a palette"
+        if removed:
+            message += f"; {removed} colour(s) went from {len(longer)} palette(s)"
+        elif longer:
+            message += f"; {len(longer)} palette(s) keep colours it doesn't show (crossed out)"
+        self._done(message)
 
     def _swap_edited(self) -> None:
         """A swap that previews everywhere changed: every canvas draws it again."""

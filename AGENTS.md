@@ -11,7 +11,8 @@ into **frames** (positioned, flipped, 90°-rotated parts, optionally nested fram
 (keyframed objects), re-skinned with **mappings** (module → module / hidden substitutions) and recoloured with
 **palette swaps** (per palette slot, chosen per draw like a mapping; colour cycles turn slots). Frames also carry
 **collision boxes** and **control points** with semantic *roles* for game logic. `consoles.py` describes the target
-consoles (screens, sprite hardware, palettes, limits); the Mega Drive is the one the palettes and the export support.
+consoles (screens, sprite hardware, palettes, limits): each has budget profiles, a project's palettes follow the one it
+targets (`Project.console`, chosen in the Palettes tab), and the Mega Drive is the one the export supports.
 
 Primary testbeds (keep them working):
 
@@ -74,17 +75,20 @@ consoles.py                The console database (wx-free): screen modes, sprite 
 compositor.py              The reference compositor (Pillow, wx-free): 2×2 matrices, module images (key colour,
                            shapes), leaf instances of nested frames, render_frame — previews, budget, Optimize Sprite
                            Sheet and both exporters build on it
-hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32): SGDK-exact part placement,
-                           ≤32×32 VDP sprite cut (SNES: square small / large sprites), per-screen / per-line limits,
-                           video memory (tiles stored like the export, the project's total) — wx-free, tested against
-                           the SGDK exporter
+hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32, NES and Game Boy 8×8 /
+                           8×16, GBA): SGDK-exact part placement, ≤32×32 VDP sprite cut (SNES: square small / large
+                           sprites; NES, Game Boy: one size; GBA: the cheapest cover with its 12 shapes,
+                           cover_with_shapes), per-screen / per-line limits, video memory (tiles stored like the export,
+                           the project's total; Mega Drive only) — wx-free, tested against the SGDK exporter
 modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
                            cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
 palettes.py                Palettes (wx-free, shared with the SGDK exporter): a palette's colours (stored in slot order, or
-                           automatic: built from its images), console colours (consoles.PaletteHardware: Mega Drive 3 bits a
-                           channel), palette swaps and colour cycles (swapped_colours, rotate, shown_colours), recolouring
-                           images, the export's palette entries, maintenance (add missing colours, sort, remove slots)
+                           automatic: built from its images; colours_of = as many as the console shows, stored_colours =
+                           all), console colours (consoles.PaletteHardware: 3 or 5 bits a channel, or the NES / Game Boy
+                           fixed colours), palette swaps and colour cycles (swapped_colours, rotate, shown_colours),
+                           recolouring images, the export's palette entries, maintenance (add missing colours, sort,
+                           remove slots, keep_most_used)
 playback.py                Animation playback exactly like the SGDK runtime (wx-free): Player (tick by tick, or video frame by
                            video frame with hold_of=console_hold: the Animations tab's preview), console_frames (a step's
                            hold in the game's frames, the exporter's conversion) and animation_at (Timeline objects and so
@@ -162,8 +166,9 @@ ui/
                            transform / motion / swap), EasingPreview, SourcePickerDialog
     library.py             SceneLibrary: Animations / Frames / Modules palettes (drag or double-click)
   palette_editor/          Palettes tab: palettes and palette swaps (lists), preview (an image, pick a slot by its pixel,
-                           cycles turning), inspector (slot grid, change / original / remove, add image colours, sort,
-                           colour cycles, swap settings); ops.py wx-free (new / duplicate / delete, replacements, slot
+                           cycles turning), inspector (the project's console, slot grid, change / original / remove,
+                           add image colours, sort, colour cycles, swap settings), fixed_colours.py (the NES / Game Boy
+                           colour picker); ops.py wx-free (set_console, new / duplicate / delete, replacements, slot
                            edits that keep swaps and cycles pointing at the same colours)
   mapping_editor/          Mappings tab, redesigned from scratch:
     ops.py                 wx-free: states (original/replaced/hidden/missing), assign/reset, match by position
@@ -226,8 +231,10 @@ docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding
 - Palettes: `Project.palettes` (each `Palette` has its colours in slot order, `None` = automatic until the editor
   stores them, and `cycles`), `ImageAsset.palette_id`, `Project.palette_swaps` (`PaletteSwap.palettes`: palette id →
   `PaletteChange`, per slot a colour or `None` = its own, and optionally cycles of its own). `Project.console` keys
-  the console (`consoles.console_by_key`): palette size and colour model. Read a palette's colours with
-  `palettes.colours_of(project, palette)`, never `palette.colours` directly.
+  the console (`consoles.console_by_key`): palette size and colour model. A palette may store more colours than the
+  console shows (kept from a console with bigger palettes; crossed out in the Palettes tab, `palette-too-long` in Check
+  Project). Read a palette's colours with `palettes.colours_of(project, palette)` (what the console shows), never
+  `palette.colours` directly; `palettes.stored_colours` for editing every stored slot.
 - `Frame.group` / `Animation.group` place items in the long lists ("" = no group); nothing exports them.
 - A timeline object with `attach_point_role` (and a parent) sits on that point of its parent's current frame: the
   evaluated state carries `attach_offset` (and `attach_missing` while the frame has no such point); `local_matrix`
@@ -309,7 +316,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `app_services.project_revision`).
 - **Palettes:** a palette's slot order is fixed once stored (swaps and cycles refer to slots); `palettes.py` maps a
   colour to its slot (exact, else nearest) the way the exporter does; the exporter, Check Project (per palette:
-  `too-many-colours`, `colours-not-in-palette`, `duplicate-palette-colour`; dead swap entries), the Palettes tab, the
+  `too-many-colours`, `colours-not-in-palette`, `palette-too-long`, `duplicate-palette-colour`; dead swap entries), the
+  Palettes tab (its Console section switches `Project.console`: `ops.set_console`; on the NES and the Game Boy a slot
+  takes one of the console's fixed colours, `fixed_colours.py`), the
   Modules inspector and every canvas (`ui/console_colours.py` `CONSOLE`: View ▸ Console Colours, the draw's palette
   swap, turning cycles; canvases put `CONSOLE.image_key(...)` in their cache keys) all use it. A recoloured image
   comes with the key colour cut out as alpha: never also set the key colour as a wx mask (on macOS the mask wins and
@@ -317,7 +326,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   of the palettes it changes as palette entries (blob v5); a piece stores its entry, the runtime maps entries to
   lines at draw time (`ms_set_palette_swap`, `ms_draw_anim_player_as`; bit 7 of a piece's entry = a scene object's
   own swap, not remapped), loads the entries into consecutive lines from `ms_init_ex`'s first line
-  (`ms_palettes_fit`; `ms_load_palette` for more entries than lines) and turns cycles with `ms_palette_tick`.
+  (`ms_palettes_fit`; `ms_load_palette` for more entries than lines) and turns cycles with `ms_palette_tick`. The
+  export always writes Mega Drive palette lines (16 colours); a project whose palettes follow another console gets the
+  `other-console` warning (`project_check.console_issue`).
   `tests/test_sgdk_runtime_draw.py` draws a swapped guard and turning cycles against the editor.
 - **SGDK runtime:** the exporter writes everything into `modsprite_blob.bin` (`_emit_blob`) and generates the C
   record types and parser (`_emit_header`, `_emit_data_c`). Records are packed structs (`MS_RECORD`): when one

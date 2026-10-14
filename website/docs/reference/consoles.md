@@ -5,17 +5,17 @@ line, the shapes a sprite can have, and palettes of a few colours. The editor ke
 them for the [budget overlay](../guide/hardware-budget.md), the Timeline's screen guides and the
 [palettes](../guide/palettes.md).
 
-The Mega Drive is the first console the editor exports for, and the one its palettes follow. The others are listed
-with what the editor already knows about them: their screen guides on the Timeline, and for the SNES the budget
-overlay. More consoles will follow.
+A project's palettes follow the console you choose in the **Palettes** tab: how many colours a palette holds and
+which colours it can show. Every console here has its budget overlay and its screen guide on the Timeline. The Mega
+Drive is the one the editor exports for so far.
 
 | Console | Screen | Sprites on screen / on a line | Colours for sprites | In the editor |
 | --- | --- | --- | --- | --- |
 | Mega Drive | 320×224 or 256×224 | 80 / 20 | 4 × 15 + transparent | export (SGDK), palettes, budget overlay, screen guide |
-| SNES | 256×224 | 128 / 32 | 8 × 15 + transparent | budget overlay, screen guide |
-| NES | 256×240 | 64 / 8 | 4 × 3 + transparent | screen guide |
-| Game Boy Advance | 240×160 | 128 / 128 | 16 × 15 + transparent | screen guide |
-| Game Boy | 160×144 | 40 / 10 | 2 × 3 + transparent | screen guide |
+| SNES | 256×224 | 128 / 32 | 8 × 15 + transparent | palettes, budget overlay, screen guide |
+| NES | 256×240 | 64 / 8 | 4 × 3 + transparent | palettes, budget overlay, screen guide |
+| Game Boy Advance | 240×160 | 128 / 128 | 16 × 15 + transparent | palettes, budget overlay, screen guide |
+| Game Boy | 160×144 | 40 / 10 | 2 × 3 + transparent | palettes, budget overlay, screen guide |
 
 ## Mega Drive
 
@@ -56,7 +56,7 @@ overlay. More consoles will follow.
 | Background tiles | flip horizontally and vertically; one layer turns and scales (Mode 7) |
 | Video memory | 64 KB for tiles and maps |
 | Budget overlay | SNES, 8×8 and 16×16 sprites; SNES, 16×16 and 32×32 sprites |
-| In the editor | budget overlay, screen guide |
+| In the editor | palettes, budget overlay, screen guide |
 
 ## NES
 
@@ -75,7 +75,8 @@ overlay. More consoles will follow.
 | Colours | chosen from a fixed set (a palette picks its colours from the PPU's 64 entries) |
 | Background tiles | no flips |
 | Video memory | 2 KB for name tables; tiles come from the cartridge's CHR memory |
-| In the editor | screen guide |
+| Budget overlay | NES, 8×8 sprites; NES, 8×16 sprites |
+| In the editor | palettes, budget overlay, screen guide |
 
 ## Game Boy Advance
 
@@ -94,7 +95,8 @@ overlay. More consoles will follow.
 | Colours | 5 bits a channel: 32,768 colours |
 | Background tiles | flip horizontally and vertically; layers turn and scale |
 | Video memory | 96 KB, 32 KB of it for sprite tiles |
-| In the editor | screen guide |
+| Budget overlay | Game Boy Advance |
+| In the editor | palettes, budget overlay, screen guide |
 
 ## Game Boy
 
@@ -113,4 +115,5 @@ overlay. More consoles will follow.
 | Colours | chosen from a fixed set (four shades of the green screen, as usually shown) |
 | Background tiles | no flips |
 | Video memory | 8 KB for tiles and maps |
-| In the editor | screen guide |
+| Budget overlay | Game Boy, 8×8 sprites; Game Boy, 8×16 sprites |
+| In the editor | palettes, budget overlay, screen guide |

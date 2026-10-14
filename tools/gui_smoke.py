@@ -1432,6 +1432,84 @@ def run():
 
     step("palettes tab: a palette swap and a colour cycle, everywhere they show", palette_swaps)
 
+    # ---- Other consoles: the palettes follow the NES or the Game Boy, every budget profile draws
+    def other_consoles():
+        import consoles
+        import hardware_budget as hb
+        import palettes
+        import project_check
+        from ui.palette_editor import panel as pal_panel
+        from ui.palette_editor.fixed_colours import FixedColourDialog
+
+        pe = frame.palette_editor
+        frame.select_tab(5)
+        pump(2)
+        frame.history_checkpoint()
+        palette = max(proj.palettes, key=lambda p: len(palettes.stored_colours(proj, p)))
+        pe.select_palette(palette.id)
+        stored = palettes.stored_colours(proj, palette)
+        check(pe.console_choice.GetStringSelection() == "Mega Drive", "the console the palettes follow")
+        answers, asked = [False, True], []  # Keep All for the NES, then Keep the Most Used for the Game Boy
+        original = pal_panel.ask_fit_palettes
+        pal_panel.ask_fit_palettes = lambda parent, console, count: (asked.append(console.key), answers.pop(0))[1]
+        try:
+            pe.set_console("nes")
+            pump()
+            check(proj.console == "nes" and palettes.capacity(proj) == 3, "the palettes follow the NES")
+            check(pe.console_choice.GetStringSelection() == "NES", "the choice shows the NES")
+            if len(stored) > 3:
+                check(asked == ["nes"], "asked how to fit the longer palettes")
+                check(palette.colours == stored, "Keep All keeps every colour")
+                check(pe.inspector.grid.colours == stored and pe.inspector.grid.capacity == 3,
+                      "the swatches show the colours the NES leaves out")
+                check(any(i.code == "palette-too-long" for i in project_check.check_project(proj, pixels=False)),
+                      "Check Project: a palette with more colours than the NES shows")
+            update = wx.UpdateUIEvent(frame.m_play_50hz.GetId())
+            frame.on_update_play_50hz_ui(update)
+            check(update.GetEnabled(), "the NES has a 50 Hz version")
+            pe.set_console("gameboy")
+            pump()
+            check(proj.console == "gameboy", "the palettes follow the Game Boy")
+            if len(stored) > 3:
+                check(asked == ["nes", "gameboy"] and len(palette.colours) == 3, "Keep the Most Used fits the palette")
+            update = wx.UpdateUIEvent(frame.m_play_50hz.GetId())
+            frame.on_update_play_50hz_ui(update)
+            check(not update.GetEnabled(), "no 50 Hz Game Boy: Play at 50 Hz is off")
+        finally:
+            pal_panel.ask_fit_palettes = original
+        dialog = FixedColourDialog(frame, "NES", consoles.NES.palette.fixed_colours, (200, 0, 0))
+        check(dialog.colour() in consoles.NES.palette.fixed_colours and dialog.grid.selected > 0,
+              "the NES colour picker starts at the nearest of its colours")
+        dialog.Destroy()
+
+        frame.select_tab(1)
+        pump()
+        target = max(proj.frames, key=lambda f: len(f.fmodules))
+        fe.select_frame_by_id(target.id)
+        for profile in hb.PROFILES:
+            fe.canvas_controls._set_budget(profile.key, persist=False)
+            b = fe.canvas.compute_budget()
+            check(b is not None and b.profile is profile and b.sprite_count > 0, f"frames: {profile.key} budget")
+            bitmap = wx.Bitmap(400, 200)
+            dc = wx.MemoryDC(bitmap)
+            gc = wx.GraphicsContext.Create(dc)
+            fe.canvas.budget_hud_rect = None
+            fe.canvas._draw_budget(gc, b)  # the overlay and its readout, as a paint draws them
+            fe.canvas._draw_budget_hud(gc)
+            del gc
+            dc.SelectObject(wx.NullBitmap)
+            check(fe.canvas.budget_hud_rect is not None, f"frames: {profile.key} readout drawn")
+        fe.canvas_controls._set_budget("", persist=False)
+
+        frame.on_undo(None)
+        frame.on_undo(None)
+        pump()
+        check(proj.console == "megadrive" and proj.get_palette(palette.id).colours == stored,
+              "undo: the Mega Drive and every colour again")
+        frame.select_tab(0)
+
+    step("other consoles: palettes for the NES and the Game Boy, every budget profile", other_consoles)
+
     # ---- Mappings
     def mappings():
         frame.select_tab(4)

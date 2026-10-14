@@ -26,8 +26,8 @@ right-click › Open the first time.
 - **Modules, Frames, Animations and Mappings** are the most complete and most used part of the tool.
 - **Timeline** (scenes) is newer: objects can carry their own mapping and palette swap, follow a point of their
   parent's frames, and animations can be choreographed with keys; the UX may still change.
-- **Palettes** (the newest tab): palettes in slot order, palette swaps and colour cycles, for the Mega Drive; the
-  console database (`consoles.py`) prepares the other consoles.
+- **Palettes** (the newest tab): palettes in slot order, palette swaps and colour cycles, for the console the project
+  targets (Mega Drive, SNES, NES, Game Boy Advance or Game Boy); only the Mega Drive has an exporter so far.
 - Project files carry a `format_version` (currently 7); older files are upgraded when opened. See
   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 - The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md).
@@ -80,7 +80,7 @@ right-click › Open the first time.
   pixel-identical.
 - **Palettes**: each image belongs to a palette (chosen in the inspector, edited in the Palettes tab); the inspector
   shows the palette's colours as the console shows them. **View ▸ Console Colours** shows every canvas in the
-  console's colours (3 bits per channel, through the export's palettes).
+  console's colours (on the Mega Drive 3 bits per channel, through the export's palettes).
 - **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
 
 ### Frames
@@ -138,6 +138,9 @@ right-click › Open the first time.
   stage) to move, flip, delete, duplicate or copy; paste layers into another scene; **scene GIF export**.
 
 ### Palettes
+- **The project's console** (Palettes tab): how many colours a palette holds and which it can show: the Mega Drive's
+  15 in 3 bits a channel, the SNES's and GBA's 15 in 5 bits, the NES's 3 picked from its 64 fixed colours, the Game
+  Boy's 3 of its 4 shades. Colours a smaller console can't show are kept (crossed out) or reduced to the most used.
 - **Palettes in slot order**: the colours stay where the artist put them; add an image's missing colours, remove unused
   ones, sort, edit a slot (snapped to the console's colours). Check Project warns about colours a palette has no room
   for.
@@ -154,10 +157,11 @@ right-click › Open the first time.
 - **Preview** of the frames the selected modules appear in, drawn with the mapping.
 
 ### Mega Drive / SGDK
-- **Budget overlay** in the Frames, Animations and Timeline view bars (Mega Drive H40 / H32, and SNES with 8/16 or
-  16/32 sprites): the hardware sprites each part becomes, scanlines where sprites would drop out, sprite counts and,
-  for the Mega Drive, the video memory: tiles of what is shown, of the animation and of the whole project against the
-  ~1424 SGDK leaves free. The numbers follow the exporter exactly.
+- **Budget overlay** in the Frames, Animations and Timeline view bars (Mega Drive H40 / H32; also SNES with 8/16 or
+  16/32 sprites, NES and Game Boy with 8×8 or 8×16 sprites, and the Game Boy Advance with its twelve sprite shapes):
+  the hardware sprites each part becomes, scanlines where sprites would drop out, sprite counts and, for the Mega
+  Drive, the video memory: tiles of what is shown, of the animation and of the whole project against the ~1424 SGDK
+  leaves free. The Mega Drive's numbers follow the exporter exactly.
 - **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palettes,
   frames, animations, scenes, hitboxes, points, events and every mapping in one binary blob, written into the game's
   SGDK project (its own resources stay). It reports what the game gets: the video memory the sprites need, merged

@@ -34,9 +34,10 @@ class ConsoleColours:
         self._bases.clear()
 
     def _base(self, project: Any, palette: Any) -> List[RGB]:
-        """The palette's colours (one not built yet takes its images', computed once per state of the images)."""
+        """The palette's colours as the console holds them (one not built yet takes its images', computed once per
+        state of the images)."""
         if palette.colours is not None:
-            return list(palette.colours)
+            return palettes.colours_of(project, palette)
         key = (palette.id, self.generation, tuple((a.id, a.file_path, a.palette_id, tuple(a.transparent_color or ()))
                                                   for a in project.images))
         found = self._bases.get(key)

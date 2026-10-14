@@ -1,10 +1,12 @@
 """Palettes (wx-free): a project's palettes and palette swaps as its console shows them, shared by the editor's
 previews, the budget and the exporters. Design: docs/PALETTES.md.
 
-A palette (``models.Palette``) lists its colours in hardware order, slot 1 first (slot 0 is the transparent one), at
-most as many as the console shows per palette (``consoles.PaletteHardware.visible``: 15 on the Mega Drive). Every
-image belongs to one (``Project.image_palette``); vector shapes use the first. A pixel takes the first slot with
-exactly its colour, else the nearest one, in the console view, the swaps, the budget's tile count and the export alike.
+A palette (``models.Palette``) lists its colours in hardware order, slot 1 first (slot 0 is the transparent one). The
+project's console (``Project.console``) decides how many it shows (``consoles.PaletteHardware.visible``: 15 on the Mega
+Drive, 3 on the NES) and in which colours. A palette can store more, kept from a console with bigger palettes until the
+artist removes them; ``colours_of`` gives only those the console shows. Every image belongs to one
+(``Project.image_palette``); vector shapes use the first. A pixel takes the first slot with exactly its colour, else the
+nearest one, in the console view, the swaps, the budget's tile count and the export alike.
 
 A palette swap (``models.PaletteSwap``) replaces slots' colours and can give a palette colour cycles of its own;
 a colour cycle rotates a run of slots every few video frames.
@@ -104,10 +106,22 @@ def rotate(colours: Sequence[RGB], cycles: Sequence[ColourCycle], frame: Optiona
 
 
 def colours_of(project: Any, palette: Palette) -> List[RGB]:
-    """The palette's colours; one not built yet (None) takes its images' colours with format 6's rules."""
+    """The palette's colours as the console holds them (stored colours past its palette size wait, see
+    ``stored_colours``); one not built yet (None) takes its images' colours with format 6's rules."""
+    return stored_colours(project, palette)[:capacity(project)]
+
+
+def stored_colours(project: Any, palette: Palette) -> List[RGB]:
+    """Every colour the palette stores, also those past the console's palette size."""
     if palette.colours is not None:
         return list(palette.colours)
     return build_colours(palette_usage(project, palette), capacity(project))
+
+
+def over_capacity(project: Any) -> List[Palette]:
+    """Palettes that store more colours than the console shows."""
+    room = capacity(project)
+    return [p for p in project.palettes if p.colours is not None and len(p.colours) > room]
 
 
 def change_of(swap: Optional[PaletteSwap], palette: Palette) -> Optional[PaletteChange]:
@@ -277,10 +291,12 @@ def add_missing_colours(project: Any, palette: Palette) -> int:
     return len(added)
 
 
-def slot_usage(project: Any, palette: Palette) -> List[int]:
-    """Pixels each slot draws (exact matches and the colours that fall back to it)."""
-    colours = list(palette.colours or [])
-    used = [0] * len(colours)
+def slot_usage(project: Any, palette: Palette, shown: bool = True) -> List[int]:
+    """Pixels each stored slot draws (exact matches and the colours that fall back to it). ``shown``: as the console
+    shows them (slots past its palette size draw nothing); False: as if every stored slot were shown."""
+    stored = list(palette.colours or [])
+    colours = stored[:capacity(project)] if shown else stored
+    used = [0] * len(stored)
     cache: Dict[RGB, int] = {}
     for rgb, count in palette_usage(project, palette).items():
         if colours:
@@ -333,6 +349,19 @@ def reorder(project: Any, palette: Palette, order: Sequence[int]) -> int:
             change.cycles, lost = moved(change.cycles)
             dropped += lost
     return dropped
+
+
+def keep_most_used(project: Any, palette: Palette) -> int:
+    """Fit a palette that stores more colours than the console shows: keep the ones its images use most (counting
+    every stored colour as shown), in their order. Returns how many slots went."""
+    room = capacity(project)
+    stored = list(palette.colours or [])
+    if len(stored) <= room:
+        return 0
+    used = slot_usage(project, palette, shown=False)
+    keep = set(sorted(range(len(stored)), key=lambda i: (-used[i], i))[:room])
+    remove_slots(project, palette, [i for i in range(len(stored)) if i not in keep])
+    return len(stored) - room
 
 
 def remove_slots(project: Any, palette: Palette, slots: Sequence[int]) -> int:

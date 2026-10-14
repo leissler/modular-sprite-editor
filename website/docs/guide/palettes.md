@@ -25,7 +25,7 @@ A palette's colours sit in numbered **slots**, in the order you see in the inspe
 - **Add missing** puts the colours the images use that the palette lacks into free slots. **Remove unused** removes slots no pixel uses, and **Sort** orders the slots dark to light, by hue or by how much they are used.
 - **Drag a slot** to move it. Swaps and cycles move along, and so do the pixels: nothing changes on screen.
 
-**Tools ▸ Check Project** warns when a palette has no room for its images' colours (those pixels take the nearest colour, on the console too), when its slots lack a colour its images use, with a fix that adds them, and when two slots hold the same colour.
+**Tools ▸ Check Project** warns when a palette has no room for its images' colours (those pixels take the nearest colour, on the console too), when its slots lack a colour its images use, with a fix that adds them, when it holds more colours than the console shows, with a fix that keeps the most used, and when two slots hold the same colour.
 
 ## Palette swaps
 
@@ -54,4 +54,24 @@ Cycles turn in the Palettes tab (turn **Cycles** off in the view bar to stop the
 
 **View ▸ Console Colours** (++cmd+shift+p++) shows every canvas the way the console will: each image through its palette, in the colours the console can show (512 on the Mega Drive), and half-transparent pixels fully opaque, as the console has no half-transparent sprite pixels. Turn it on before you export to spot merged colours and small colour shifts.
 
-The palettes follow the project's console. Today that is the Mega Drive; [Consoles](../reference/consoles.md) lists what the editor knows about the others.
+## Choose the console
+
+The palettes follow the console your project is for. Choose it in **Console**, above the list of palettes: Mega Drive, SNES, NES, Game Boy Advance or Game Boy. It decides how many colours a palette holds and which colours a slot can take:
+
+| | A palette holds | A slot's colour |
+| --- | --- | --- |
+| Mega Drive | 15 and transparent | one of 512 |
+| SNES, Game Boy Advance | 15 and transparent | one of 32,768 |
+| NES | 3 and transparent | one of the console's 64 |
+| Game Boy | 3 and transparent | one of its 4 shades of green |
+
+On the NES and the Game Boy, **Change...** opens a grid of the console's colours to pick from. The NES's are numbered $00 to $3F, the way programmers write them.
+
+When you switch to a console with smaller palettes, palettes with more colours than it holds can **Keep the Most Used**, the colours their images use most, or **Keep All**. Then the console shows the first colours of each palette, and the others wait in their slots, crossed out, for a console with bigger palettes. Drag a crossed-out colour to an earlier slot to show it instead, or let **Check Project** keep the most used later.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Palette section for a project that targets the NES: NES, 3 colours and transparent, picked from the console's 64; the first three slots show their colours, the twelve after them are crossed out](../assets/images/screens/palettes-console.png){ width="289" height="283" loading="lazy" }](../assets/images/screens/palettes-console.png)
+  <figcaption>The Prince of Persia palette in a project for the NES: the console shows the first three colours.</figcaption>
+</figure>
+
+The editor exports for the Mega Drive so far. Its export of a project for another console still makes Mega Drive palettes, and the export's report says so. [Consoles](../reference/consoles.md) lists what the editor knows about each console.

@@ -550,6 +550,17 @@ def run_pop() -> None:
             pump()
             part("palettes-slots", pe.inspector.palette_section, pad=0)
             pe._slots_selected([])
+    if wanted("palettes-console", group):
+        from ui.palette_editor import ops as palette_ops
+
+        frame.select_tab(5)
+        pe.select_swap(None)
+        pe.select_palette(proj.palettes[0].id)
+        palette_ops.set_console(proj, "nes")  # Keep All; shown only, the project is not saved
+        pe.refresh()
+        part("palettes-console", pe.inspector.palette_section, pad=0)
+        palette_ops.set_console(proj, "megadrive")
+        pe.refresh()
 
     # ---------------------------------------------------------------- dialogs
     if wanted("change-animations", group):

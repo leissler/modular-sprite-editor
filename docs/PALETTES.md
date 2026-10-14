@@ -14,12 +14,38 @@ transparent index, palettes for sprites, whether backgrounds share them, the col
 or a fixed set like the NES master palette) and what the editor supports for it (budget overlay, palettes, export).
 
 It holds the Mega Drive, the SNES, the NES, the Game Boy Advance and the Game Boy, the consoles whose screens the
-Timeline already shows. The budget overlay's profiles (Mega Drive H40 / H32, SNES 8/16 and 16/32) and the Timeline's
-screen guides come from it, and so do the palette rules of a project's console. Adding a console is adding an entry;
-supporting it in the budget, the palettes or an exporter is switching those on with the code behind them.
+Timeline already shows. The budget overlay's profiles (Mega Drive H40 / H32, SNES 8/16 and 16/32, NES and Game Boy
+8×8 and 8×16, GBA) and the Timeline's screen guides come from it, and so do the palette rules of a project's console.
+Adding a console is adding an entry; supporting it in the budget, the palettes or an exporter is switching those on
+with the code behind them.
 
-A project has a target console (`Project.console`, `"megadrive"` by default). Today only the Mega Drive has palettes
-and an exporter; the palette code reads every limit from the console's entry, never a constant.
+## The project's console
+
+A project has a target console (`Project.console`, `"megadrive"` by default), chosen in the Palettes tab's *Console*
+section (`ui/palette_editor/ops.set_console`, one undo step). Every console here has palettes; only the Mega Drive
+has an exporter. The palette code reads every limit from the console's entry, never a constant:
+
+| Console | A palette holds | Colours | Palettes for sprites |
+| --- | --- | --- | --- |
+| Mega Drive | 15 + transparent | 3 bits a channel | 4, shared with the backgrounds |
+| SNES | 15 + transparent | 5 bits a channel | 8 |
+| Game Boy Advance | 15 + transparent | 5 bits a channel | 16 |
+| NES | 3 + transparent | one of the PPU's 64 | 4 |
+| Game Boy | 3 + transparent | one of its 4 shades | 2 |
+
+On the NES and the Game Boy a slot takes one of the console's fixed colours: the Palettes tab picks them from a grid
+(`fixed_colours.py`, the NES's numbered `$00`-`$3F`), and the console view shows every colour as the nearest of them.
+
+Palettes keep the artist's colours when the console changes. A palette can then store more colours than the new
+console shows: `palettes.colours_of` gives the first ones (what the console holds, what every draw, the budget and
+the export use), `stored_colours` all of them. The Palettes tab crosses the others out, the palette list marks the
+palette, and Check Project warns (`palette-too-long`) with the fix *Keep the most used*
+(`palettes.keep_most_used`: the colours its images use most stay, in their slot order, the swaps' replacements and
+the cycles move with them). Switching to a console with smaller palettes asks the same: keep the most used, or keep
+every colour (they wait for a console with bigger palettes; dragging a crossed-out colour forward makes it shown).
+
+The Mega Drive export of a project that targets another console still writes Mega Drive palette lines (16 colours,
+the slots the console has no room for black) and reports `other-console` (`project_check.console_issue`).
 
 ## Palettes
 
@@ -79,8 +105,9 @@ frames at the preview's refresh rate (60 Hz, or 50 Hz for PAL).
 
 ## Checks
 
-Check Project reports image colours a palette has no room for, palettes with two slots of one colour (pixels use the
-first), swaps and objects that name a deleted palette or swap (with fixes), and more palette entries than lines.
+Check Project reports image colours a palette has no room for, palettes that store more colours than the console
+shows (with a fix), palettes with two slots of one colour (pixels use the first), swaps and objects that name a deleted
+palette or swap (with fixes), and more palette entries than lines.
 `ID_LISTS` covers palettes and swaps.
 
 ## File format 7
@@ -92,7 +119,7 @@ the images once the project is open, with the format 6 rules, so a migrated proj
 
 ## Where it is tested
 
-`tests/test_palettes.py` (colours, slots, swaps, cycles, maintenance), `tests/test_consoles.py` (the database gives
-the budget profiles and screen guides that were there before), `tests/test_sgdk_runtime_draw.py` (the compiled
+`tests/test_palettes.py` (colours, slots, swaps, cycles, maintenance, other consoles), `tests/test_consoles.py` (the
+database gives the budget profiles and screen guides), `tests/test_sgdk_runtime_draw.py` (the compiled
 runtime draws a guard in a swap, scene objects with swaps of their own, and turns cycles like the preview),
 `tests/test_project_check.py` (the palette checks), and the smoke test's palette steps.

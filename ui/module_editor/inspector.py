@@ -264,14 +264,23 @@ class ModuleInspector(wx.ScrolledWindow):
         self.palette_choice.SetSelection(self._palette_ids.index(palette.id))
         spec = palettes.hardware(project)
         colours = palettes.colours_of(project, palette)
+        stored = len(palettes.stored_colours(project, palette))
         lacking = len([rgb for rgb in palettes.image_colours(asset.file_path, asset.transparent_color)
                        if rgb not in set(colours)])
-        self.palette_info.SetLabel(f"{len(colours)} of {spec.visible}" + (f", {lacking} missing" if lacking else ""))
-        self.palette_info.SetForegroundColour(wx.Colour(255, 140, 120) if lacking else wx.Colour(150, 156, 170))
-        self.palette_info.SetToolTip(
-            f"'{palette.name}' holds {len(colours)} of the {spec.visible} colours a palette can have" + (
-                f"; {lacking} colours of this image are not in it and show as the nearest one. Add them in the "
-                "Palettes tab, or let Check Project add them." if lacking else "."))
+        if stored > spec.visible:  # kept from a console with bigger palettes
+            self.palette_info.SetLabel(f"{stored} of {spec.visible}, {stored - spec.visible} not shown")
+            self.palette_info.SetToolTip(
+                f"'{palette.name}' holds {stored} colours, and the console shows {spec.visible} a palette: pixels of "
+                "the others show as the nearest of those. Keep the most used with Check Project, or remove colours in "
+                "the Palettes tab.")
+        else:
+            self.palette_info.SetLabel(f"{len(colours)} of {spec.visible}" + (f", {lacking} missing" if lacking else ""))
+            self.palette_info.SetToolTip(
+                f"'{palette.name}' holds {len(colours)} of the {spec.visible} colours a palette can have" + (
+                    f"; {lacking} colours of this image are not in it and show as the nearest one. Add them in the "
+                    "Palettes tab, or let Check Project add them." if lacking else "."))
+        warn = lacking or stored > spec.visible
+        self.palette_info.SetForegroundColour(wx.Colour(255, 140, 120) if warn else wx.Colour(150, 156, 170))
         self.palette_strip.set_palette(colours, spec, palette.name)
 
     def _fill_modules(self, project: Project, modules: List[Module]) -> None:

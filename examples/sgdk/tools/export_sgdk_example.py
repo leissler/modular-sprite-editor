@@ -26,6 +26,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import compositor  # noqa: E402
+import consoles  # noqa: E402
 from models import (  # noqa: E402
     TIMELINE_MAPPING_ORIGINAL, Frame, Module, ModuleMapping, PaletteSwap, Project, TimelineScene, state_shows,
 )
@@ -96,6 +97,7 @@ BLOB_SECTION_COUNT = 36
 BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
 SPRITE_BLOCK = 32  # largest Mega Drive sprite: 4×4 tiles (hardware_budget cuts parts the same way)
 TILE = 8
+MD_PALETTE = consoles.MEGA_DRIVE.palette  # every palette entry is a CRAM line: transparent + 15 colours
 
 # What the exporter writes into an SGDK project (paths relative to it).
 BLOB_FILE = Path("res") / "gen" / "modsprite_blob.bin"
@@ -383,13 +385,14 @@ class SGDKBakeContext:
         return out
 
     def _entry_cycles(self, entry: palettes.Entry) -> List[Any]:
-        visible = palettes.capacity(self.project)
+        visible = MD_PALETTE.visible
         return [c for c in entry.cycles if c.count >= 2 and 1 <= c.first and c.first + c.count - 1 <= visible]
 
     def packed_palette_words(self) -> List[int]:
         """16 CRAM words per palette entry: slot 0 (transparent), then its colours with rescomp's rounding (3 bits
-        per channel, truncated), free slots black."""
-        visible = palettes.capacity(self.project)
+        per channel, truncated), free slots black. A project whose palettes follow another console (fewer colours)
+        fills the rest with black too."""
+        visible = MD_PALETTE.visible
         words: List[int] = []
         for entry in self.palette_entries:
             words.append(0)
@@ -2067,6 +2070,9 @@ def export_project(
             if image_path.exists():
                 _copy_if_needed(image_path, output_demo_dir / "source" / image_path.name)
 
+    console = project_check.console_issue(project)
+    if console is not None:
+        issues.append(console)
     tiles = len(bake.tile_data) // 32
     issues.append(project_check.tile_issue(tiles))
     lines = project_check.palette_issue(len(bake.palette_entries))

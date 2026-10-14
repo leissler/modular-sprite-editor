@@ -2,7 +2,7 @@
 
 A retro console does not draw your character as one picture. It shows it as **hardware sprites**: small rectangles made from 8 by 8 pixel **tiles** stored in video memory. There are limits on how many fit on the screen and on one line, and when a pose asks for too much, parts of it flicker or disappear. The budget overlay shows you this while you draw.
 
-The editor knows the limits of the Sega Mega Drive and the Super Nintendo (SNES). More consoles will follow, each with its own entry in **Budget**.
+The editor knows the limits of the Sega Mega Drive, the Super Nintendo (SNES), the NES, the Game Boy Advance (GBA) and the Game Boy, each with its own entries in **Budget**.
 
 <figure class="ms-shot" markdown="span">
   [![The Frames tab with the budget overlay: the slash pose outlined in yellow hardware sprites, with a readout of sprites, the busiest line and video memory](../assets/images/screens/budget.png)](../assets/images/screens/budget.png)
@@ -16,8 +16,13 @@ In the view bar of the **Frames**, **Animations** or **Timeline** tab, change **
 - **MD H40** is the Mega Drive's wide mode, 320 pixels across, used by most games.
 - **MD H32** is the narrower mode, 256 pixels across.
 - **SNES 8/16** and **SNES 16/32** are the Super Nintendo. Its sprites are squares in two sizes, and a game picks one pair for all of them: 8 and 16 pixels, or 16 and 32.
+- **NES 8×8** and **NES 8×16** are the NES. All its sprites have one size, which the game picks: 8 by 8 pixels, or 8 by 16.
+- **GBA** is the Game Boy Advance. Its sprites come in twelve shapes from 8 by 8 to 64 by 64 pixels: squares, and rectangles twice or four times as wide as high or the other way round.
+- **GB 8×8** and **GB 8×16** are the Game Boy, with one sprite size per game like the NES.
 
-On the Mega Drive, a hardware sprite is 8 to 32 pixels wide and high, in steps of 8. On the SNES, the editor covers each part with the large squares, and uses small ones where the part's pixels only fill an edge or a corner of a large square.
+On the Mega Drive, a hardware sprite is 8 to 32 pixels wide and high, in steps of 8. On the SNES, the editor covers each part with the large squares, and uses small ones where the part's pixels only fill an edge or a corner of a large square. On the NES and the Game Boy, every 8 by 8 (or 8 by 16) piece of a part that holds a pixel is a sprite of its own. On the GBA, the editor covers each part with the shapes that cost least, weighing a sprite as much as 8 tiles: a 24 by 24 part becomes one 32 by 32 sprite, a 40 by 8 strip a 32 by 8 and an 8 by 8 sprite.
+
+The budget menu offers every console, whichever one your project's palettes follow.
 
 The editor remembers the choice for each tab.
 
@@ -37,11 +42,14 @@ The readout in the corner counts:
   <figcaption>The readout for the slash pose.</figcaption>
 </figure>
 
-| | Mega Drive H40 | Mega Drive H32 | SNES |
+| | Sprites on the screen | Sprites on one line | Sprite pixels on one line |
 | --- | --- | --- | --- |
-| Hardware sprites on the screen | 80 | 64 | 128 |
-| Hardware sprites on one line | 20 | 16 | 32 |
-| Sprite pixels on one line | 320 | 256 | 272 |
+| Mega Drive H40 | 80 | 20 | 320 |
+| Mega Drive H32 | 64 | 16 | 256 |
+| SNES | 128 | 32 | 272 |
+| NES | 64 | 8 | |
+| Game Boy Advance | 128 | 128 | 1210 drawing cycles, one per pixel |
+| Game Boy | 40 | 10 | |
 
 These limits are for everything on screen together, not for one character. Leave room for enemies, effects and the player's shots.
 
@@ -62,12 +70,13 @@ In the **Animations** tab, the inspector also counts the tiles of all the animat
   <figcaption><strong>Budget</strong> in the inspector of the <strong>Animations</strong> tab, for a whole attack.</figcaption>
 </figure>
 
-**Tools ▸ Check Project** warns when the project needs more than three quarters of the free tiles, and reports an error when they do not fit: the game could not load the sprites. The SNES has no exporter yet, so its readout counts sprites only.
+**Tools ▸ Check Project** warns when the project needs more than three quarters of the free tiles, and reports an error when they do not fit: the game could not load the sprites. The other consoles have no exporter yet, so their readouts count sprites only.
 
 ## Tips for artists
 
 - **Fewer, bigger parts** use fewer hardware sprites. **More, smaller shared parts** use less memory. [Auto Modularize](auto-modularize.md) finds a balance with one slider.
 - On the Mega Drive, a part 33 pixels wide becomes two sprites. Trimming one column can halve its cost.
+- On the NES and the Game Boy, every 8 pixels of width is another sprite on the line: a character 24 pixels wide uses 3 of the 8 sprites a NES line can show.
 - Wide poses are expensive on a single line: a sword swing stretched across the screen can use many sprites on the same lines.
 - Reuse parts flipped instead of drawing mirrored copies. The console flips hardware sprites for free, so they share tiles.
 - A part turned by 90° costs its tiles a second time. Turned by 180° it is only flipped both ways, which is free.

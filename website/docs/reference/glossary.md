@@ -4,7 +4,7 @@
 
 **Auto Modularize**: a tool that cuts whole sprites into parts they share and rebuilds the frames from them.
 
-**Budget**: the overlay that shows what a pose or scene costs on a console in hardware sprites and tiles. It knows the Mega Drive and the SNES.
+**Budget**: the overlay that shows what a pose or scene costs on a console in hardware sprites and tiles. It knows the Mega Drive, the SNES, the NES, the Game Boy Advance and the Game Boy.
 
 **Colour cycle**: a run of palette slots whose colours move along while animations and scenes play, for water, lava or a glowing effect.
 
