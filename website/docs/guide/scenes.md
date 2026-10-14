@@ -38,9 +38,11 @@ With **Auto-Key** on, moving, flipping or turning an object on the stage sets a 
 
 On the timeline, drag keys to retime them, double-click a track to add a key and drag over empty track to select several keys. ++shift++-click adds a key to the selection, ++cmd++-click adds or removes one. Copy and paste keys with ++cmd+c++ and ++cmd+v++: they paste at the playhead.
 
+Under a layer that plays an animation, short marks along the bottom of its track show each frame where the animation moves on to its next pose, as the scene plays it. Put keys on them to time a move to a pose, and hover over a mark to see its frame.
+
 <figure class="ms-shot" markdown="span">
-  [![The Swordfight's timeline: a row for the guard and one for the Prince, with a key for every action and the name of each swapped-in animation](../assets/images/screens/scene-timeline.png){ width="1426" height="215" loading="lazy" }](../assets/images/screens/scene-timeline.png)
-  <figcaption>The Swordfight's two layers. Every key swaps in an animation, and the labels name them.</figcaption>
+  [![The Swordfight's timeline: a row for the guard and one for the Prince, with a key for every action and the name of each swapped-in animation, and short marks where each animation changes pose](../assets/images/screens/scene-timeline.png){ width="1426" height="215" loading="lazy" }](../assets/images/screens/scene-timeline.png)
+  <figcaption>The Swordfight's two layers. Every key swaps in an animation, the labels name them, and the marks along the bottom show each new pose.</figcaption>
 </figure>
 
 ## Motion between keys

@@ -111,6 +111,7 @@ class TimelineWidget(wx.Panel):
         self._pan_start: Optional[Tuple[wx.Point, float, float]] = None
         self._rename_ctrl: Optional[wx.TextCtrl] = None
         self._wheel_filter = WheelGestureFilter()
+        self._tip = ""  # the tooltip set now (a mark of a layer's animation poses explains itself)
 
         self.Bind(wx.EVT_PAINT, self._on_paint)
         self.Bind(wx.EVT_SIZE, self._on_size)
@@ -454,6 +455,7 @@ class TimelineWidget(wx.Panel):
             return
         if not event.Dragging():
             self._update_cursor(pos)
+            self._update_tip(pos)
             return
         if self._mode == "divider":
             self.left_w = max(px(140), min(pos.x, self.GetClientSize().width - px(160)))
@@ -622,6 +624,41 @@ class TimelineWidget(wx.Panel):
             self.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
         else:
             self.SetCursor(wx.NullCursor)
+
+    def _pose_marks_shown(self) -> bool:
+        """The marks of the animations' pose changes are drawn only while frames are wide enough to tell apart."""
+        return self.frame_w >= pxf(3.0)
+
+    def pose_mark_at(self, pos: wx.Point) -> Optional[Tuple[TimelineObject, int]]:
+        """The mark under the pointer at the bottom of a track: (its layer, the scene frame), else None."""
+        if pos.x < self.left_w or not self._pose_marks_shown():
+            return None
+        row = self.row_at(pos.y)
+        if not 0 <= row < len(self.rows):
+            return None
+        bottom = self.row_y(row) + self.row_h
+        if not bottom - px(8) <= pos.y < bottom:
+            return None
+        obj = self.rows[row][0]
+        frame = int(round((pos.x - self.left_w + self.scroll_x) / self.frame_w))  # the nearest mark's place
+        if abs(self.frame_x(frame) - pos.x) <= px(3) and frame in self.anim_ticks.get(obj.id, ()):
+            return obj, frame
+        return None
+
+    def _update_tip(self, pos: wx.Point) -> None:
+        mark = self.pose_mark_at(pos)
+        tip = ""
+        if mark:
+            obj, frame = mark
+            tip = (f"Frame {frame}: '{obj.name}' shows the next pose of its animation.\n"
+                   "The marks under a layer show every pose change as the scene plays its animation: "
+                   "put keys on them to time a move to a pose.")
+        if tip != self._tip:
+            self._tip = tip
+            if tip:
+                self.SetToolTip(tip)
+            else:
+                self.UnsetToolTip()
 
     # ------------------------------------------------------------------ rename
     def _start_rename(self, obj: TimelineObject, row: int, depth: int) -> None:
@@ -851,9 +888,9 @@ class TimelineWidget(wx.Panel):
         keys = obj.sorted_keyframes()
         selected_keys = self.selection.get(obj.id, set())
 
-        # animation frame changes (timing reference)
+        # animation frame changes (timing reference; hovering one explains it: pose_mark_at)
         ticks = self.anim_ticks.get(obj.id, [])
-        if ticks and self.frame_w >= pxf(3.0):
+        if ticks and self._pose_marks_shown():
             dc.SetPen(wx.Pen(COL_ANIM_TICK, 1))
             for frame in ticks:
                 x = int(self.frame_x(frame))

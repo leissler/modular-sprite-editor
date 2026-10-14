@@ -970,6 +970,23 @@ def run():
         te.stage.Update()
         te.timeline.Refresh()
         te.timeline.Update()
+
+        # The marks of an animation's pose changes explain themselves when hovered (a known mark on the first layer:
+        # a one-step animation, like Sonic's first, has none).
+        from ui.dpi import px, pxf
+
+        tl = te.timeline
+        tl.set_frame_width(pxf(12.0))
+        tl.set_scroll(x=0.0)
+        marked_obj = tl.rows[0][0]
+        real_marks, tl.anim_ticks = tl.anim_ticks, {marked_obj.id: [3]}
+        on_mark = wx.Point(int(tl.frame_x(3)), int(tl.row_y(0) + tl.row_h - px(3)))
+        tl._update_tip(on_mark)
+        check(tl.pose_mark_at(on_mark) == (marked_obj, 3) and "Frame 3:" in tl.GetToolTipText(),
+              "timeline: hovering a pose mark shows what it is")
+        tl._update_tip(wx.Point(on_mark.x, int(tl.row_y(0) + px(2))))
+        check(not tl.GetToolTipText(), "timeline: away from the marks the tooltip goes")
+        tl.anim_ticks = real_marks
         count = len(scene.objects)
         te.select_object(group.id)
         te.delete_selection()
