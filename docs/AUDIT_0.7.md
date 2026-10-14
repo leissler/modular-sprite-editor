@@ -4,6 +4,11 @@ Audit of release 0.7.1 (commit `bf9e6d7`, 2026-10-13) as the starting point for 
 (all five tabs and the Tools menu), the data model and file format, the importers and exporters (AuroraGT, RetroAnimator,
 GIF, the SGDK exporter and the Mega Drive runtime), the build tooling and the user guide.
 
+**Status (release 0.8, 2026-10-14):** the plan in section 8 is done. C1–C13, U1–U5, U7, U8, P1–P3, K1, K2, K4, K7,
+F2, F5–F7 and H1–H5 are fixed (each finding says how). Still open: K3, K5 (one menu label with an ellipsis
+character), K6, U6's per-project view state, F1's palette swaps and cycling, F3's GBA and NES profiles and further
+exporters, F4 and F8–F12.
+
 How it was checked:
 
 - the full test suite, pyflakes and vulture (static analysis), `tools/check_export_parity.py`, `tools/automod_bench.py`,

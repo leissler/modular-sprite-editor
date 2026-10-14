@@ -36,25 +36,29 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 **Runtime / export**
 - SGDK: modules, frames, animations (`frame_index + duration_ticks` steps) and scenes (pre-sampled per tick) in a
   binary blob; flips become hardware H/V flags, other transforms are baked; per-mapping data sets; hitboxes and
-  points per frame and step. The runtime keeps all tiles in VRAM and only writes the sprite table each frame
-  (about 7 % of a frame per character, measured in BlastEm); the demo HUD shows hardware sprites per frame.
-- RetroAnimator JSON with baked part images (active mapping baked).
+  points per frame and step; every palette in a palette line of its own. The runtime keeps all tiles in VRAM and only
+  writes the sprite table each frame (about 7 % of a frame per character, measured in BlastEm); the demo HUD shows
+  hardware sprites per frame.
+- RetroAnimator JSON with baked part images (active mapping baked); its report lists what the format has no place
+  for (step events, loop-from steps, follow-ups, hitbox roles, scenes).
 
 ## Gaps that matter for retro work
 
-1. **Hardware budget feedback (done for Mega Drive).** The view bar's *Budget* choice (MD H40 / H32) in Frames,
-   Animations and Timeline outlines the VDP sprites, marks scanlines over the sprite / pixel limit in red and shows
-   sprites, tiles and the busiest line; the Animations inspector names the worst step. Still missing: other
-   consoles, and tile dedupe / DMA-per-step numbers.
+1. **Hardware budget feedback (done for Mega Drive and SNES).** The view bar's *Budget* choice (MD H40 / H32, SNES
+   8/16 and 16/32) in Frames, Animations and Timeline outlines the hardware sprites, marks scanlines over the sprite /
+   pixel limit in red and shows sprites, tiles and the busiest line; the Animations inspector names the worst step.
+   For the Mega Drive it also counts video memory as the export stores it (flips free): the view's tiles, the
+   animation's and the whole project's against the ~1424 SGDK leaves free. Still missing: GBA and NES.
 2. **Animation events (done, format v3).** Steps carry events from a project-wide list (name, colour, export
    number) with an optional value; they fire when the step starts and are active while it shows. The SGDK runtime
    answers `ms_anim_player_has_event` / `_event_started` / `_event_value`.
 3. **Loop-from step and follow-up animation (done, format v3).** "Loop from" plays an intro once and then loops
    the rest; an animation that ends (Play once, or after its repeat count) hands over to its "Then play"
    animation — in the editor preview and in the SGDK runtime, which are tested to step identically.
-4. **Palette is invisible.** The SGDK exporter quantises to a master palette, but the editor never shows which
-   palette/line a part uses, cannot preview palette swaps (Mega Drive: 4 lines × 16 colours) and has no palette
-   cycling.
+4. **Palettes (mostly done, format v6).** Every image belongs to one of the Mega Drive's four palettes; the Modules
+   inspector shows its colours as the console does, Check Project warns over 15 colours, View ▸ Mega Drive Colours
+   shows every canvas through the export's palettes, and the runtime loads them into consecutive lines. Still
+   missing: palette swaps as variants and palette cycling.
 5. **Previews disagree (fixed).** All thumbnails and GIF export use the renderer that matches the canvas and the
    RetroAnimator export pixel-exactly (`ui/frame_render.py`, checked by `tests/test_thumbnails.py` and
    `tools/check_export_parity.py`).
@@ -65,20 +69,22 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 
 ## Recommended extensions (priority order)
 
-### 1. Hardware budget overlay (Mega Drive done)
+### 1. Hardware budget overlay (Mega Drive and SNES done)
 - Done: `hardware_budget.py` places parts exactly like the SGDK exporter (tested against it), cuts them into
   ≤32×32 VDP sprites on the 8 px grid (skipping empty blocks), and checks sprites per screen / per line and sprite
-  pixels per line for MD H40 and H32. UI: *Budget* in the view bars (per tab, app preference), red scanlines,
-  readout, worst step in the Animations inspector, whole-scene budget in the Timeline.
-- Next: SNES / GBA / NES profiles (different sprite shapes and limits), unique-tile counting with flip dedupe,
-  tiles to stream (DMA) per animation step, and a per-project target (would be **format v3**, additive).
+  pixels per line for MD H40 and H32; the SNES profiles cover parts with square small and large sprites. UI: *Budget*
+  in the view bars (per tab, app preference), red scanlines, readout, worst step in the Animations inspector,
+  whole-scene budget in the Timeline. Video memory: each part carries the tile blocks the export stores for it
+  (`Budget.unique_tiles`, `export_tiles` equals the exporter's count).
+- Next: GBA / NES profiles and a per-project target (additive in the file format). Tiles streamed per step (DMA)
+  do not apply: the runtime keeps every tile in VRAM.
 
 ### 2. Step events (done)
 - Data (format v3): `Project.event_types` (id, name, colour; order = export number), `AFrame.events`
   (`type_id`, `value`). Typing a new name in the inspector creates the type; *Event types…* renames, recolours and
   deletes. Events travel with copied / duplicated steps and show as coloured chips above the steps.
 - Export: blob v2 with a per-step event range and an event table; `MS_EVENT_<NAME>` defines in the generated
-  header. Not yet: events in the RetroAnimator export and in the role tables.
+  header. The RetroAnimator format has no place for events; its export says so in its report.
 
 ### 3. Loop-from step and follow-up animation (done)
 - Data (format v3): `Animation.loop_start`, `Animation.next_animation_id`; scenes honour them too (follow-ups since
@@ -97,9 +103,10 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
   against the canvas) draws every thumbnail, the frame strip, GIF export and the RetroAnimator export. The SGDK
   exporter shares its matrices and module images but cuts its own hardware-sprite pieces.
 
-### 6. Palette awareness (high value for MD/SNES, larger effort)
-- Show the per-part palette line (derived from source colours or assigned), warn on parts that need >16 colours,
-  preview palette swaps as a mapping-like "palette variant", and palette-cycling previews (water, fire, damage
+### 6. Palette awareness (mostly done)
+- Done (format v6): a palette per image, its colours in the Modules inspector, warnings over 15 colours, console
+  colours on every canvas, one palette line per palette in the SGDK export.
+- Next: palette swaps as a mapping-like "palette variant", and palette-cycling previews (water, fire, damage
   flashes) as an animation property.
 
 ### 7. Attachment & constraints (medium)

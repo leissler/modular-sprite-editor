@@ -168,8 +168,8 @@ examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one bina
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
                            scene / animation / module / frame / mapping ops, export/canvas parity, migration,
                            SGDK runtime: player, drawing, hitboxes / points)
-docs/                      AUDIT_0.7.md (open findings and the plan for the next version), UX_AUDIT.md,
-                           FILE_FORMAT.md, ANIMATION.md
+docs/                      AUDIT_0.7.md (the audit of 0.7.1: the plan 0.8 carried out, its status line says what is
+                           still open), UX_AUDIT.md, FILE_FORMAT.md, ANIMATION.md
 ```
 
 ## Data model essentials (`models/`)

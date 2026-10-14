@@ -25,7 +25,7 @@ right-click › Open the first time.
 - **Modules, Frames, Animations and Mappings** are the most complete and most used part of the tool.
 - **Timeline** (scenes) is newer: objects can carry their own mapping and animations can be choreographed with keys;
   the UX may still change.
-- Project files carry a `format_version` (currently 4); older files are upgraded when opened. See
+- Project files carry a `format_version` (currently 6); older files are upgraded when opened. See
   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 - The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md).
 
@@ -36,7 +36,10 @@ right-click › Open the first time.
 - **Welcome screen** with recent projects, the example projects and the user guide; **Help ▸ User Guide** (`F1`) and
   **Help ▸ Example Projects**. Empty tabs say what to make first.
 - **Laptop-friendly**: view bars wrap instead of cutting controls off, inspector sections fold away (and stay folded),
-  the window opens where and as large as it was. One selection rule: `Shift`+click adds, `Cmd`+click adds or removes.
+  the window opens where and as large as it was, and the Timeline's dopesheet and the Animations step sequence keep the
+  height they were dragged to. One selection rule: `Shift`+click adds, `Cmd`+click adds or removes.
+- **Crisp on scaled displays**: on Windows at 125 or 150 % the editor draws its UI at the display's scale instead of
+  being stretched, and pixel art stays pixel-exact at every zoom.
 - **Safe saving**: a save replaces the file in one step and keeps the previous version as `name.json.bak`; unsaved
   changes are autosaved every 30 s to a recovery folder and offered again after a crash.
 - **Images edited elsewhere reload by themselves** when you return to the editor.
@@ -44,7 +47,8 @@ right-click › Open the first time.
   frame was deleted, missing images, more colours than the console has or names that clash in C, with Go to and a
   fix for most. Deleting something that is still used asks whether to remove its uses too.
 - **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag
-  pans, `Cmd/Ctrl+0` fits.
+  pans, `Cmd/Ctrl+0` fits. **View ▸ Scroll Moves the View** makes scrolling pan instead, with pinch or `Cmd`+scroll
+  to zoom.
 - **Preview mapping** above the tabs: the mapping every preview and export uses.
 - **Filters** on all long lists (modules, frames, animations, palettes).
 
@@ -81,7 +85,8 @@ right-click › Open the first time.
   A click places a point, a drag draws a hitbox.
 - **Pixel-exact editing**: arrow-key nudging (Shift = 8 px tile), flip (H/V), 90° rotation (R), draw order,
   copy/paste/duplicate of parts between frames.
-- **Hitboxes and points** with semantic roles (compiled into per-animation lookup tables); types managed inline.
+- **Hitboxes and points** with types and semantic roles, which the game looks up per frame (`ms_find_hitbox` /
+  `ms_find_point`); types managed inline.
 - **Onion skin**: ghost the previous/next frame of the list.
 
 ### Animations
@@ -137,8 +142,10 @@ right-click › Open the first time.
 - **Demo ROM**: browse every module, frame, animation and scene with live profiling.
 
 ### Import and export
-- Import AuroraGT `.sprite` files and RetroAnimator JSON; export RetroAnimator JSON (with the preview mapping baked
-  in), SGDK data and animated GIFs.
+- Import AuroraGT `.sprite` files and RetroAnimator JSON: whatever an import leaves out or can't find is listed, and the
+  import opens as a new project, so Save never writes over the original.
+- Export RetroAnimator JSON (with the preview mapping baked in; the report lists what RetroAnimator has no place for,
+  such as step events and scenes), SGDK data and animated GIFs.
 
 ## Examples
 
@@ -171,10 +178,10 @@ build_windows.bat     # Windows
 
 Releases come from the **Build And Release** workflow (Actions ▸ Run workflow, with a version). It builds the editor and
 the SGDK exporter for all three platforms and tests every build: unit tests, the built editor drives every tab against
-both example projects (`--smoke-test PROJECT.json [LOG]`), and the built exporter must write exactly what the Python one
-writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`, `export_sgdk-*` and
-the example projects, `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`, `packaging/examples/`);
-with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first: the About box shows it,
+the PoP_WW and Sonic examples (`--smoke-test PROJECT.json [LOG]`), and the built exporter must write exactly what the
+Python one writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`,
+`export_sgdk-*` and the example projects, `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`,
+`packaging/examples/`); with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first: the About box shows it,
 and the workflow stops if the two differ.
 
 The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
@@ -232,6 +239,7 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 - [The user guide](https://modularsprites.bionic-productions.com/) for artists and animators (source in [`website/`](website/README.md))
 - [`AGENTS.md`](AGENTS.md): architecture, conventions and workflows for contributors and coding agents
 - [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md): project JSON schema and versioning
+- [`docs/AUDIT_0.7.md`](docs/AUDIT_0.7.md): audit of 0.7.1, the plan that became 0.8, what is still open
 - [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items
 - [`docs/ANIMATION.md`](docs/ANIMATION.md): animation capabilities and roadmap
 - [`examples/sgdk/README.md`](examples/sgdk/README.md): SGDK export and the Mega Drive runtime
