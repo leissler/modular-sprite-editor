@@ -19,6 +19,7 @@ from ui.components.thumb_list import Browser, Row, title_label
 from ui.mapping_editor import ops
 from ui.mapping_editor.table import MapTable
 from ui.module_editor import ops as module_ops
+from ui.dpi import px
 
 
 class UsagePreview(FramePalette):
@@ -26,7 +27,7 @@ class UsagePreview(FramePalette):
 
     def __init__(self, parent: wx.Window, project: Project):
         super().__init__(parent, project)
-        self.item_size = (80, 80)
+        self.item_size = (px(80), px(80))
         self.frame_ids: Optional[List[str]] = None
 
     def visible_frames(self):
@@ -70,7 +71,7 @@ class MappingEditorPanel(wx.Panel):
         self.btn_del = self.browser.add_button("Delete", "Delete the selected mapping", self.delete_mapping)
         info = wx.StaticText(self.browser, label="The selected mapping previews in every tab and is used by the exports (see the bar above the tabs).")
         info.SetForegroundColour(wx.Colour(150, 156, 170))
-        info.Wrap(230)
+        info.Wrap(px(230))
         self.browser.sizer.Add(info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
         self.inner_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
@@ -143,13 +144,13 @@ class MappingEditorPanel(wx.Panel):
         preview.SetSizer(vsizer)
         self.right_split.SplitHorizontally(picker, preview, 0)
         self.right_split.SetSashGravity(0.5)
-        self.right_split.SetMinimumPaneSize(140)
+        self.right_split.SetMinimumPaneSize(px(140))
 
-        self.inner_split.SplitVertically(centre, self.right_split, -330)
+        self.inner_split.SplitVertically(centre, self.right_split, -px(330))
         self.inner_split.SetSashGravity(1.0)
-        self.inner_split.SetMinimumPaneSize(260)
-        self.outer_split.SplitVertically(self.browser, self.inner_split, 250)
-        self.outer_split.SetMinimumPaneSize(180)
+        self.inner_split.SetMinimumPaneSize(px(260))
+        self.outer_split.SplitVertically(self.browser, self.inner_split, px(250))
+        self.outer_split.SetMinimumPaneSize(px(180))
         root.Add(self.outer_split, 1, wx.EXPAND)
         self.SetSizer(root)
         wx.CallAfter(self._place_sashes)
@@ -499,7 +500,7 @@ class MappingEditorPanel(wx.Panel):
             sizer = wx.BoxSizer(wx.VERTICAL)
             text = wx.StaticText(dlg, label="Every module of the first image shows the module at exactly the same place on the second "
                                             "image (e.g. a recoloured copy of the sheet).")
-            text.Wrap(380)
+            text.Wrap(px(380))
             sizer.Add(text, 0, wx.ALL, 12)
             grid = wx.FlexGridSizer(0, 2, 8, 10)
             source = wx.Choice(dlg, choices=labels)
@@ -534,11 +535,11 @@ class MappingEditorPanel(wx.Panel):
             sizer = wx.BoxSizer(wx.VERTICAL)
             text = wx.StaticText(dlg, label="Modules whose name contains the first text show the module named with the second "
                                             "text instead, e.g. “_red” → “_blue”." + (" Only the selected modules." if scope else ""))
-            text.Wrap(380)
+            text.Wrap(px(380))
             sizer.Add(text, 0, wx.ALL, 12)
             grid = wx.FlexGridSizer(0, 2, 8, 10)
-            find = wx.TextCtrl(dlg, size=(160, -1))
-            replace = wx.TextCtrl(dlg, size=(160, -1))
+            find = wx.TextCtrl(dlg, size=(px(160), -1))
+            replace = wx.TextCtrl(dlg, size=(px(160), -1))
             preview = wx.StaticText(dlg, label="")
             preview.SetForegroundColour(wx.Colour(150, 156, 170))
             grid.Add(wx.StaticText(dlg, label="Name part"), 0, wx.ALIGN_CENTER_VERTICAL)

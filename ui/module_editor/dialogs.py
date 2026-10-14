@@ -7,10 +7,11 @@ from typing import Callable, Dict, Optional, Tuple
 import wx
 
 from ui.components.inspector_kit import dim_text
+from ui.dpi import px
 
 
 def _spin(parent: wx.Window, value: int, low: int, high: int) -> wx.SpinCtrl:
-    return wx.SpinCtrl(parent, min=low, max=high, initial=value, size=(72, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+    return wx.SpinCtrl(parent, min=low, max=high, initial=value, size=(px(72), -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
 
 
 class _OptionsDialog(wx.Dialog):
@@ -18,7 +19,7 @@ class _OptionsDialog(wx.Dialog):
         super().__init__(parent, title=title)
         self.root = wx.BoxSizer(wx.VERTICAL)
         text = wx.StaticText(self, label=intro)
-        text.Wrap(360)
+        text.Wrap(px(360))
         self.root.Add(text, 0, wx.ALL, 12)
         self.grid = wx.FlexGridSizer(0, 2, 8, 10)
         self.root.Add(self.grid, 0, wx.LEFT | wx.RIGHT, 12)

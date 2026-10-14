@@ -9,6 +9,7 @@ import wx
 from models import AFrame, Animation, Project
 from ui import first_steps
 from ui.canvas import GHOST_NEXT, GHOST_PREVIOUS, FrameCanvas
+from ui.dpi import px
 
 ONION_MODES: List[Tuple[str, str]] = [("Off", "off"), ("Previous", "previous"), ("Next", "next"), ("Both", "both")]
 
@@ -108,13 +109,13 @@ class AnimationStage(FrameCanvas):
         glow = max(0.0, min(1.0, self.event_flash))
         # Fired chips pop: they start a third larger and shrink back while the glow fades.
         gc.PushState()
-        gc.Translate(self.GetClientSize().width - 10.0, 10.0)
+        gc.Translate(self.GetClientSize().width - px(10), px(10))
         gc.Scale(1.0 + 0.35 * glow, 1.0 + 0.35 * glow)
         x = 0.0
         y = 0.0
         for label, rgb in reversed(self.events):
             tw, th = gc.GetTextExtent(label)
-            w, h = tw + 14, th + 8
+            w, h = tw + px(14), th + px(8)
             x -= w
             if glow > 0:
                 gc.SetPen(wx.Pen(wx.Colour(255, 255, 255, int(220 * glow)), int(round(2 + 3 * glow))))
@@ -122,8 +123,8 @@ class AnimationStage(FrameCanvas):
                 gc.SetPen(wx.Pen(wx.Colour(0, 0, 0, 120), 1))
             gc.SetBrush(wx.Brush(wx.Colour(*(int(c + (255 - c) * 0.55 * glow) for c in rgb), 235)))
             gc.DrawRoundedRectangle(x, y, w, h, h / 2)
-            gc.DrawText(label, x + 7, y + 4)
-            x -= 6
+            gc.DrawText(label, x + px(7), y + px(4))
+            x -= px(6)
         gc.PopState()
 
     def _step(self, index: int) -> Optional[AFrame]:
@@ -208,10 +209,10 @@ class AnimationStage(FrameCanvas):
         gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(225, 228, 235))
         tw, th = gc.GetTextExtent(text)
         size = self.GetClientSize()
-        x, y = (size.width - tw) / 2, size.height / 2 - th - 14
+        x, y = (size.width - tw) / 2, size.height / 2 - th - px(14)
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(20, 21, 24, 210)))
-        gc.DrawRoundedRectangle(x - 12, y - 7, tw + 24, th + 14, 6)
+        gc.DrawRoundedRectangle(x - px(12), y - px(7), tw + px(24), th + px(14), px(6))
         gc.DrawText(text, x, y)
 
     def _draw_path(self, gc: wx.GraphicsContext) -> None:
@@ -239,15 +240,15 @@ class AnimationStage(FrameCanvas):
             chosen = index in self.selected
             gc.SetPen(wx.Pen(wx.Colour(255, 255, 255) if (current or chosen) else wx.Colour(20, 20, 20), 1))
             gc.SetBrush(wx.Brush(wx.Colour(255, 176, 64) if chosen else wx.Colour(110, 180, 255)))
-            r = 5 if current else 4
+            r = px(5) if current else px(4)
             gc.DrawEllipse(sx - r, sy - r, 2 * r, 2 * r)
             if current:
                 gc.SetBrush(wx.TRANSPARENT_BRUSH)
-                gc.DrawEllipse(sx - r - 3, sy - r - 3, 2 * r + 6, 2 * r + 6)
+                gc.DrawEllipse(sx - r - px(3), sy - r - px(3), 2 * r + px(6), 2 * r + px(6))
 
     # ------------------------------------------------------------------ interaction
     def _dot_at(self, pos: wx.Point) -> int:
-        best, best_d = -1, 7.0 * 7.0
+        best, best_d = -1, float(px(7)) ** 2
         for index, sx, sy in self._dots:
             d = (sx - pos.x) ** 2 + (sy - pos.y) ** 2
             if d <= best_d:

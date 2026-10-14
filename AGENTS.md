@@ -79,6 +79,8 @@ project_check.py           Check Project (wx-free, shared with the SGDK exporter
 rect_packer.py             MaxRects bin packer
 safe_files.py              write_text_atomically: temp file + fsync + os.replace (+ name.json.bak), wx-free
 ui/
+  dpi.py                   Display scaling: tells Windows the editor scales itself (imported before any window
+                           exists), px() / pxf() turn sizes at 100 % into device pixels (1:1 on macOS and GTK)
   app_services.py          Hooks panels use to reach the main window (checkpoint, status, zoom,
                            mapping changed, images changed, project revision, text-focus test). No-ops without a main
                            window.
@@ -228,6 +230,13 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `refresh_after_history()`, which must rebuild
   that tab's own pictures. When the window becomes active it also reloads images whose file changed on disk
   (`MainFrame.check_images_on_disk`). A new cache of image pixels must be cleared there too.
+- **Pixel sizes** in the UI go through `ui.dpi.px` (written at 100 %): control widths and min sizes, splitter
+  positions, row heights, thumbnails, offsets next to text in custom drawing, hit tolerances in screen pixels. On
+  Windows the editor is DPI-aware (`ui/dpi.py`): wx works in device pixels there and fonts grow with the display's
+  scaling, so a literal size stays small and cuts text off at 150 %; on macOS and GTK `px` is 1:1. Canvas content
+  (art pixels at whole-number zoom) is never scaled. Never name a local variable `px`. After UI changes, run the smoke
+  test with `MSE_UI_SCALE=1.5` (it scales `px` on any system) as well. FlatNotebook measures its tab labels in a memory
+  DC, which Windows gives 96 dpi: `measure_tabs_on_screen` measures them where they are drawn.
 - **Canvases** subclass `BaseCanvas`. In mouse handlers start with
   `if self.begin_pan_if_requested(event): return` and `if self.handle_pan_motion(event): return`.
   Implement `get_content_bounds()` for Fit. Wheel/pinch zoom is continuous during a gesture and snaps to

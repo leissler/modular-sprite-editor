@@ -11,6 +11,7 @@ import palettes
 from models import ImageAsset, Module, Project
 from ui.components.inspector_kit import bind_spin, dim_text, hbox, relayout, row, section, set_spin, small_button, spin
 from ui.module_editor import ops
+from ui.dpi import px
 
 PRESET_GLYPHS = ("◤", "▲", "◥", "◀", "●", "▶", "◣", "▼", "◢")
 _PALETTE_SUMMARIES: dict = {}  # (palette, its images' files and settings) -> (colours, the 15-colour palette)
@@ -33,7 +34,7 @@ def palette_summary(project: Project, index: int) -> Tuple[int, List[Tuple[int, 
 class PaletteStrip(wx.Panel):
     """A palette's colours as small swatches, as the console shows them."""
 
-    SIZE = 11
+    SIZE = px(11)
 
     def __init__(self, parent: wx.Window):
         super().__init__(parent, size=(15 * (self.SIZE + 1) + 1, self.SIZE + 2))
@@ -60,8 +61,8 @@ class PaletteStrip(wx.Panel):
 class ModuleInspector(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
-        self.SetScrollRate(0, 12)
-        self.SetMinSize((280, -1))
+        self.SetScrollRate(0, px(12))
+        self.SetMinSize((px(280), -1))
         self.project: Optional[Project] = None
         self.modules: List[Module] = []
         self._updating = False
@@ -90,7 +91,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.btn_reload = small_button(p, "Reload", "Read the image file again (after editing it in a paint program)", lambda: self._tool("reload"))
         grid.Add((0, 0))
         grid.Add(hbox(self.btn_locate, self.btn_reload), 0, wx.EXPAND)
-        self.key_swatch = wx.Panel(p, size=(28, 18), style=wx.BORDER_SIMPLE)
+        self.key_swatch = wx.Panel(p, size=(px(28), px(18)), style=wx.BORDER_SIMPLE)
         self.key_info = dim_text(p)
         self.btn_pick = small_button(p, "Pick", "Click a pixel of the image to make its colour transparent (Esc cancels)", lambda: self._tool("pick_key"))
         self.btn_clear_key = small_button(p, "None", "No key colour: only the image's own transparency counts", lambda: self._tool("clear_key"))
@@ -125,7 +126,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.draw_colour = wx.ColourPickerCtrl(p, colour=wx.Colour(255, 255, 255))
         row(grid, p, "New shape", hbox(self.draw_type, self.draw_colour))
         info = dim_text(p, "Drag on the canvas to draw one. Shapes are drawn pixel-exact and need no image.")
-        info.Wrap(240)
+        info.Wrap(px(240))
         grid.Add((0, 0))
         grid.Add(info, 0)
 
@@ -150,7 +151,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.preset_buttons: List[wx.Button] = []
         presets = wx.GridSizer(3, 3, 2, 2)
         for (label, fractions), glyph in zip(ops.PIVOT_PRESETS, PRESET_GLYPHS):
-            btn = wx.Button(p, label=glyph, size=(30, 22), style=wx.BU_EXACTFIT)
+            btn = wx.Button(p, label=glyph, size=(px(30), px(22)), style=wx.BU_EXACTFIT)
             btn.SetToolTip(f"Pivot: {label.lower()}")
             btn.Bind(wx.EVT_BUTTON, lambda e, f=fractions: self.on_preset and self.on_preset(f))
             presets.Add(btn, 0)
@@ -161,21 +162,21 @@ class ModuleInspector(wx.ScrolledWindow):
         preset_row.Add(self.preset_info, 1, wx.LEFT | wx.ALIGN_CENTER_VERTICAL, 8)
         self.preset_label = row(grid, p, "Presets", preset_row)
         self.rotated_info = dim_text(p, "Stored rotated on the sheet (packed); the pivot is for the module as used.")
-        self.rotated_info.Wrap(220)
+        self.rotated_info.Wrap(px(220))
         grid.Add((0, 0))
         grid.Add(self.rotated_info, 0)
 
         # Shape parameters
-        self.arc_start = wx.SpinCtrlDouble(p, min=-360, max=360, inc=15, size=(70, -1))
-        self.arc_sweep = wx.SpinCtrlDouble(p, min=-360, max=360, inc=15, size=(70, -1))
+        self.arc_start = wx.SpinCtrlDouble(p, min=-360, max=360, inc=15, size=(px(70), -1))
+        self.arc_sweep = wx.SpinCtrlDouble(p, min=-360, max=360, inc=15, size=(px(70), -1))
         self.arc_label = row(grid, p, "Arc", hbox(self.arc_start, self.arc_sweep))
         self.arc_start.SetToolTip("Start angle (degrees, clockwise from 3 o'clock)")
         self.arc_sweep.SetToolTip("Sweep (degrees); 360 = full ellipse")
         self.point_spins: List[wx.SpinCtrlDouble] = []
         self.point_labels: List[wx.StaticText] = []
         for index in range(3):
-            sx = wx.SpinCtrlDouble(p, min=0, max=100, inc=5, size=(70, -1))
-            sy = wx.SpinCtrlDouble(p, min=0, max=100, inc=5, size=(70, -1))
+            sx = wx.SpinCtrlDouble(p, min=0, max=100, inc=5, size=(px(70), -1))
+            sy = wx.SpinCtrlDouble(p, min=0, max=100, inc=5, size=(px(70), -1))
             sx.SetToolTip("Across, in % of the width")
             sy.SetToolTip("Down, in % of the height")
             self.point_labels.append(row(grid, p, f"Point {index + 1}", hbox(sx, sy)))
@@ -263,7 +264,7 @@ class ModuleInspector(wx.ScrolledWindow):
                 self.hint.SetLabel("Drag over a sprite to cut a module. Click to select, Cmd+drag to select several.")
             else:
                 self.hint.SetLabel("")
-            self.hint.Wrap(260)
+            self.hint.Wrap(px(260))
             if asset is not None and not modules:
                 self._fill_sheet(project, asset)
             if modules:
@@ -320,7 +321,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.btn_trim.Enable(any(m.type == "MD_IMAGE" for m in modules))
         parts, frames, entries = ops.usage(project, [m.id for m in modules])
         self.usage.SetLabel(ops.describe_usage(parts, frames, entries, ops.scene_uses(project, [m.id for m in modules])))
-        self.usage.Wrap(190)
+        self.usage.Wrap(px(190))
         if single is not None:
             if not self.name.HasFocus():
                 self.name.ChangeValue(single.name)

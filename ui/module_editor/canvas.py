@@ -10,6 +10,7 @@ from models import Module, Project
 from ui.base_canvas import BaseCanvas
 from ui.module_editor import ops
 from ui.utils import render_pixel_shape_to_bitmap
+from ui.dpi import px
 
 Rect = Tuple[int, int, int, int]
 
@@ -18,7 +19,7 @@ COL_SELECTED = wx.Colour(64, 200, 255)
 COL_PIVOT = wx.Colour(255, 90, 80)
 COL_DRAFT = wx.Colour(255, 255, 255)
 COL_MARQUEE = wx.Colour(90, 170, 255)
-HANDLE_PX = 7
+HANDLE_PX = px(7)
 HANDLES = ("nw", "n", "ne", "e", "se", "s", "sw", "w")
 CURSORS = {
     "nw": wx.CURSOR_SIZENWSE, "se": wx.CURSOR_SIZENWSE, "ne": wx.CURSOR_SIZENESW, "sw": wx.CURSOR_SIZENESW,
@@ -208,7 +209,7 @@ class SheetCanvas(BaseCanvas):
             return
         dx_px = abs(world[0] - self._origin[0]) * self.zoom
         dy_px = abs(world[1] - self._origin[1]) * self.zoom
-        if not self._moved and dx_px < 3 and dy_px < 3 and self._mode in ("draw", "move", "marquee"):
+        if not self._moved and dx_px < px(3) and dy_px < px(3) and self._mode in ("draw", "move", "marquee"):
             return
         self._moved = True
         if self._mode == "draw":
@@ -293,18 +294,18 @@ class SheetCanvas(BaseCanvas):
         x, y, w, h = self._start_rects.get(module.id, tuple(module.rect))
         left, top, right, bottom = x, y, x + w, y + h
         if self.snap:
-            px, py = self._snap_xy(world)
+            gx, gy = self._snap_xy(world)
         else:
-            px, py = int(round(world[0])), int(round(world[1]))
+            gx, gy = int(round(world[0])), int(round(world[1]))
         handle = self._handle or ""
         if "w" in handle:
-            left = px
+            left = gx
         if "e" in handle:
-            right = px
+            right = gx
         if "n" in handle:
-            top = py
+            top = gy
         if "s" in handle:
-            bottom = py
+            bottom = gy
         rect = ops.normalize((left, top, right - left, bottom - top))
         rect = (rect[0], rect[1], max(1, rect[2]), max(1, rect[3]))
         ops.resize_keeping_pivot(module, rect, self._pivot_anchor)
@@ -409,13 +410,13 @@ class SheetCanvas(BaseCanvas):
             for module in self.modules:
                 x, y, w, h = self._screen_rect(tuple(module.rect))
                 tw, th = gc.GetTextExtent(module.name)
-                if tw + 4 > w and w < 40:
+                if tw + px(4) > w and w < px(40):
                     continue
                 gc.SetPen(wx.TRANSPARENT_PEN)
                 gc.SetBrush(wx.Brush(wx.Colour(15, 16, 20, 190)))
-                gc.DrawRectangle(x + 1, y + 1, min(w - 2, tw + 4), th + 1)
+                gc.DrawRectangle(x + 1, y + 1, min(w - 2, tw + px(4)), th + 1)
                 gc.Clip(x + 1, y + 1, max(1, w - 2), max(1, h - 2))
-                gc.DrawText(module.name, x + 3, y + 1)
+                gc.DrawText(module.name, x + px(3), y + 1)
                 gc.ResetClip()
         if self.show_pivots:
             for module in self.modules:
@@ -431,20 +432,20 @@ class SheetCanvas(BaseCanvas):
             gc.SetPen(wx.Pen(wx.Colour(10, 10, 12), 1))
             gc.SetBrush(wx.Brush(wx.Colour(255, 255, 255)))
             for hx, hy in self._handle_points(tuple(sel[0].rect)).values():
-                gc.DrawRectangle(hx - 3.5, hy - 3.5, 7, 7)
+                gc.DrawRectangle(hx - HANDLE_PX / 2, hy - HANDLE_PX / 2, HANDLE_PX, HANDLE_PX)
         for module in sel:
             self._draw_pivot(gc, module, small=len(sel) > 1)
 
     def _draw_pivot(self, gc: wx.GraphicsContext, module: Module, small: bool) -> None:
-        px, py = ops.pivot_on_sheet(module)
-        sx, sy = self.world_to_screen((px, py))
+        pvx, pvy = ops.pivot_on_sheet(module)
+        sx, sy = self.world_to_screen((pvx, pvy))
         size = max(1.0, self.zoom)
         colour = COL_PIVOT if not small else wx.Colour(255, 120, 110, 190)
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
         gc.SetPen(wx.Pen(colour, 1))
         gc.DrawRectangle(round(sx), round(sy), round(size), round(size))
         cx, cy = round(sx) + size / 2, round(sy) + size / 2
-        arm = size / 2 + (3 if small else 6)
+        arm = size / 2 + px(3 if small else 6)
         gc.SetPen(wx.Pen(colour, 1 if small else 2))
         gc.StrokeLine(cx - arm, cy, cx + arm, cy)
         gc.StrokeLine(cx, cy - arm, cx, cy + arm)
@@ -460,7 +461,7 @@ class SheetCanvas(BaseCanvas):
         gc.SetPen(wx.Pen(COL_DRAFT, 1, wx.PENSTYLE_SHORT_DASH))
         gc.DrawRectangle(x + 0.5, y + 0.5, max(0, w - 1), max(0, h - 1))
         label = f"{self._draft[2]}×{self._draft[3]}"  # type: ignore[index]
-        self._label(gc, label, x + w + 6, y + h + 4)
+        self._label(gc, label, x + w + px(6), y + h + px(4))
 
     def _label(self, gc: wx.GraphicsContext, text: str, x: float, y: float) -> None:
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
@@ -468,7 +469,7 @@ class SheetCanvas(BaseCanvas):
         tw, th = gc.GetTextExtent(text)
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(15, 16, 20, 210)))
-        gc.DrawRoundedRectangle(x - 4, y - 2, tw + 8, th + 4, 3)
+        gc.DrawRoundedRectangle(x - px(4), y - px(2), tw + px(8), th + px(4), px(3))
         gc.DrawText(text, x, y)
 
     def _draw_hints(self, gc: wx.GraphicsContext) -> None:
@@ -487,8 +488,8 @@ class SheetCanvas(BaseCanvas):
         gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(225, 228, 235))
         tw, th = gc.GetTextExtent(text)
         width = self.GetClientSize().width
-        x, y = (width - tw) / 2, 14
+        x, y = (width - tw) / 2, px(14)
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(20, 21, 24, 215)))
-        gc.DrawRoundedRectangle(x - 12, y - 6, tw + 24, th + 12, 6)
+        gc.DrawRoundedRectangle(x - px(12), y - px(6), tw + px(24), th + px(12), px(6))
         gc.DrawText(text, x, y)

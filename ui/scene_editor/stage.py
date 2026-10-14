@@ -13,6 +13,7 @@ from ui import first_steps
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
 from ui.canvas import BUDGET, FrameCanvas
 from ui.scene_editor import ops
+from ui.dpi import px
 
 # Retro screen guides: label -> (width, height). The scene origin lies where the SGDK demo draws scenes
 # (ops.screen_origin: centred, three quarters down).
@@ -181,7 +182,7 @@ class StageCanvas(FrameCanvas):
         self._draw_grid(gc)
         if not self.scene:
             gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(190, 190, 190))
-            gc.DrawText(first_steps.scenes(self.project) or "No scene yet: click New in the scene bar to make one.", 20, 20)
+            gc.DrawText(first_steps.scenes(self.project) or "No scene yet: click New in the scene bar to make one.", px(20), px(20))
             return
 
         states = ops.evaluate_states(self.project, self.scene, self.time_value)
@@ -277,23 +278,23 @@ class StageCanvas(FrameCanvas):
         gc.SetPen(wx.Pen(wx.Colour(255, 214, 102), 1))
         gc.DrawRectangle(x0, y0, x1 - x0, y1 - y0)
         gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 214, 102))
-        gc.DrawText(f"{w}×{h}", x0 + 4, y0 - 18 if y0 > 20 else y0 + 4)
+        gc.DrawText(f"{w}×{h}", x0 + px(4), y0 - px(18) if y0 > px(20) else y0 + px(4))
 
     @staticmethod
     def _auto_handles(keys: List[TimelineKeyframe], index: int) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
         if len(keys) < 2:
             return (None, None)
         key = keys[index]
-        px, py = float(key.x), float(key.y)
+        kx, ky = float(key.x), float(key.y)
         if 0 < index < len(keys) - 1:
             tx = (float(keys[index + 1].x) - float(keys[index - 1].x)) / 6.0
             ty = (float(keys[index + 1].y) - float(keys[index - 1].y)) / 6.0
-            return ((px - tx, py - ty), (px + tx, py + ty))
+            return ((kx - tx, ky - ty), (kx + tx, ky + ty))
         if index == 0:
             nxt = keys[1]
-            return (None, (px + (float(nxt.x) - px) / 3.0, py + (float(nxt.y) - py) / 3.0))
+            return (None, (kx + (float(nxt.x) - kx) / 3.0, ky + (float(nxt.y) - ky) / 3.0))
         prev = keys[-2]
-        return ((px - (px - float(prev.x)) / 3.0, py - (py - float(prev.y)) / 3.0), None)
+        return ((kx - (kx - float(prev.x)) / 3.0, ky - (ky - float(prev.y)) / 3.0), None)
 
     def _draw_motion_path(self, gc: wx.GraphicsContext, states_now: Dict[str, Dict[str, Any]]) -> None:
         obj = self.scene.get_object(self.selected_object_id) if self.selected_object_id else None
@@ -328,8 +329,8 @@ class StageCanvas(FrameCanvas):
                 # One dot per frame shows spacing (where the motion is fast or slow).
                 gc.SetPen(wx.TRANSPARENT_PEN)
                 gc.SetBrush(wx.Brush(wx.Colour(110, 180, 255, 160)))
-                for px, py in points:
-                    gc.DrawEllipse(px - 1.5, py - 1.5, 3, 3)
+                for qx, qy in points:
+                    gc.DrawEllipse(qx - 1.5, qy - 1.5, 3, 3)
 
         # Selected keys last, so a key sitting on top of another one cannot hide the highlight.
         order = sorted(range(len(keys)), key=lambda i: keys[i].id in self.selected_key_ids)
@@ -342,7 +343,7 @@ class StageCanvas(FrameCanvas):
             selected = key.id in self.selected_key_ids
             gc.SetPen(wx.Pen(wx.Colour(255, 255, 255) if selected else wx.Colour(20, 20, 20), 1))
             gc.SetBrush(wx.Brush(wx.Colour(255, 176, 64) if selected else wx.Colour(110, 180, 255)))
-            r = 5 if selected else 4
+            r = px(5) if selected else px(4)
             gc.DrawEllipse(sx - r, sy - r, 2 * r, 2 * r)
 
             if selected and obj.path_mode == "spline":
@@ -358,7 +359,7 @@ class StageCanvas(FrameCanvas):
                     gc.SetPen(wx.Pen(colour, 1, wx.PENSTYLE_SOLID if explicit is not None else wx.PENSTYLE_DOT))
                     gc.StrokeLine(sx, sy, hx, hy)
                     gc.SetBrush(wx.Brush(colour) if explicit is not None else wx.TRANSPARENT_BRUSH)
-                    gc.DrawRectangle(hx - 4, hy - 4, 8, 8)
+                    gc.DrawRectangle(hx - px(4), hy - px(4), px(8), px(8))
                     self._drawn_handles.append(
                         {"key_id": key.id, "kind": kind, "screen_pos": (hx, hy), "local": (float(point[0]), float(point[1]))}
                     )
@@ -394,8 +395,8 @@ class StageCanvas(FrameCanvas):
         if self.begin_pan_if_requested(event):
             return
         pos = event.GetPosition()
-        handle = self._nearest(self._drawn_handles, pos, 8)
-        key = None if handle else self._nearest(self._drawn_keys, pos, 8)
+        handle = self._nearest(self._drawn_handles, pos, px(8))
+        key = None if handle else self._nearest(self._drawn_keys, pos, px(8))
         if handle and self.selected_object_id:
             self._drag_kind = "handle"
             self._drag_ids = (self.selected_object_id, handle["key_id"], handle["kind"])

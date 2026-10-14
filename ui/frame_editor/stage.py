@@ -12,6 +12,7 @@ from models import CollisionRect, ControlPoint, FModule, Module, Project, genera
 from ui import first_steps
 from ui.canvas import FrameCanvas
 from ui.frame_geometry import orthogonal_cos_sin
+from ui.dpi import px
 
 
 class _StageDropTarget(wx.TextDropTarget):
@@ -478,13 +479,13 @@ class FrameStage(FrameCanvas):
         return best
 
     def _hit_test_handle(self, cr: CollisionRect, screen_pos: wx.Point) -> int:
-        """The hitbox corner within 8 screen pixels: 0 top left, 1 top right, 2 bottom left, 3 bottom right; -1 none."""
+        """The hitbox corner within 8 screen pixels (at 100 %): 0 top left, 1 top right, 2 bottom left, 3 bottom right; -1 none."""
         rx, ry, rw, rh = cr.rect
         x0, y0 = rx + self.frame_offset[0], ry + self.frame_offset[1]
         mx, my = screen_pos
         for i, corner in enumerate(((x0, y0), (x0 + rw, y0), (x0, y0 + rh), (x0 + rw, y0 + rh))):
             sx, sy = self.world_to_screen(corner)
-            if abs(mx - sx) <= 8 and abs(my - sy) <= 8:
+            if abs(mx - sx) <= px(8) and abs(my - sy) <= px(8):
                 return i
         return -1
 
@@ -540,9 +541,9 @@ class FrameStage(FrameCanvas):
 
         target_w = max(1, int(round(max_x - min_x)))
         target_h = max(1, int(round(max_y - min_y)))
-        px = int(math.floor(local_pt[0] - min_x))
-        py = int(math.floor(local_pt[1] - min_y))
-        if not (0 <= px < target_w and 0 <= py < target_h):
+        ix = int(math.floor(local_pt[0] - min_x))
+        iy = int(math.floor(local_pt[1] - min_y))
+        if not (0 <= ix < target_w and 0 <= iy < target_h):
             return False
 
         if mod.type == "MD_IMAGE":
@@ -577,16 +578,16 @@ class FrameStage(FrameCanvas):
             asset = self.project.get_image(mod.image_id)
             if asset and asset.transparent_color:
                 tr, tg, tb = asset.transparent_color
-                if img.GetRed(px, py) == tr and img.GetGreen(px, py) == tg and img.GetBlue(px, py) == tb:
+                if img.GetRed(ix, iy) == tr and img.GetGreen(ix, iy) == tg and img.GetBlue(ix, iy) == tb:
                     return False
 
         if img.HasAlpha():
-            return img.GetAlpha(px, py) > 0
+            return img.GetAlpha(ix, iy) > 0
         if img.HasMask():
             return not (
-                img.GetRed(px, py) == img.GetMaskRed()
-                and img.GetGreen(px, py) == img.GetMaskGreen()
-                and img.GetBlue(px, py) == img.GetMaskBlue()
+                img.GetRed(ix, iy) == img.GetMaskRed()
+                and img.GetGreen(ix, iy) == img.GetMaskGreen()
+                and img.GetBlue(ix, iy) == img.GetMaskBlue()
             )
         return True
 
@@ -640,7 +641,7 @@ class FrameStage(FrameCanvas):
                 x, y, w, h = self.draw_hitbox(gc, cr, selected)
                 role = (cr.role or "").strip()
                 if boxes and role:
-                    self._draw_role(gc, role, x + 3, max(0, y - 16))
+                    self._draw_role(gc, role, x + px(3), max(0, y - px(16)))
                 if selected:
                     self._draw_resize_handles(gc, x, y, w, h)
         if self.edit_mode == "module":
@@ -653,7 +654,7 @@ class FrameStage(FrameCanvas):
                 x, y, size = self.draw_point(gc, cp, cp.id in self.selected_points)
                 role = (cp.role or "").strip()
                 if points and role:
-                    self._draw_role(gc, role, x + size + 4, y - 2)
+                    self._draw_role(gc, role, x + size + px(4), y - px(2))
 
     def _draw_part_selection(self, gc: wx.GraphicsContext, fm: FModule) -> None:
         x0, y0, x1, y1 = self._fmodule_bounds(fm)
@@ -667,7 +668,7 @@ class FrameStage(FrameCanvas):
         gc.SetBrush(wx.Brush(wx.Colour(255, 255, 255)))
         gc.SetPen(wx.Pen(wx.Colour(0, 0, 0)))
         for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
-            gc.DrawRectangle(cx - 3, cy - 3, 6, 6)
+            gc.DrawRectangle(cx - px(3), cy - px(3), px(6), px(6))
 
     def _draw_role(self, gc: wx.GraphicsContext, role: str, x: float, y: float) -> None:
         gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
@@ -676,7 +677,7 @@ class FrameStage(FrameCanvas):
     def _draw_origin(self, gc: wx.GraphicsContext) -> None:
         sx, sy = self.world_to_screen((0, 0))
         gc.SetPen(wx.Pen(wx.Colour(200, 200, 210, 150), 1))
-        arm = 10
+        arm = px(10)
         gc.StrokeLine(sx - arm, sy, sx + arm, sy)
         gc.StrokeLine(sx, sy - arm, sx, sy + arm)
 
@@ -684,8 +685,8 @@ class FrameStage(FrameCanvas):
         gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(225, 228, 235))
         tw, th = gc.GetTextExtent(text)
         size = self.GetClientSize()
-        x, y = (size.width - tw) / 2, 18
+        x, y = (size.width - tw) / 2, px(18)
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(20, 21, 24, 210)))
-        gc.DrawRoundedRectangle(x - 12, y - 7, tw + 24, th + 14, 6)
+        gc.DrawRoundedRectangle(x - px(12), y - px(7), tw + px(24), th + px(14), px(6))
         gc.DrawText(text, x, y)

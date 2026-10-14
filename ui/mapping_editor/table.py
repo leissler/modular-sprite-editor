@@ -10,9 +10,10 @@ from models import ModuleMapping, Project
 from ui.components.module_palette import THUMBNAILS
 from ui.components.thumb_list import COL_ROW, COL_ROW_ALT, COL_ROW_SELECTED, COL_TEXT, COL_TEXT_DIM, fit_text
 from ui.mapping_editor import ops
+from ui.dpi import px
 
-ROW_H = 44
-THUMB = 34
+ROW_H = px(44)
+THUMB = px(34)
 COL_REPLACED = wx.Colour(120, 210, 255)
 COL_HIDDEN = wx.Colour(255, 176, 64)
 COL_MISSING = wx.Colour(255, 120, 110)
@@ -109,19 +110,19 @@ class MapTable(wx.VListBox):
         font = self.GetFont()
         small = wx.Font(font)
         small.SetPointSize(max(7, font.GetPointSize() - 2))
-        dc.DrawBitmap(THUMBNAILS.bitmap(self.project, source, THUMB, THUMB), rect.x + 6, y)
-        self._texts(dc, font, small, rect.x + THUMB + 14, rect.y, half - THUMB - 34, source.name, f"{source.rect[2]}×{source.rect[3]}", COL_TEXT_DIM)
+        dc.DrawBitmap(THUMBNAILS.bitmap(self.project, source, THUMB, THUMB), rect.x + px(6), y)
+        self._texts(dc, font, small, rect.x + THUMB + px(14), rect.y, half - THUMB - px(34), source.name, f"{source.rect[2]}×{source.rect[3]}", COL_TEXT_DIM)
 
         state = ops.state(self.project, self.mapping, source.id) if self.mapping else ops.ORIGINAL
-        arrow_x = rect.x + half - 18
+        arrow_x = rect.x + half - px(18)
         dc.SetFont(font)
         dc.SetTextForeground(COL_TEXT_DIM if state == ops.ORIGINAL else COL_REPLACED)
         dc.DrawText("→", arrow_x, rect.y + (ROW_H - dc.GetTextExtent("→")[1]) // 2)
-        x = rect.x + half + 6
+        x = rect.x + half + px(6)
         if state == ops.REPLACED:
             target = self.project.get_module(self.mapping.map[source.id])  # type: ignore[union-attr]
             dc.DrawBitmap(THUMBNAILS.bitmap(self.project, target, THUMB, THUMB), x, y)
-            self._texts(dc, font, small, x + THUMB + 8, rect.y, rect.right - x - THUMB - 14, target.name, "replaced", COL_REPLACED)
+            self._texts(dc, font, small, x + THUMB + px(8), rect.y, rect.right - x - THUMB - px(14), target.name, "replaced", COL_REPLACED)
         else:
             dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
             dc.SetBrush(wx.Brush(wx.Colour(36, 37, 40)))
@@ -133,8 +134,8 @@ class MapTable(wx.VListBox):
             }[state]
             if state == ops.HIDDEN:
                 dc.SetPen(wx.Pen(COL_HIDDEN, 2))
-                dc.DrawLine(x + 4, y + 4, x + THUMB - 4, y + THUMB - 4)
-            self._texts(dc, font, small, x + THUMB + 8, rect.y, rect.right - x - THUMB - 14, title, detail, colour, title_colour=colour)
+                dc.DrawLine(x + px(4), y + px(4), x + THUMB - px(4), y + THUMB - px(4))
+            self._texts(dc, font, small, x + THUMB + px(8), rect.y, rect.right - x - THUMB - px(14), title, detail, colour, title_colour=colour)
 
     def _texts(self, dc: wx.DC, font: wx.Font, small: wx.Font, x: int, top: int, width: int, title: str, detail: str,
                detail_colour: wx.Colour, title_colour: Optional[wx.Colour] = None) -> None:

@@ -35,6 +35,7 @@ from ui.shortcuts_dialog import ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
 from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
+from ui.dpi import px
 
 APP_NAME = "Modular Sprite Editor"
 # The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
@@ -120,6 +121,41 @@ def _focus_is_text_entry() -> Optional[wx.Window]:
     return wx.Window.FindFocus() if app_services.text_entry_has_focus() else None
 
 
+def tab_height(page_container: wx.Window) -> int:
+    """The height of the main tabs (FlatNotebook, Windows): the bold label in the tab row's own DC plus the spacer."""
+    dc = wx.ClientDC(page_container)
+    font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+    font.SetWeight(wx.FONTWEIGHT_BOLD)
+    dc.SetFont(font)
+    return dc.GetCharHeight() + px(fnb.FNB_HEIGHT_SPACER)
+
+
+def measure_tabs_on_screen() -> None:
+    """FlatNotebook measures its labels in a memory DC, which Windows gives 96 dpi while the tabs are drawn at the
+    display's: with display scaling the labels came out wider and taller than their tabs. Measure them where they are
+    drawn."""
+
+    def calc_tab_height(renderer, page_container):  # FNBRenderer.CalcTabHeight
+        if not renderer._tabHeight:
+            renderer._tabHeight = tab_height(page_container)
+        return renderer._tabHeight
+
+    def calc_tab_width(renderer, page_container, index, height):  # FNBRendererVC8.CalcTabWidth (no images, no 'x')
+        dc = wx.ClientDC(page_container)
+        font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+        font.SetWeight(wx.FONTWEIGHT_BOLD)  # the selected tab's label is bold: no tab grows when selected
+        dc.SetFont(font)
+        width = max(px(20), dc.GetTextExtent(page_container.GetPageText(index))[0])
+        padding = page_container._pParent.GetPadding()
+        # VC8 starts a label after the tab's slanted edge, which grows with the tab's height, while the next tab starts
+        # only a fixed gap further on: make room for the part of the edge that the padding and that gap don't cover.
+        edge = height - fnb.VERTICAL_BORDER_PADDING - 2
+        return 2 * padding + width + max(0, edge - padding - fnb.FNB_HEIGHT_SPACER)
+
+    fnb.FNBRenderer.CalcTabHeight = calc_tab_height
+    fnb.FNBRendererVC8.CalcTabWidth = calc_tab_width
+
+
 class ContextBar(wx.Panel):
     """Slim bar above the editor tabs showing state that affects every tab."""
 
@@ -134,7 +170,7 @@ class ContextBar(wx.Panel):
         label.SetToolTip("Module mapping applied to every preview and used by exports. Edit mappings in the Mappings tab.")
         self.mapping_choice = wx.Choice(self, choices=["<none>"])
         self.mapping_choice.SetSelection(0)
-        self.mapping_choice.SetMinSize((180, -1))
+        self.mapping_choice.SetMinSize((px(180), -1))
         sizer.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         sizer.Add(self.mapping_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         self.SetSizer(sizer)
@@ -154,7 +190,7 @@ class ContextBar(wx.Panel):
 
 class MainFrame(wx.Frame):
     def __init__(self, parent=None, title=APP_NAME):
-        super().__init__(parent, title=title, size=(1500, 980))
+        super().__init__(parent, title=title, size=(px(DEFAULT_WINDOW[0]), px(DEFAULT_WINDOW[1])))
 
         self.project = Project()
         self.current_path: Optional[str] = None
@@ -181,7 +217,11 @@ class MainFrame(wx.Frame):
         if sys.platform == "win32":
             # Windows: Use FlatNotebook (VC8 style) but DEFAULT colors
             style = fnb.FNB_VC8 | fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_NO_TAB_FOCUS | fnb.FNB_TABS_BORDER_SIMPLE
+            measure_tabs_on_screen()
             self.book = fnb.FlatNotebook(root, agwStyle=style)  # the FNB_ flags are agwStyle (style= is the panel's)
+            self.book.SetPadding(wx.Size(px(6), 0))
+            tabs = self.book.GetTabArea()
+            tabs.SetSizeHints(-1, tab_height(tabs))
         else:
             self.book = wx.Notebook(root)
 
@@ -297,14 +337,14 @@ class MainFrame(wx.Frame):
         screen = wx.Display.GetFromPoint(wx.Point(x + 60, y + 12)) if x is not None else wx.NOT_FOUND
         if screen != wx.NOT_FOUND:
             area = wx.Display(screen).GetClientArea()
-            w, h = min(max(w, 800), area.width), min(max(h, 560), area.height)
+            w, h = min(max(w, px(800)), area.width), min(max(h, px(560)), area.height)
             self.SetSize(max(area.x, min(x, area.Right - w + 1)), max(area.y, min(y, area.Bottom - h + 1)), w, h)
             if self.config.ReadBool(CONFIG_WINDOW_MAXIMIZED, False):
                 self.Maximize()
             return
         screen = wx.Display.GetFromWindow(self)
         area = wx.Display(screen if screen != wx.NOT_FOUND else 0).GetClientArea()
-        self.SetSize(min(DEFAULT_WINDOW[0], area.width - 40), min(DEFAULT_WINDOW[1], area.height - 40))
+        self.SetSize(min(px(DEFAULT_WINDOW[0]), area.width - px(40)), min(px(DEFAULT_WINDOW[1]), area.height - px(40)))
         self.CentreOnScreen()
 
     def _save_geometry(self) -> None:

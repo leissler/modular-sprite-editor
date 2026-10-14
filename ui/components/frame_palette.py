@@ -3,6 +3,7 @@ from typing import Optional, Callable, List
 from models import Project, Frame
 from ui.components.thumb_list import fit_text
 from ui.utils import ThumbnailGenerator
+from ui.dpi import px
 
 class FramePalette(wx.ScrolledWindow):
     """
@@ -28,8 +29,8 @@ class FramePalette(wx.ScrolledWindow):
         self._anchor: Optional[str] = None  # where a Shift+click range starts
         
         # Layout
-        self.item_size = (128, 128)
-        self.padding = 10
+        self.item_size = (px(128), px(128))
+        self.padding = px(10)
         self.cols = 1
         
         # Drag State
@@ -39,7 +40,7 @@ class FramePalette(wx.ScrolledWindow):
         
         self.SetBackgroundColour(wx.Colour(40, 40, 40))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetScrollRate(20, 20)
+        self.SetScrollRate(px(20), px(20))
         
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)

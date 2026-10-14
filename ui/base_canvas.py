@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 import wx
 
 from ui import app_services
+from ui.dpi import px
 
 # Integer levels keep every source pixel the same size on screen (nearest-neighbour scaling).
 ZOOM_LEVELS = (0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 32.0)
@@ -112,7 +113,7 @@ BACKDROP_COLOUR = "colour"
 DEFAULT_BACKDROP_COLOUR: Tuple[int, int, int] = (32, 32, 32)
 
 
-CHECKER_STEP = 8  # checkerboard tile size in screen pixels
+CHECKER_STEP = px(8)  # checkerboard tile size in screen pixels (8 at 100 %)
 CHECKER_COLOURS = ((60, 60, 60), (80, 80, 80))
 
 

@@ -16,6 +16,7 @@ import wx
 import project_check as pc
 from models import Project
 from ui.check_dialog import LEVEL_LABELS, describe_counts, level_icons
+from ui.dpi import px
 
 RUNTIME_FILES = (os.path.join("src", "modsprite.c"), os.path.join("inc", "modsprite.h"))
 ID_CHECK_PROJECT = wx.NewIdRef()  # the report's Check Project button ends the dialog with this
@@ -52,10 +53,10 @@ class MegaDriveExportDialog(wx.Dialog):
             "src/modsprite_data.c and one line in res/resources.res (the game's other resources stay). The folder "
             "needs the runtime, src/modsprite.c and inc/modsprite.h; the SGDK demo in the source code has it."
         ))
-        intro.Wrap(560)
+        intro.Wrap(px(560))
         self.folder = wx.DirPickerCtrl(self, path=folder, message="Choose the game's SGDK project folder",
                                        style=wx.DIRP_USE_TEXTCTRL | wx.DIRP_DIR_MUST_EXIST)
-        self.folder.SetMinSize((560, -1))
+        self.folder.SetMinSize((px(560), -1))
         self.mapping = wx.Choice(self, choices=[label for label, _value in self._choices])
         values = [value for _label, value in self._choices]
         self.mapping.SetSelection(values.index(selector) if selector in values else 0)
@@ -98,7 +99,7 @@ class ExportReportDialog(wx.Dialog):
     """What the export wrote and every issue the game would notice; Check Project ends it with ID_CHECK_PROJECT."""
 
     def __init__(self, parent: Optional[wx.Window], folder: str, result: Any):
-        super().__init__(parent, title="Mega Drive Export", size=(820, 460), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="Mega Drive Export", size=(px(820), px(460)), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.folder = folder
         problems = [issue for issue in result.issues if issue.level != pc.INFO]
         headline = "Exported." if not problems else f"Exported, with {describe_counts(problems).split('.')[0]}."
@@ -108,8 +109,8 @@ class ExportReportDialog(wx.Dialog):
         self.list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL)
         self._icons = level_icons()
         self.list.SetImageList(self._icons, wx.IMAGE_LIST_SMALL)
-        self.list.InsertColumn(0, "", width=100)
-        self.list.InsertColumn(1, "", width=680)
+        self.list.InsertColumn(0, "", width=px(100))
+        self.list.InsertColumn(1, "", width=px(680))
         levels = list(LEVEL_LABELS)
         for row, issue in enumerate(result.issues):
             self.list.InsertItem(row, LEVEL_LABELS[issue.level], levels.index(issue.level))

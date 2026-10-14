@@ -12,6 +12,7 @@ from models import Animation, ModuleMapping, Project
 from ui.animation_editor import ops
 from ui.animation_editor.render import StepRenderer
 from ui.base_canvas import WheelGestureFilter
+from ui.dpi import px, pxf
 
 COL_BG = wx.Colour(34, 35, 38)
 COL_RULER = wx.Colour(30, 31, 34)
@@ -30,13 +31,13 @@ COL_WARN = wx.Colour(255, 110, 90)
 COL_LOOP = wx.Colour(120, 210, 140)
 
 LABEL_STEPS = (1, 2, 5, 10, 20, 50, 100, 200, 500)
-RULER_H = 22
-EVENT_LANE = 12  # coloured event chips between the ruler and the cells
-CELL_TOP = RULER_H + EVENT_LANE + 4
-THUMB = 64
-CELL_H = THUMB + 22
-LEFT_PAD = 10
-EDGE_GRAB = 5
+RULER_H = px(22)
+EVENT_LANE = px(12)  # coloured event chips between the ruler and the cells
+CELL_TOP = RULER_H + EVENT_LANE + px(4)
+THUMB = px(64)
+CELL_H = THUMB + px(22)
+LEFT_PAD = px(10)
+EDGE_GRAB = px(5)
 
 
 def frame_colour(frame_id: str) -> wx.Colour:
@@ -50,7 +51,7 @@ class SequenceWidget(wx.Panel):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.WANTS_CHARS | wx.BORDER_NONE)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetMinSize((200, CELL_TOP + CELL_H + 10))
+        self.SetMinSize((px(200), CELL_TOP + CELL_H + px(10)))
         self.project: Optional[Project] = None
         self.animation: Optional[Animation] = None
         self.mapping: Optional[ModuleMapping] = None
@@ -60,7 +61,7 @@ class SequenceWidget(wx.Panel):
         self.flash_step = -1  # a step whose events just fired in the preview ...
         self.flash = 0.0  # ... and how bright its chips still are (1 -> 0)
         self.selected: Set[int] = set()
-        self.tick_w = 72.0
+        self.tick_w = pxf(72.0)
         self.scroll_x = 0.0
 
         self._mode: Optional[str] = None
@@ -146,7 +147,7 @@ class SequenceWidget(wx.Panel):
         starts = starts if starts is not None else self._starts()
         af = self.animation.aframes[index]
         x0 = self.x_of_tick(starts[index])
-        return wx.Rect(int(x0) + 1, CELL_TOP, max(6, int(ops.hold(af) * self.tick_w) - 2), CELL_H)
+        return wx.Rect(int(x0) + 1, CELL_TOP, max(px(6), int(ops.hold(af) * self.tick_w) - 2), CELL_H)
 
     def cell_at(self, pos: wx.Point) -> int:
         if not self.animation or not (CELL_TOP <= pos.y <= CELL_TOP + CELL_H):
@@ -191,13 +192,13 @@ class SequenceWidget(wx.Panel):
     def fit(self) -> None:
         if not self.animation or not self.animation.aframes:
             return
-        width = max(100, self.GetClientSize().width - 2 * LEFT_PAD)
-        self.tick_w = max(12.0, min(96.0, width / float(ops.total_ticks(self.animation) + 1)))
+        width = max(px(100), self.GetClientSize().width - 2 * LEFT_PAD)
+        self.tick_w = max(pxf(12.0), min(pxf(96.0), width / float(ops.total_ticks(self.animation) + 1)))
         self.set_scroll(0)
 
     def zoom_at(self, factor: float, x: float) -> None:
         tick = (x + self.scroll_x - LEFT_PAD) / self.tick_w
-        self.tick_w = max(12.0, min(160.0, self.tick_w * factor))
+        self.tick_w = max(pxf(12.0), min(pxf(160.0), self.tick_w * factor))
         self.set_scroll(LEFT_PAD + tick * self.tick_w - x)
 
     # ------------------------------------------------------------------ paint
@@ -213,12 +214,12 @@ class SequenceWidget(wx.Panel):
         anim = self.animation
         if not anim:
             dc.SetTextForeground(COL_TEXT_DIM)
-            dc.DrawText("No animation selected", LEFT_PAD, CELL_TOP + 8)
+            dc.DrawText("No animation selected", LEFT_PAD, CELL_TOP + px(8))
             return
         self._paint_ruler(dc, w, anim)
         if not anim.aframes:
             dc.SetTextForeground(COL_TEXT_DIM)
-            dc.DrawText("Drag frames here from the library, or double-click a frame there.", LEFT_PAD + 4, CELL_TOP + CELL_H // 2 - 6)
+            dc.DrawText("Drag frames here from the library, or double-click a frame there.", LEFT_PAD + px(4), CELL_TOP + CELL_H // 2 - px(6))
         starts = self._starts()
         layouts: Dict[int, Tuple[int, int, float, int, int]] = {}  # the strip's layout per thumbnail size
         for index, af in enumerate(anim.aframes):
@@ -229,16 +230,16 @@ class SequenceWidget(wx.Panel):
         self._paint_loop_and_follow_up(dc, anim, starts, w)
         # Playhead through the middle of the tick being shown
         if anim.aframes:
-            px = int(self.x_of_tick(self.tick + 0.5))
+            head_x = int(self.x_of_tick(self.tick + 0.5))
             dc.SetPen(wx.Pen(COL_PLAYHEAD, 1))
-            dc.DrawLine(px, RULER_H - 6, px, CELL_TOP + CELL_H + 4)
+            dc.DrawLine(head_x, RULER_H - px(6), head_x, CELL_TOP + CELL_H + px(4))
         if self._drop_index >= 0:
             if self._drop_index < len(anim.aframes):
                 x = int(self.x_of_tick(starts[self._drop_index]))
             else:
                 x = int(self.x_of_tick(ops.total_ticks(anim)))
             dc.SetPen(wx.Pen(COL_DROP, 3))
-            dc.DrawLine(x, CELL_TOP - 4, x, CELL_TOP + CELL_H + 4)
+            dc.DrawLine(x, CELL_TOP - px(4), x, CELL_TOP + CELL_H + px(4))
 
     def _paint_ruler(self, dc: wx.DC, w: int, anim: Animation) -> None:
         dc.SetPen(wx.TRANSPARENT_PEN)
@@ -246,31 +247,31 @@ class SequenceWidget(wx.Panel):
         dc.DrawRectangle(0, 0, w, RULER_H)
         total = ops.total_ticks(anim)
         rate = ops.tick_rate(anim)
-        label_every = next((s for s in LABEL_STEPS if s * self.tick_w >= 26), LABEL_STEPS[-1])
+        label_every = next((s for s in LABEL_STEPS if s * self.tick_w >= px(26)), LABEL_STEPS[-1])
         first = max(0, self.tick_at(0))
         last = min(total + 2, self.tick_at(w) + 1)
         for tick in range(first, last + 1):
             x = int(self.x_of_tick(tick))
             second = tick % rate == 0
             dc.SetPen(wx.Pen(COL_SECOND if second else COL_TICK, 1))
-            dc.DrawLine(x, RULER_H - (10 if second else 5), x, RULER_H)
+            dc.DrawLine(x, RULER_H - px(10 if second else 5), x, RULER_H)
             if tick % label_every == 0 or second:
                 label = f"{tick}" + (f"  {tick // rate}s" if second and tick else "")
                 dc.SetTextForeground(COL_TEXT if second else COL_TEXT_DIM)
-                dc.DrawText(label, x + 3, 3)
+                dc.DrawText(label, x + px(3), px(3))
         if total:
             end_x = int(self.x_of_tick(total))
             dc.SetPen(wx.Pen(COL_SECOND, 1, wx.PENSTYLE_SHORT_DASH))
-            dc.DrawLine(end_x, 0, end_x, CELL_TOP + CELL_H + 4)
+            dc.DrawLine(end_x, 0, end_x, CELL_TOP + CELL_H + px(4))
         if anim.aframes:
-            px = int(self.x_of_tick(self.tick + 0.5))
+            head_x = int(self.x_of_tick(self.tick + 0.5))
             label = str(self.tick)
             tw, th = dc.GetTextExtent(label)
             dc.SetPen(wx.TRANSPARENT_PEN)
             dc.SetBrush(wx.Brush(COL_PLAYHEAD))
-            dc.DrawRoundedRectangle(px - tw // 2 - 4, RULER_H - th - 4, tw + 8, th + 2, 3)
+            dc.DrawRoundedRectangle(head_x - tw // 2 - px(4), RULER_H - th - px(4), tw + px(8), th + px(2), px(3))
             dc.SetTextForeground(wx.WHITE)
-            dc.DrawText(label, px - tw // 2, RULER_H - th - 3)
+            dc.DrawText(label, head_x - tw // 2, RULER_H - th - px(3))
 
     def _paint_cell(self, dc: wx.DC, index: int, af, r: wx.Rect, layouts: Dict[int, Tuple[int, int, float, int, int]]) -> None:
         current = index == self.step
@@ -279,43 +280,43 @@ class SequenceWidget(wx.Panel):
         dc.SetBrush(wx.Brush(COL_CELL_CURRENT if current else COL_CELL))
         dc.DrawRectangle(r)
         # Same size for every cell (longer holds do not get bigger pictures), shared scale per animation.
-        side = max(8, min(THUMB, int(self.tick_w) - 8, r.width - 6))
+        side = max(px(8), min(THUMB, int(self.tick_w) - px(8), r.width - px(6)))
         if self.renderer and self.project and self.animation:
             layout = layouts.get(side)
             if layout is None:  # once per repaint, not per cell: it looks at every step
                 layout = layouts[side] = self.renderer.strip_layout(self.project, self.animation, self.mapping, side)
             bmp = self.renderer.strip_thumbnail(self.project, self.animation, index, self.mapping, side, layout=layout)
-            dc.DrawBitmap(bmp, r.x + 3, r.y + 3)
+            dc.DrawBitmap(bmp, r.x + px(3), r.y + px(3))
         # Hold band: the rest of a long cell shows that the drawing holds.
-        band_x = r.x + side + 6
-        if af.duration_frames > 1 and r.width - side > 18:
-            band_w = r.x + r.width - 4 - band_x
+        band_x = r.x + side + px(6)
+        if af.duration_frames > 1 and r.width - side > px(18):
+            band_w = r.x + r.width - px(4) - band_x
             dc.SetPen(wx.TRANSPARENT_PEN)
             dc.SetBrush(wx.Brush(COL_HOLD))
-            dc.DrawRectangle(band_x, r.y + 3 + side // 2 - 2, band_w, 4)
+            dc.DrawRectangle(band_x, r.y + px(3) + side // 2 - px(2), band_w, px(4))
             label = f"hold {ops.hold(af)}"
             tw, th = dc.GetTextExtent(label)
-            if tw < band_w - 4:
+            if tw < band_w - px(4):
                 dc.SetTextForeground(COL_TEXT_DIM)
-                dc.DrawText(label, band_x + (band_w - tw) // 2, r.y + 3 + side // 2 - th - 4)
+                dc.DrawText(label, band_x + (band_w - tw) // 2, r.y + px(3) + side // 2 - th - px(4))
         # Bottom line: step number, frame name, hold
         frame = self.project.get_frame(af.frame_id) if self.project else None
         name = (frame.name.strip() if frame else "missing frame") or af.frame_id
-        y = r.y + r.height - 17
+        y = r.y + r.height - px(17)
         dc.SetTextForeground(COL_TEXT)
         number = str(index + 1)
-        dc.DrawText(number, r.x + 3, y)
+        dc.DrawText(number, r.x + px(3), y)
         nw = dc.GetTextExtent(number)[0]
         # Only holds other than one tick get a number, so they stand out (0 is flagged: it plays as 1).
         hold_label = f"×{af.duration_frames}" if af.duration_frames != 1 else ""
         hw = dc.GetTextExtent(hold_label)[0] if hold_label else 0
-        room = r.width - nw - hw - 14
-        if room > 16:
+        room = r.width - nw - hw - px(14)
+        if room > px(16):
             dc.SetTextForeground(COL_TEXT_DIM if frame else COL_WARN)
-            dc.DrawText(_fit_text(dc, name, room), r.x + nw + 7, y)
-        if hold_label and r.width > nw + hw + 8:
+            dc.DrawText(_fit_text(dc, name, room), r.x + nw + px(7), y)
+        if hold_label and r.width > nw + hw + px(8):
             dc.SetTextForeground(COL_WARN if af.duration_frames < 1 else COL_SELECTED)
-            dc.DrawText(hold_label, r.x + r.width - hw - 4, y)
+            dc.DrawText(hold_label, r.x + r.width - hw - px(4), y)
         # Transform badges (flip / rotation) on the thumbnail
         badges = []
         if af.flip_x:
@@ -325,22 +326,22 @@ class SequenceWidget(wx.Panel):
         rot = int(round(af.rotation_degrees)) % 360
         if rot:
             badges.append(f"{rot}°")
-        bx = r.x + 3 + side
+        bx = r.x + px(3) + side
         for badge in reversed(badges):
             tw, th = dc.GetTextExtent(badge)
-            bx -= tw + 5
-            if bx < r.x + 3:
+            bx -= tw + px(5)
+            if bx < r.x + px(3):
                 break
             dc.SetPen(wx.TRANSPARENT_PEN)
             dc.SetBrush(wx.Brush(wx.Colour(20, 20, 24)))
-            dc.DrawRectangle(bx, r.y + 4, tw + 4, th)
+            dc.DrawRectangle(bx, r.y + px(4), tw + px(4), th)
             dc.SetTextForeground(COL_SELECTED)
-            dc.DrawText(badge, bx + 2, r.y + 4)
+            dc.DrawText(badge, bx + px(2), r.y + px(4))
         self._paint_events(dc, af, r, index)
         # Frame identity stripe: same colour = same frame.
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(frame_colour(af.frame_id)))
-        dc.DrawRectangle(r.x + 2, r.y + r.height - 3, r.width - 4, 2)
+        dc.DrawRectangle(r.x + 2, r.y + r.height - px(3), r.width - 4, px(2))
 
     def _paint_events(self, dc: wx.DC, af, r: wx.Rect, index: int) -> None:
         """Event chips in the lane above the cell: one per event, labelled while there is room. The chips of
@@ -349,7 +350,7 @@ class SequenceWidget(wx.Panel):
             return
         x = r.x + 1
         right = r.x + r.width
-        y = CELL_TOP - EVENT_LANE - 2
+        y = CELL_TOP - EVENT_LANE - px(2)
         glow = self.flash if index == self.flash_step else 0.0
         for event in af.events:
             etype = self.project.get_event_type(event.type_id)
@@ -357,16 +358,16 @@ class SequenceWidget(wx.Panel):
             colour = wx.Colour(*(int(c + (255 - c) * 0.6 * glow) for c in rgb))
             label = (etype.name if etype else "?") + (f"={event.value}" if event.value else "")
             tw, th = dc.GetTextExtent(label)
-            width = tw + 8 if x + tw + 8 <= right else 8
+            width = tw + px(8) if x + tw + px(8) <= right else px(8)
             if x + width > right:
                 break
             dc.SetPen(wx.Pen(wx.WHITE, 2) if glow > 0.25 else wx.TRANSPARENT_PEN)
             dc.SetBrush(wx.Brush(colour))
-            dc.DrawRoundedRectangle(x, y, width, EVENT_LANE, 3)
-            if width > 8:
+            dc.DrawRoundedRectangle(x, y, width, EVENT_LANE, px(3))
+            if width > px(8):
                 dc.SetTextForeground(wx.Colour(20, 20, 24))
-                dc.DrawText(label, x + 4, y + (EVENT_LANE - th) // 2)
-            x += width + 2
+                dc.DrawText(label, x + px(4), y + (EVENT_LANE - th) // 2)
+            x += width + px(2)
 
     def _paint_loop_and_follow_up(self, dc: wx.DC, anim: Animation, starts: List[int], width: int) -> None:
         loop_from = ops.loop_start(anim)
@@ -378,12 +379,12 @@ class SequenceWidget(wx.Panel):
             dc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 90)))
             dc.DrawRectangle(intro_x, CELL_TOP, max(0, x - intro_x), CELL_H)
             dc.SetPen(wx.Pen(COL_LOOP, 2))
-            dc.DrawLine(x, RULER_H - 8, x, CELL_TOP + CELL_H + 4)
+            dc.DrawLine(x, RULER_H - px(8), x, CELL_TOP + CELL_H + px(4))
             dc.SetTextForeground(COL_LOOP)
-            dc.DrawText("↺ loop", x + 4, RULER_H - 2 - dc.GetTextExtent("↺ loop")[1] // 2 + 6)
+            dc.DrawText("↺ loop", x + px(4), RULER_H - px(2) - dc.GetTextExtent("↺ loop")[1] // 2 + px(6))
         follow = self.project.get_animation(anim.next_animation_id) if self.project and anim.next_animation_id else None
         if follow is not None and anim.aframes:
-            end_x = int(self.x_of_tick(ops.total_ticks(anim))) + 8
+            end_x = int(self.x_of_tick(ops.total_ticks(anim))) + px(8)
             label = f"then → {follow.name}"
             dc.SetTextForeground(COL_LOOP if ops.can_finish(anim) else COL_TEXT_DIM)
             dc.DrawText(label, end_x, CELL_TOP + CELL_H // 2 - dc.GetTextExtent(label)[1] // 2)
@@ -477,9 +478,9 @@ class SequenceWidget(wx.Panel):
             self._drop_index = self.insertion_at(pos.x)
             self.SetCursor(wx.Cursor(wx.CURSOR_COPY_ARROW if self._copy_drag else wx.CURSOR_HAND))
             width = self.GetClientSize().width
-            if pos.x > width - 20:
+            if pos.x > width - px(20):
                 self.set_scroll(self.scroll_x + self.tick_w / 2)
-            elif pos.x < 20:
+            elif pos.x < px(20):
                 self.set_scroll(self.scroll_x - self.tick_w / 2)
             self.Refresh(False)
 

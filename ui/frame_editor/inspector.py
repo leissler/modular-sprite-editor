@@ -12,13 +12,14 @@ from ui.components.inspector_kit import (
     bind_spin, common, dim_text, hbox, relayout, row, section, set_spin, small_button, spin,
 )
 from ui.frame_editor import ops
+from ui.dpi import px
 
 
 class FrameInspector(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
-        self.SetScrollRate(0, 12)
-        self.SetMinSize((280, -1))
+        self.SetScrollRate(0, px(12))
+        self.SetMinSize((px(280), -1))
         self.project: Optional[Project] = None
         self.frame: Optional[Frame] = None
         self.mode = "parts"
@@ -64,7 +65,7 @@ class FrameInspector(wx.ScrolledWindow):
         # --- Part(s)
         self.part_panel, grid, self.part_title = section(self, root, "Part", "Frames")
         p = self.part_panel.body
-        self.source_bitmap = wx.StaticBitmap(p, size=(40, 40))
+        self.source_bitmap = wx.StaticBitmap(p, size=(px(40), px(40)))
         self.source_name = wx.StaticText(p, label="")
         self.source_info = dim_text(p)
         names = wx.BoxSizer(wx.VERTICAL)
@@ -121,7 +122,7 @@ class FrameInspector(wx.ScrolledWindow):
         outer.Add(self.types_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
         self.btn_add_type = small_button(p, "+ Add type", "A new type with its own colour", lambda: self._type("add", "", None))
         types_info = dim_text(p, "Click a swatch to recolour. Unticked types are not drawn on the stage.")
-        types_info.Wrap(240)
+        types_info.Wrap(px(240))
         outer.Add(self.btn_add_type, 0, wx.LEFT | wx.TOP, 2)
         self.btn_clean = small_button(p, "Remove empty boxes", "Delete hitboxes without an area (0 wide or high) in every frame", lambda: self._type("clean", "", None))
         outer.Add(self.btn_clean, 0, wx.LEFT | wx.TOP, 2)
@@ -197,7 +198,7 @@ class FrameInspector(wx.ScrolledWindow):
                 }[mode])
             else:
                 self.hint.SetLabel("")
-            self.hint.Wrap(260)
+            self.hint.Wrap(px(260))
             if frame is not None and not selected:
                 self._fill_frame(project, frame, size)
             if frame is not None and mode == "parts" and selected:
@@ -217,7 +218,7 @@ class FrameInspector(wx.ScrolledWindow):
         self.contents.SetLabel(ops.summary(frame))
         self.size.SetLabel(f"{size[0]} × {size[1]} px" if size else "—")
         self.used_by.SetLabel(ops.describe_references(ops.frame_references(project, frame.id)))
-        self.used_by.Wrap(190)
+        self.used_by.Wrap(px(190))
         has_parts = bool(frame.fmodules)
         self.btn_feet.Enable(has_parts)
         self.btn_centre.Enable(has_parts)
@@ -231,7 +232,7 @@ class FrameInspector(wx.ScrolledWindow):
         self.btn_group_h.Show(single is None)
         self.btn_group_v.Show(single is None)
         if single is not None:
-            self.source_bitmap.SetBitmap(bitmap if bitmap is not None else wx.Bitmap(40, 40))
+            self.source_bitmap.SetBitmap(bitmap if bitmap is not None else wx.Bitmap(px(40), px(40)))
             self.source_name.SetLabel(_short(ops.part_name(project, single), 26))
             if single.ref_type == "frame":
                 self.source_info.SetLabel("nested frame")
@@ -287,11 +288,11 @@ class FrameInspector(wx.ScrolledWindow):
         p = self.types_panel.body
         for t in type_list:
             line = wx.BoxSizer(wx.HORIZONTAL)
-            swatch = wx.Button(p, label="", size=(22, 20), style=wx.BORDER_NONE)
+            swatch = wx.Button(p, label="", size=(px(22), px(20)), style=wx.BORDER_NONE)
             swatch.SetBackgroundColour(wx.Colour(*t.color))
             swatch.SetToolTip("Change the colour")
             swatch.Bind(wx.EVT_BUTTON, lambda e, tid=t.id, col=t.color: self._pick_colour(tid, col))
-            name = wx.TextCtrl(p, value=t.name, style=wx.TE_PROCESS_ENTER, size=(110, -1))
+            name = wx.TextCtrl(p, value=t.name, style=wx.TE_PROCESS_ENTER, size=(px(110), -1))
             name.Bind(wx.EVT_TEXT_ENTER, lambda e, tid=t.id, ctrl=name: self._type("rename", tid, ctrl.GetValue().strip()))
             name.Bind(wx.EVT_KILL_FOCUS, lambda e, tid=t.id, ctrl=name, old=t.name: (e.Skip(), ctrl.GetValue().strip() != old and self._type("rename", tid, ctrl.GetValue().strip())))
             show = wx.CheckBox(p, label="")

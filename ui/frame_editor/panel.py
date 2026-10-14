@@ -23,6 +23,7 @@ from ui.frame_editor.inspector import FrameInspector
 from ui.frame_editor.library import PartLibrary
 from ui.frame_editor.stage import FrameStage
 from ui.frame_render import SHARED, fit_bitmap, frame_signature, mapping_key
+from ui.dpi import px
 
 ONION_MODES: List[Tuple[str, str]] = [("Off", "off"), ("Previous", "previous"), ("Next", "next"), ("Both", "both")]
 NUDGE_LARGE = 8  # one hardware tile
@@ -69,7 +70,7 @@ class FrameEditorPanel(wx.Panel):
         self.library = PartLibrary(self.left_split, self.project)
         self.left_split.SplitHorizontally(self.browser, self.library, 0)
         self.left_split.SetSashGravity(0.5)
-        self.left_split.SetMinimumPaneSize(140)
+        self.left_split.SetMinimumPaneSize(px(140))
 
         self.inner_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         stage_panel = wx.Panel(self.inner_split)
@@ -88,14 +89,14 @@ class FrameEditorPanel(wx.Panel):
         self.type_label = wx.StaticText(stage_panel, label="New:")
         self.type_choice = wx.Choice(stage_panel)
         self.type_choice.SetToolTip("Type of the boxes / points you draw next (manage types in the inspector)")
-        self.type_choice.SetMinSize((140, -1))
+        self.type_choice.SetMinSize((px(140), -1))
         tools.Add(self.type_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         tools.Add(self.type_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         tools.AddStretchSpacer(1)
         tools.Add(wx.StaticText(stage_panel, label="Onion"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.onion_choice = wx.Choice(stage_panel, choices=[label for label, _ in ONION_MODES])
         self.onion_choice.SetSelection(0)
-        self.onion_choice.SetMinSize((stage_panel.GetTextExtent("Previous")[0] + 44, -1))
+        self.onion_choice.SetMinSize((stage_panel.GetTextExtent("Previous")[0] + px(44), -1))
         self.onion_choice.SetToolTip("Ghost the previous (red) / next (blue) frame of the list")
         tools.Add(self.onion_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         stage_sizer.Add(tools, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 6)
@@ -115,15 +116,15 @@ class FrameEditorPanel(wx.Panel):
         self.contents = Browser(self.right_split, "Contents", row_h=34, thumb=26, multiple=True, reorder=True)
         self.contents.search.Hide()
         self.btn_item_delete = self.contents.add_button("Delete", "Delete the selected items (Delete)", self.delete_selection)
-        self.right_split.SplitHorizontally(self.inspector, self.contents, -230)
+        self.right_split.SplitHorizontally(self.inspector, self.contents, -px(230))
         self.right_split.SetSashGravity(1.0)
-        self.right_split.SetMinimumPaneSize(120)
+        self.right_split.SetMinimumPaneSize(px(120))
 
-        self.inner_split.SplitVertically(stage_panel, self.right_split, -310)
+        self.inner_split.SplitVertically(stage_panel, self.right_split, -px(310))
         self.inner_split.SetSashGravity(1.0)
-        self.inner_split.SetMinimumPaneSize(240)
-        self.outer_split.SplitVertically(self.left_split, self.inner_split, 270)
-        self.outer_split.SetMinimumPaneSize(200)
+        self.inner_split.SetMinimumPaneSize(px(240))
+        self.outer_split.SplitVertically(self.left_split, self.inner_split, px(270))
+        self.outer_split.SetMinimumPaneSize(px(200))
         root.Add(self.outer_split, 1, wx.EXPAND)
         self.SetSizer(root)
         wx.CallAfter(self._place_sashes)
@@ -356,7 +357,7 @@ class FrameEditorPanel(wx.Panel):
         selected = self.selected_items()
         bitmap = None
         if frame is not None and self.mode == "parts" and len(selected) == 1:
-            bitmap = self._part_thumbnail(selected[0], 40)
+            bitmap = self._part_thumbnail(selected[0], px(40))
         size = ops.content_size(self.project, frame, self.project.active_mapping) if frame is not None else None
         self.inspector.show(self.project, frame, self.mode, selected, bitmap, size)
 
@@ -443,11 +444,11 @@ class FrameEditorPanel(wx.Panel):
             dc.SetPen(wx.Pen(wx.Colour(*colour), 2))
             dc.SetBrush(wx.Brush(wx.Colour(colour[0], colour[1], colour[2], 90)))
             if self.mode == "hitboxes":
-                dc.DrawRectangle(5, 5, size - 10, size - 10)
+                dc.DrawRectangle(px(5), px(5), size - px(10), size - px(10))
             else:
                 c = size // 2
-                dc.DrawLine(c - 7, c, c + 8, c)
-                dc.DrawLine(c, c - 7, c, c + 8)
+                dc.DrawLine(c - px(7), c, c + px(8), c)
+                dc.DrawLine(c, c - px(7), c, c + px(8))
             dc.SelectObject(wx.NullBitmap)
             self._swatches[colour] = bmp  # type: ignore[index]
         return bmp

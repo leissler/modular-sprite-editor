@@ -47,6 +47,7 @@ def _mouse_state():
 wx.GetMouseState = _mouse_state  # type: ignore[assignment]
 
 import app as app_mod  # noqa: E402
+from ui import dpi  # noqa: E402
 from ui.components import confirm  # noqa: E402
 from ui.project_history import project_fingerprint  # noqa: E402
 
@@ -68,8 +69,11 @@ a = app_mod.SpriteEditorApp(False)
 # Failed wx assertions raise exceptions instead of opening a modal dialog that would block the run.
 a.SetAssertMode(wx.APP_ASSERT_EXCEPTION)
 frame = a.GetTopWindow()
-frame.SetSize((1500, 950))
+frame.SetSize((dpi.px(1500), dpi.px(950)))
 frame.confirm_discard_changes = lambda: True  # no save prompts in the smoke test
+print(f"display scaling: {dpi.SCALE:g}")
+# MSE_SMOKE_SHOTS=FOLDER saves a picture of every tab there (taken from the screen, so on Windows the device pixels).
+SHOTS = os.environ.get("MSE_SMOKE_SHOTS", "")
 
 
 def pump(n=3):
@@ -81,6 +85,20 @@ def check(cond, msg):
     if not cond:
         errors.append("CHECK FAILED: " + msg)
         print("CHECK FAILED:", msg)
+
+
+def shot(name):
+    if not SHOTS:
+        return
+    frame.Raise()
+    pump(6)
+    os.makedirs(SHOTS, exist_ok=True)
+    rect = frame.GetScreenRect()
+    bmp = wx.Bitmap(rect.width, rect.height)
+    mem = wx.MemoryDC(bmp)
+    mem.Blit(0, 0, rect.width, rect.height, wx.ScreenDC(), rect.x, rect.y)
+    mem.SelectObject(wx.NullBitmap)
+    bmp.SaveFile(os.path.join(SHOTS, name + ".png"), wx.BITMAP_TYPE_PNG)
 
 
 STEP_TIMEOUT = 180  # seconds; a step that hangs (e.g. a modal dialog) dumps the stacks and ends the run with 1
@@ -115,6 +133,42 @@ def run():
         check(not frame.history.is_dirty(), "clean after load")
 
     step("load project", load)
+
+    def tab_report():
+        """Windows: how the main tabs (FlatNotebook) are measured, for display scaling problems."""
+        import wx.lib.agw.flatnotebook as fnb
+
+        book = frame.book
+        if not isinstance(book, fnb.FlatNotebook):
+            return
+        tabs = book.GetTabArea()
+        renderer = tabs._mgr.GetRenderer(book.GetAGWWindowStyleFlag())
+        font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
+        font.SetWeight(wx.FONTWEIGHT_BOLD)
+        client = wx.ClientDC(tabs)
+        client.SetFont(font)
+        memory = wx.MemoryDC(wx.Bitmap(1, 1))
+        memory.SetFont(font)
+        text = book.GetPageText(2)
+        height = renderer.CalcTabHeight(tabs)
+        print(f"tabs: {type(renderer).__name__}, window dpi {tuple(tabs.GetDPI())}, ppi client {tuple(client.GetPPI())} "
+              f"memory {tuple(memory.GetPPI())}; {text.strip()!r}: client {tuple(client.GetTextExtent(text))} memory "
+              f"{tuple(memory.GetTextExtent(text))} window {tuple(tabs.GetTextExtent(text))}; tab height {height}, widths "
+              f"{[renderer.CalcTabWidth(tabs, i, height) for i in range(book.GetPageCount())]}")
+
+    step("main tabs report", tab_report)
+
+    def pictures():
+        old = frame.GetRect()
+        frame.SetSize(wx.Display(max(0, wx.Display.GetFromWindow(frame))).GetClientArea())  # all of it on screen
+        for index, name in enumerate(app_mod.TAB_NAMES[:5]):
+            frame.select_tab(index)
+            pump(4)
+            shot(f"tab{index + 1}-{name.lower()}")
+        frame.SetSize(old)
+
+    if SHOTS:
+        step("pictures of every tab", pictures)
 
     def tabs():
         for i in range(5):
@@ -284,6 +338,7 @@ def run():
     step("frames: select/nudge/copy/paste/undo/dup/delete/modes/onion/filter/flip/add/hitbox", frames)
 
     def editors_mouse():
+        from ui.dpi import px
         from ui.module_editor import ops as mops
 
         def mouse(handler, kind, pos, shift=False, cmd=False, left=True):
@@ -310,10 +365,13 @@ def run():
         img = proj.images[0]
         me.select_sheet(img.id)
         cv = me.canvas
-        cv.set_zoom_level(4.0)
+        cv.set_zoom_level(float(px(4)))  # what a user on a scaled display sees as zoom 4
+        # Clicks meant for empty space stay clear of the module's resize handles (wider on scaled displays).
+        from ui.module_editor.canvas import HANDLE_PX
+        off = 1 + int(math.ceil(HANDLE_PX / cv.zoom))
         rects = [tuple(m.rect) for m in mops.modules_of_sheet(proj, img.id)]
         spot = next(((x, y) for y in range(0, img.height - 12, 4) for x in range(0, img.width - 12, 4)
-                     if not any(mops.overlaps((x - 2, y - 2, 16, 16), r) for r in rects)), None)
+                     if not any(mops.overlaps((x - off - 1, y - off - 1, 15 + off, 15 + off), r) for r in rects)), None)
         check(spot is not None, "free space on the sheet")
         if spot is None:
             return
@@ -331,15 +389,15 @@ def run():
         check(tuple(new.rect)[:2] == (spot[0] + 2, spot[1] + 1), f"drag moves the module {new.rect}")
         x, y, w, h = new.rect
         se = cv.world_to_screen((x + w, y + h))
-        drag(cv, names, se, (se[0] + 8, se[1] + 8))
+        drag(cv, names, se, (se[0] + 2 * cv.zoom, se[1] + 2 * cv.zoom))
         check(tuple(new.rect)[2:] == (w + 2, h + 2), f"handle resizes the module {new.rect}")
         mouse(cv._on_left_down, wx.wxEVT_LEFT_DOWN, screen(x + 1, y + 1), shift=True)
         mouse(cv._on_left_up, wx.wxEVT_LEFT_UP, screen(x + 1, y + 1), shift=True, left=False)
         check(tuple(new.pivot) == (1, 1), f"Shift+click sets the pivot {new.pivot}")
-        mouse(cv._on_left_down, wx.wxEVT_LEFT_DOWN, screen(spot[0] - 1, spot[1] - 1))
-        mouse(cv._on_left_up, wx.wxEVT_LEFT_UP, screen(spot[0] - 1, spot[1] - 1), left=False)
+        mouse(cv._on_left_down, wx.wxEVT_LEFT_DOWN, screen(spot[0] - off, spot[1] - off))
+        mouse(cv._on_left_up, wx.wxEVT_LEFT_UP, screen(spot[0] - off, spot[1] - off), left=False)
         check(me.selection == [], "click on empty space deselects")
-        drag(cv, names, screen(spot[0] - 1, spot[1] - 1), screen(spot[0] + 4, spot[1] + 4), cmd=True)
+        drag(cv, names, screen(spot[0] - off, spot[1] - off), screen(spot[0] + 4, spot[1] + 4), cmd=True)
         check(me.selection == [new.id], "Cmd+drag selects with a marquee")
         for _ in range(4):
             frame.on_undo(None)
@@ -1324,11 +1382,12 @@ def run():
         """Milestone 4: bars wrap instead of cutting controls off, inspector sections fold, the step comes first,
         the welcome screen, sheet-to-animation shortcuts, points by a click, window memory."""
         from ui.components.inspector_kit import Section
+        from ui.dpi import px
         from ui.welcome import example_paths
 
         project = frame.project
         old_size = frame.GetSize()
-        frame.SetSize((1100, 760))
+        frame.SetSize((px(1100), px(760)))  # a laptop's width at this display scaling
         pump(4)
         for index, panel in enumerate(frame.panels[:4]):
             frame.select_tab(index)
@@ -1337,6 +1396,7 @@ def run():
             area = bar.GetClientRect()
             cut = [w for w in bar.GetChildren() if w.IsShown() and not area.Contains(w.GetRect())]
             check(not cut, f"{app_mod.TAB_NAMES[index]}: every view bar control is on screen at 1100 px ({len(cut)} cut)")
+            shot(f"laptop{index + 1}-{app_mod.TAB_NAMES[index].lower()}")
         frame.SetSize(old_size)
         pump(2)
 
@@ -1411,10 +1471,11 @@ def run():
 
         # The window opens where it was, at a size that fits the screen it is on (CI screens are small)
         area = wx.Display(max(0, wx.Display.GetFromWindow(frame))).GetClientArea()
-        size = (max(800, min(1000, area.width - 40)), max(560, min(700, area.height - 40)))
+        size = (min(area.width, max(px(800), min(px(1000), area.width - px(40)))),
+                min(area.height, max(px(560), min(px(700), area.height - px(40)))))
         frame.SetSize(area.x + 20, area.y + 20, *size)
         frame._save_geometry()
-        frame.SetSize((800, 560))
+        frame.SetSize((px(800), px(560)))
         frame._restore_geometry()
         check(tuple(frame.GetSize()) == size, f"the window keeps its size ({tuple(frame.GetSize())}, saved {size})")
         frame.SetSize(old_size)

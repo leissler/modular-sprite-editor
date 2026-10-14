@@ -264,6 +264,17 @@ are uneven.
 **Fix:** declare per-monitor DPI awareness (manifest or `SetProcessDpiAwareness` before the first window) and let
 canvases zoom in device pixels (`GetContentScaleFactor`). Check it in the Windows VM at 150 %.
 
+**Done:** neither Python's nor PyInstaller's manifest declares DPI awareness and wxPython doesn't either.
+`ui/dpi.py` declares system DPI awareness before the first window, so wx draws in device pixels (wx 3.2 on Windows:
+logical = physical pixels) and canvases stay pixel-exact at whole-number zoom; every fixed size in the UI goes through
+`px()` (about 350 lines: control widths, splitters, row heights, thumbnails, custom drawing, hit tolerances), 1:1 on
+macOS and GTK. Checked in a Windows 11 VM at 150 % with the CI build: crisp where the old build
+is blurry, the whole smoke test passes. Found there: the main tabs (FlatNotebook) measured their labels in a memory DC,
+which Windows gives 96 dpi (they overlapped), and had never had their VC8 style: app.py passed the flags as `style=`
+instead of `agwStyle=`, which also left a dead × and arrows in the tab row. The smoke test passes at `MSE_UI_SCALE`
+1 to 2, logs how the main tabs are measured and can save a picture of every tab (`MSE_SMOKE_SHOTS`); at 100 % the editor
+draws as before.
+
 ---
 
 ## 3. Consistency

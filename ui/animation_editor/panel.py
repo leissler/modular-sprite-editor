@@ -16,6 +16,7 @@ from ui.animation_editor.render import StepRenderer, export_gif
 from ui.animation_editor.sequence import SequenceView
 from ui.animation_editor.stage import ONION_MODES, AnimationStage
 from ui.components.canvas_display_controls import CanvasDisplayControls
+from ui.dpi import px
 
 MIRROR_MODES: List[Tuple[str, Tuple[bool, bool]]] = [
     ("Off", (False, False)),
@@ -75,7 +76,7 @@ class AnimationEditorPanel(wx.Panel):
         self.library = FrameLibrary(self.left_split, self.project)
         self.left_split.SplitHorizontally(self.browser, self.library, 0)
         self.left_split.SetSashGravity(0.5)
-        self.left_split.SetMinimumPaneSize(140)
+        self.left_split.SetMinimumPaneSize(px(140))
 
         self.inner_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         stage_panel = wx.Panel(self.inner_split)
@@ -94,11 +95,11 @@ class AnimationEditorPanel(wx.Panel):
         stage_panel.SetSizer(stage_sizer)
 
         self.inspector = AnimationInspector(self.inner_split)
-        self.inner_split.SplitVertically(stage_panel, self.inspector, -320)
+        self.inner_split.SplitVertically(stage_panel, self.inspector, -px(320))
         self.inner_split.SetSashGravity(1.0)
-        self.inner_split.SetMinimumPaneSize(240)
-        self.outer_split.SplitVertically(self.left_split, self.inner_split, 260)
-        self.outer_split.SetMinimumPaneSize(200)
+        self.inner_split.SetMinimumPaneSize(px(240))
+        self.outer_split.SplitVertically(self.left_split, self.inner_split, px(260))
+        self.outer_split.SetMinimumPaneSize(px(200))
         top_sizer = wx.BoxSizer(wx.VERTICAL)
         top_sizer.Add(self.outer_split, 1, wx.EXPAND)
         top.SetSizer(top_sizer)
@@ -108,7 +109,7 @@ class AnimationEditorPanel(wx.Panel):
         transport = wx.BoxSizer(wx.HORIZONTAL)
 
         def tbutton(label: str, tip: str, width: int = 34) -> wx.Button:
-            btn = wx.Button(bottom, label=label, size=(width, -1))
+            btn = wx.Button(bottom, label=label, size=(px(width), -1))
             btn.SetToolTip(tip)
             transport.Add(btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 2)
             return btn
@@ -122,9 +123,9 @@ class AnimationEditorPanel(wx.Panel):
         self.btn_last = tbutton("▶|", "Last step (End)")
         transport.AddSpacer(10)
         transport.Add(wx.StaticText(bottom, label="Tick"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.tick_spin = wx.SpinCtrl(bottom, min=0, max=100000, initial=0, size=(64, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+        self.tick_spin = wx.SpinCtrl(bottom, min=0, max=100000, initial=0, size=(px(64), -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
         transport.Add(self.tick_spin, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.tick_info = wx.StaticText(bottom, label="", size=(230, -1), style=wx.ST_NO_AUTORESIZE)
+        self.tick_info = wx.StaticText(bottom, label="", size=(px(230), -1), style=wx.ST_NO_AUTORESIZE)
         transport.Add(self.tick_info, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         self.chk_repeat = wx.CheckBox(bottom, label="Repeat")
         self.chk_repeat.SetValue(True)
@@ -139,7 +140,7 @@ class AnimationEditorPanel(wx.Panel):
         transport.Add(wx.StaticText(bottom, label="Onion"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         self.onion_choice = wx.Choice(bottom, choices=[label for label, _ in ONION_MODES])
         self.onion_choice.SetSelection(0)
-        self.onion_choice.SetMinSize((bottom.GetTextExtent("Previous")[0] + 44, -1))
+        self.onion_choice.SetMinSize((bottom.GetTextExtent("Previous")[0] + px(44), -1))
         self.onion_choice.SetToolTip("Ghost the previous (red) / next (blue) step on the stage")
         transport.Add(self.onion_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         transport.Add(wx.StaticText(bottom, label="Mirror"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
@@ -156,9 +157,9 @@ class AnimationEditorPanel(wx.Panel):
         bottom_sizer.Add(self.sequence_view, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom.SetSizer(bottom_sizer)
 
-        self.vsplit.SplitHorizontally(top, bottom, -194)
+        self.vsplit.SplitHorizontally(top, bottom, -px(194))
         self.vsplit.SetSashGravity(1.0)
-        self.vsplit.SetMinimumPaneSize(140)
+        self.vsplit.SetMinimumPaneSize(px(140))
         root.Add(self.vsplit, 1, wx.EXPAND)
         self.SetSizer(root)
         wx.CallAfter(self._place_left_sash)

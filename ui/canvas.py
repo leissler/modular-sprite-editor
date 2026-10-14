@@ -16,6 +16,7 @@ from ui.base_canvas import BaseCanvas
 from ui.console_colours import CONSOLE
 from ui.frame_geometry import orthogonal_cos_sin, part_bounds
 from ui.utils import render_pixel_shape_to_bitmap, load_wx_image_safely
+from ui.dpi import px
 
 
 # Onion-skin styles: (red, green, blue, alpha) channel factors applied to ghost images.
@@ -414,13 +415,13 @@ class FrameCanvas(BaseCanvas):
                     cx0, cy0, cx1, cy1 = self._fmodule_bounds(child_fm)
                     ts_x: List[float] = []
                     ts_y: List[float] = []
-                    for px, py in ((cx0, cy0), (cx1, cy0), (cx0, cy1), (cx1, cy1)):
+                    for qx, qy in ((cx0, cy0), (cx1, cy0), (cx0, cy1), (cx1, cy1)):
                         if p_flip_x:
-                            px = -px
+                            qx = -qx
                         if p_flip_y:
-                            py = -py
-                        ts_x.append(px * cos_a - py * sin_a)
-                        ts_y.append(px * sin_a + py * cos_a)
+                            qy = -qy
+                        ts_x.append(qx * cos_a - qy * sin_a)
+                        ts_y.append(qx * sin_a + qy * cos_a)
 
                     child_rot = child_fm.rotation_degrees
                     final_rot = p_rot + (-child_rot if is_parent_flipped else child_rot)
@@ -494,16 +495,16 @@ class FrameCanvas(BaseCanvas):
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
         gc.SetFont(font, wx.Colour(255, 150, 150) if over else wx.Colour(235, 235, 240))
         extents = [gc.GetTextExtent(line) for line in lines]
-        box_w = max(w for w, _h in extents) + 16
-        box_h = sum(h for _w, h in extents) + 10 + 2 * (len(lines) - 1)
+        box_w = max(w for w, _h in extents) + px(16)
+        box_h = sum(h for _w, h in extents) + px(10) + px(2) * (len(lines) - 1)
         gc.SetPen(wx.TRANSPARENT_PEN)
         gc.SetBrush(wx.Brush(wx.Colour(18, 19, 22, 215)))
-        gc.DrawRoundedRectangle(8, 8, box_w, box_h, 5)
-        self.budget_hud_rect = (8.0, 8.0, float(box_w), float(box_h))
-        y = 13.0
+        gc.DrawRoundedRectangle(px(8), px(8), box_w, box_h, px(5))
+        self.budget_hud_rect = (float(px(8)), float(px(8)), float(box_w), float(box_h))
+        y = float(px(13))
         for line, (_w, h) in zip(lines, extents):
-            gc.DrawText(line, 16, y)
-            y += h + 2
+            gc.DrawText(line, px(16), y)
+            y += h + px(2)
 
     def set_show_part_bounds(self, show: bool) -> None:
         self.show_part_bounds = bool(show)
@@ -557,10 +558,10 @@ class FrameCanvas(BaseCanvas):
             gc.SetPen(wx.Pen(wx.Colour(r, g, b), width=1))
         gc.DrawRectangle(dsx, dsy, dsize, dsize)
 
-        # The crosshair reaches 6 px beyond the square.
+        # The crosshair reaches 6 px (at 100 %) beyond the square.
         cx = dsx + dsize / 2
         cy = dsy + dsize / 2
-        half_len = (dsize / 2) + 6
+        half_len = (dsize / 2) + px(6)
         gc.SetPen(wx.Pen(wx.Colour(255, 255, 255) if selected else wx.Colour(r, g, b), width=2))
         gc.StrokeLine(cx - half_len, cy, cx + half_len, cy)
         gc.StrokeLine(cx, cy - half_len, cx, cy + half_len)

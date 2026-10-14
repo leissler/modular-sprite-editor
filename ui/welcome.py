@@ -10,6 +10,7 @@ import wx
 import wx.adv
 
 from ui.components.inspector_kit import COL_DIM, COL_SECTION
+from ui.dpi import px
 
 GUIDE_URL = "https://modularsprites.bionic-productions.com/"
 FIRST_SPRITE_URL = GUIDE_URL + "start/first-sprite/"
@@ -69,7 +70,7 @@ class WelcomePanel(wx.ScrolledWindow):
 
     def __init__(self, parent: wx.Window, version: str):
         super().__init__(parent, style=wx.VSCROLL)
-        self.SetScrollRate(0, 12)
+        self.SetScrollRate(0, px(12))
         self.on_new: Callable[[], None] = lambda: None
         self.on_open: Callable[[], None] = lambda: None
         self.on_open_path: Callable[[str], None] = lambda path: None
@@ -81,7 +82,7 @@ class WelcomePanel(wx.ScrolledWindow):
         page = wx.BoxSizer(wx.VERTICAL)
         self.column = wx.BoxSizer(wx.VERTICAL)
         page.AddStretchSpacer(1)
-        page.Add(self.column, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.ALL, 24)
+        page.Add(self.column, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.ALL, px(24))
         page.AddStretchSpacer(2)
         self.SetSizer(page)
 
@@ -110,8 +111,8 @@ class WelcomePanel(wx.ScrolledWindow):
         base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         icon_path = os.path.join(base, "assets", "icon.png")
         if os.path.exists(icon_path):
-            image = wx.Image(icon_path).Scale(72, 72, wx.IMAGE_QUALITY_NEAREST)
-            head.Add(wx.StaticBitmap(self, bitmap=wx.Bitmap(image)), 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 16)
+            image = wx.Image(icon_path).Scale(px(72), px(72), wx.IMAGE_QUALITY_NEAREST)
+            head.Add(wx.StaticBitmap(self, bitmap=wx.Bitmap(image)), 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, px(16))
         titles = wx.BoxSizer(wx.VERTICAL)
         title = wx.StaticText(self, label="Modular Sprite Editor")
         font = title.GetFont()
@@ -123,7 +124,7 @@ class WelcomePanel(wx.ScrolledWindow):
         subtitle.SetForegroundColour(COL_DIM)
         titles.Add(subtitle, 0)
         head.Add(titles, 0, wx.ALIGN_CENTER_VERTICAL)
-        self.column.Add(head, 0, wx.BOTTOM, 28)
+        self.column.Add(head, 0, wx.BOTTOM, px(28))
 
         columns = wx.BoxSizer(wx.HORIZONTAL)
         left = wx.BoxSizer(wx.VERTICAL)
@@ -139,7 +140,7 @@ class WelcomePanel(wx.ScrolledWindow):
             back = wx.Button(self, label="Back to the Project")
             back.Bind(wx.EVT_BUTTON, lambda e: self.on_back())
             buttons.Add(back, 0, wx.LEFT, 8)
-        left.Add(buttons, 0, wx.BOTTOM, 22)
+        left.Add(buttons, 0, wx.BOTTOM, px(22))
         left.Add(_heading(self, "Recent projects"), 0, wx.BOTTOM, 8)
         recent = [path for path in recent_files if path][:8]
         if not recent:
@@ -161,7 +162,7 @@ class WelcomePanel(wx.ScrolledWindow):
             where.SetForegroundColour(COL_DIM)
             entry.Add(where, 0)
             left.Add(entry, 0, wx.BOTTOM, 6)
-        columns.Add(left, 1, wx.RIGHT, 48)
+        columns.Add(left, 1, wx.RIGHT, px(48))
 
         right = wx.BoxSizer(wx.VERTICAL)
         right.Add(_heading(self, "Example projects"), 0, wx.BOTTOM, 8)
@@ -178,7 +179,7 @@ class WelcomePanel(wx.ScrolledWindow):
                                  "ModularSpriteEditor-examples.zip on the release page; unpack it next to the editor"),
                       0, wx.BOTTOM, 4)
         right.Add(self._link(self, "What each example shows", lambda: wx.LaunchDefaultBrowser(EXAMPLES_GUIDE_URL)),
-                  0, wx.BOTTOM, 22)
+                  0, wx.BOTTOM, px(22))
         right.Add(_heading(self, "Learn"), 0, wx.BOTTOM, 8)
         for label, action in (
             ("User guide", lambda: wx.LaunchDefaultBrowser(GUIDE_URL)),
@@ -187,7 +188,7 @@ class WelcomePanel(wx.ScrolledWindow):
         ):
             right.Add(self._link(self, label, action), 0, wx.BOTTOM, 6)
         columns.Add(right, 0)
-        self.column.Add(columns, 0, wx.EXPAND | wx.BOTTOM, 28)
+        self.column.Add(columns, 0, wx.EXPAND | wx.BOTTOM, px(28))
 
         self.show_at_start = wx.CheckBox(self, label="Show this when the editor starts")
         self.show_at_start.SetValue(show_at_start)

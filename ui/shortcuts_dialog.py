@@ -6,6 +6,7 @@ import sys
 from typing import List, Tuple
 
 import wx
+from ui.dpi import px
 
 MOD = "Cmd" if sys.platform == "darwin" else "Ctrl"
 
@@ -85,13 +86,13 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
 
 class ShortcutsDialog(wx.Dialog):
     def __init__(self, parent: wx.Window):
-        super().__init__(parent, title="Keyboard & Mouse Shortcuts", size=(760, 640),
+        super().__init__(parent, title="Keyboard & Mouse Shortcuts", size=(px(760), px(640)),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         sizer = wx.BoxSizer(wx.VERTICAL)
         listing = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.LC_HRULES)
-        listing.InsertColumn(0, "Where", width=130)
-        listing.InsertColumn(1, "Action", width=320)
-        listing.InsertColumn(2, "Shortcut", width=280)
+        listing.InsertColumn(0, "Where", width=px(130))
+        listing.InsertColumn(1, "Action", width=px(320))
+        listing.InsertColumn(2, "Shortcut", width=px(280))
         for context, action, shortcut in SHORTCUTS:
             idx = listing.InsertItem(listing.GetItemCount(), context)
             listing.SetItem(idx, 1, action)

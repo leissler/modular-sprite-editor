@@ -7,6 +7,7 @@ from typing import Any, Callable, List, Optional, Tuple
 import wx
 
 from ui.preferences import config as _config
+from ui.dpi import px
 
 COL_SECTION = wx.Colour(150, 156, 170)
 COL_DIM = wx.Colour(150, 156, 170)
@@ -29,7 +30,7 @@ class Section(wx.Panel):
         header = wx.BoxSizer(wx.HORIZONTAL)
         self.arrow: Optional[wx.StaticText] = None
         if self.key:
-            self.arrow = wx.StaticText(self, label="", size=(12, -1))
+            self.arrow = wx.StaticText(self, label="", size=(px(12), -1))
             self.arrow.SetForegroundColour(COL_SECTION)
             header.Add(self.arrow, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         self.title = wx.StaticText(self, label=title.upper())
@@ -122,7 +123,7 @@ def dim_text(parent: wx.Window, label: str = "") -> wx.StaticText:
 
 
 def spin(parent: wx.Window, low: int = -9999, high: int = 9999, width: int = 60, tip: str = "") -> wx.SpinCtrl:
-    ctrl = wx.SpinCtrl(parent, min=low, max=high, initial=0, size=(width, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+    ctrl = wx.SpinCtrl(parent, min=low, max=high, initial=0, size=(px(width), -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
     if tip:
         ctrl.SetToolTip(tip)
     return ctrl
@@ -135,10 +136,11 @@ def bind_spin(ctrl: wx.SpinCtrl, handler: Callable[[int], None]) -> None:
 
 
 def small_button(parent: wx.Window, label: str, tip: str, handler: Callable[[], None], width: int = -1) -> wx.Button:
+    width = px(width)
     btn = wx.Button(parent, label=label, style=wx.BU_EXACTFIT, size=(width, -1))
     btn.SetToolTip(tip)
     # Rows of buttons may shrink a little in a narrow inspector, a lone button keeps its label.
-    btn.SetMinSize((max(28, width) if width > 0 else min(btn.GetBestSize().width, 90), -1))
+    btn.SetMinSize((max(px(28), width) if width > 0 else min(btn.GetBestSize().width, px(90)), -1))
     btn.Bind(wx.EVT_BUTTON, lambda e: handler())
     return btn
 
@@ -160,5 +162,5 @@ def fit_choice(choice: wx.Choice, extra: int = 44) -> None:
     """macOS sizes a Choice for its current item; leave room for the longest one plus the arrows."""
     if choice.GetCount():
         longest = max(choice.GetTextExtent(choice.GetString(i))[0] for i in range(choice.GetCount()))
-        choice.SetMinSize((min(longest + extra, 220), -1))
+        choice.SetMinSize((min(longest + px(extra), px(220)), -1))
         choice.GetParent().Layout()

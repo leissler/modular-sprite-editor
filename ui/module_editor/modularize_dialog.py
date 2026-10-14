@@ -20,6 +20,7 @@ from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.inspector_kit import dim_text, fit_choice, section
 from ui.components.thumb_list import Browser, Row
 from ui.frame_render import SHARED, fit_bitmap, to_wx_image
+from ui.dpi import px
 
 # Goal slider stops: how many tiles one more hardware sprite (in one sprite) is worth.
 GOALS: List[Tuple[float, str]] = [
@@ -34,7 +35,7 @@ GOALS: List[Tuple[float, str]] = [
 DEFAULT_GOAL = 3
 VIEW_PARTS, VIEW_ORIGINAL, VIEW_SHEET = "Parts", "Original", "Parts sheet"
 THUMB_BG = (30, 31, 34)
-WRAP = 280  # width of the explanatory texts in the settings column
+WRAP = px(280)  # width of the explanatory texts in the settings column
 
 
 def part_colour(index: int) -> wx.Colour:
@@ -173,7 +174,7 @@ class ModularizeDialog(wx.Dialog):
         self.browser.list.thumbnail = self._thumbnail
         self.browser.list.Bind(wx.EVT_LISTBOX, self._on_select_sprite)
         self.browser.search.Bind(wx.EVT_TEXT, lambda e: self._refresh_rows())
-        self.browser.SetMinSize((230, -1))
+        self.browser.SetMinSize((px(230), -1))
         body.Add(self.browser, 0, wx.EXPAND)
 
         # Preview
@@ -283,7 +284,7 @@ class ModularizeDialog(wx.Dialog):
         # Status and buttons
         bottom = wx.BoxSizer(wx.HORIZONTAL)
         self.status = wx.StaticText(self, label="")
-        self.gauge = wx.Gauge(self, range=1000, size=(160, -1))
+        self.gauge = wx.Gauge(self, range=1000, size=(px(160), -1))
         bottom.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         bottom.Add(self.gauge, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
         cancel = wx.Button(self, wx.ID_CANCEL, "Cancel")
@@ -295,8 +296,8 @@ class ModularizeDialog(wx.Dialog):
         root.Add(bottom, 0, wx.EXPAND | wx.ALL, 8)
 
         self.SetSizer(root)
-        self.SetSize((1300, 800))
-        self.SetMinSize((1000, 600))
+        self.SetSize((px(1300), px(800)))
+        self.SetMinSize((px(1000), px(600)))
         self.CentreOnParent()
         self.Bind(wx.EVT_CLOSE, self._on_close)
         self.Bind(wx.EVT_BUTTON, self._on_cancel, id=wx.ID_CANCEL)

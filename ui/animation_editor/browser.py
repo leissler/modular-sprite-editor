@@ -10,9 +10,10 @@ from models import Animation, Project
 from ui.animation_editor import ops
 from ui.animation_editor.render import StepRenderer
 from ui.components.frame_palette import FramePalette
+from ui.dpi import px
 
-ROW_H = 46
-THUMB = 38
+ROW_H = px(46)
+THUMB = px(38)
 COL_ROW = wx.Colour(40, 41, 45)
 COL_ROW_ALT = wx.Colour(44, 45, 49)
 COL_ROW_SELECTED = wx.Colour(56, 74, 104)
@@ -67,16 +68,16 @@ class AnimationList(wx.VListBox):
         y = rect.y + (ROW_H - THUMB) // 2
         if anim.aframes and self.renderer:
             bmp = self.renderer.thumbnail(self.project, anim.aframes[0], self.project.active_mapping, THUMB)
-            dc.DrawBitmap(bmp, rect.x + 6, y)
+            dc.DrawBitmap(bmp, rect.x + px(6), y)
         else:
             dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
             dc.SetBrush(wx.Brush(wx.Colour(36, 37, 40)))
-            dc.DrawRectangle(rect.x + 6, y, THUMB, THUMB)
-        x = rect.x + THUMB + 14
+            dc.DrawRectangle(rect.x + px(6), y, THUMB, THUMB)
+        x = rect.x + THUMB + px(14)
         font = self.GetFont()
         dc.SetFont(font)
         dc.SetTextForeground(COL_TEXT)
-        dc.DrawText(_fit(dc, anim.name, rect.width - (x - rect.x) - 6), x, rect.y + 6)
+        dc.DrawText(_fit(dc, anim.name, rect.width - (x - rect.x) - px(6)), x, rect.y + px(6))
         small = wx.Font(font)
         small.SetPointSize(max(7, font.GetPointSize() - 2))
         dc.SetFont(small)
@@ -85,7 +86,7 @@ class AnimationList(wx.VListBox):
         follow = self.project.get_animation(anim.next_animation_id) if anim.next_animation_id else None
         if follow is not None:
             meta += f" → {follow.name}"
-        dc.DrawText(_fit(dc, meta, rect.width - (x - rect.x) - 6), x, rect.y + ROW_H - 19)
+        dc.DrawText(_fit(dc, meta, rect.width - (x - rect.x) - px(6)), x, rect.y + ROW_H - px(19))
         if self.drop_index == n or (self.drop_index == len(self.view) and n == len(self.view) - 1):
             line_y = rect.y if self.drop_index == n else rect.y + rect.height - 2
             dc.SetPen(wx.Pen(COL_DROP, 2))
@@ -117,10 +118,10 @@ class AnimationList(wx.VListBox):
             return
         self.ensure_visible(index)
         rect = self.GetItemRect(index)
-        x = THUMB + 12
+        x = THUMB + px(12)
         self._finish_rename(commit=False)
-        editor = wx.TextCtrl(self, value=self.view[index].name, pos=(x, rect.y + 4),
-                             size=(max(80, rect.width - x - 6), -1), style=wx.TE_PROCESS_ENTER)
+        editor = wx.TextCtrl(self, value=self.view[index].name, pos=(x, rect.y + px(4)),
+                             size=(max(px(80), rect.width - x - px(6)), -1), style=wx.TE_PROCESS_ENTER)
         editor.SelectAll()
         editor.SetFocus()
         anim_id = self.view[index].id
@@ -239,11 +240,11 @@ class FrameLibrary(wx.Panel):
         self.search.SetDescriptiveText("Filter")
         self.search.ShowCancelButton(True)
         self.palette = FramePalette(self, project, multiple=True)
-        self.palette.item_size = (96, 96)  # two columns in the default column width
+        self.palette.item_size = (px(96), px(96))  # two columns in the default column width
         hint = wx.StaticText(self, label="Drag into the sequence, or double-click to insert after the current step. "
                                          "Shift+click picks a run of frames; right-click makes them an animation.")
         hint.SetForegroundColour(wx.Colour(150, 156, 170))
-        hint.Wrap(230)
+        hint.Wrap(px(230))
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(_title(self, "FRAMES"), 0, wx.LEFT | wx.TOP, 8)
         sizer.Add(self.search, 0, wx.EXPAND | wx.ALL, 6)

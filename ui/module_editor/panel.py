@@ -24,6 +24,7 @@ from ui.module_editor import ops
 from ui.module_editor.canvas import SheetCanvas
 from ui.module_editor.dialogs import DetectDialog, FolderImportDialog, GridSliceDialog
 from ui.module_editor.inspector import ModuleInspector
+from ui.dpi import px
 
 IMAGE_WILDCARD = "Images (*.png;*.bmp;*.gif;*.jpg;*.jpeg)|*.png;*.bmp;*.gif;*.jpg;*.jpeg|All files|*.*"
 TILE_BG = (52, 53, 58)
@@ -67,8 +68,8 @@ class ModuleEditorPanel(wx.Panel):
         self.btn_dup = self.modules.add_button("Duplicate", "Duplicate the selected modules (Cmd+D)", self.duplicate_modules)
         self.btn_del = self.modules.add_button("Delete", "Delete the selected modules (Delete)", self.delete_modules)
 
-        self.left_split.SplitHorizontally(self.sheets, self.modules, 200)
-        self.left_split.SetMinimumPaneSize(110)
+        self.left_split.SplitHorizontally(self.sheets, self.modules, px(200))
+        self.left_split.SetMinimumPaneSize(px(110))
 
         self.inner_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         canvas_panel = wx.Panel(self.inner_split)
@@ -87,11 +88,11 @@ class ModuleEditorPanel(wx.Panel):
         canvas_panel.SetSizer(canvas_sizer)
 
         self.inspector = ModuleInspector(self.inner_split)
-        self.inner_split.SplitVertically(canvas_panel, self.inspector, -300)
+        self.inner_split.SplitVertically(canvas_panel, self.inspector, -px(300))
         self.inner_split.SetSashGravity(1.0)
-        self.inner_split.SetMinimumPaneSize(240)
-        self.outer_split.SplitVertically(self.left_split, self.inner_split, 270)
-        self.outer_split.SetMinimumPaneSize(200)
+        self.inner_split.SetMinimumPaneSize(px(240))
+        self.outer_split.SplitVertically(self.left_split, self.inner_split, px(270))
+        self.outer_split.SetMinimumPaneSize(px(200))
         root.Add(self.outer_split, 1, wx.EXPAND)
         self.SetSizer(root)
         self.canvas_controls.set_key_colour_shown(False)

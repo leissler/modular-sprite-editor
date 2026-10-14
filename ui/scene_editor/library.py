@@ -10,6 +10,9 @@ from models import Project
 from ui.components.frame_palette import FramePalette
 from ui.components.module_palette import ModulePalette
 from ui.utils import ThumbnailGenerator
+from ui.dpi import px
+
+THUMB = px(96)  # the size of the animations' icons
 
 
 class AnimationPalette(wx.ListCtrl):
@@ -19,7 +22,7 @@ class AnimationPalette(wx.ListCtrl):
         super().__init__(parent, style=wx.LC_ICON | wx.LC_SINGLE_SEL | wx.LC_AUTOARRANGE)
         self.project = project
         self.generator = ThumbnailGenerator()
-        self.image_list = wx.ImageList(96, 96, mask=False)  # opaque thumbnails; a mask costs ~6 ms per Add on macOS
+        self.image_list = wx.ImageList(THUMB, THUMB, mask=False)  # opaque thumbnails; a mask costs ~6 ms per Add on macOS
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.animation_ids: List[str] = []
         self.filter_text = ""
@@ -33,7 +36,7 @@ class AnimationPalette(wx.ListCtrl):
 
     def refresh_animations(self) -> None:
         self.DeleteAllItems()
-        self.image_list = wx.ImageList(96, 96, mask=False)  # opaque thumbnails; a mask costs ~6 ms per Add on macOS
+        self.image_list = wx.ImageList(THUMB, THUMB, mask=False)  # opaque thumbnails; a mask costs ~6 ms per Add on macOS
         self.SetImageList(self.image_list, wx.IMAGE_LIST_NORMAL)
         self.animation_ids = []
         self.generator.clear_cache()
@@ -42,14 +45,14 @@ class AnimationPalette(wx.ListCtrl):
                 continue
             preview = self.project.get_frame(anim.aframes[0].frame_id) if anim.aframes else None
             if preview:
-                bmp = self.generator.render_thumbnail(self.project, preview, 96, 96, mapping=self.project.active_mapping)
+                bmp = self.generator.render_thumbnail(self.project, preview, THUMB, THUMB, mapping=self.project.active_mapping)
             else:
-                bmp = wx.Bitmap(96, 96)
+                bmp = wx.Bitmap(THUMB, THUMB)
                 dc = wx.MemoryDC(bmp)
                 dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
                 dc.Clear()
                 dc.SetTextForeground(wx.Colour(180, 180, 180))
-                dc.DrawLabel("Empty", wx.Rect(0, 0, 96, 96), alignment=wx.ALIGN_CENTER)
+                dc.DrawLabel("Empty", wx.Rect(0, 0, THUMB, THUMB), alignment=wx.ALIGN_CENTER)
                 dc.SelectObject(wx.NullBitmap)
             index = self.InsertItem(self.GetItemCount(), anim.name, self.image_list.Add(bmp))
             self.SetItemData(index, index)
@@ -93,7 +96,7 @@ class SceneLibrary(wx.Panel):
         self.book.AddPage(self.modules, "Modules")
         hint = wx.StaticText(self, label="Drag onto the stage, or double-click to add it in the middle of the view.")
         hint.SetForegroundColour(wx.Colour(150, 156, 170))
-        hint.Wrap(220)
+        hint.Wrap(px(220))
         sizer.Add(title, 0, wx.LEFT | wx.TOP, 8)
         sizer.Add(self.search, 0, wx.EXPAND | wx.ALL, 6)
         sizer.Add(self.book, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)

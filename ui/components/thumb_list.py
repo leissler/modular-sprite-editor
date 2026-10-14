@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence
 
 import wx
+from ui.dpi import px
 
 COL_ROW = wx.Colour(40, 41, 45)
 COL_ROW_ALT = wx.Colour(44, 45, 49)
@@ -53,8 +54,8 @@ class ThumbList(wx.VListBox):
     def __init__(self, parent: wx.Window, row_h: int = 46, thumb: int = 38, multiple: bool = False, reorder: bool = False):
         style = wx.BORDER_NONE | wx.WANTS_CHARS | (wx.LB_MULTIPLE if multiple else 0)
         super().__init__(parent, style=style)
-        self.row_h = row_h
-        self.thumb = thumb
+        self.row_h = px(row_h)  # row_h and thumb at 100 % display scaling
+        self.thumb = px(thumb)
         self.multiple = multiple
         self.reorder = reorder
         self.rows: List[Row] = []
@@ -90,7 +91,7 @@ class ThumbList(wx.VListBox):
         if not (0 <= n < len(self.rows)):
             return
         row = self.rows[n]
-        x = rect.x + 6
+        x = rect.x + px(6)
         if self.thumb > 0:
             y = rect.y + (self.row_h - self.thumb) // 2
             bmp = self.thumbnail(row.id, self.thumb) if self.thumbnail else None
@@ -100,8 +101,8 @@ class ThumbList(wx.VListBox):
                 dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
                 dc.SetBrush(wx.Brush(wx.Colour(36, 37, 40)))
                 dc.DrawRectangle(x, y, self.thumb, self.thumb)
-            x += self.thumb + 8
-        right = rect.x + rect.width - 6
+            x += self.thumb + px(8)
+        right = rect.x + rect.width - px(6)
         font = self.GetFont()
         small = wx.Font(font)
         small.SetPointSize(max(7, font.GetPointSize() - 2))
@@ -109,8 +110,8 @@ class ThumbList(wx.VListBox):
             dc.SetFont(small)
             dc.SetTextForeground(COL_ACCENT)
             bw = dc.GetTextExtent(row.badge)[0]
-            dc.DrawText(row.badge, right - bw, rect.y + 6)
-            right -= bw + 6
+            dc.DrawText(row.badge, right - bw, rect.y + px(6))
+            right -= bw + px(6)
         dc.SetFont(font)
         title_h = dc.GetTextExtent("Ag")[1]
         dc.SetFont(small)
@@ -122,7 +123,7 @@ class ThumbList(wx.VListBox):
         if row.meta:
             dc.SetFont(small)
             dc.SetTextForeground(COL_WARN if row.warn else COL_TEXT_DIM)
-            dc.DrawText(fit_text(dc, row.meta, rect.x + rect.width - 6 - x), x, top + title_h + 1)
+            dc.DrawText(fit_text(dc, row.meta, rect.x + rect.width - px(6) - x), x, top + title_h + 1)
         if self.drop_index == n or (self.drop_index == len(self.rows) and n == len(self.rows) - 1):
             line_y = rect.y if self.drop_index == n else rect.y + rect.height - 2
             dc.SetPen(wx.Pen(COL_DROP, 2))
@@ -181,10 +182,10 @@ class ThumbList(wx.VListBox):
             return
         self.ensure_visible(index)
         rect = self.GetItemRect(index)
-        x = self.thumb + 12 if self.thumb > 0 else 4
+        x = self.thumb + px(12) if self.thumb > 0 else px(4)
         self._finish_rename(commit=False)
-        editor = wx.TextCtrl(self, value=self.rows[index].title, pos=(x, rect.y + 4),
-                             size=(max(80, rect.width - x - 6), -1), style=wx.TE_PROCESS_ENTER)
+        editor = wx.TextCtrl(self, value=self.rows[index].title, pos=(x, rect.y + px(4)),
+                             size=(max(px(80), rect.width - x - px(6)), -1), style=wx.TE_PROCESS_ENTER)
         editor.SelectAll()
         editor.SetFocus()
         target = self.rows[index].id

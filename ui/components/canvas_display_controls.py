@@ -7,12 +7,13 @@ import wx
 from hardware_budget import PROFILES, profile_by_key
 from ui.base_canvas import BACKDROP_CHECKER, BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR, BaseCanvas
 from ui.preferences import config as _config
+from ui.dpi import px
 
 CONFIG_BACKDROP = "View/Backdrop/{}"  # per tab: "checker" | "colour"
 CONFIG_BACKDROP_COLOUR = "View/BackdropColour"  # "r,g,b", one preview colour shared by all tabs
 CONFIG_BUDGET = "View/Budget/{}"  # per tab: "" (off) or a hardware profile key
 BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32", "snes_8_16": "SNES 8/16", "snes_16_32": "SNES 16/32"}
-GAP = 8  # between the bar's groups
+GAP = px(8)  # between the bar's groups
 
 # Live view bars, so a new backdrop colour shows in every tab at once. Destroyed wx windows are falsy.
 _LIVE_BARS: List["CanvasDisplayControls"] = []
@@ -83,9 +84,9 @@ class CanvasDisplayControls(wx.Panel):
         self.chk_grid = wx.CheckBox(self, label="Grid")
         self.chk_grid.SetValue(bool(canvas.show_grid))
         self.chk_grid.SetToolTip("Show grid (View ▸ Toggle Grid). The numbers are its width and height in pixels.")
-        self.grid_w = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[0])), size=(52, -1))
+        self.grid_w = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[0])), size=(px(52), -1))
         self.grid_w.SetToolTip("Grid width in pixels")
-        self.grid_h = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[1])), size=(52, -1))
+        self.grid_h = wx.SpinCtrl(self, min=4, max=512, initial=max(4, int(canvas.grid_spacing[1])), size=(px(52), -1))
         self.grid_h.SetToolTip("Grid height in pixels")
         grid_box = wx.BoxSizer(wx.HORIZONTAL)
         grid_box.Add(self.chk_grid, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
@@ -104,7 +105,7 @@ class CanvasDisplayControls(wx.Panel):
         )
         # macOS sizes a Choice for its current item; leave room for the longest one plus the arrows.
         longest = max(self.GetTextExtent(self.backdrop_choice.GetString(i))[0] for i in range(self.backdrop_choice.GetCount()))
-        self.backdrop_choice.SetMinSize((longest + 44, -1))
+        self.backdrop_choice.SetMinSize((longest + px(44), -1))
         backdrop_box.Add(self.backdrop_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         self.backdrop_picker: Optional[wx.ColourPickerCtrl] = None
         if not scene_backdrop:
@@ -125,7 +126,7 @@ class CanvasDisplayControls(wx.Panel):
             labels = ["No budget"] + [BUDGET_LABELS.get(p.key, p.name) for p in PROFILES]
             self.budget_choice = wx.Choice(self, choices=labels)
             longest = max(self.GetTextExtent(label)[0] for label in labels)
-            self.budget_choice.SetMinSize((longest + 44, -1))
+            self.budget_choice.SetMinSize((longest + px(44), -1))
             self.budget_choice.SetToolTip(
                 "Hardware budget: outline the console's hardware sprites, mark scanlines where sprites would "
                 "drop out (red) and show sprite counts and video memory. MD H40 = 320 px wide mode, H32 = 256 px; "
@@ -185,7 +186,7 @@ class CanvasDisplayControls(wx.Panel):
         height = max(rows.height, self.btn_fit.GetBestSize().height)
         if height != self._rows_height:
             self._rows_height = height
-            self.SetMinSize((self.btn_fit.GetBestSize().width + 160, height))
+            self.SetMinSize((self.btn_fit.GetBestSize().width + px(160), height))
             parent = self.GetParent()
             wx.CallAfter(lambda: parent and parent.Layout())
 

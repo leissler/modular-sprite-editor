@@ -16,6 +16,7 @@ from models import TIMELINE_MAPPING_ORIGINAL, Project, TimelineKeyframe, Timelin
 from ui import first_steps
 from ui.components.inspector_kit import relayout, row, section
 from ui.scene_editor import ops
+from ui.dpi import px
 
 SOURCE_TYPE_LABELS = {"none": "Group", "module": "Module", "frame": "Frame", "animation": "Animation"}
 
@@ -24,8 +25,8 @@ class EasingPreview(wx.Panel):
     """Small graph of an easing curve (time → progress)."""
 
     def __init__(self, parent: wx.Window):
-        super().__init__(parent, size=(96, 64))
-        self.SetMinSize((96, 64))
+        super().__init__(parent, size=(px(96), px(64)))
+        self.SetMinSize((px(96), px(64)))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.easing: Optional[str] = "linear"
         self.Bind(wx.EVT_PAINT, self._on_paint)
@@ -39,7 +40,7 @@ class EasingPreview(wx.Panel):
         dc.SetBackground(wx.Brush(wx.Colour(30, 31, 34)))
         dc.Clear()
         w, h = self.GetClientSize()
-        pad_x, pad_y = 6, 12
+        pad_x, pad_y = px(6), px(12)
         gw, gh = w - 2 * pad_x, h - 2 * pad_y
         dc.SetPen(wx.Pen(wx.Colour(64, 66, 74)))
         dc.DrawLine(pad_x, pad_y + gh, pad_x + gw, pad_y + gh)
@@ -67,7 +68,7 @@ class SourcePickerDialog(wx.Dialog):
         kinds: Tuple[str, ...] = ("animation", "frame", "module"),
         title: str = "Choose Source",
     ):
-        super().__init__(parent, title=title, size=(420, 520), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title=title, size=(px(420), px(520)), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.project = project
         self.items: List[Tuple[str, Optional[str], str]] = []
         if allow_none:
@@ -86,8 +87,8 @@ class SourcePickerDialog(wx.Dialog):
         self.search.SetDescriptiveText("Search " + ", ".join(k + "s" for k in kinds))
         self.search.ShowCancelButton(True)
         self.listing = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.listing.InsertColumn(0, "Name", width=270)
-        self.listing.InsertColumn(1, "Type", width=100)
+        self.listing.InsertColumn(0, "Name", width=px(270))
+        self.listing.InsertColumn(1, "Type", width=px(100))
         sizer.Add(self.search, 0, wx.EXPAND | wx.ALL, 8)
         sizer.Add(self.listing, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         buttons = self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
@@ -133,8 +134,8 @@ def _short(text: str, limit: int = 30) -> str:
 class SceneInspector(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
-        self.SetScrollRate(0, 12)
-        self.SetMinSize((280, -1))
+        self.SetScrollRate(0, px(12))
+        self.SetMinSize((px(280), -1))
         self.project: Optional[Project] = None
         self.scene: Optional[TimelineScene] = None
         self.obj: Optional[TimelineObject] = None
@@ -220,13 +221,13 @@ class SceneInspector(wx.ScrolledWindow):
         self.transform_panel, g, _ = section(self, root, "Transform", "Timeline")
         p = self.transform_panel.body
         key_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.key_button = wx.ToggleButton(p, label="◆", size=(32, -1))
+        self.key_button = wx.ToggleButton(p, label="◆", size=(px(32), -1))
         self.key_button.SetToolTip("Key at this frame (K). Toggle to add or remove it.")
         self.key_state = wx.StaticText(p, label="")
         key_row.Add(self.key_button, 0, wx.RIGHT, 6)
         key_row.Add(self.key_state, 1, wx.ALIGN_CENTER_VERTICAL)
-        self.tr_x = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(70, -1))
-        self.tr_y = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(70, -1))
+        self.tr_x = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(px(70), -1))
+        self.tr_y = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(px(70), -1))
         pos_row = wx.BoxSizer(wx.HORIZONTAL)
         pos_row.Add(wx.StaticText(p, label="X"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 3)
         pos_row.Add(self.tr_x, 1, wx.RIGHT, 8)
@@ -284,8 +285,8 @@ class SceneInspector(wx.ScrolledWindow):
         self.swap_enable = wx.CheckBox(p, label="Swap the image here")
         self.swap_enable.SetToolTip("From this key on, show another animation, frame or module")
         self.swap_source = wx.Button(p, label="", style=wx.BU_LEFT)
-        self.swap_off_x = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(70, -1))
-        self.swap_off_y = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(70, -1))
+        self.swap_off_x = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(px(70), -1))
+        self.swap_off_y = wx.SpinCtrl(p, min=-100000, max=100000, initial=0, size=(px(70), -1))
         off_row = wx.BoxSizer(wx.HORIZONTAL)
         off_row.Add(wx.StaticText(p, label="X"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 3)
         off_row.Add(self.swap_off_x, 1, wx.RIGHT, 8)
@@ -299,10 +300,10 @@ class SceneInspector(wx.ScrolledWindow):
         # Let popups/buttons shrink with the panel (macOS truncates their text natively).
         for ctrl in (self.obj_source, self.obj_parent, self.obj_mapping, self.pb_mode, self.ease_shape, self.ease_dir,
                      self.path_choice, self.swap_source, self.flip_h, self.flip_v):
-            ctrl.SetMinSize((60, -1))
+            ctrl.SetMinSize((px(60), -1))
         for spin in (self.tr_x, self.tr_y, self.swap_off_x, self.swap_off_y):
-            spin.SetMinSize((56, -1))
-        self.key_state.SetMinSize((60, -1))
+            spin.SetMinSize((px(56), -1))
+        self.key_state.SetMinSize((px(60), -1))
         self._bind()
         self.show_context(None, None, None, 0)
 
@@ -478,7 +479,7 @@ class SceneInspector(wx.ScrolledWindow):
             ("Nothing selected — scene settings. Click an object on the stage or a layer to edit it." if not has_obj else "")
         )
         self.hint.Show(bool(self.hint.GetLabel()))
-        self.hint.Wrap(260)
+        self.hint.Wrap(px(260))
         self.scene_panel.Show(has_scene and not has_obj)
         self.object_panel.Show(has_obj)
         self.playback_panel.Show(bool(anim))
@@ -552,7 +553,7 @@ class SceneInspector(wx.ScrolledWindow):
             self.key_state.SetLabel("Between keys — edits add a key (Auto-Key)")
         else:
             self.key_state.SetLabel("Between keys — edits move the whole animation")
-        self.key_state.Wrap(170)
+        self.key_state.Wrap(px(170))
         self.tr_x.SetValue(int(round(float(state.get("x", 0.0)))))
         self.tr_y.SetValue(int(round(float(state.get("y", 0.0)))))
         rotation = int(round(float(state.get("rotation_degrees", 0.0)))) % 360

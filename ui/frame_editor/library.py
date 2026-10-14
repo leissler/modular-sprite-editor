@@ -12,6 +12,7 @@ from ui.components.module_palette import SHAPES_KEY, ModulePalette
 from ui.components.inspector_kit import fit_choice
 from ui.components.thumb_list import title_label
 from ui.module_editor import ops as module_ops
+from ui.dpi import px
 
 
 class PartLibrary(wx.Panel):
@@ -34,12 +35,12 @@ class PartLibrary(wx.Panel):
         page_sizer.Add(self.modules, 1, wx.EXPAND)
         modules_page.SetSizer(page_sizer)
         self.frames = FramePalette(self.book, project)
-        self.frames.item_size = (72, 72)
+        self.frames.item_size = (px(72), px(72))
         self.book.AddPage(modules_page, "Modules")
         self.book.AddPage(self.frames, "Frames")
         hint = wx.StaticText(self, label="Drag onto the stage, or double-click to add at the origin.")
         hint.SetForegroundColour(wx.Colour(150, 156, 170))
-        hint.Wrap(240)
+        hint.Wrap(px(240))
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(title_label(self, "LIBRARY"), 0, wx.LEFT | wx.TOP, 8)

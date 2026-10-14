@@ -17,6 +17,7 @@ from ui.scene_editor.inspector import SceneInspector
 from ui.scene_editor.library import SceneLibrary
 from ui.scene_editor.stage import SCREEN_GUIDES, StageCanvas
 from ui.scene_editor.timeline import TimelineView
+from ui.dpi import px
 
 Selection = Dict[str, Set[str]]
 
@@ -90,7 +91,7 @@ class SceneEditorPanel(wx.Panel):
         bar = wx.BoxSizer(wx.HORIZONTAL)
         bar.Add(wx.StaticText(self, label="Scene"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         self.scene_choice = wx.Choice(self)
-        self.scene_choice.SetMinSize((200, -1))
+        self.scene_choice.SetMinSize((px(200), -1))
         self.btn_scene_add = wx.Button(self, label="New", style=wx.BU_EXACTFIT)
         self.btn_scene_dup = wx.Button(self, label="Duplicate", style=wx.BU_EXACTFIT)
         self.btn_scene_del = wx.Button(self, label="Delete", style=wx.BU_EXACTFIT)
@@ -132,11 +133,11 @@ class SceneEditorPanel(wx.Panel):
         stage_panel.SetSizer(stage_sizer)
 
         self.inspector = SceneInspector(self.inner_split)
-        self.inner_split.SplitVertically(stage_panel, self.inspector, -320)
+        self.inner_split.SplitVertically(stage_panel, self.inspector, -px(320))
         self.inner_split.SetSashGravity(1.0)
-        self.inner_split.SetMinimumPaneSize(240)
-        self.outer_split.SplitVertically(self.library, self.inner_split, 270)  # like the other tabs: room for the Animations tab label
-        self.outer_split.SetMinimumPaneSize(180)
+        self.inner_split.SetMinimumPaneSize(px(240))
+        self.outer_split.SplitVertically(self.library, self.inner_split, px(270))  # like the other tabs: room for the Animations tab label
+        self.outer_split.SetMinimumPaneSize(px(180))
         top_sizer = wx.BoxSizer(wx.VERTICAL)
         top_sizer.Add(self.outer_split, 1, wx.EXPAND)
         top.SetSizer(top_sizer)
@@ -146,7 +147,7 @@ class SceneEditorPanel(wx.Panel):
         transport = wx.BoxSizer(wx.HORIZONTAL)
 
         def tbutton(label: str, tip: str, width: int = 34) -> wx.Button:
-            btn = wx.Button(bottom, label=label, size=(width, -1))
+            btn = wx.Button(bottom, label=label, size=(px(width), -1))
             btn.SetToolTip(tip)
             transport.Add(btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 2)
             return btn
@@ -160,9 +161,9 @@ class SceneEditorPanel(wx.Panel):
         self.btn_last = tbutton("▶|", "Last frame (End)")
         transport.AddSpacer(10)
         transport.Add(wx.StaticText(bottom, label="Frame"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.frame_spin = wx.SpinCtrl(bottom, min=0, max=100000, initial=0, size=(70, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+        self.frame_spin = wx.SpinCtrl(bottom, min=0, max=100000, initial=0, size=(px(70), -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
         transport.Add(self.frame_spin, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
-        self.frame_info = wx.StaticText(bottom, label="", size=(190, -1), style=wx.ST_NO_AUTORESIZE)
+        self.frame_info = wx.StaticText(bottom, label="", size=(px(190), -1), style=wx.ST_NO_AUTORESIZE)
         transport.Add(self.frame_info, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         self.chk_loop = wx.CheckBox(bottom, label="Loop")
         transport.Add(self.chk_loop, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14)
@@ -184,9 +185,9 @@ class SceneEditorPanel(wx.Panel):
         bottom_sizer.Add(self.timeline_view, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         bottom.SetSizer(bottom_sizer)
 
-        self.vsplit.SplitHorizontally(top, bottom, -260)
+        self.vsplit.SplitHorizontally(top, bottom, -px(260))
         self.vsplit.SetSashGravity(1.0)
-        self.vsplit.SetMinimumPaneSize(160)
+        self.vsplit.SetMinimumPaneSize(px(160))
         root.Add(self.vsplit, 1, wx.EXPAND)
         self.SetSizer(root)
 
@@ -374,7 +375,7 @@ class SceneEditorPanel(wx.Panel):
         """Fit stage and timeline once per scene, as soon as they have a real size."""
         if not self or self._fitted_scene_id == self.selected_scene_id:
             return
-        if self.timeline.GetClientSize().width < self.timeline.left_w + 60 or not self.IsShownOnScreen():
+        if self.timeline.GetClientSize().width < self.timeline.left_w + px(60) or not self.IsShownOnScreen():
             return  # retried from on_tab_activated / the next refresh_scenes
         self.refresh()
         self.timeline.fit_scene()

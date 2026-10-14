@@ -13,6 +13,7 @@ from typing import Any, Callable, List, Optional
 import wx
 
 from models import Module, Project
+from ui.dpi import px
 
 SHAPES_KEY = "@shapes"  # sheet filter value for vector shape modules
 
@@ -64,9 +65,9 @@ class ModulePalette(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window, project: Project, item_size: int = 72):
         super().__init__(parent, style=wx.BORDER_NONE | wx.WANTS_CHARS)
         self.project = project
-        self.item_size = item_size
-        self.label_h = 30
-        self.padding = 6
+        self.item_size = px(item_size)  # at 100 % display scaling
+        self.label_h = px(30)
+        self.padding = px(6)
         self.cols = 1
         self.filter_text = ""
         self.sheet: Optional[str] = None  # image id, SHAPES_KEY, or None for every module
@@ -83,7 +84,7 @@ class ModulePalette(wx.ScrolledWindow):
 
         self.SetBackgroundColour(COL_BG)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetScrollRate(0, 20)
+        self.SetScrollRate(0, px(20))
         self.Bind(wx.EVT_PAINT, self._on_paint)
         self.Bind(wx.EVT_SIZE, self._on_size)
         self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
@@ -193,11 +194,11 @@ class ModulePalette(wx.ScrolledWindow):
             dc.SetTextForeground(COL_TEXT)
             name = _fit(dc, mod.name, rect.width)
             tw = dc.GetTextExtent(name)[0]
-            dc.DrawText(name, rect.x + (rect.width - tw) // 2, tile.bottom + 3)
+            dc.DrawText(name, rect.x + (rect.width - tw) // 2, tile.bottom + px(3))
             dc.SetTextForeground(COL_TEXT_DIM)
             size = f"{mod.rect[2]}×{mod.rect[3]}"
             tw = dc.GetTextExtent(size)[0]
-            dc.DrawText(size, rect.x + (rect.width - tw) // 2, tile.bottom + 15)
+            dc.DrawText(size, rect.x + (rect.width - tw) // 2, tile.bottom + px(15))
 
     # ------------------------------------------------------------------ mouse
     def _on_left_down(self, event: wx.MouseEvent) -> None:

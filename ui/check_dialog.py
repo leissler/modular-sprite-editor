@@ -8,6 +8,7 @@ import wx
 
 import project_check as pc
 from models import Project
+from ui.dpi import px
 
 LEVEL_LABELS = {pc.ERROR: "Error", pc.WARNING: "Warning", pc.INFO: "Note"}
 LEVEL_COLOURS = {pc.ERROR: (232, 88, 88), pc.WARNING: (236, 184, 64), pc.INFO: (140, 146, 160)}
@@ -15,15 +16,15 @@ LEVEL_COLOURS = {pc.ERROR: (232, 88, 88), pc.WARNING: (236, 184, 64), pc.INFO: (
 
 def level_icons() -> wx.ImageList:
     """A coloured dot per level, in LEVEL_LABELS order."""
-    icons = wx.ImageList(12, 12, mask=False)  # opaque bitmaps: a masked list costs ~6 ms per Add on macOS
+    icons = wx.ImageList(px(12), px(12), mask=False)  # opaque bitmaps: a masked list costs ~6 ms per Add on macOS
     for level in LEVEL_LABELS:
-        bmp = wx.Bitmap(12, 12)
+        bmp = wx.Bitmap(px(12), px(12))
         dc = wx.MemoryDC(bmp)
         dc.SetBackground(wx.Brush(wx.SystemSettings.GetColour(wx.SYS_COLOUR_LISTBOX)))
         dc.Clear()
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(wx.Colour(*LEVEL_COLOURS[level])))
-        dc.DrawCircle(6, 6, 5)
+        dc.DrawCircle(px(6), px(6), px(5))
         dc.SelectObject(wx.NullBitmap)
         icons.Add(bmp)
     return icons
@@ -53,7 +54,7 @@ class CheckProjectDialog(wx.Dialog):
     """Lists the issues; Go to closes the dialog and shows the item (``target``), Fix repairs in place."""
 
     def __init__(self, parent: Optional[wx.Window], project: Project, after_fix: Callable[[str], None]):
-        super().__init__(parent, title="Check Project", size=(860, 540),
+        super().__init__(parent, title="Check Project", size=(px(860), px(540)),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.project = project
         self._after_fix = after_fix
@@ -64,10 +65,10 @@ class CheckProjectDialog(wx.Dialog):
         self.list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL)
         self._icons = level_icons()
         self.list.SetImageList(self._icons, wx.IMAGE_LIST_SMALL)
-        self.list.InsertColumn(0, "", width=100)
-        self.list.InsertColumn(1, "", width=700)
+        self.list.InsertColumn(0, "", width=px(100))
+        self.list.InsertColumn(1, "", width=px(700))
         self.details = wx.StaticText(self, style=wx.ST_NO_AUTORESIZE)
-        self.details.SetMinSize((-1, 54))
+        self.details.SetMinSize((-1, px(54)))
 
         self.btn_go = wx.Button(self, label="Go to")
         self.btn_fix = wx.Button(self, label="Fix")

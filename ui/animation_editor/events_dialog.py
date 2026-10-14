@@ -8,11 +8,12 @@ import wx
 
 from models import Project
 from ui.animation_editor import ops
+from ui.dpi import px
 
 
 class EventTypesDialog(wx.Dialog):
     def __init__(self, parent: wx.Window, project: Project):
-        super().__init__(parent, title="Event Types", size=(440, 420), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="Event Types", size=(px(440), px(420)), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.project = project
         self.changed = False
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -21,12 +22,12 @@ class EventTypesDialog(wx.Dialog):
             label="Events mark animation steps for the game (hit windows, sounds, spawns…). "
             "The exporter numbers them in this order (MS_EVENT_<NAME>).",
         )
-        info.Wrap(400)
+        info.Wrap(px(400))
         sizer.Add(info, 0, wx.ALL, 10)
         self.listing = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.LC_EDIT_LABELS)
-        self.listing.InsertColumn(0, "Name", width=220)
-        self.listing.InsertColumn(1, "Used on", width=90)
-        self.listing.InsertColumn(2, "Export id", width=80)
+        self.listing.InsertColumn(0, "Name", width=px(220))
+        self.listing.InsertColumn(1, "Used on", width=px(90))
+        self.listing.InsertColumn(2, "Export id", width=px(80))
         sizer.Add(self.listing, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_rename = wx.Button(self, label="Rename")

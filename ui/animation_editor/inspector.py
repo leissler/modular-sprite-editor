@@ -10,13 +10,14 @@ from models import AFrame, Animation, Project
 from ui import first_steps
 from ui.animation_editor import ops
 from ui.components.inspector_kit import hbox, relayout, row, section
+from ui.dpi import px
 
 
 class AnimationInspector(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
-        self.SetScrollRate(0, 12)
-        self.SetMinSize((280, -1))
+        self.SetScrollRate(0, px(12))
+        self.SetMinSize((px(280), -1))
         self.project: Optional[Project] = None
         self.animation: Optional[Animation] = None
         self.indices: List[int] = []
@@ -53,11 +54,11 @@ class AnimationInspector(wx.ScrolledWindow):
             "Ping-pong: forward, then back.  Loop backwards: end → start, again."
         )
         row(grid, p, "Playback", self.playback)
-        self.loops = wx.SpinCtrl(p, min=0, max=999, initial=0, size=(64, -1))
+        self.loops = wx.SpinCtrl(p, min=0, max=999, initial=0, size=(px(64), -1))
         self.loops.SetToolTip("How many times a looping animation repeats before it stops. 0 = forever.")
         self.loops_info = wx.StaticText(p, label="times (0 = forever)")
         self.loops_label = row(grid, p, "Repeat", hbox(self.loops, self.loops_info))
-        self.loop_from = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(64, -1))
+        self.loop_from = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(px(64), -1))
         self.loop_from.SetToolTip("Later passes start at this step; the steps before it play once (an intro).")
         self.loop_from_info = wx.StaticText(p, label="step")
         self.loop_from_info.SetToolTip("Steps before it play once (an intro), then the loop repeats from here")
@@ -72,7 +73,7 @@ class AnimationInspector(wx.ScrolledWindow):
         row(grid, p, "Then play", self.next_anim)
         grid.Add((0, 0))
         grid.Add(self.next_info, 0)
-        self.fps = wx.SpinCtrl(p, min=1, max=60, initial=10, size=(64, -1))
+        self.fps = wx.SpinCtrl(p, min=1, max=60, initial=10, size=(px(64), -1))
         self.fps.SetToolTip(
             "Ticks per second: one tick of hold lasts 1/rate seconds.\n"
             "The SGDK export converts holds to 60 Hz frames (10 ticks/s = 6 frames per tick)."
@@ -120,12 +121,12 @@ class AnimationInspector(wx.ScrolledWindow):
         self.btn_edit_frame = wx.Button(p, label="Edit…", style=wx.BU_EXACTFIT)
         self.btn_edit_frame.SetToolTip("Open this frame in the Frames tab (or double-click the step)")
         self.frame_label = row(grid, p, "Frame", hbox(self.frame_btn, self.btn_edit_frame, gap=2))
-        self.hold = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(64, -1))
+        self.hold = wx.SpinCtrl(p, min=1, max=999, initial=1, size=(px(64), -1))
         self.hold.SetToolTip("How many ticks this step stays on screen. Drag a step's right edge in the sequence, or press [ / ].")
         self.hold_info = wx.StaticText(p, label="")
         row(grid, p, "Hold", hbox(self.hold, self.hold_info))
-        self.off_x = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(64, -1))
-        self.off_y = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(64, -1))
+        self.off_x = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(px(64), -1))
+        self.off_y = wx.SpinCtrl(p, min=-4096, max=4096, initial=0, size=(px(64), -1))
         self.offset_label = row(grid, p, "Offset", hbox(wx.StaticText(p, label="X"), self.off_x, 6, wx.StaticText(p, label="Y"), self.off_y))
         self.offset_label.SetToolTip("Where this step's frame origin sits (root motion). Drag on the stage or use the arrow keys.")
         self.rot_ccw = wx.Button(p, label="↺ 90°", style=wx.BU_EXACTFIT)
@@ -168,11 +169,11 @@ class AnimationInspector(wx.ScrolledWindow):
         # Let everything shrink with the pane (macOS truncates button text natively).
         for ctrl in (self.playback, self.frame_btn, self.flip_h, self.flip_v, self.btn_mirror_h, self.btn_mirror_v,
                      self.btn_rot_ccw, self.btn_rot_cw, self.btn_reverse, self.rot_ccw, self.rot_cw, self.btn_edit_frame):
-            ctrl.SetMinSize((40, -1))
-        self.next_anim.SetMinSize((60, -1))
-        self.event_name.SetMinSize((60, -1))
+            ctrl.SetMinSize((px(40), -1))
+        self.next_anim.SetMinSize((px(60), -1))
+        self.event_name.SetMinSize((px(60), -1))
         for spin in (self.loops, self.fps, self.hold, self.off_x, self.off_y, self.loop_from):
-            spin.SetMinSize((56, -1))
+            spin.SetMinSize((px(56), -1))
         self._bind()
         self.show(None, None, [])
 
@@ -244,7 +245,7 @@ class AnimationInspector(wx.ScrolledWindow):
             self.Freeze()
             self.hint.SetLabel("" if animation else
                                first_steps.animations(project) or "Select an animation in the list, or click + New.")
-            self.hint.Wrap(260)
+            self.hint.Wrap(px(260))
             self.hint.Show(animation is None)
             self.anim_panel.Show(animation is not None)
             self.step_panel.Show(bool(self.indices))
@@ -291,7 +292,7 @@ class AnimationInspector(wx.ScrolledWindow):
         text, over = self.budget if self.budget else ("", False)
         self.budget_info.SetLabel(text)
         self.budget_info.SetForegroundColour(wx.Colour(255, 120, 110) if over else self.length.GetForegroundColour())
-        self.budget_info.Wrap(200)
+        self.budget_info.Wrap(px(200))
         self.budget_info.Show(bool(text))
         self.budget_label.Show(bool(text))
         has_steps = bool(anim.aframes)
@@ -330,7 +331,7 @@ class AnimationInspector(wx.ScrolledWindow):
             "Drag on the stage or use the arrow keys to move it." if single
             else "Hold, flips and rotation apply to all of them. Drag on the stage or use the arrow keys to move them together."
         )
-        self.step_hint.Wrap(190)
+        self.step_hint.Wrap(px(190))
         if first.duration_frames < 1 and single:
             self.hold_info.SetLabel("ticks (stored as 0: plays as 1)")
         self._fill_events(anim, indices)
@@ -353,7 +354,7 @@ class AnimationInspector(wx.ScrolledWindow):
             self.next_info.SetLabel("Starts when this one ends.")
         else:
             self.next_info.SetLabel("")
-        self.next_info.Wrap(200)
+        self.next_info.Wrap(px(200))
         self.next_info.Show(bool(self.next_info.GetLabel()))
 
     def _fill_events(self, anim: Animation, indices: List[int]) -> None:
@@ -383,14 +384,14 @@ class AnimationInspector(wx.ScrolledWindow):
         self._event_spins = {}
         for type_id, value, count in events:
             etype = self.project.get_event_type(type_id) if self.project else None
-            swatch = wx.Panel(parent, size=(10, 10))
+            swatch = wx.Panel(parent, size=(px(10), px(10)))
             swatch.SetBackgroundColour(wx.Colour(*(etype.color if etype else (160, 160, 160))))
             label = (etype.name if etype else "(deleted type)") + (f"  ({count}/{selected})" if count < selected else "")
             name = wx.StaticText(parent, label=_short(label, 18))
-            spin = wx.SpinCtrl(parent, min=-32768, max=32767, initial=int(value), size=(56, -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
-            spin.SetMinSize((50, -1))
+            spin = wx.SpinCtrl(parent, min=-32768, max=32767, initial=int(value), size=(px(56), -1), style=wx.SP_ARROW_KEYS | wx.TE_PROCESS_ENTER)
+            spin.SetMinSize((px(50), -1))
             spin.SetToolTip("Value for the game (e.g. sound or object number); applies to all selected steps that have this event")
-            remove = wx.Button(parent, label="×", size=(26, -1), style=wx.BU_EXACTFIT)
+            remove = wx.Button(parent, label="×", size=(px(26), -1), style=wx.BU_EXACTFIT)
             remove.SetToolTip("Remove this event from the selected steps")
             for evt in (wx.EVT_SPINCTRL, wx.EVT_TEXT_ENTER):
                 spin.Bind(evt, lambda e, t=type_id, s=spin: self.on_event_change and self.on_event_change("value", t, s.GetValue()))
