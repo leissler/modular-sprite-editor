@@ -1329,6 +1329,36 @@ def run():
 
     step("check project and the Mega Drive export: find, fix, go to, export into a game folder", check_and_export)
 
+    def doubled_ids():
+        import copy
+
+        from ui.check_dialog import CheckProjectDialog
+
+        project = frame.project
+        before = [f.id for f in project.frames]
+        twin = copy.deepcopy(project.frames[0])  # a project file edited by hand: the copy kept the id
+        twin.name += " copy"
+        project.frames.append(twin)
+        frame.history_checkpoint()
+        dlg = CheckProjectDialog(frame, project, frame._after_fix)
+        try:
+            issue = next((i for i in dlg.issues if i.code == "duplicate-id"), None)
+            check(issue is not None and issue.level == "error", "Check Project finds two frames with one id")
+            dlg.list.Select(dlg.issues.index(issue))
+            dlg._show_selected()
+            check(dlg.btn_go.IsEnabled() and dlg.btn_fix.GetLabel() == "Give each its own id", "with Go to and a fix")
+            dlg.fix_selected()
+            check(twin.id not in before and not any(i.code == "duplicate-id" for i in dlg.issues),
+                  "Fix gives the copy an id of its own")
+        finally:
+            dlg.Destroy()
+        frame.on_undo(None)
+        frame.on_undo(None)
+        pump()
+        check([f.id for f in frame.project.frames] == before, "undo takes the fix and the copy back")
+
+    step("check project: two things with one id", doubled_ids)
+
     def recovery():
         import json
 

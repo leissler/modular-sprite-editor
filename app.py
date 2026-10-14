@@ -1122,8 +1122,8 @@ class MainFrame(wx.Frame):
             summary.extend([f"- {line}" for line in losses])
         errors = project_check.counts(project_check.check_project(self.project, pixels=False))[project_check.ERROR]
         if errors:
-            summary += ["", f"Tools ▸ Check Project finds {errors} error{'s' if errors != 1 else ''}: missing parts, "
-                        "steps or images are left out of the export."]
+            summary += ["", f"Tools ▸ Check Project finds {errors} error{'s' if errors != 1 else ''}: things the export "
+                        "leaves out or gets wrong, such as missing parts, steps or images."]
         wx.MessageBox("\n".join(summary), "Export Complete", wx.OK | wx.ICON_INFORMATION)
 
     # ------------------------------------------------------------------ check and export

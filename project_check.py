@@ -10,10 +10,10 @@ from __future__ import annotations
 import os
 from collections import Counter
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import palettes
-from models import ImageAsset, Project
+from models import ImageAsset, Project, generate_id
 
 ERROR, WARNING, INFO = "error", "warning", "info"
 LEVEL_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
@@ -368,10 +368,117 @@ def _check_symbols(project: Project) -> List[Issue]:
     return issues
 
 
+# The lists everything refers to by id: (Project attribute, word, plural, prefix of new ids, Go to kind).
+ID_LISTS: Tuple[Tuple[str, str, str, str, Optional[str]], ...] = (
+    ("images", "image", "images", "img", "image"),
+    ("modules", "module", "modules", "mod", "module"),
+    ("frames", "frame", "frames", "frm", "frame"),
+    ("animations", "animation", "animations", "anim", "animation"),
+    ("mappings", "mapping", "mappings", "map", "mapping"),
+    ("collision_types", "hitbox type", "hitbox types", "ctype", None),
+    ("point_types", "point type", "point types", "ptype", None),
+    ("event_types", "event type", "event types", "evt", None),
+    ("timeline_scenes", "scene", "scenes", "scene", "scene"),
+)
+
+
+def _doubled(items: Sequence[Any]) -> List[List[Any]]:
+    """The groups of items that share an id, in list order (a fresh lookup finds the first of each)."""
+    groups: Dict[str, List[Any]] = {}
+    for item in items:
+        groups.setdefault(item.id, []).append(item)
+    return [group for group in groups.values() if len(group) > 1]
+
+
+def _and(words: Sequence[str]) -> str:
+    """'a' / 'a and b' / 'a, b and c'."""
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def _label(item: Any) -> str:
+    """An item's name (as the other issues quote it); an image's file name; else its id."""
+    name = str(getattr(item, "name", "") or "")
+    return name if name.strip() else os.path.basename(getattr(item, "file_path", "") or "") or item.id
+
+
+def _names(items: Sequence[Any]) -> str:
+    """'A' and 'B' / 'A', 'B', 'C' and 2 more."""
+    quoted = [f"'{_label(item)}'" for item in items]
+    return _and(quoted) if len(quoted) <= 3 else ", ".join(quoted[:3]) + f" and {len(quoted) - 3} more"
+
+
+def _same_id(groups: List[List[Any]], words: str) -> str:
+    """frames 'A' and 'B' have the same id / 5 frames have doubled ids ('A', 'B', 'C' and 2 more)."""
+    items = [item for group in groups for item in group]
+    if len(groups) == 1:
+        return f"{words} {_names(items)} have the same id"
+    return f"{len(items)} {words} have doubled ids ({_names(items)})"
+
+
+def _kept(groups: List[List[Any]]) -> str:
+    return (f"The fix keeps {_names(groups[0][:1])} where the id is used." if len(groups) == 1
+            else "The fix keeps the first of each where its id is used.")
+
+
+def _check_ids(project: Project) -> List[Issue]:
+    """Things that share an id: lookups, caches and exporters each reach one of them, not always the same one. Parts,
+    hitboxes, points and keys are only told apart by the editor, so those are notes."""
+    issues: List[Issue] = []
+    for attribute, _word, words, _prefix, kind in ID_LISTS:
+        groups = _doubled(getattr(project, attribute))
+        if not groups:
+            continue
+        same = _same_id(groups, words)
+        reaches = ("Whatever refers to it reaches only one of them" if len(groups) == 1
+                   else f"Whatever refers to one of those ids reaches only one of the {words} that have it")
+        issues.append(Issue(
+            ERROR, "duplicate-id",
+            f"{same[0].upper()}{same[1:]}. {reaches}, and exports may not pick the one the editor shows. "
+            f"{_kept(groups)}",
+            (kind, groups[0][0].id) if kind else None, f"new-ids-{attribute}",
+        ))
+    for frame in project.frames:
+        found = []
+        for items, word, words in ((frame.fmodules, "part", "parts"), (frame.collision_rects, "hitbox", "hitboxes"),
+                                   (frame.control_points, "point", "points")):
+            doubled = sum(len(group) for group in _doubled(items))
+            if doubled:
+                found.append(_plural(doubled, word, words))
+        if found:
+            issues.append(Issue(
+                INFO, "duplicate-id",
+                f"Frame '{frame.name}' has doubled ids ({_and(found)}): the editor cannot tell those apart when it "
+                "selects, moves or deletes them.",
+                ("frame", frame.id), "new-ids-in-frames",
+            ))
+    for scene in project.timeline_scenes:
+        target = ("scene", scene.id)
+        groups = _doubled(scene.objects)
+        if groups:
+            issues.append(Issue(
+                ERROR, "duplicate-id",
+                f"Scene '{scene.name}': {_same_id(groups, 'objects')}, so exports may draw them wrong and objects "
+                f"attached to them may follow the wrong one. {_kept(groups)}",
+                target, "new-ids-in-scenes",
+            ))
+        keyed = [(obj, sum(len(group) for group in _doubled(obj.keyframes))) for obj in scene.objects]
+        keyed = [(obj, keys) for obj, keys in keyed if keys]
+        if keyed:
+            issues.append(Issue(
+                INFO, "duplicate-id",
+                f"Scene '{scene.name}' has doubled key ids ({_plural(sum(keys for _obj, keys in keyed), 'key')} of "
+                f"{_names([obj for obj, _keys in keyed])}): the editor cannot tell those apart when it selects, moves "
+                "or deletes them.",
+                target, "new-ids-in-scenes",
+            ))
+    return issues
+
+
 def check_project(project: Project, pixels: bool = True) -> List[Issue]:
     """Every issue, errors first. ``pixels`` False skips reading the images (colours, transparency)."""
     issues: List[Issue] = []
-    for check in (_check_modules, _check_frames, _check_animations, _check_mappings, _check_scenes, _check_symbols):
+    for check in (_check_ids, _check_modules, _check_frames, _check_animations, _check_mappings, _check_scenes,
+                  _check_symbols):
         issues += check(project)
     issues = _check_images(project, pixels) + issues
     return sorted(issues, key=lambda issue: LEVEL_ORDER[issue.level])
@@ -523,6 +630,45 @@ def _fix_empty_hitboxes(project: Project, target: Optional[Target]) -> int:
     return removed
 
 
+def _new_ids(items: Sequence[Any], prefix: str) -> int:
+    """Gives every item that has the id of an earlier one an id of its own. The first keeps it, so whatever refers to
+    the id shows the one a fresh lookup finds."""
+    seen: Set[str] = set()
+    changed = 0
+    for item in items:
+        if item.id in seen:
+            item.id = generate_id(prefix)
+            changed += 1
+        seen.add(item.id)
+    return changed
+
+
+def _fix_list_ids(attribute: str, prefix: str) -> Callable[[Project, Optional[Target]], int]:
+    """The fix for one of ID_LISTS: its issue is about the whole list (the target only shows Go to the way)."""
+    return lambda project, _target: _new_ids(getattr(project, attribute), prefix)
+
+
+def _fix_ids_in_frames(project: Project, target: Optional[Target]) -> int:
+    changed = 0
+    for frame in project.frames:
+        if target and target != ("frame", frame.id):
+            continue
+        changed += _new_ids(frame.fmodules, "fmod") + _new_ids(frame.collision_rects, "crect")
+        changed += _new_ids(frame.control_points, "pt")
+    return changed
+
+
+def _fix_ids_in_scenes(project: Project, target: Optional[Target]) -> int:
+    changed = 0
+    for scene in project.timeline_scenes:
+        if target and target != ("scene", scene.id):
+            continue
+        changed += _new_ids(scene.objects, "tlo")
+        for obj in scene.objects:
+            changed += _new_ids(obj.keyframes, "tlk")
+    return changed
+
+
 # key -> (button label, what it does to the project; returns how many things changed)
 FIXES: Dict[str, Tuple[str, Callable[[Project, Optional[Target]], int]]] = {
     "remove-missing-parts": ("Remove those parts", _fix_missing_parts),
@@ -534,7 +680,11 @@ FIXES: Dict[str, Tuple[str, Callable[[Project, Optional[Target]], int]]] = {
     "clear-missing-object-mappings": ("Inherit the mapping", _fix_object_mappings),
     "clear-missing-scene-sources": ("Clear those sources", _fix_missing_scene_sources),
     "remove-empty-hitboxes": ("Remove empty hitboxes", _fix_empty_hitboxes),
+    "new-ids-in-frames": ("Give each its own id", _fix_ids_in_frames),
+    "new-ids-in-scenes": ("Give each its own id", _fix_ids_in_scenes),
 }
+FIXES.update({f"new-ids-{attribute}": ("Give each its own id", _fix_list_ids(attribute, prefix))
+              for attribute, _word, _words, prefix, _kind in ID_LISTS})
 
 
 def fix(project: Project, issue: Issue) -> int:

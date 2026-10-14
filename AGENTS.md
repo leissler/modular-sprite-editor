@@ -176,7 +176,9 @@ docs/                      AUDIT_0.7.md (open findings and the plan for the next
 
 - `Project` holds lists of `ImageAsset`, `Module`, `Frame`, `Animation`, `TimelineScene`, `ModuleMapping`,
   `CollisionType`, `PointType`. Look things up with `get_*` by id: O(1) through positions checked on every use, so the
-  lists can be edited in place. Everything is referenced **by id**.
+  lists can be edited in place. Everything is referenced **by id**, unique in its list (parts, hitboxes and points in
+  their frame, objects in their scene, keys in their object): new ones come from `generate_id`, and Check Project
+  reports doubled ones (`duplicate-id`; the fix gives the others new ids, the first keeps its references).
 - `Module.rect` is in sheet pixels, `Module.pivot` is relative to the rect's top-left. `rotated=True` means the
   packer stored the region rotated 90° CCW (pivot is logical, canvas converts).
 - `FModule` (a frame part): `ref_type` `"module"` or `"frame"` (nesting; cycles are rejected via

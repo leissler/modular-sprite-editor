@@ -1,7 +1,9 @@
 # Project File Format
 
 Native projects are UTF-8 JSON written by `Project.to_json()` (2-space indent). All cross references are
-string ids. Unknown keys are ignored on load (and dropped when the editor saves).
+string ids, unique within their list (parts, hitboxes and points within their frame, objects within their scene, keys
+within their object); Tools ▸ Check Project reports doubled ones and can give the others new ids. Unknown keys are
+ignored on load (and dropped when the editor saves).
 
 ## Versioning
 
