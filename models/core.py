@@ -1,11 +1,13 @@
-"""The sprite data: images, modules, frames (parts, hitboxes, points), animations, mappings and the types of
-hitboxes, points and step events, with their JSON (to_dict / from_dict)."""
+"""The sprite data: images, modules, frames (parts, hitboxes, points), animations, mappings, palettes and palette
+swaps, and the types of hitboxes, points and step events, with their JSON (to_dict / from_dict)."""
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+RGB = Tuple[int, int, int]
 
 
 def generate_id(prefix: str) -> str:
@@ -19,7 +21,7 @@ class ImageAsset:
     width: int
     height: int
     transparent_color: Optional[Tuple[int, int, int]] = None
-    palette: int = 0  # Mega Drive palette (0-3) its colours go into, see palettes.py
+    palette_id: Optional[str] = None  # the palette its colours go into (None or unknown: the first), see palettes.py
 
     def to_dict(self) -> Dict:
         return {
@@ -28,19 +30,18 @@ class ImageAsset:
             "width": self.width,
             "height": self.height,
             "transparent_color": list(self.transparent_color) if self.transparent_color else None,
-            "palette": self.palette,
+            "palette_id": self.palette_id,
         }
 
     @staticmethod
     def from_dict(data: Dict) -> "ImageAsset":
-        palette = data.get("palette", 0)
         return ImageAsset(
             id=data["id"],
             file_path=data["file_path"],
             width=int(data["width"]),
             height=int(data["height"]),
             transparent_color=tuple(data["transparent_color"]) if data.get("transparent_color") else None,  # type: ignore[arg-type]
-            palette=int(palette) if isinstance(palette, int) and 0 <= palette <= 3 else 0,
+            palette_id=str(data["palette_id"]) if data.get("palette_id") else None,
         )
 
 
@@ -434,4 +435,109 @@ class Animation:
             fps=data.get("fps", 10),
             loop_start=max(0, int(data.get("loop_start", 0) or 0)),
             next_animation_id=data.get("next_animation_id") or None,
+        )
+
+
+def _rgb(value: Any) -> Optional[RGB]:
+    """An (r, g, b) triple from JSON, clamped to 0-255; None for anything else."""
+    try:
+        r, g, b = (max(0, min(255, int(v))) for v in list(value)[:3])
+    except (TypeError, ValueError):
+        return None
+    return (r, g, b)
+
+
+@dataclass
+class ColourCycle:
+    """A run of palette slots that rotates: ``count`` slots from ``first`` (slot numbers as the hardware counts them,
+    1 = the first visible colour), one step every ``frames`` video frames, towards the higher slots unless
+    ``reverse``."""
+    first: int = 1
+    count: int = 2
+    frames: int = 8
+    reverse: bool = False
+
+    def to_dict(self) -> Dict:
+        return {"first": self.first, "count": self.count, "frames": self.frames, "reverse": self.reverse}
+
+    @staticmethod
+    def from_dict(data: Dict) -> "ColourCycle":
+        return ColourCycle(
+            first=max(1, int(data.get("first", 1) or 1)),
+            count=max(2, int(data.get("count", 2) or 2)),
+            frames=max(1, int(data.get("frames", 8) or 8)),
+            reverse=bool(data.get("reverse", False)),
+        )
+
+
+def _cycles(values: Any) -> List[ColourCycle]:
+    return [ColourCycle.from_dict(c) for c in values or [] if isinstance(c, dict)]
+
+
+@dataclass
+class Palette:
+    """Colours in hardware order: ``colours[0]`` is slot 1 (slot 0 is the transparent one), at most the console's
+    visible colours. ``colours`` None: not built yet, the palette takes its images' colours with format 6's rules
+    (palettes.colours_of); the editor builds it for good when a project opens (palettes.build_missing) and when images
+    join it."""
+    id: str
+    name: str
+    colours: Optional[List[RGB]] = None
+    cycles: List[ColourCycle] = field(default_factory=list)
+
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "colours": [list(c) for c in self.colours] if self.colours is not None else None,
+            "cycles": [c.to_dict() for c in self.cycles],
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "Palette":
+        raw = data.get("colours")
+        colours = None if raw is None else [_rgb(c) or (0, 0, 0) for c in raw]
+        return Palette(id=str(data["id"]), name=str(data.get("name", "Palette")), colours=colours,
+                       cycles=_cycles(data.get("cycles")))
+
+
+@dataclass
+class PaletteChange:
+    """What a palette swap does to one palette: a replacement per slot (None keeps the palette's colour) and, unless
+    ``cycles`` is None, colour cycles instead of the palette's own."""
+    colours: List[Optional[RGB]] = field(default_factory=list)
+    cycles: Optional[List[ColourCycle]] = None
+
+    def to_dict(self) -> Dict:
+        return {
+            "colours": [list(c) if c is not None else None for c in self.colours],
+            "cycles": [c.to_dict() for c in self.cycles] if self.cycles is not None else None,
+        }
+
+    @staticmethod
+    def from_dict(data: Dict) -> "PaletteChange":
+        raw = data.get("cycles")
+        return PaletteChange(colours=[_rgb(c) for c in data.get("colours", []) or []],
+                             cycles=None if raw is None else _cycles(raw))
+
+
+@dataclass
+class PaletteSwap:
+    """Recolours without touching an image: a guard in other clothes, a hit flash, the second player. ``palettes``
+    maps a palette's id to what changes in it; chosen per draw like a mapping."""
+    id: str
+    name: str
+    palettes: Dict[str, PaletteChange] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict:
+        return {"id": self.id, "name": self.name,
+                "palettes": {pid: change.to_dict() for pid, change in self.palettes.items()}}
+
+    @staticmethod
+    def from_dict(data: Dict) -> "PaletteSwap":
+        changes = data.get("palettes", {}) or {}
+        return PaletteSwap(
+            id=str(data["id"]), name=str(data.get("name", "Palette swap")),
+            palettes={str(pid): PaletteChange.from_dict(change) for pid, change in changes.items()
+                      if isinstance(change, dict)},
         )

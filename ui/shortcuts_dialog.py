@@ -14,7 +14,7 @@ MOD = "Cmd" if sys.platform == "darwin" else "Ctrl"
 SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Global", "Undo / Redo (all editors)", f"{MOD}+Z / {MOD}+Shift+Z"),
     ("Global", "New / Open / Save / Save As", f"{MOD}+N / {MOD}+O / {MOD}+S / {MOD}+Shift+S"),
-    ("Global", "Switch tab", f"{MOD}+1 … {MOD}+5"),
+    ("Global", "Switch tab", f"{MOD}+1 … {MOD}+6"),
     ("Global", "This help", f"{MOD}+/"),
     ("Every canvas", "Zoom at cursor (smooth, settles on whole pixel sizes)",
      f"Mouse wheel / two-finger scroll / pinch (View ▸ Scroll Moves the View: pinch / {MOD}+scroll)"),
@@ -23,7 +23,7 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Every canvas", "Zoom in / out", f"{MOD}+= / {MOD}+-"),
     ("Every canvas", "Fit content / actual pixels (1×)", f"{MOD}+0 / {MOD}+Shift+0"),
     ("Every canvas", "Toggle grid", f"{MOD}+G"),
-    ("Every canvas", "Mega Drive colours (View menu)", f"{MOD}+Shift+P"),
+    ("Every canvas", "Console colours (View menu)", f"{MOD}+Shift+P"),
     ("Modules", "New module (on an image) / shape (on Shapes)", "Drag on empty space"),
     ("Modules", "Select / move / resize", "Click / drag a module / drag a handle"),
     ("Modules", "Add or remove from the selection / select with a marquee", f"{MOD}+click / {MOD}+drag"),
@@ -85,6 +85,9 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Mappings", "Original / hide the selected modules", "Delete / H"),
     ("Mappings", "Select several modules", f"{MOD}+click / Shift+click"),
     ("Mappings", "Rename / reorder mappings", "Double-click or F2 / drag in the list"),
+    ("Palettes", "Select a slot / a run / add or remove", f"Click / Shift+click / {MOD}+click (or click a pixel of the image)"),
+    ("Palettes", "Change a slot's colour / move a slot", "Double-click it / drag it"),
+    ("Palettes", "Rename / delete a palette or a palette swap", "Double-click or F2 / Delete in its list"),
 ]
 
 

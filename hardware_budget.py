@@ -26,9 +26,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import compositor
+import consoles
 import palettes
 from models import Frame, ModuleMapping, Project
-from project_check import MD_TILE_CAPACITY
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
@@ -48,15 +48,28 @@ class HardwareProfile:
     vram_tiles: int = 0  # tiles the Mega Drive export can keep in video memory (0: not counted for this console)
 
 
-MEGA_DRIVE_H40 = HardwareProfile("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320, vram_tiles=MD_TILE_CAPACITY)
-MEGA_DRIVE_H32 = HardwareProfile("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256, vram_tiles=MD_TILE_CAPACITY)
-SNES_8_16 = HardwareProfile("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, sizes=(8, 16))
-SNES_16_32 = HardwareProfile("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, sizes=(16, 32))
-PROFILES: List[HardwareProfile] = [MEGA_DRIVE_H40, MEGA_DRIVE_H32, SNES_8_16, SNES_16_32]
+def _profile(console: consoles.Console, setup: consoles.BudgetSetup) -> HardwareProfile:
+    """A budget profile from the console database: the setup's screen mode, and video memory where an export keeps
+    the tiles (the Mega Drive's SGDK export)."""
+    mode = console.mode(setup.mode)
+    assert mode is not None, setup.key
+    largest = max(max(w, h) for w, h in console.sprites.sizes)
+    return HardwareProfile(
+        setup.key, setup.name, mode.sprites_per_screen, mode.sprites_per_line, mode.sprite_pixels_per_line,
+        max_sprite_tiles=largest // console.tile_size, sizes=setup.sizes,
+        vram_tiles=console.sprites.tiles if console.exporter else 0,
+    )
+
+
+PROFILES: List[HardwareProfile] = [_profile(console, setup) for console, setup in consoles.budget_setups()]
 
 
 def profile_by_key(key: Optional[str]) -> Optional[HardwareProfile]:
     return next((p for p in PROFILES if p.key == key), None)
+
+
+MEGA_DRIVE_H40, MEGA_DRIVE_H32 = profile_by_key("md_h40"), profile_by_key("md_h32")
+SNES_8_16, SNES_16_32 = profile_by_key("snes_8_16"), profile_by_key("snes_16_32")
 
 
 @dataclass
@@ -169,9 +182,10 @@ class BudgetCalculator:
         self._blocks: Dict[Any, List[Tuple[int, int, int, int]]] = {}
         # Video memory: the export's palettes, each image's stored blocks and one id per distinct block of tiles.
         self._palette_state: Any = None
-        self._image_info: Dict[str, Tuple[int, Tuple[int, ...]]] = {}  # image id -> (palette, key colour)
-        self._palettes: Dict[int, List[palettes.RGB]] = {}
-        self._nearest: Dict[int, Dict[palettes.RGB, int]] = {}
+        self._image_info: Dict[str, Tuple[str, Tuple[int, ...]]] = {}  # image id -> (palette id, key colour)
+        self._palettes: Dict[str, List[palettes.RGB]] = {}  # palette id -> colours
+        self._first_palette = ""  # vector shapes use it
+        self._nearest: Dict[str, Dict[palettes.RGB, int]] = {}
         self._vram: Dict[Any, Tuple[Tuple[int, int], ...]] = {}
         self._block_ids: Dict[bytes, int] = {}
 
@@ -278,24 +292,25 @@ class BudgetCalculator:
 
     # ------------------------------------------------------------------ internals
     def _sync_palettes(self, project: Project) -> None:
-        """Blocks are compared in palette indices like the export's: start over when an image's palette or key colour
-        changes (edited image files clear the whole calculator)."""
-        state = tuple((a.id, a.file_path, palettes.palette_of(a), tuple(a.transparent_color or ()))
-                      for a in project.images)
+        """Blocks are compared in palette slots like the export's: start over when a palette, an image's palette or key
+        colour changes (edited image files clear the whole calculator)."""
+        state = palettes.signature(project)
         if state != self._palette_state:
             self._palette_state = state
-            self._image_info = {image_id: (palette, key) for image_id, _path, palette, key in state}
-            self._palettes = palettes.project_palettes(project)
-            self._nearest = {index: {} for index in self._palettes}
+            self._image_info = {a.id: (project.image_palette(a).id, tuple(a.transparent_color or ()))
+                                for a in project.images}
+            self._palettes = {p.id: palettes.colours_of(project, p) for p in project.palettes}
+            self._first_palette = project.default_palette().id
+            self._nearest = {pid: {} for pid in self._palettes}
             self._vram.clear()
             self._block_ids.clear()
 
-    def _palette_of(self, mod: Any) -> int:
+    def _palette_of(self, mod: Any) -> str:
         """The module's palette: its image's (vector shapes use the first), as SGDKBakeContext._palette_of_module."""
         info = self._image_info.get(mod.image_id) if mod.type == "MD_IMAGE" else None
-        return info[0] if info else 0
+        return info[0] if info else self._first_palette
 
-    def _stored_blocks(self, key: Any, image: Any, palette: int) -> Tuple[Tuple[int, int], ...]:
+    def _stored_blocks(self, key: Any, image: Any, palette: str) -> Tuple[Tuple[int, int], ...]:
         """(block id, tiles) of each hardware sprite block the export stores for this image: padded to whole tiles,
         cut on the 32 px grid, empty blocks skipped; blocks with the same tiles (in palette indices) share an id."""
         found = self._vram.get((key, palette))
@@ -304,7 +319,7 @@ class BudgetCalculator:
         from PIL import Image as PILImage
 
         rgba = image.convert("RGBA")
-        colours = self._palettes.get(palette) or self._palettes.get(0) or []
+        colours = self._palettes.get(palette) or self._palettes.get(self._first_palette) or []
         lookup = self._nearest.setdefault(palette, {})
         data = rgba.tobytes()
         table: Dict[bytes, int] = {}

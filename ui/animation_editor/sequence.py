@@ -55,6 +55,7 @@ class SequenceWidget(wx.Panel):
         self.project: Optional[Project] = None
         self.animation: Optional[Animation] = None
         self.mapping: Optional[ModuleMapping] = None
+        self.swap = None  # the preview's palette swap
         self.renderer: Optional[StepRenderer] = None
         self.tick = 0
         self.step = -1
@@ -109,6 +110,7 @@ class SequenceWidget(wx.Panel):
     ) -> None:
         self.project = project
         self.mapping = project.active_mapping
+        self.swap = project.active_palette_swap
         self.renderer = renderer
         if animation is not self.animation:
             self.scroll_x = 0.0
@@ -284,8 +286,10 @@ class SequenceWidget(wx.Panel):
         if self.renderer and self.project and self.animation:
             layout = layouts.get(side)
             if layout is None:  # once per repaint, not per cell: it looks at every step
-                layout = layouts[side] = self.renderer.strip_layout(self.project, self.animation, self.mapping, side)
-            bmp = self.renderer.strip_thumbnail(self.project, self.animation, index, self.mapping, side, layout=layout)
+                layout = layouts[side] = self.renderer.strip_layout(self.project, self.animation, self.mapping, side,
+                                                                    self.swap)
+            bmp = self.renderer.strip_thumbnail(self.project, self.animation, index, self.mapping, side, layout=layout,
+                                                swap=self.swap)
             dc.DrawBitmap(bmp, r.x + px(3), r.y + px(3))
         # Hold band: the rest of a long cell shows that the drawing holds.
         band_x = r.x + side + px(6)

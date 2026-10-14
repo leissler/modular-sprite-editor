@@ -146,6 +146,7 @@ class SceneInspector(wx.ScrolledWindow):
         self._updating = False
         self._parent_ids: List[Optional[str]] = []
         self._mapping_ids: List[Optional[str]] = []
+        self._swap_ids: List[Optional[str]] = []
 
         # Callbacks: field name -> value
         self.on_scene_change: Optional[Callable[[str, object], None]] = None
@@ -197,6 +198,11 @@ class SceneInspector(wx.ScrolledWindow):
         row(g, p, "Shows", self.obj_source)
         row(g, p, "Parent", self.obj_parent)
         row(g, p, "Mapping", self.obj_mapping)
+        self.obj_swap = wx.Choice(p)
+        self.obj_swap.SetToolTip(
+            "Palette swap this object and its children are drawn with (also in the SGDK export): a guard in other "
+            "clothes. Inherit: the parent's, or for top-level objects the one chosen in the bar above.")
+        row(g, p, "Colours", self.obj_swap)
 
         # --- Playback (animation sources)
         self.playback_panel, g, _ = section(self, root, "Animation playback", "Timeline")
@@ -298,7 +304,8 @@ class SceneInspector(wx.ScrolledWindow):
 
         self.SetSizer(root)
         # Let popups/buttons shrink with the panel (macOS truncates their text natively).
-        for ctrl in (self.obj_source, self.obj_parent, self.obj_mapping, self.pb_mode, self.ease_shape, self.ease_dir,
+        for ctrl in (self.obj_source, self.obj_parent, self.obj_mapping, self.obj_swap, self.pb_mode, self.ease_shape,
+                     self.ease_dir,
                      self.path_choice, self.swap_source, self.flip_h, self.flip_v):
             ctrl.SetMinSize((px(60), -1))
         for spin in (self.tr_x, self.tr_y, self.swap_off_x, self.swap_off_y):
@@ -348,6 +355,7 @@ class SceneInspector(wx.ScrolledWindow):
         self.obj_source.Bind(wx.EVT_BUTTON, lambda e: self._pick_source("source"))
         self.obj_parent.Bind(wx.EVT_CHOICE, self._on_parent_choice)
         self.obj_mapping.Bind(wx.EVT_CHOICE, self._on_mapping_choice)
+        self.obj_swap.Bind(wx.EVT_CHOICE, self._on_swap_choice)
         self.pb_mode.Bind(
             wx.EVT_CHOICE,
             lambda e: self._emit(
@@ -391,6 +399,11 @@ class SceneInspector(wx.ScrolledWindow):
         idx = self.obj_mapping.GetSelection()
         if 0 <= idx < len(self._mapping_ids):
             self._emit(self.on_object_change, "mapping", self._mapping_ids[idx])
+
+    def _on_swap_choice(self, _event: wx.CommandEvent) -> None:
+        idx = self.obj_swap.GetSelection()
+        if 0 <= idx < len(self._swap_ids):
+            self._emit(self.on_object_change, "palette_swap", self._swap_ids[idx])
 
     def _on_easing_choice(self, _event: wx.CommandEvent) -> None:
         shape = ops.EASING_SHAPES[max(0, self.ease_shape.GetSelection())][1]
@@ -526,6 +539,16 @@ class SceneInspector(wx.ScrolledWindow):
         )
         current = obj.mapping_id if obj.mapping_id in self._mapping_ids else None
         self.obj_mapping.SetSelection(self._mapping_ids.index(current))
+
+        # Palette swap: inherit (showing what that resolves to), the palettes as they are, or one of the swaps.
+        default = project.active_palette_swap
+        inherited_swap = scene.object_palette_swap(project, obj.parent_id, default) if obj.parent_id else default
+        self._swap_ids = [None, TIMELINE_MAPPING_ORIGINAL] + [s.id for s in project.palette_swaps]
+        self.obj_swap.SetItems(
+            [f"Inherit ({'parent' if obj.parent_id else 'preview'}: {inherited_swap.name if inherited_swap else 'original'})",
+             "Original colours"] + [s.name for s in project.palette_swaps])
+        current = obj.palette_swap_id if obj.palette_swap_id in self._swap_ids else None
+        self.obj_swap.SetSelection(self._swap_ids.index(current))
 
         modes = [mode for _label, mode in ops.PLAYBACK_MODES]
         self.pb_mode.SetSelection(modes.index(obj.playback_mode) if obj.playback_mode in modes else 0)

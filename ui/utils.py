@@ -1,6 +1,6 @@
 import math
 import wx
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -368,18 +368,18 @@ class ThumbnailGenerator:
     def clear_cache(self):
         self.asset_cache = {}
 
-    def render_thumbnail(self, project: 'Project', item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None) -> wx.Bitmap:
+    def render_thumbnail(self, project: 'Project', item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None, swap: Any = None) -> wx.Bitmap:
         bmp = wx.Bitmap(width, height)
         dc = wx.MemoryDC(bmp)
         dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
         dc.Clear()
         
-        self.draw_thumbnail_direct(dc, project, item, wx.Rect(0, 0, width, height), custom_scale, flip_x, flip_y, rotation, mapping)
+        self.draw_thumbnail_direct(dc, project, item, wx.Rect(0, 0, width, height), custom_scale, flip_x, flip_y, rotation, mapping, swap)
         
         dc.SelectObject(wx.NullBitmap)
         return bmp
 
-    def draw_thumbnail_direct(self, dc: wx.DC, project: 'Project', item, rect: wx.Rect, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None):
+    def draw_thumbnail_direct(self, dc: wx.DC, project: 'Project', item, rect: wx.Rect, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None, swap: Any = None):
         """Draws the item directly onto the provided DC within the target rect."""
         width, height = rect.width, rect.height
         x_off, y_off = rect.x, rect.y
@@ -457,7 +457,7 @@ class ThumbnailGenerator:
         from ui.frame_render import SHARED, to_bitmap, transform
 
         a, b = transform(flip_x, flip_y, rotation)
-        image, _x, _y = SHARED.render(project, item, mapping, a, b)
+        image, _x, _y = SHARED.render(project, item, mapping, a, b, swap)
         iw, ih = image.size
         if iw <= 1 and ih <= 1 and not image.getbbox():
             return
@@ -468,11 +468,11 @@ class ThumbnailGenerator:
         bmp = to_bitmap(image, scale)
         dc.DrawBitmap(bmp, int(x_off + (width - bmp.GetWidth()) / 2), int(y_off + (height - bmp.GetHeight()) / 2), True)
 
-    def frame_size(self, project: 'Project', frame, mapping: Optional['ModuleMapping'] = None) -> Tuple[int, int]:
+    def frame_size(self, project: 'Project', frame, mapping: Optional['ModuleMapping'] = None, swap: Any = None) -> Tuple[int, int]:
         """Pixel size of a frame as drawn (for palettes that scale all frames alike)."""
         if not getattr(frame, 'fmodules', None):
             return (0, 0)
         from ui.frame_render import SHARED
 
-        image, _x, _y = SHARED.render(project, frame, mapping)
+        image, _x, _y = SHARED.render(project, frame, mapping, swap=swap)
         return image.size if image.getbbox() else (0, 0)

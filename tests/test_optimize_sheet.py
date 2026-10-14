@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import compositor  # noqa: E402
-from models import FModule, Project, generate_id  # noqa: E402
+from models import FModule, Palette, Project, generate_id  # noqa: E402
 from optimization import optimize_modules  # noqa: E402
 
 IDENTITY = ((1.0, 0.0), (0.0, 1.0))
@@ -53,12 +53,10 @@ class TestOptimizeSheet(unittest.TestCase):
         self.assertTrue(any(m.rotated for m in project.modules))
         self.assertTrue(os.path.exists(str(ROOT / "examples" / "sgdk" / "modules_POP.bmp")), "source files stay")
 
-    def _sheet(self, name, colour, palette=0):
+    def _sheet(self, name, colour):
         path = self.folder / name
         Image.new("RGBA", (16, 8), colour).save(path)
-        asset = self.project.create_image(str(path), 16, 8)
-        asset.palette = palette
-        return asset
+        return self.project.create_image(str(path), 16, 8)
 
     def test_only_what_was_repacked_moves(self):
         self.project = project = Project()
@@ -73,18 +71,20 @@ class TestOptimizeSheet(unittest.TestCase):
             frame.fmodules.append(FModule(id=generate_id("fm"), ref_type="module", ref_id=mod.id, position=(x, 0)))
         before = rendered(project)
 
-        blue.palette = 1
+        first = blue.palette_id
+        project.palettes.append(Palette("pal_2", "Second"))
+        blue.palette_id = "pal_2"
         ok, message = optimize_modules(project, [m.id for m in project.modules], CONFIG, str(self.folder), "both")
         self.assertFalse(ok)
         self.assertIn("different palettes", message)
-        blue.palette = 0
-        red.palette = blue.palette = 2
+        blue.palette_id = first
+        red.palette_id = blue.palette_id = "pal_2"
 
         ok, message = optimize_modules(project, [m.id for m in project.modules], CONFIG, str(self.folder), "both")
         self.assertTrue(ok, message)
         self.assertEqual(rendered(project), before)
         sheet = project.get_image(a.image_id)
-        self.assertEqual((b.image_id, hidden.image_id, sheet.palette), (sheet.id, sheet.id, 2))
+        self.assertEqual((b.image_id, hidden.image_id, sheet.palette_id), (sheet.id, sheet.id, "pal_2"))
         self.assertEqual((gone.image_id, gone.rect), ("img_missing", (0, 0, 8, 8)), "a module of a missing image stays")
         self.assertEqual({i.id for i in project.images}, {sheet.id, loose.id}, "only the emptied sheets leave")
 

@@ -21,7 +21,7 @@ LINK_COLOUR = wx.Colour(120, 175, 255)
 
 # (name, what it shows, path in the examples folder)
 EXAMPLES: List[Tuple[str, str, Tuple[str, ...]]] = [
-    ("Prince of Persia", "small parts, animations, a scene, mappings, hitboxes", ("sgdk", "PoP_WW.json")),
+    ("Prince of Persia", "small parts, animations, a scene, mappings, palette swaps", ("sgdk", "PoP_WW.json")),
     ("Sonic", "a hand-cut character with many animations", ("sonic", "sonic.json")),
     ("Adventurer", "a sheet of whole sprites to practise on", ("adventurer", "adventurer.json")),
 ]

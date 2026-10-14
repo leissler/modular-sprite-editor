@@ -36,6 +36,14 @@ CASES = [
     ("single_step", "loop", [3], 0, None, 0, {}),
 ]
 
+# The palette tables of a blob without palette entries (the player draws nothing).
+NO_PALETTES = """u16 ms_palette_entry_count = 0; u16 ms_base_palette_count = 0; u16 ms_palette_swap_count = 1;
+u16 ms_colour_cycle_count = 0; const MS_PaletteEntry *ms_palette_entries = NULL;
+const MS_ColourCycle *ms_colour_cycles = NULL; const u8 *ms_swap_entries = NULL;
+const char *ms_palette_swap_id(u16 i) { return ""; } const char *ms_palette_swap_name_data(u16 i) { return ""; }
+const char *ms_palette_entry_name_data(u16 i) { return ""; }
+"""
+
 GENESIS_STUB = r"""
 #ifndef GENESIS_STUB_H
 #define GENESIS_STUB_H
@@ -67,7 +75,7 @@ u16 VDP_getScreenHeight(void);
 #endif
 """
 
-# The SGDK functions the runtime calls, for host builds (sprite table in RAM, VRAM loads ignored).
+# The SGDK functions the runtime calls, for host builds (sprite table and colour RAM in RAM, VRAM loads ignored).
 GENESIS_STUB_IMPL = r"""
 #include "genesis.h"
 VDPSprite vdpSpriteCache[80];
@@ -75,7 +83,13 @@ u16 g_stub_sprites_sent = 0;
 void VDP_updateSprites(u16 num, u16 tm) { g_stub_sprites_sent = num; }
 void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm) {}
 void PAL_setPalette(u16 num, const u16 *pal, u16 tm) {}
-void PAL_setColors(u16 index, const u16 *pal, u16 count, u16 tm) {}
+u16 g_stub_cram[64];  /* what the runtime put into the colour RAM */
+void PAL_setColors(u16 index, const u16 *pal, u16 count, u16 tm)
+{
+    u16 i;
+    for (i = 0; i < count && index + i < 64; i++)
+        g_stub_cram[index + i] = pal[i];
+}
 u16 VDP_getScreenWidth(void) { return 320; }
 u16 VDP_getScreenHeight(void) { return 224; }
 """
@@ -113,8 +127,9 @@ u16 ms_module_count = 0; u16 ms_frame_count = 0; u16 ms_animation_count = {len(a
 u16 ms_scene_count = 0; u16 ms_mapping_count = 1; u16 ms_anim_step_count = {len(steps)};
 u16 ms_scene_sample_count = 0; u16 ms_animation_record_count = {len(anims)}; u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 2; u16 ms_step_event_count = {max(1, len(events))};
-u16 ms_tile_count = 0; u16 ms_palette_count = 1; u16 ms_piece_count = 0; u16 ms_hitbox_count = 0; u16 ms_point_count = 0;
+u16 ms_tile_count = 0; u16 ms_piece_count = 0; u16 ms_hitbox_count = 0; u16 ms_point_count = 0;
 u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
+{NO_PALETTES}
 const MS_Variant *ms_variants = NULL; const MS_Piece *ms_pieces = NULL; const u32 *ms_tiles = NULL;
 const u16 *ms_palette = NULL; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL; const MS_RenderFrame *ms_render_frames = NULL;

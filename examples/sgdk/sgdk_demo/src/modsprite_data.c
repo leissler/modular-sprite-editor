@@ -4,8 +4,8 @@
 #include "resources.h"
 
 #define MS_BLOB_MAGIC 0x4D534231u
-#define MS_BLOB_VERSION 4u
-#define MS_BLOB_HEADER_SIZE 176u
+#define MS_BLOB_VERSION 5u
+#define MS_BLOB_HEADER_SIZE 206u
 
 enum
 {
@@ -39,7 +39,13 @@ enum
     MS_SEC_HITBOX_TYPE_NAMES = 27,
     MS_SEC_POINT_TYPE_NAMES = 28,
     MS_SEC_ROLE_NAMES = 29,
-    MS_SEC_COUNT = 30
+    MS_SEC_PALETTE_ENTRIES = 30,
+    MS_SEC_COLOUR_CYCLES = 31,
+    MS_SEC_SWAP_ENTRIES = 32,
+    MS_SEC_SWAP_IDS = 33,
+    MS_SEC_SWAP_NAMES = 34,
+    MS_SEC_PALETTE_NAMES = 35,
+    MS_SEC_COUNT = 36
 };
 
 u16 ms_variant_count = 0;
@@ -57,7 +63,10 @@ u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0;
 u16 ms_step_event_count = 0;
 u16 ms_tile_count = 0;
-u16 ms_palette_count = 0;
+u16 ms_palette_entry_count = 0;
+u16 ms_base_palette_count = 0;
+u16 ms_palette_swap_count = 0;
+u16 ms_colour_cycle_count = 0;
 u16 ms_piece_count = 0;
 u16 ms_hitbox_count = 0;
 u16 ms_point_count = 0;
@@ -69,6 +78,9 @@ const MS_Variant *ms_variants = NULL;
 const MS_Piece *ms_pieces = NULL;
 const u32 *ms_tiles = NULL;
 const u16 *ms_palette = NULL;
+const MS_PaletteEntry *ms_palette_entries = NULL;
+const MS_ColourCycle *ms_colour_cycles = NULL;
+const u8 *ms_swap_entries = NULL;
 const MS_Hitbox *ms_hitboxes = NULL;
 const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL;
@@ -102,6 +114,9 @@ static const u8 *g_event_name_offsets = NULL;
 static const u8 *g_hitbox_type_name_offsets = NULL;
 static const u8 *g_point_type_name_offsets = NULL;
 static const u8 *g_role_name_offsets = NULL;
+static const u8 *g_swap_id_offsets = NULL;
+static const u8 *g_swap_name_offsets = NULL;
+static const u8 *g_palette_name_offsets = NULL;
 
 static u16 ms_read_be16(const u8 *ptr)
 {
@@ -130,7 +145,10 @@ static void ms_reset_data(void)
     ms_event_type_count = 0;
     ms_step_event_count = 0;
     ms_tile_count = 0;
-    ms_palette_count = 0;
+    ms_palette_entry_count = 0;
+    ms_base_palette_count = 0;
+    ms_palette_swap_count = 0;
+    ms_colour_cycle_count = 0;
     ms_piece_count = 0;
     ms_hitbox_count = 0;
     ms_point_count = 0;
@@ -142,6 +160,9 @@ static void ms_reset_data(void)
     ms_pieces = NULL;
     ms_tiles = NULL;
     ms_palette = NULL;
+    ms_palette_entries = NULL;
+    ms_colour_cycles = NULL;
+    ms_swap_entries = NULL;
     ms_hitboxes = NULL;
     ms_points = NULL;
     ms_parts = NULL;
@@ -168,6 +189,9 @@ static void ms_reset_data(void)
     g_hitbox_type_name_offsets = NULL;
     g_point_type_name_offsets = NULL;
     g_role_name_offsets = NULL;
+    g_swap_id_offsets = NULL;
+    g_swap_name_offsets = NULL;
+    g_palette_name_offsets = NULL;
     g_strings_base = 0;
     g_strings_size = 0;
     g_data_ready = FALSE;
@@ -210,7 +234,7 @@ void ms_data_init(void)
     if (ms_read_be16(ptr) != MS_BLOB_VERSION)
         return;
     ptr += 2;
-    ms_palette_count = ms_read_be16(ptr); ptr += 2;
+    ms_palette_entry_count = ms_read_be16(ptr); ptr += 2;
 
     ms_variant_count = ms_read_be16(ptr); ptr += 2;
     ms_module_count = ms_read_be16(ptr); ptr += 2;
@@ -232,6 +256,9 @@ void ms_data_init(void)
     ms_hitbox_type_count = ms_read_be16(ptr); ptr += 2;
     ms_point_type_count = ms_read_be16(ptr); ptr += 2;
     ms_role_count = ms_read_be16(ptr); ptr += 2;
+    ms_base_palette_count = ms_read_be16(ptr); ptr += 2;
+    ms_palette_swap_count = ms_read_be16(ptr); ptr += 2;
+    ms_colour_cycle_count = ms_read_be16(ptr); ptr += 2;
     ms_part_count = ms_read_be32(ptr); ptr += 4;
 
     for (i = 0; i < MS_SEC_COUNT; i++)
@@ -265,11 +292,17 @@ void ms_data_init(void)
     ms_pieces = (const MS_Piece *)(g_blob + g_section_offsets[MS_SEC_PIECES]);
     ms_tiles = (const u32 *)(g_blob + g_section_offsets[MS_SEC_TILES]);
     ms_palette = (const u16 *)(g_blob + g_section_offsets[MS_SEC_PALETTE]);
+    ms_palette_entries = (const MS_PaletteEntry *)(g_blob + g_section_offsets[MS_SEC_PALETTE_ENTRIES]);
+    ms_colour_cycles = (const MS_ColourCycle *)(g_blob + g_section_offsets[MS_SEC_COLOUR_CYCLES]);
+    ms_swap_entries = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SWAP_ENTRIES]);
     ms_hitboxes = (const MS_Hitbox *)(g_blob + g_section_offsets[MS_SEC_HITBOXES]);
     ms_points = (const MS_Point *)(g_blob + g_section_offsets[MS_SEC_POINTS]);
     g_hitbox_type_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_HITBOX_TYPE_NAMES]);
     g_point_type_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_POINT_TYPE_NAMES]);
     g_role_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ROLE_NAMES]);
+    g_swap_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SWAP_IDS]);
+    g_swap_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SWAP_NAMES]);
+    g_palette_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_PALETTE_NAMES]);
 
     g_strings_base = g_section_offsets[MS_SEC_STRINGS];
 
@@ -302,3 +335,6 @@ const char *ms_event_name_data(u16 index) { return ms_lookup_string(g_event_name
 const char *ms_hitbox_type_name_data(u16 index) { return ms_lookup_string(g_hitbox_type_name_offsets, ms_hitbox_type_count, index); }
 const char *ms_point_type_name_data(u16 index) { return ms_lookup_string(g_point_type_name_offsets, ms_point_type_count, index); }
 const char *ms_role_name_data(u16 index) { return ms_lookup_string(g_role_name_offsets, ms_role_count, index); }
+const char *ms_palette_swap_id(u16 index) { return ms_lookup_string(g_swap_id_offsets, ms_palette_swap_count, index); }
+const char *ms_palette_swap_name_data(u16 index) { return ms_lookup_string(g_swap_name_offsets, ms_palette_swap_count, index); }
+const char *ms_palette_entry_name_data(u16 index) { return ms_lookup_string(g_palette_name_offsets, ms_palette_entry_count, index); }

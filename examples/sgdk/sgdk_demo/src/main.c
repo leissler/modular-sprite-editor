@@ -57,10 +57,14 @@ static u16 g_disp_cpu_load = 0;
 static MS_AnimPlayer g_anim_player;
 static MS_ScenePlayer g_scene_player;
 
-/* Hitbox / point overlay (START+A): corner marks for boxes (PAL2) and a cross for points (PAL3). */
+/* Hitbox / point overlay (START+A): corner marks for boxes and a cross for points, in two colours of PAL0 (the demo's
+   own line, with the backdrop and the text): the sprites' palette lines start at PAL1, a palette swap's included. */
+#define MARK_BOX_COLOUR 13
+#define MARK_POINT_COLOUR 14
 static u8 g_show_markers = FALSE;
-/* Versus view (START+B, animations): the animation twice, the right one with the next mapping, drawn with
-   ms_draw_anim_player_mapped: one set of animations, characters re-skinned per draw call. */
+/* Versus view (START+B, animations): the animation twice, the right one with the next mapping and the first
+   palette swap, drawn with ms_draw_anim_player_as: one set of animations, characters re-skinned and recoloured per
+   draw call. */
 static u8 g_versus = FALSE;
 static u16 g_marker_tile = 0;
 static u16 g_shown_boxes = 0;
@@ -274,6 +278,11 @@ static u16 demo_versus_mapping(void)
     return (u16)((g_mapping_index + 1) % demo_mapping_count());
 }
 
+static u16 demo_versus_swap(void)
+{
+    return MS_PALETTE_SWAP_COUNT > 1 ? 1 : 0;  /* the first palette swap, if the project has one */
+}
+
 /* Show the events of a step on the status line when the step starts. */
 static void demo_report_events(const MS_AnimPlayer *player)
 {
@@ -453,7 +462,7 @@ static void demo_apply_id_jump(void)
     demo_set_status(msg);
 }
 
-/* Five 8×8 marks in colour 1: box corners (top-left, top-right, bottom-left, bottom-right), point cross. */
+/* Five 8×8 marks: box corners (top-left, top-right, bottom-left, bottom-right), point cross. */
 static void demo_init_markers(void)
 {
     u32 tiles[5 * 8];
@@ -473,15 +482,15 @@ static void demo_init_markers(void)
                 else if (t == 3) on = (row == 7 || col == 7);
                 else on = ((row == 3 && col <= 6) || (col == 3 && row <= 6));
                 if (on)
-                    line |= 1ul << ((7 - col) * 4);
+                    line |= (u32)(t < 4 ? MARK_BOX_COLOUR : MARK_POINT_COLOUR) << ((7 - col) * 4);
             }
             tiles[t * 8 + row] = line;
         }
     }
     g_marker_tile = ms_tile_base() + ms_tiles_used();
     VDP_loadTileData(tiles, g_marker_tile, 5, DMA);
-    PAL_setColor(PAL2 * 16 + 1, RGB24_TO_VDPCOLOR(0xFF4040));
-    PAL_setColor(PAL3 * 16 + 1, RGB24_TO_VDPCOLOR(0x40FF60));
+    PAL_setColor(PAL0 * 16 + MARK_BOX_COLOUR, RGB24_TO_VDPCOLOR(0xFF4040));
+    PAL_setColor(PAL0 * 16 + MARK_POINT_COLOUR, RGB24_TO_VDPCOLOR(0x40FF60));
 }
 
 /* Marks go into the sprite list before the character, so they show on top of it. */
@@ -494,17 +503,17 @@ static void demo_draw_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Po
     if (!g_show_markers)
         return;
     for (i = 0; i < point_count; i++)
-        ms_add_hw_sprite(ox + points[i].x - 3, oy + points[i].y - 3, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL3, TRUE, FALSE, FALSE, g_marker_tile + 4));
+        ms_add_hw_sprite(ox + points[i].x - 3, oy + points[i].y - 3, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, g_marker_tile + 4));
     for (i = 0; i < box_count; i++)
     {
         s16 x0 = ox + boxes[i].x;
         s16 y0 = oy + boxes[i].y;
         s16 x1 = x0 + boxes[i].w - 8;
         s16 y1 = y0 + boxes[i].h - 8;
-        ms_add_hw_sprite(x0, y0, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 0));
-        ms_add_hw_sprite(x1, y0, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 1));
-        ms_add_hw_sprite(x0, y1, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 2));
-        ms_add_hw_sprite(x1, y1, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, g_marker_tile + 3));
+        ms_add_hw_sprite(x0, y0, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, g_marker_tile + 0));
+        ms_add_hw_sprite(x1, y0, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, g_marker_tile + 1));
+        ms_add_hw_sprite(x0, y1, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, g_marker_tile + 2));
+        ms_add_hw_sprite(x1, y1, SPRITE_SIZE(1, 1), TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, g_marker_tile + 3));
     }
 }
 
@@ -593,7 +602,12 @@ static void draw_ui(void)
         if (g_versus && g_unit == DEMO_UNIT_ANIMATION)
         {
             p = put_str(lines[5], "Versus: right uses ");
-            put_str(p, demo_mapping_name(demo_versus_mapping()));
+            p = put_str(p, demo_mapping_name(demo_versus_mapping()));
+            if (demo_versus_swap())
+            {
+                p = put_str(p, ", ");
+                put_str(p, ms_palette_swap_name(demo_versus_swap()));
+            }
         }
 
         p = put_str(lines[6], "Parts:");
@@ -737,7 +751,7 @@ int main(void)
             {
                 g_versus = !g_versus;
                 g_ui_dirty = TRUE;
-                demo_set_status(g_versus ? "Versus: two mappings at once" : "Versus off");
+                demo_set_status(g_versus ? "Versus: two mappings and palettes at once" : "Versus off");
             }
             else if (press & BUTTON_B)
             {
@@ -849,7 +863,8 @@ int main(void)
                     demo_draw_markers(boxes, nb, points, np, x, SPRITE_DRAW_Y);
                     ms_draw_anim_player(&g_anim_player, x, SPRITE_DRAW_Y);
                     if (g_versus)
-                        ms_draw_anim_player_mapped(&g_anim_player, demo_versus_mapping(), SPRITE_DRAW_X + VERSUS_SPACING, SPRITE_DRAW_Y);
+                        ms_draw_anim_player_as(&g_anim_player, demo_versus_mapping(), demo_versus_swap(),
+                                               SPRITE_DRAW_X + VERSUS_SPACING, SPRITE_DRAW_Y);
                 }
             }
         }
@@ -871,6 +886,7 @@ int main(void)
         g_update_lines = GET_VCOUNTER;
         ms_end_frame();
         g_update_lines = demo_lines_since(g_update_lines);
+        ms_palette_tick();  /* colour cycles turn once per video frame */
         SYS_doVBlankProcess();
         g_profile_ui_counter++;
         if (g_profile_ui_counter >= PROFILE_UI_PERIOD)

@@ -1,5 +1,5 @@
 {
-  "format_version": 6,
+  "format_version": 7,
   "name": "New Project",
   "images": [
     {
@@ -12,7 +12,7 @@
         0,
         255
       ],
-      "palette": 0
+      "palette_id": "pal_1"
     }
   ],
   "modules": [
@@ -9782,5 +9782,15 @@
     }
   ],
   "point_types": [],
-  "event_types": []
+  "event_types": [],
+  "console": "megadrive",
+  "palettes": [
+    {
+      "id": "pal_1",
+      "name": "Palette 1",
+      "colours": null,
+      "cycles": []
+    }
+  ],
+  "palette_swaps": []
 }

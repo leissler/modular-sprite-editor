@@ -11,7 +11,7 @@ import wx
 
 from hardware_budget import Budget, BudgetCalculator, HardwareProfile
 from ui import app_services
-from models import CollisionRect, ControlPoint, FModule, Frame, Module, ModuleMapping, Project
+from models import CollisionRect, ControlPoint, FModule, Frame, Module, ModuleMapping, PaletteSwap, Project
 from ui.base_canvas import BaseCanvas
 from ui.console_colours import CONSOLE
 from ui.frame_geometry import orthogonal_cos_sin, part_bounds
@@ -104,8 +104,11 @@ class FrameCanvas(BaseCanvas):
         self.render_rotation = 0.0
         # (mapping,) while drawing_mapping() overrides the preview mapping, e.g. for a scene object with its own.
         self._mapping_override: Optional[Tuple[Optional[ModuleMapping]]] = None
+        self._swap_override: Optional[Tuple[Optional[PaletteSwap]]] = None
+        # Video frames into playback: colour cycles turn (None: they stand still, as when not playing).
+        self.colour_frame: Optional[float] = None
         self._bitmap_cache: dict[str, wx.Bitmap] = {}
-        self._asset_image_cache: dict[Any, wx.Image] = {}  # (image id, console colour state) -> the whole image
+        self._asset_image_cache: dict[Any, wx.Image] = {}  # (image id, the colours it shows) -> the whole image
         # Zoomed/flipped/rotated module bitmaps, so paints during drags do not rescale images.
         self._scaled_cache: "OrderedDict[Any, wx.Bitmap]" = OrderedDict()
         self._scaled_cache_pixels = 0
@@ -182,6 +185,23 @@ class FrameCanvas(BaseCanvas):
             yield
         finally:
             self._mapping_override = saved
+
+    @property
+    def palette_swap(self) -> Optional[PaletteSwap]:
+        """The palette swap parts are drawn with: the preview's unless drawing_palette_swap overrides it."""
+        if self._swap_override is not None:
+            return self._swap_override[0]
+        return self.project.active_palette_swap if self.project else None
+
+    @contextmanager
+    def drawing_palette_swap(self, swap: Optional[PaletteSwap]) -> Iterator[None]:
+        """Temporarily draw with another palette swap (``None`` = the palettes as they are)."""
+        saved = self._swap_override
+        self._swap_override = (swap,)
+        try:
+            yield
+        finally:
+            self._swap_override = saved
 
     def _draw_ghost_layers(self, gc: wx.GraphicsContext) -> None:
         for layer in self.ghost_layers:
@@ -567,45 +587,53 @@ class FrameCanvas(BaseCanvas):
         gc.StrokeLine(cx, cy - half_len, cx, cy + half_len)
         return dsx, dsy, dsize
 
+    def _colour_key(self, asset: Any) -> Any:
+        """What decides the colours an image shows in this draw (None: its own)."""
+        return CONSOLE.image_key(self.project, asset, self.palette_swap, self.colour_frame)
+
     def _get_asset_source_image(self, asset_id: str) -> Optional[wx.Image]:
-        console = CONSOLE.state(self.project)
-        cached = self._asset_image_cache.get((asset_id, console))
-        if cached and cached.IsOk():
-            return cached
         asset = self.project.get_image(asset_id)
         if not asset:
             return None
-        if console is not None:  # View ▸ Mega Drive Colours
+        colours = self._colour_key(asset)
+        cached = self._asset_image_cache.get((asset_id, colours))
+        if cached and cached.IsOk():
+            return cached
+        if colours is not None:  # console view, a palette swap or turning colour cycles
             from ui.frame_render import to_wx_image
 
-            shown = CONSOLE.image(self.project, asset)
+            shown = CONSOLE.image(self.project, asset, self.palette_swap, self.colour_frame)
             img = to_wx_image(shown) if shown is not None else None
         else:
             img = load_wx_image_safely(asset.file_path)
         if not img or not img.IsOk():
             return None
-        self._asset_image_cache[(asset_id, console)] = img
+        if len(self._asset_image_cache) > 64:
+            self._asset_image_cache.clear()  # cycles and swaps add pictures; start over now and then
+        self._asset_image_cache[(asset_id, colours)] = img
         return img
 
     def _fmodule_bounds(self, fm: FModule) -> Tuple[float, float, float, float]:
         return part_bounds(self.project, fm, self.mapping)
 
     def _module_bitmap_key(self, mod: Module) -> str:
-        console = CONSOLE.state(self.project)
         if mod.type == "MD_IMAGE":
             asset = self.project.get_image(mod.image_id)
             transparent_color = asset.transparent_color if asset else None
             return (
                 f"{mod.id}_{mod.rect}_{getattr(mod, 'rotated', False)}"
-                f"_{self.apply_key_colour}_{transparent_color}_{console}"
+                f"_{self.apply_key_colour}_{transparent_color}_{self._colour_key(asset) if asset else None}"
             )
         # For shapes, include visual properties in key
-        return f"{mod.id}_{mod.type}_{mod.color}_{mod.params}_{console}"
+        shape_colours = CONSOLE.shape_key(self.project, self.palette_swap, self.colour_frame)
+        return f"{mod.id}_{mod.type}_{mod.color}_{mod.params}_{shape_colours}"
 
     def _get_module_bitmap(self, mod: Module) -> Optional[wx.Bitmap]:
         key = self._module_bitmap_key(mod)
         if key in self._bitmap_cache:
             return self._bitmap_cache[key]
+        if len(self._bitmap_cache) > 4000:
+            self._bitmap_cache.clear()  # colour cycles add a bitmap per phase; start over now and then
             
         if mod.type == "MD_IMAGE":
             asset = self.project.get_image(mod.image_id)
@@ -622,7 +650,10 @@ class FrameCanvas(BaseCanvas):
                 
                 if rx >= 0 and ry >= 0 and rw > 0 and rh > 0 and rx + rw <= img_w and ry + rh <= img_h:
                     sub_img = full_img.GetSubImage(wx.Rect(rx, ry, rw, rh))
-                    if self.apply_key_colour and asset.transparent_color:
+                    # Recoloured pictures come with the key colour cut out already (alpha); a mask on top of the
+                    # alpha would win on macOS and show the cut-out pixels in their new colour.
+                    keyed = self._colour_key(asset) is not None
+                    if self.apply_key_colour and asset.transparent_color and not keyed:
                         sub_img.SetMaskColour(*asset.transparent_color)
                     
                     if getattr(mod, 'rotated', False):
@@ -636,7 +667,8 @@ class FrameCanvas(BaseCanvas):
         else:
              # Shape Rendering (on the console: its colour from the first palette)
              w, h = mod.rect[2], mod.rect[3]
-             colour = CONSOLE.colour(self.project, mod.color) if CONSOLE.enabled and mod.color else mod.color
+             colour = (CONSOLE.colour(self.project, mod.color, self.palette_swap, self.colour_frame)
+                       if mod.color else mod.color)
              bmp = render_pixel_shape_to_bitmap(mod.type, w, h, colour, mod.params)
              if bmp:
                  self._bitmap_cache[key] = bmp

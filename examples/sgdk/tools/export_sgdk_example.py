@@ -26,7 +26,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import compositor  # noqa: E402
-from models import Frame, Module, ModuleMapping, Project, TimelineScene  # noqa: E402
+from models import (  # noqa: E402
+    TIMELINE_MAPPING_ORIGINAL, Frame, Module, ModuleMapping, PaletteSwap, Project, TimelineScene,
+)
 import palettes  # noqa: E402
 import project_check  # noqa: E402
 from project_check import Issue  # noqa: E402
@@ -56,7 +58,11 @@ class RenderFrameSpan:
     point_count: int = 0
 
 
-PieceEntry = Tuple[int, int, int, int]  # (dx, dy, VDP size code, tile offset): one hardware sprite of a variant
+# (dx, dy, VDP size code, tile offset, palette entry byte): one hardware sprite of a variant. The entry byte names the
+# palette entry the sprite's colours come from; FIXED_ENTRY set: as it is, not recoloured by the swap the game draws with.
+PieceEntry = Tuple[int, int, int, int, int]
+FIXED_ENTRY = 0x80
+MAX_PALETTE_ENTRIES = 0x7F
 BoxEntry = Tuple[int, int, int, int, int, int]  # (type, role, x, y, w, h)
 PointEntry = Tuple[int, int, int, int]  # (type, role, x, y)
 
@@ -80,9 +86,12 @@ UNKNOWN_TYPE = 0xFF
 #    hitboxes and points per render frame, type and role names, sprite count and bounds per render frame
 # 4: a palette per image group (the header's former spare field counts them); a piece's tile offset carries its
 #    palette in bits 13-14, so drawing adds it to the sprite attribute like the tile index
-BLOB_VERSION = 4
-BLOB_COUNT_FIELDS = 20
-BLOB_SECTION_COUNT = 30
+# 5: palette entries (every palette, then every swap's version of the palettes it changes) with names and colour
+#    cycles, the swaps' entry table; a piece names its palette entry in its spare byte (the runtime turns entries into
+#    palette lines at draw time), its tile offset has no palette bits any more
+BLOB_VERSION = 5
+BLOB_COUNT_FIELDS = 23
+BLOB_SECTION_COUNT = 36
 BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
 SPRITE_BLOCK = 32  # largest Mega Drive sprite: 4×4 tiles (hardware_budget cuts parts the same way)
 TILE = 8
@@ -177,9 +186,21 @@ class SGDKBakeContext:
         self.mapping_ids: List[str] = [m.id if m else "" for m in self.mappings]
         self.mapping_names: List[str] = [m.name if m else "<none>" for m in self.mappings]
 
-        # One palette per image group (ImageAsset.palette); the runtime loads them into consecutive palette lines.
-        self.palettes: Dict[int, List[Tuple[int, int, int]]] = palettes.project_palettes(project)
-        self.palette_lookup_caches: Dict[int, Dict[Tuple[int, int, int], int]] = {i: {} for i in self.palettes}
+        # Palette entries: every palette, then every swap's version of the palettes it changes. Pixels are stored in
+        # their palette's slots; a piece names the entry its colours come from.
+        self.palette_entries: List[palettes.Entry] = palettes.export_entries(project)
+        if len(self.palette_entries) > MAX_PALETTE_ENTRIES:
+            raise RuntimeError(f"Too many palettes and palette swaps for the blob: {len(self.palette_entries)} entries "
+                               f"> {MAX_PALETTE_ENTRIES}")
+        self.entry_of: Dict[Tuple[str, Optional[str]], int] = {
+            (entry.palette_id, entry.swap_id): index for index, entry in enumerate(self.palette_entries)}
+        self.palette_ids: List[str] = [palette.id for palette in project.palettes]
+        self.swaps: List[PaletteSwap] = list(project.palette_swaps)
+        self.palette_colours: Dict[str, List[Tuple[int, int, int]]] = {
+            palette.id: palettes.colours_of(project, palette) for palette in project.palettes}
+        self.palette_lookup_caches: Dict[str, Dict[Tuple[int, int, int], int]] = {pid: {} for pid in self.palette_colours}
+        self.palette_swap: Optional[PaletteSwap] = None  # scene objects with a swap (or "original") of their own
+        self.palette_fixed = False
 
     @staticmethod
     def _identity_matrix() -> Matrix2:
@@ -215,6 +236,38 @@ class SGDKBakeContext:
         self.mapping = mapping
         self.mapping_key = mapping.id if mapping else "none"
 
+    def _set_palette_state(self, swap: Optional[PaletteSwap], fixed: bool) -> None:
+        """How the parts baked next get their colours: (None, False) follows the swap the game draws with; a swap
+        or (None, True) for "original" is fixed in the pieces."""
+        self.palette_swap = swap
+        self.palette_fixed = bool(fixed)
+
+    def _palette_key(self) -> Tuple[str, bool]:
+        return (self.palette_swap.id if self.palette_swap else "", self.palette_fixed)
+
+    def _entry_byte(self, palette_id: str) -> int:
+        """The palette entry a part of this palette draws from (see _set_palette_state)."""
+        swap = self.palette_swap
+        if swap is not None and (palette_id, swap.id) in self.entry_of:
+            return self.entry_of[(palette_id, swap.id)] | FIXED_ENTRY
+        return self.entry_of[(palette_id, None)] | (FIXED_ENTRY if self.palette_fixed else 0)
+
+    def _object_colours(self, scene: TimelineScene, object_id: str) -> Tuple[Optional[PaletteSwap], bool]:
+        """A scene object's own palette swap (its own or an ancestor's, like the mapping), or (None, False) when it
+        follows the swap the scene is drawn with."""
+        seen: set = set()
+        obj = scene.get_object(object_id)
+        while obj and obj.id not in seen:
+            seen.add(obj.id)
+            if obj.palette_swap_id == TIMELINE_MAPPING_ORIGINAL:
+                return None, True
+            if obj.palette_swap_id:
+                swap = self.project.get_palette_swap(obj.palette_swap_id)
+                if swap is not None:
+                    return swap, True
+            obj = scene.get_object(obj.parent_id) if obj.parent_id else None
+        return None, False
+
     @staticmethod
     def _is_hidden_module(mod: Optional[Module]) -> bool:
         if mod is None:
@@ -227,15 +280,17 @@ class SGDKBakeContext:
             return None
         return mod
 
-    def _palette_of_module(self, mod: Module) -> int:
+    def _palette_of_module(self, mod: Module) -> str:
         """The palette a module's pixels use: its image's (vector shapes use the first)."""
         asset = self.project.get_image(mod.image_id) if mod.type == "MD_IMAGE" else None
-        return palettes.palette_of(asset) if asset is not None else 0
+        return self.project.image_palette(asset).id
 
-    def _ensure_variant(self, image: Image.Image, palette: int = 0) -> int:
+    def _ensure_variant(self, image: Image.Image, palette: str, entry: int) -> int:
+        """A part image's hardware sprites, stored in its palette's slots and drawn from palette entry ``entry``
+        (pieces of one image with another entry share its tiles)."""
         rgba = image.convert("RGBA")
         digest = hashlib.sha1(rgba.tobytes()).hexdigest()
-        key = (rgba.width, rgba.height, digest, palette)
+        key = (rgba.width, rgba.height, digest, palette, entry)
         found = self.variant_lookup.get(key)
         if found is not None:
             return found
@@ -263,8 +318,7 @@ class SGDKBakeContext:
                     self.tile_data.extend(tiles)
                     self.piece_tiles_lookup[tiles] = offset
                 size_code = (((bw // TILE) - 1) << 2) | ((bh // TILE) - 1)
-                # The palette rides in the attribute's palette bits: the runtime adds it with the tile index.
-                blocks.append((bx, by, size_code, offset | (palette << 13)))
+                blocks.append((bx, by, size_code, offset, entry))
 
         idx = len(self.variants)
         self.variant_lookup[key] = idx
@@ -283,11 +337,11 @@ class SGDKBakeContext:
         meta = self.variants[variant_index]
         pad_w, pad_h = meta.tile_w * TILE, meta.tile_h * TILE
         first = len(self.pieces)
-        for bx, by, size_code, offset in self.variant_blocks[variant_index]:
+        for bx, by, size_code, offset, entry in self.variant_blocks[variant_index]:
             w, h = (((size_code >> 2) & 3) + 1) * TILE, ((size_code & 3) + 1) * TILE
             x = pad_w - bx - w if hflip else bx
             y = pad_h - by - h if vflip else by
-            self.pieces.append((x, y, size_code, offset))
+            self.pieces.append((x, y, size_code, offset, entry))
         found = (first, len(self.pieces) - first)
         self.piece_lists[key] = found
         return found
@@ -309,7 +363,7 @@ class SGDKBakeContext:
         max_x = max_y = -0x8000
         for variant_index, px, py, hflip, vflip in self.parts[span.first_part:span.first_part + span.part_count]:
             first, n = self._piece_list(variant_index, bool(hflip), bool(vflip))
-            for dx, dy, size_code, _offset in self.pieces[first:first + n]:
+            for dx, dy, size_code, _offset, _entry in self.pieces[first:first + n]:
                 x, y = int(px) + dx, int(py) + dy
                 min_x, min_y = min(min_x, x), min(min_y, y)
                 max_x = max(max_x, x + (((size_code >> 2) & 3) + 1) * TILE)
@@ -326,6 +380,42 @@ class SGDKBakeContext:
             first, count = self._piece_list(variant_index, bool(hflip), bool(vflip))
             out.append((first, count, (1 if hflip else 0) | (2 if vflip else 0), x, y))
         return out
+
+    def _entry_cycles(self, entry: palettes.Entry) -> List[Any]:
+        visible = palettes.capacity(self.project)
+        return [c for c in entry.cycles if c.count >= 2 and 1 <= c.first and c.first + c.count - 1 <= visible]
+
+    def packed_palette_words(self) -> List[int]:
+        """16 CRAM words per palette entry: slot 0 (transparent), then its colours with rescomp's rounding (3 bits
+        per channel, truncated), free slots black."""
+        visible = palettes.capacity(self.project)
+        words: List[int] = []
+        for entry in self.palette_entries:
+            words.append(0)
+            words.extend(palettes.md_word(entry.colours[slot] if slot < len(entry.colours) else (0, 0, 0))
+                         for slot in range(visible))
+        return words
+
+    def packed_palette_entries(self) -> List[Tuple[int, int, int, int]]:
+        """(palette, swap number (0 = none), first cycle, cycle count) per palette entry."""
+        swap_ids = [s.id for s in self.swaps]
+        out, first = [], 0
+        for entry in self.palette_entries:
+            count = len(self._entry_cycles(entry))
+            swap = 0 if entry.swap_id is None else 1 + swap_ids.index(entry.swap_id)
+            out.append((self.palette_ids.index(entry.palette_id), swap, first, count))
+            first += count
+        return out
+
+    def packed_colour_cycles(self) -> List[Tuple[int, int, int, int]]:
+        """(first slot, count, frames per step, reverse) of every entry's cycles, in entry order."""
+        return [(int(c.first), int(c.count), max(1, min(0xFFFF, int(c.frames))), 1 if c.reverse else 0)
+                for entry in self.palette_entries for c in self._entry_cycles(entry)]
+
+    def packed_swap_entries(self) -> List[int]:
+        """For each swap (from swap 1), the entry each palette is drawn from."""
+        return [self.entry_of.get((pid, swap.id), self.entry_of[(pid, None)])
+                for swap in self.swaps for pid in self.palette_ids]
 
     @staticmethod
     def _block_tiles(pixels: bytes, stride: int, bx: int, by: int, tiles_w: int, tiles_h: int) -> bytes:
@@ -347,11 +437,12 @@ class SGDKBakeContext:
         db = int(a[2]) - int(b[2])
         return dr * dr + dg * dg + db * db
 
-    def _nearest_palette_index(self, rgb: Tuple[int, int, int], palette: int = 0) -> int:
-        """0-14: the closest colour of a palette (the tile stores it + 1, 0 is transparent)."""
-        return palettes.nearest(rgb, self.palettes[palette], self.palette_lookup_caches[palette])
+    def _nearest_palette_index(self, rgb: Tuple[int, int, int], palette: str) -> int:
+        """0-14: the palette slot a colour takes, as palettes.nearest picks it (the tile stores it + 1, 0 is
+        transparent)."""
+        return palettes.nearest(rgb, self.palette_colours.get(palette, []), self.palette_lookup_caches.setdefault(palette, {}))
 
-    def _to_indexed_4bpp(self, rgba: Image.Image, palette: int = 0) -> Image.Image:
+    def _to_indexed_4bpp(self, rgba: Image.Image, palette: str) -> Image.Image:
         alpha = rgba.getchannel("A")
         rgb = rgba.convert("RGB")
         src_rgb = rgb.tobytes()
@@ -363,7 +454,7 @@ class SGDKBakeContext:
                 out_idx[i] = self._nearest_palette_index((src_rgb[j], src_rgb[j + 1], src_rgb[j + 2]), palette) + 1
 
         colours = [0] * (256 * 3)
-        for i, rgb_color in enumerate(self.palettes[palette]):
+        for i, rgb_color in enumerate(self.palette_colours.get(palette, [])):
             dst_off = (i + 1) * 3
             colours[dst_off] = int(rgb_color[0])
             colours[dst_off + 1] = int(rgb_color[1])
@@ -496,7 +587,8 @@ class SGDKBakeContext:
             else:
                 draw_y = by - py_eff
 
-            variant_index = self._ensure_variant(base, self._palette_of_module(mod))
+            palette = self._palette_of_module(mod)
+            variant_index = self._ensure_variant(base, palette, self._entry_byte(palette))
             return (variant_index, int(draw_x), int(draw_y), int(hflip), int(vflip))
 
         rendered = self._render_transformed_instance_with_local_flip(
@@ -509,7 +601,8 @@ class SGDKBakeContext:
         if not rendered:
             return None
         img, draw_x, draw_y = rendered
-        variant_index = self._ensure_variant(img, self._palette_of_module(mod))
+        palette = self._palette_of_module(mod)
+        variant_index = self._ensure_variant(img, palette, self._entry_byte(palette))
         return (variant_index, int(draw_x), int(draw_y), 0, 0)
 
     def _render_transformed_instance_with_local_flip(
@@ -696,6 +789,7 @@ class SGDKBakeContext:
         key = (
             "frame",
             self.mapping_key,
+            self._palette_key(),
             frame.id,
             self._roundf(offset[0]),
             self._roundf(offset[1]),
@@ -861,11 +955,14 @@ class SGDKBakeContext:
         baked_mapping = self.mapping
         try:
             for obj in ordered_objects:
-                # Objects with their own mapping keep it; the others follow the mapping being baked.
+                # Objects with their own mapping keep it; the others follow the mapping being baked. Objects with a
+                # palette swap of their own have it in their pieces; the others follow the swap the game draws with.
                 self._set_current_mapping(scene.object_mapping(self.project, obj.id, baked_mapping))
+                self._set_palette_state(*self._object_colours(scene, obj.id))
                 scene_parts.extend(self._render_scene_object_parts(scene, state_map, obj.id, world_cache))
         finally:
             self._set_current_mapping(baked_mapping)
+            self._set_palette_state(None, False)
         return tuple(scene_parts)
 
     def _render_scene_object_parts(
@@ -1072,6 +1169,12 @@ class SGDKBakeContext:
             "box_type_names",
             "point_type_names",
             "role_names",
+            "palette_entries",
+            "colour_cycles",
+            "swap_entries",
+            "swap_ids",
+            "swap_names",
+            "palette_names",
         ]
         if len(section_names) != BLOB_SECTION_COUNT:
             raise RuntimeError("Internal SGDK blob section list mismatch")
@@ -1118,15 +1221,24 @@ class SGDKBakeContext:
             variants_raw.extend(struct.pack(">HHBB", int(v.first_piece), int(v.piece_count), int(v.tile_w), int(v.tile_h)))
 
         pieces_raw = bytearray()
-        for dx, dy, size_code, tile_offset in self.pieces:
-            pieces_raw.extend(struct.pack(">hhBBH", int(dx), int(dy), int(size_code), 0, int(tile_offset)))
+        for dx, dy, size_code, tile_offset, entry in self.pieces:
+            pieces_raw.extend(struct.pack(">hhBBH", int(dx), int(dy), int(size_code), int(entry), int(tile_offset)))
 
         palette_raw = bytearray()
-        for index in range(len(self.palettes)):
-            palette_raw.extend(self._be16(0))  # index 0 is transparent
-            for rgb in self.palettes[index]:
-                # Same rounding as rescomp: 3 bits per channel, truncated.
-                palette_raw.extend(self._be16(palettes.md_word(rgb)))
+        for word in self.packed_palette_words():
+            palette_raw.extend(self._be16(word))
+        entries_raw = bytearray()
+        for record in self.packed_palette_entries():
+            entries_raw.extend(struct.pack(">BBHBB", *record, 0))
+        cycles_raw = bytearray()
+        cycle_records = self.packed_colour_cycles()
+        cycle_count = len(cycle_records)
+        for record in cycle_records:
+            cycles_raw.extend(struct.pack(">BBHBB", *record, 0))
+        swap_entries_raw = bytearray(self.packed_swap_entries())
+        swap_ids_rel = append_string_list([""] + [swap.id for swap in self.swaps])
+        swap_names_rel = append_string_list(["<none>"] + [swap.name for swap in self.swaps])
+        palette_names_rel = append_string_list([entry.name for entry in self.palette_entries])
 
         boxes_raw = bytearray()
         for box_type, role, x, y, w, h in self.boxes:
@@ -1208,6 +1320,9 @@ class SGDKBakeContext:
         append_section("pieces", bytes(pieces_raw))
         append_section("tiles", bytes(self.tile_data), align=4)
         append_section("palette", bytes(palette_raw))
+        append_section("palette_entries", bytes(entries_raw))
+        append_section("colour_cycles", bytes(cycles_raw))
+        append_section("swap_entries", bytes(swap_entries_raw))
         append_section("boxes", bytes(boxes_raw))
         append_section("points", bytes(points_raw))
         append_section("strings", bytes(strings_blob), align=1)
@@ -1234,11 +1349,14 @@ class SGDKBakeContext:
         append_section("box_type_names", build_string_offset_section(box_type_names_rel))
         append_section("point_type_names", build_string_offset_section(point_type_names_rel))
         append_section("role_names", build_string_offset_section(role_names_rel))
+        append_section("swap_ids", build_string_offset_section(swap_ids_rel))
+        append_section("swap_names", build_string_offset_section(swap_names_rel))
+        append_section("palette_names", build_string_offset_section(palette_names_rel))
 
         header = bytearray()
         header.extend(b"MSB1")
         header.extend(self._be16(BLOB_VERSION))
-        header.extend(self._be16(len(self.palettes)))  # palette lines the sprites use, from the first one
+        header.extend(self._be16(len(self.palette_entries)))  # palette entries (one line each when loaded)
         header.extend(self._be16(len(self.variants)))
         header.extend(self._be16(len(self.project.modules)))
         header.extend(self._be16(len(self.project.frames)))
@@ -1259,6 +1377,9 @@ class SGDKBakeContext:
         header.extend(self._be16(len(self.project.collision_types)))
         header.extend(self._be16(len(self.project.point_types)))
         header.extend(self._be16(len(self.role_names)))
+        header.extend(self._be16(len(self.palette_ids)))  # the first entries: the palettes themselves
+        header.extend(self._be16(len(self.swaps) + 1))  # palette swaps, 0 = none
+        header.extend(self._be16(cycle_count))
         header.extend(self._be32(len(self.parts)))
 
         for section in section_names:
@@ -1329,9 +1450,32 @@ typedef struct MS_RECORD
     s16 x;            /* offset from the part's position */
     s16 y;
     u8 size;          /* VDP sprite size: SPRITE_SIZE(w, h) */
-    u8 reserved0;
+    u8 palette;       /* the palette entry its colours come from; MS_FIXED_ENTRY set: not recoloured by the swap */
     u16 tile_offset;  /* first tile, from the runtime's tile base */
 } MS_Piece;
+
+#define MS_FIXED_ENTRY 0x80u
+
+/* A palette entry: one of the editor's palettes, or what a palette swap makes of one. Its 16 colours are at
+   ms_palette[entry * 16]; ms_init() loads entries into consecutive palette lines as far as they fit. */
+typedef struct MS_RECORD
+{
+    u8 palette;       /* the editor's palette it is, or recolours */
+    u8 swap;          /* the palette swap that made it, 0 = the palette itself */
+    u16 first_cycle;  /* its colour cycles: ms_colour_cycles[first_cycle .. + cycle_count - 1] */
+    u8 cycle_count;
+    u8 reserved0;
+} MS_PaletteEntry;
+
+/* A colour cycle: count slots from first rotate one slot up (down if reverse) every frames video frames. */
+typedef struct MS_RECORD
+{
+    u8 first;
+    u8 count;
+    u16 frames;
+    u8 reverse;
+    u8 reserved0;
+} MS_ColourCycle;
 
 /* Hitboxes and points of a frame, already moved like the frame (step offset, flips, rotation).
    Coordinates are relative to the position the frame is drawn at. */
@@ -1416,7 +1560,10 @@ extern u16 ms_scene_record_count;
 extern u16 ms_event_type_count;
 extern u16 ms_step_event_count;
 extern u16 ms_tile_count;
-extern u16 ms_palette_count;
+extern u16 ms_palette_entry_count;
+extern u16 ms_base_palette_count;
+extern u16 ms_palette_swap_count;
+extern u16 ms_colour_cycle_count;
 extern u16 ms_piece_count;
 extern u16 ms_hitbox_count;
 extern u16 ms_point_count;
@@ -1439,12 +1586,18 @@ extern u16 ms_role_count;
 #define MS_EVENT_TYPE_COUNT (ms_event_type_count)
 #define MS_STEP_EVENT_COUNT (ms_step_event_count)
 #define MS_TILE_COUNT (ms_tile_count)
-#define MS_PALETTE_COUNT (ms_palette_count) /* palette lines (16 colours each) in ms_palette, loaded from the first */
+#define MS_PALETTE_ENTRY_COUNT (ms_palette_entry_count) /* palette entries, 16 colours each in ms_palette */
+#define MS_BASE_PALETTE_COUNT (ms_base_palette_count)   /* the first entries are the editor's palettes */
+#define MS_PALETTE_SWAP_COUNT (ms_palette_swap_count)   /* palette swaps, 0 = none */
+#define MS_COLOUR_CYCLE_COUNT (ms_colour_cycle_count)
 
 extern const MS_Variant *ms_variants;
 extern const MS_Piece *ms_pieces;
 extern const u32 *ms_tiles;
 extern const u16 *ms_palette;
+extern const MS_PaletteEntry *ms_palette_entries;
+extern const MS_ColourCycle *ms_colour_cycles;
+extern const u8 *ms_swap_entries;  /* swap s (from 1): ms_swap_entries[(s - 1) * MS_BASE_PALETTE_COUNT + palette] */
 extern const MS_Hitbox *ms_hitboxes;
 extern const MS_Point *ms_points;
 extern const MS_Part *ms_parts;
@@ -1474,6 +1627,9 @@ const char *ms_event_name_data(u16 index);
 const char *ms_hitbox_type_name_data(u16 index);
 const char *ms_point_type_name_data(u16 index);
 const char *ms_role_name_data(u16 index);
+const char *ms_palette_swap_id(u16 index);
+const char *ms_palette_swap_name_data(u16 index);
+const char *ms_palette_entry_name_data(u16 index);
 
 /* Animation events (project event types, in the editor's order). */
 @EVENT_DEFINES@
@@ -1544,7 +1700,13 @@ enum
     MS_SEC_HITBOX_TYPE_NAMES = 27,
     MS_SEC_POINT_TYPE_NAMES = 28,
     MS_SEC_ROLE_NAMES = 29,
-    MS_SEC_COUNT = 30
+    MS_SEC_PALETTE_ENTRIES = 30,
+    MS_SEC_COLOUR_CYCLES = 31,
+    MS_SEC_SWAP_ENTRIES = 32,
+    MS_SEC_SWAP_IDS = 33,
+    MS_SEC_SWAP_NAMES = 34,
+    MS_SEC_PALETTE_NAMES = 35,
+    MS_SEC_COUNT = 36
 }};
 
 u16 ms_variant_count = 0;
@@ -1562,7 +1724,10 @@ u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0;
 u16 ms_step_event_count = 0;
 u16 ms_tile_count = 0;
-u16 ms_palette_count = 0;
+u16 ms_palette_entry_count = 0;
+u16 ms_base_palette_count = 0;
+u16 ms_palette_swap_count = 0;
+u16 ms_colour_cycle_count = 0;
 u16 ms_piece_count = 0;
 u16 ms_hitbox_count = 0;
 u16 ms_point_count = 0;
@@ -1574,6 +1739,9 @@ const MS_Variant *ms_variants = NULL;
 const MS_Piece *ms_pieces = NULL;
 const u32 *ms_tiles = NULL;
 const u16 *ms_palette = NULL;
+const MS_PaletteEntry *ms_palette_entries = NULL;
+const MS_ColourCycle *ms_colour_cycles = NULL;
+const u8 *ms_swap_entries = NULL;
 const MS_Hitbox *ms_hitboxes = NULL;
 const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL;
@@ -1607,6 +1775,9 @@ static const u8 *g_event_name_offsets = NULL;
 static const u8 *g_hitbox_type_name_offsets = NULL;
 static const u8 *g_point_type_name_offsets = NULL;
 static const u8 *g_role_name_offsets = NULL;
+static const u8 *g_swap_id_offsets = NULL;
+static const u8 *g_swap_name_offsets = NULL;
+static const u8 *g_palette_name_offsets = NULL;
 
 static u16 ms_read_be16(const u8 *ptr)
 {{
@@ -1635,7 +1806,10 @@ static void ms_reset_data(void)
     ms_event_type_count = 0;
     ms_step_event_count = 0;
     ms_tile_count = 0;
-    ms_palette_count = 0;
+    ms_palette_entry_count = 0;
+    ms_base_palette_count = 0;
+    ms_palette_swap_count = 0;
+    ms_colour_cycle_count = 0;
     ms_piece_count = 0;
     ms_hitbox_count = 0;
     ms_point_count = 0;
@@ -1647,6 +1821,9 @@ static void ms_reset_data(void)
     ms_pieces = NULL;
     ms_tiles = NULL;
     ms_palette = NULL;
+    ms_palette_entries = NULL;
+    ms_colour_cycles = NULL;
+    ms_swap_entries = NULL;
     ms_hitboxes = NULL;
     ms_points = NULL;
     ms_parts = NULL;
@@ -1673,6 +1850,9 @@ static void ms_reset_data(void)
     g_hitbox_type_name_offsets = NULL;
     g_point_type_name_offsets = NULL;
     g_role_name_offsets = NULL;
+    g_swap_id_offsets = NULL;
+    g_swap_name_offsets = NULL;
+    g_palette_name_offsets = NULL;
     g_strings_base = 0;
     g_strings_size = 0;
     g_data_ready = FALSE;
@@ -1715,7 +1895,7 @@ void ms_data_init(void)
     if (ms_read_be16(ptr) != MS_BLOB_VERSION)
         return;
     ptr += 2;
-    ms_palette_count = ms_read_be16(ptr); ptr += 2;
+    ms_palette_entry_count = ms_read_be16(ptr); ptr += 2;
 
     ms_variant_count = ms_read_be16(ptr); ptr += 2;
     ms_module_count = ms_read_be16(ptr); ptr += 2;
@@ -1737,6 +1917,9 @@ void ms_data_init(void)
     ms_hitbox_type_count = ms_read_be16(ptr); ptr += 2;
     ms_point_type_count = ms_read_be16(ptr); ptr += 2;
     ms_role_count = ms_read_be16(ptr); ptr += 2;
+    ms_base_palette_count = ms_read_be16(ptr); ptr += 2;
+    ms_palette_swap_count = ms_read_be16(ptr); ptr += 2;
+    ms_colour_cycle_count = ms_read_be16(ptr); ptr += 2;
     ms_part_count = ms_read_be32(ptr); ptr += 4;
 
     for (i = 0; i < MS_SEC_COUNT; i++)
@@ -1770,11 +1953,17 @@ void ms_data_init(void)
     ms_pieces = (const MS_Piece *)(g_blob + g_section_offsets[MS_SEC_PIECES]);
     ms_tiles = (const u32 *)(g_blob + g_section_offsets[MS_SEC_TILES]);
     ms_palette = (const u16 *)(g_blob + g_section_offsets[MS_SEC_PALETTE]);
+    ms_palette_entries = (const MS_PaletteEntry *)(g_blob + g_section_offsets[MS_SEC_PALETTE_ENTRIES]);
+    ms_colour_cycles = (const MS_ColourCycle *)(g_blob + g_section_offsets[MS_SEC_COLOUR_CYCLES]);
+    ms_swap_entries = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SWAP_ENTRIES]);
     ms_hitboxes = (const MS_Hitbox *)(g_blob + g_section_offsets[MS_SEC_HITBOXES]);
     ms_points = (const MS_Point *)(g_blob + g_section_offsets[MS_SEC_POINTS]);
     g_hitbox_type_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_HITBOX_TYPE_NAMES]);
     g_point_type_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_POINT_TYPE_NAMES]);
     g_role_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_ROLE_NAMES]);
+    g_swap_id_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SWAP_IDS]);
+    g_swap_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_SWAP_NAMES]);
+    g_palette_name_offsets = (const u8 *)(g_blob + g_section_offsets[MS_SEC_PALETTE_NAMES]);
 
     g_strings_base = g_section_offsets[MS_SEC_STRINGS];
 
@@ -1807,6 +1996,9 @@ const char *ms_event_name_data(u16 index) {{ return ms_lookup_string(g_event_nam
 const char *ms_hitbox_type_name_data(u16 index) {{ return ms_lookup_string(g_hitbox_type_name_offsets, ms_hitbox_type_count, index); }}
 const char *ms_point_type_name_data(u16 index) {{ return ms_lookup_string(g_point_type_name_offsets, ms_point_type_count, index); }}
 const char *ms_role_name_data(u16 index) {{ return ms_lookup_string(g_role_name_offsets, ms_role_count, index); }}
+const char *ms_palette_swap_id(u16 index) {{ return ms_lookup_string(g_swap_id_offsets, ms_palette_swap_count, index); }}
+const char *ms_palette_swap_name_data(u16 index) {{ return ms_lookup_string(g_swap_name_offsets, ms_palette_swap_count, index); }}
+const char *ms_palette_entry_name_data(u16 index) {{ return ms_lookup_string(g_palette_name_offsets, ms_palette_entry_count, index); }}
 """
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
@@ -1877,7 +2069,7 @@ def export_project(
 
     tiles = len(bake.tile_data) // 32
     issues.append(project_check.tile_issue(tiles))
-    lines = project_check.palette_issue(len(bake.palettes))
+    lines = project_check.palette_issue(len(bake.palette_entries))
     if lines is not None:
         issues.append(lines)
     summary = {
@@ -1886,7 +2078,9 @@ def export_project(
         "variants": len(bake.variants),
         "hardware_sprite_pieces": len(bake.pieces),
         "tiles": tiles,
-        "palettes": len(bake.palettes),
+        "palettes": len(bake.palette_ids),
+        "palette_swaps": len(bake.swaps),
+        "palette_entries": len(bake.palette_entries),
         "hitboxes": len(bake.boxes),
         "points": len(bake.points),
         "parts": len(bake.parts),

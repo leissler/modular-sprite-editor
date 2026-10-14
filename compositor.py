@@ -9,7 +9,7 @@ import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
-    from models import Frame, Module, ModuleMapping, Project
+    from models import Frame, Module, ModuleMapping, PaletteSwap, Project
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 Vector = Tuple[float, float]
@@ -162,22 +162,46 @@ def apply_key_colour(img: Any, transparent_color: Optional[Tuple[int, int, int]]
     return out
 
 
+def swap_colours(project: "Project", mod: "Module", swap: Optional["PaletteSwap"]) -> Optional[Tuple[Tuple[Any, ...], Tuple[Any, ...]]]:
+    """(the palette's colours, the swap's version of them) for the module's palette, or None when the swap leaves
+    its colours as they are (vector shapes use the first palette)."""
+    if swap is None:
+        return None
+    import palettes
+
+    asset = project.get_image(mod.image_id) if mod.type == "MD_IMAGE" else None
+    palette = project.image_palette(asset)
+    if palette.id not in swap.palettes:
+        return None
+    base = palettes.colours_of(project, palette)
+    if not palettes.recolours(palette, swap, None, base):
+        return None
+    return tuple(base), tuple(palettes.swapped_colours(palette, swap, base))
+
+
 def load_module_rgba(
     project: "Project",
     mod: "Module",
-    full_image_cache: Dict[str, Any],
-    module_cache: Dict[str, Any],
+    full_image_cache: Dict[Any, Any],
+    module_cache: Dict[Any, Any],
+    swap: Optional["PaletteSwap"] = None,
 ) -> Any:
-    """The module's RGBA image as used (key colour cut, a packed module turned upright); empty if its image is
-    missing. Sheets go into ``full_image_cache``, modules into ``module_cache``."""
+    """The module's RGBA image as used (key colour cut, a packed module turned upright, recoloured by ``swap``); empty
+    if its image is missing. Sheets go into ``full_image_cache``, modules into ``module_cache``."""
     from PIL import Image as PILImage
 
-    if mod.id in module_cache:
-        return module_cache[mod.id]
+    colours = swap_colours(project, mod, swap)
+    module_key: Any = mod.id if colours is None else (mod.id, colours)
+    if module_key in module_cache:
+        return module_cache[module_key]
 
     if mod.type != "MD_IMAGE":
         img = render_shape_module(mod)
-        module_cache[mod.id] = img
+        if colours is not None:
+            import palettes
+
+            img = palettes.recolour(img, colours[0], colours[1])
+        module_cache[module_key] = img
         return img
 
     asset = project.get_image(mod.image_id)
@@ -186,7 +210,7 @@ def load_module_rgba(
 
     if not asset or not os.path.exists(asset.file_path):
         img = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
-        module_cache[mod.id] = img
+        module_cache[module_key] = img
         return img
 
     trans_key = None
@@ -202,6 +226,13 @@ def load_module_rgba(
         loaded = apply_key_colour(loaded, asset.transparent_color)
         full_image_cache[cache_key] = loaded
     source = full_image_cache[cache_key]
+    if colours is not None:
+        import palettes
+
+        swapped_key = (cache_key, colours)
+        if swapped_key not in full_image_cache:
+            full_image_cache[swapped_key] = palettes.recolour(source, colours[0], colours[1])
+        source = full_image_cache[swapped_key]
 
     rx, ry, rw, rh = mod.rect
     left = max(0, int(rx))
@@ -210,14 +241,14 @@ def load_module_rgba(
     bottom = min(source.height, int(ry + rh))
     if right <= left or bottom <= top:
         img = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
-        module_cache[mod.id] = img
+        module_cache[module_key] = img
         return img
 
     img = source.crop((left, top, right, bottom))
     if mod.rotated:
         # Match current editor behavior (Rotate90(clockwise=False))
         img = img.transpose(PILImage.ROTATE_90)
-    module_cache[mod.id] = img
+    module_cache[module_key] = img
     return img
 
 
@@ -305,15 +336,16 @@ def render_instance(
     mod: "Module",
     a_mat: Matrix,
     b_vec: Vector,
-    full_image_cache: Dict[str, Any],
-    module_cache: Dict[str, Any],
+    full_image_cache: Dict[Any, Any],
+    module_cache: Dict[Any, Any],
     local_flip_x: bool = False,
     local_flip_y: bool = False,
+    swap: Optional["PaletteSwap"] = None,
 ) -> Optional[Tuple[Any, int, int]]:
     """One module instance as an image and its top-left corner; None if nothing of it shows."""
     from PIL import Image as PILImage
 
-    base = load_module_rgba(project, mod, full_image_cache, module_cache)
+    base = load_module_rgba(project, mod, full_image_cache, module_cache, swap)
     # The part's own flip is an in-place mirror of the module image (editor semantics);
     # everything else (rotation, nested/animation flips) is on the affine path below.
     base = mirror_in_place(base, local_flip_x, local_flip_y)
@@ -380,11 +412,12 @@ def render_frame(
     mapping: Optional["ModuleMapping"],
     extra_a: Matrix,
     extra_b: Vector,
-    full_image_cache: Dict[str, Any],
-    module_cache: Dict[str, Any],
+    full_image_cache: Dict[Any, Any],
+    module_cache: Dict[Any, Any],
+    swap: Optional["PaletteSwap"] = None,
 ) -> Tuple[Any, int, int, List[Tuple[str, Tuple[int, int, int, int]]]]:
-    """The frame under the extra transform: (image, left, top, [(hitbox type id, transformed rect)]); a 1×1
-    transparent image at (0, 0) if nothing shows."""
+    """The frame under the extra transform, recoloured by ``swap``: (image, left, top, [(hitbox type id, transformed
+    rect)]); a 1×1 transparent image at (0, 0) if nothing shows."""
     from PIL import Image as PILImage
 
     instances: List[LeafInstance] = []
@@ -404,7 +437,8 @@ def render_frame(
 
     rendered: List[Tuple[Any, int, int]] = []
     for mod, a_mat, b_vec, _rot, _flip_x, _flip_y, local_flip_x, local_flip_y in instances:
-        piece = render_instance(project, mod, a_mat, b_vec, full_image_cache, module_cache, local_flip_x, local_flip_y)
+        piece = render_instance(project, mod, a_mat, b_vec, full_image_cache, module_cache, local_flip_x, local_flip_y,
+                                swap)
         if piece is not None:
             rendered.append(piece)
 

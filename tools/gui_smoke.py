@@ -161,7 +161,7 @@ def run():
     def pictures():
         old = frame.GetRect()
         frame.SetSize(wx.Display(max(0, wx.Display.GetFromWindow(frame))).GetClientArea())  # all of it on screen
-        for index, name in enumerate(app_mod.TAB_NAMES[:5]):
+        for index, name in enumerate(app_mod.TAB_NAMES):
             frame.select_tab(index)
             pump(4)
             shot(f"tab{index + 1}-{name.lower()}")
@@ -171,7 +171,7 @@ def run():
         step("pictures of every tab", pictures)
 
     def tabs():
-        for i in range(5):
+        for i in range(len(app_mod.TAB_NAMES)):
             frame.select_tab(i)
             pump()
             canvas = frame._active_canvas()
@@ -972,13 +972,18 @@ def run():
         pump()
         check(me.inspector.palette_choice.IsShown(), "modules: a sheet shows its palette")
         frame.history_checkpoint()
-        me._set_palette(1)
-        check(proj.get_image(img.id).palette == 1, "modules: the image moves to Palette 2")
+        before = proj.get_image(img.id).palette_id
+        palette_count = len(proj.palettes)
+        me._set_palette("")  # "New palette…"
+        moved = proj.get_image(img.id).palette_id
+        check(moved != before and len(proj.palettes) == palette_count + 1, "modules: the image moves to a new palette")
+        check(bool(proj.get_palette(moved).colours), "its colours went into the new palette's slots")
         frame.on_undo(None)
         pump()
-        check(proj.get_image(img.id).palette == 0, "undo restores the palette")
+        check(proj.get_image(img.id).palette_id == before and len(proj.palettes) == palette_count,
+              "undo restores the palette")
         frame.set_console_colours(True)
-        check(CONSOLE.enabled and frame.m_console.IsChecked(), "View > Mega Drive Colours on")
+        check(CONSOLE.enabled and frame.m_console.IsChecked(), "View > Console Colours on")
         me.canvas.Refresh()
         me.canvas.Update()
         shown = CONSOLE.image(proj, proj.get_image(img.id))
@@ -990,7 +995,7 @@ def run():
         fe.canvas.Refresh()
         fe.canvas.Update()
         frame.set_console_colours(False)
-        check(not CONSOLE.enabled and not frame.m_console.IsChecked(), "Mega Drive Colours off")
+        check(not CONSOLE.enabled and not frame.m_console.IsChecked(), "Console Colours off")
 
         target = next((f for f in proj.frames if f.fmodules), None)
         if target:
@@ -1031,6 +1036,86 @@ def run():
             ae.refresh()
 
     step("palettes, Mega Drive colours, SNES budgets, video memory", palettes_and_memory)
+
+    # ---- Palettes tab: a palette swap and a colour cycle, wherever they show
+    def palette_swaps():
+        import palettes
+        from ui.console_colours import CONSOLE
+        from ui.palette_editor import ops as pal_ops
+
+        pe = frame.palette_editor
+        frame.select_tab(5)
+        pump(2)
+        check(frame.book.GetSelection() == 5, "the Palettes tab")
+        palette = proj.palettes[0]
+        check(pe.inspector.grid.colours == palettes.colours_of(proj, palette), "the palette's slots in the swatches")
+        frame.history_checkpoint()
+        pe.new_swap()
+        swap = pe.swap()
+        check(swap is not None and pe.swap_browser.list.selected_ids() == [swap.id], "a new swap, selected")
+        pal_ops.set_replacement(proj, swap, palette, 0, (255, 0, 255))  # what Change… does with the colour picked
+        pe._done()
+        check(pal_ops.changed_slots(swap, palette) == [0], "the swap recolours slot 1")
+        asset = next((a for a in proj.images if proj.image_palette(a) is palette), None)
+        check(asset is None or CONSOLE.image_key(proj, asset, swap, None) is not None, "it changes the image's colours")
+        pe._picked(0)
+        pump()
+        check(pe.slots == [0] and pe.preview.highlight == [0], "a click on a pixel selects its slot")
+
+        frame.on_preview_swap_selected(swap.id)
+        pump()
+        check(frame.context_bar.swap_choice.GetStringSelection() == swap.name, "the bar above the tabs shows the swap")
+        frame.select_tab(1)
+        pump()
+        fe.canvas.Refresh()
+        fe.canvas.Update()
+        check(fe.canvas.palette_swap is swap, "the Frames stage draws with the preview's swap")
+        swapped = next((m for m in proj.modules if m.type == "MD_IMAGE" and proj.get_image(m.image_id) is asset), None)
+        if swapped is not None and asset is not None and asset.transparent_color:
+            bmp = fe.canvas._get_module_bitmap(swapped)
+            # Recoloured pictures have the key colour cut out as alpha; a mask on top would show it (macOS).
+            check(bmp is not None and bmp.GetMask() is None, "a recoloured module's bitmap needs no key colour mask")
+        frame.on_preview_swap_selected(None)
+
+        frame.select_tab(5)
+        pump()
+        pe._slots_selected([0, 1])
+        pe._command("add_cycle")
+        check(len(palettes.cycles_of(palette, swap)) == 1, "a colour cycle over two slots (the swap's own)")
+        pump(4)
+        check(pe.timer.IsRunning(), "the colour cycle turns in the preview")
+        frame.go_to(("palette", palette.id))
+        check(frame.book.GetSelection() == 5 and pe.palette_id == palette.id, "Check Project's Go to shows a palette")
+
+        scene = te.scene()
+        if scene is not None and scene.objects:
+            frame.select_tab(3)
+            pump()
+            obj = scene.objects[0]
+            te.select_object(obj.id)
+            te._on_object_field("palette_swap", swap.id)
+            check(obj.palette_swap_id == swap.id, "a Timeline object chooses the swap")
+            check(te.stage.object_swap(obj.id) is swap, "the stage draws the object with it")
+            te.stage.Refresh()
+            te.stage.Update()
+
+        frame.select_tab(5)
+        pe.select_swap(swap.id)
+        pe.delete_swap()
+        check(swap.id not in [s.id for s in proj.palette_swaps], "the swap is deleted")
+        check(all(o.palette_swap_id != swap.id for s in proj.timeline_scenes for o in s.objects),
+              "objects that used it inherit theirs")
+        frame.on_undo(None)
+        pump()
+        check(proj.get_palette_swap(swap.id) is not None, "undo brings the swap back")
+        frame.on_undo(None)
+        frame.on_undo(None)
+        frame.on_undo(None)
+        frame.on_undo(None)
+        pump()
+        frame.select_tab(0)
+
+    step("palettes tab: a palette swap and a colour cycle, everywhere they show", palette_swaps)
 
     # ---- Mappings
     def mappings():
@@ -1419,7 +1504,7 @@ def run():
         old_size = frame.GetSize()
         frame.SetSize((px(1100), px(760)))  # a laptop's width at this display scaling
         pump(4)
-        for index, panel in enumerate(frame.panels[:4]):
+        for index, panel in [(i, p) for i, p in enumerate(frame.panels) if hasattr(p, "canvas_controls")]:
             frame.select_tab(index)
             pump(4)
             bar = panel.canvas_controls

@@ -11,7 +11,7 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import compositor
-from models import Frame, ModuleMapping, Project
+from models import Frame, ModuleMapping, PaletteSwap, Project
 from safe_files import write_text_atomically
 
 
@@ -65,9 +65,10 @@ def _make_unique_name(base: str, used: set[str]) -> str:
     return candidate
 
 
-def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None) -> Dict[str, Any]:
-    """Write ``path`` (.json added if missing) and the part images next to it; returns a report (counts, what the
-    format cannot hold)."""
+def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None,
+           swap: Optional[PaletteSwap] = None) -> Dict[str, Any]:
+    """Write ``path`` (.json added if missing) and the part images next to it, drawn with ``mapping`` and recoloured by
+    ``swap``; returns a report (counts, what the format cannot hold)."""
     from PIL import Image as PILImage
 
     if not path.lower().endswith(".json"):
@@ -345,7 +346,7 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
         sprites_json: List[Dict[str, Any]] = []
         for idx, (mod, a_mat, b_vec, _rot, _flip_x, _flip_y, local_flip_x, local_flip_y) in enumerate(instances):
             rendered = compositor.render_instance(
-                project, mod, a_mat, b_vec, full_image_cache, module_cache, local_flip_x, local_flip_y
+                project, mod, a_mat, b_vec, full_image_cache, module_cache, local_flip_x, local_flip_y, swap
             )
             if not rendered:
                 continue
@@ -398,7 +399,7 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
         return frame_name
 
     identity_transform = (compositor.IDENTITY, (0.0, 0.0))
-    mapping_key = active_mapping.id if active_mapping else None
+    mapping_key = (active_mapping.id if active_mapping else None, swap.id if swap else None)
 
     # Export all base frames.
     for frame in project.frames:
@@ -488,6 +489,13 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
 
     losses: List[str] = []
     losses.append("Module mappings are not part of RetroAnimator. The selected active mapping is baked into exported frames.")
+    if swap is not None:
+        losses.append(f"Palette swaps are not part of RetroAnimator: '{swap.name}' is baked into the exported pictures.")
+    elif project.palette_swaps:
+        losses.append("Palette swaps are not part of RetroAnimator: the pictures show the original colours.")
+    if any(palette.cycles for palette in project.palettes) or any(
+            change.cycles for s in project.palette_swaps for change in s.palettes.values()):
+        losses.append("Colour cycles are not part of RetroAnimator: the pictures show the colours standing still.")
     losses.append("Animation playback type/loop semantics are not native in RetroAnimator; only frame sequence + duration are exported.")
     if any(frame.control_points for frame in project.frames):
         losses.append("Control points are not supported in RetroAnimator and are omitted.")
@@ -525,6 +533,9 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
     if active_mapping:
         data["Properties"]["active_mapping_name"] = active_mapping.name
         data["Properties"]["active_mapping_id"] = active_mapping.id
+    if swap is not None:
+        data["Properties"]["palette_swap_name"] = swap.name
+        data["Properties"]["palette_swap_id"] = swap.id
 
     write_text_atomically(path, json.dumps(data, indent=2))
     removed = _tidy_parts(parts_dir, os.path.basename(path), set(part_hash_to_filename.values()))
@@ -537,5 +548,6 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
         "parts_written": written_parts,
         "parts_removed": removed,  # this export's part images from before that it no longer uses
         "mapping_baked": bool(active_mapping),
+        "swap_baked": swap is not None,
         "losses": losses,
     }

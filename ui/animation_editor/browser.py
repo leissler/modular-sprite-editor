@@ -67,7 +67,8 @@ class AnimationList(wx.VListBox):
         anim = self.view[n]
         y = rect.y + (ROW_H - THUMB) // 2
         if anim.aframes and self.renderer:
-            bmp = self.renderer.thumbnail(self.project, anim.aframes[0], self.project.active_mapping, THUMB)
+            bmp = self.renderer.thumbnail(self.project, anim.aframes[0], self.project.active_mapping, THUMB,
+                                          swap=self.project.active_palette_swap)
             dc.DrawBitmap(bmp, rect.x + px(6), y)
         else:
             dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))

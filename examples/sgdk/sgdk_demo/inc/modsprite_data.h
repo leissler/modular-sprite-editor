@@ -48,9 +48,32 @@ typedef struct MS_RECORD
     s16 x;            /* offset from the part's position */
     s16 y;
     u8 size;          /* VDP sprite size: SPRITE_SIZE(w, h) */
-    u8 reserved0;
+    u8 palette;       /* the palette entry its colours come from; MS_FIXED_ENTRY set: not recoloured by the swap */
     u16 tile_offset;  /* first tile, from the runtime's tile base */
 } MS_Piece;
+
+#define MS_FIXED_ENTRY 0x80u
+
+/* A palette entry: one of the editor's palettes, or what a palette swap makes of one. Its 16 colours are at
+   ms_palette[entry * 16]; ms_init() loads entries into consecutive palette lines as far as they fit. */
+typedef struct MS_RECORD
+{
+    u8 palette;       /* the editor's palette it is, or recolours */
+    u8 swap;          /* the palette swap that made it, 0 = the palette itself */
+    u16 first_cycle;  /* its colour cycles: ms_colour_cycles[first_cycle .. + cycle_count - 1] */
+    u8 cycle_count;
+    u8 reserved0;
+} MS_PaletteEntry;
+
+/* A colour cycle: count slots from first rotate one slot up (down if reverse) every frames video frames. */
+typedef struct MS_RECORD
+{
+    u8 first;
+    u8 count;
+    u16 frames;
+    u8 reverse;
+    u8 reserved0;
+} MS_ColourCycle;
 
 /* Hitboxes and points of a frame, already moved like the frame (step offset, flips, rotation).
    Coordinates are relative to the position the frame is drawn at. */
@@ -135,7 +158,10 @@ extern u16 ms_scene_record_count;
 extern u16 ms_event_type_count;
 extern u16 ms_step_event_count;
 extern u16 ms_tile_count;
-extern u16 ms_palette_count;
+extern u16 ms_palette_entry_count;
+extern u16 ms_base_palette_count;
+extern u16 ms_palette_swap_count;
+extern u16 ms_colour_cycle_count;
 extern u16 ms_piece_count;
 extern u16 ms_hitbox_count;
 extern u16 ms_point_count;
@@ -158,12 +184,18 @@ extern u16 ms_role_count;
 #define MS_EVENT_TYPE_COUNT (ms_event_type_count)
 #define MS_STEP_EVENT_COUNT (ms_step_event_count)
 #define MS_TILE_COUNT (ms_tile_count)
-#define MS_PALETTE_COUNT (ms_palette_count) /* palette lines (16 colours each) in ms_palette, loaded from the first */
+#define MS_PALETTE_ENTRY_COUNT (ms_palette_entry_count) /* palette entries, 16 colours each in ms_palette */
+#define MS_BASE_PALETTE_COUNT (ms_base_palette_count)   /* the first entries are the editor's palettes */
+#define MS_PALETTE_SWAP_COUNT (ms_palette_swap_count)   /* palette swaps, 0 = none */
+#define MS_COLOUR_CYCLE_COUNT (ms_colour_cycle_count)
 
 extern const MS_Variant *ms_variants;
 extern const MS_Piece *ms_pieces;
 extern const u32 *ms_tiles;
 extern const u16 *ms_palette;
+extern const MS_PaletteEntry *ms_palette_entries;
+extern const MS_ColourCycle *ms_colour_cycles;
+extern const u8 *ms_swap_entries;  /* swap s (from 1): ms_swap_entries[(s - 1) * MS_BASE_PALETTE_COUNT + palette] */
 extern const MS_Hitbox *ms_hitboxes;
 extern const MS_Point *ms_points;
 extern const MS_Part *ms_parts;
@@ -193,6 +225,9 @@ const char *ms_event_name_data(u16 index);
 const char *ms_hitbox_type_name_data(u16 index);
 const char *ms_point_type_name_data(u16 index);
 const char *ms_role_name_data(u16 index);
+const char *ms_palette_swap_id(u16 index);
+const char *ms_palette_swap_name_data(u16 index);
+const char *ms_palette_entry_name_data(u16 index);
 
 /* Animation events (project event types, in the editor's order). */
 #define MS_EVENT_HIT 0u

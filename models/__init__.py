@@ -1,15 +1,17 @@
 """The data model (wx-free): everything a project holds, its JSON and the format migration.
 
-``core`` has the sprite data (images, modules, frames, animations, mappings, types), ``timeline`` the scenes and their
+``core`` has the sprite data (images, modules, frames, animations, mappings, palettes, swaps, types), ``timeline`` the scenes and their
 evaluation, ``migration`` the format version and the upgrade of older files, ``project`` the Project. Import from
 ``models``; importers, exporters and the compositor live in their own packages (``importers``, ``exporters``,
 ``compositor``).
 """
 
 from models.core import (
+    RGB,
     AFrame,
     Animation,
     CollisionRect,
+    ColourCycle,
     CollisionType,
     ControlPoint,
     EventType,
@@ -18,6 +20,9 @@ from models.core import (
     ImageAsset,
     Module,
     ModuleMapping,
+    Palette,
+    PaletteChange,
+    PaletteSwap,
     PointType,
     StepEvent,
     generate_id,
@@ -36,9 +41,11 @@ from models.timeline import (
 )
 
 __all__ = [
+    "RGB",
     "AFrame",
     "Animation",
     "CollisionRect",
+    "ColourCycle",
     "CollisionType",
     "ControlPoint",
     "EventType",
@@ -47,6 +54,9 @@ __all__ = [
     "ImageAsset",
     "Module",
     "ModuleMapping",
+    "Palette",
+    "PaletteChange",
+    "PaletteSwap",
     "PointType",
     "StepEvent",
     "generate_id",

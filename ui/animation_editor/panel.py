@@ -381,6 +381,9 @@ class AnimationEditorPanel(wx.Panel):
 
     def _refresh_stage(self) -> None:
         anim = self.animation()
+        # Colour cycles turn while it plays: video frames since playback started (none while it stands).
+        self.stage.colour_frame = ((time.monotonic() - self._play_clock[0]) * 60.0 * self.speed
+                                   if self.is_playing else None)
         self.stage.set_view(
             anim,
             self.current_step(),
@@ -1103,8 +1106,9 @@ class AnimationEditorPanel(wx.Panel):
         if not anim or not anim.aframes:
             app_services.show_status("Select an animation with steps to export a GIF")
             return
-        mapping = self.project.active_mapping
-        drawn = f"the mapping {mapping.name}" if mapping else "the original modules"
+        mapping, swap = self.project.active_mapping, self.project.active_palette_swap
+        drawn = (f"the mapping {mapping.name}" if mapping else "the original modules") + (
+            f" and the palette swap {swap.name}" if swap else "")
         with wx.FileDialog(self, f"Export GIF, drawn with {drawn}", defaultFile=f"{anim.name}.gif",
                            wildcard="GIF files (*.gif)|*.gif",
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
@@ -1112,7 +1116,7 @@ class AnimationEditorPanel(wx.Panel):
                 return
             path = dlg.GetPath()
         try:
-            count = export_gif(self.project, anim, path, self.project.active_mapping, self._mirror())
+            count = export_gif(self.project, anim, path, mapping, self._mirror(), swap=swap)
         except Exception as exc:  # disk full, permissions, Pillow missing …
             wx.MessageBox(f"Could not write the GIF:\n{exc}", "Export GIF", wx.OK | wx.ICON_ERROR, self)
             return

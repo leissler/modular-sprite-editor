@@ -16,7 +16,11 @@ from typing import Any, Dict, List, Tuple
 #     playback, repeat count, loop-from step and follow-up, like the Animations tab and the game); existing objects
 #     keep their mode, "backward" joins the overrides. Flips and visibility switch at a key, not half-way to it.
 # 6 = images belong to one of four palettes (ImageAsset.palette, 0-3, additive: existing images use the first).
-PROJECT_FORMAT_VERSION = 6
+# 7 = palettes are project data (palettes: colours in hardware order and colour cycles; images name theirs with
+#     palette_id), palette swaps (palette_swaps) that scene objects choose like mappings (palette_swap_id), the target
+#     console (console). Additive: format 6's palettes keep their numbers, and their colours are built from the
+#     images when the project opens, with that format's rules (palettes.build_missing).
+PROJECT_FORMAT_VERSION = 7
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -141,6 +145,30 @@ def _migrate_v5_to_v6(data: Dict[str, Any], notes: List[str]) -> None:
         image.setdefault("palette", 0)
 
 
+def _migrate_v6_to_v7(data: Dict[str, Any], notes: List[str]) -> None:
+    """Palettes become project data. Format 6's Palette 1-4 keep their numbers (those the images use, and the first,
+    which vector shapes use); their colours are left unset to be built from the images once the project is open. The
+    rest is additive: no swaps, objects inherit theirs."""
+    data.setdefault("console", "megadrive")
+    images = data.get("images", []) or []
+
+    def number(image: Dict[str, Any]) -> int:
+        value = image.get("palette", 0)
+        return value if isinstance(value, int) and 0 <= value <= 3 else 0
+
+    if "palettes" not in data:
+        used = sorted({0} | {number(image) for image in images})
+        data["palettes"] = [{"id": f"pal_{i + 1}", "name": f"Palette {i + 1}", "colours": None, "cycles": []}
+                            for i in used]
+    for image in images:
+        image.setdefault("palette_id", f"pal_{number(image) + 1}")
+        image.pop("palette", None)
+    data.setdefault("palette_swaps", [])
+    for scene in data.get("timeline_scenes", []) or []:
+        for obj in scene.get("objects", []) or []:
+            obj.setdefault("palette_swap_id", None)
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -172,6 +200,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
         _migrate_v4_to_v5(migrated, notes)
     if version < 6:
         _migrate_v5_to_v6(migrated, notes)
+    if version < 7:
+        _migrate_v6_to_v7(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes

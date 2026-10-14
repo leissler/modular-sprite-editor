@@ -12,6 +12,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+import consoles
 import palettes
 from models import ImageAsset, Project, generate_id
 
@@ -20,10 +21,9 @@ LEVEL_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
 
 # Mega Drive with SGDK's default video memory layout: the plane maps start at 0xC000 (1536 tiles); SGDK keeps the
 # first 16 tiles and the font's 96 tiles below the maps, so 1424 tiles are left for sprites and backgrounds together.
-MD_PALETTE_COLOURS = 15
-MD_TILE_CAPACITY = 1424
+MD_TILE_CAPACITY = consoles.MEGA_DRIVE.sprites.tiles
 
-Target = Tuple[str, str]  # (kind, id), kind: image / module / frame / animation / mapping / scene
+Target = Tuple[str, str]  # (kind, id), kind: image / module / frame / animation / mapping / scene / palette / palette_swap
 
 
 @dataclass(frozen=True)
@@ -77,6 +77,10 @@ def _plural(count: int, word: str, plural: Optional[str] = None) -> str:
 def _says(count: int, singular: str, plural: str) -> str:
     """The verb (phrase) that agrees with a count: _says(1, "shows", "show") -> "shows"."""
     return singular if count == 1 else plural
+
+
+def console_name(project: Project) -> str:
+    return consoles.console_by_key(project.console).name
 
 
 def _module_ids(project: Project) -> Set[str]:
@@ -133,7 +137,7 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
             continue
         key = tuple(int(c) for c in asset.transparent_color) if asset.transparent_color else None
         half = 0
-        palette = palettes.palette_of(asset)
+        palette = project.image_palette(asset).id
         images_in.setdefault(palette, []).append(asset)
         for count, (r, g, b, a) in rgba.getcolors(rgba.width * rgba.height) or []:
             if a == 0 or (r, g, b) == key:
@@ -144,23 +148,45 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
         if half:
             issues.append(Issue(
                 WARNING, "half-transparent",
-                f"The image '{name}' has {_plural(half, 'half-transparent pixel')}: the Mega Drive shows them fully "
-                "opaque.",
+                f"The image '{name}' has {_plural(half, 'half-transparent pixel')}: the {console_name(project)} shows "
+                "them fully opaque.",
                 ("image", asset.id),
             ))
-    for palette, used in sorted(colours.items()):
-        if len(used) <= MD_PALETTE_COLOURS:
-            continue
-        members = images_in[palette]
+    room = palettes.capacity(project)
+    for palette in project.palettes:
+        used = colours.get(palette.id, set())
+        members = images_in.get(palette.id, [])
         names = ", ".join(f"'{os.path.basename(a.file_path) or a.id}'" for a in members[:3]) + (" ..." if len(members) > 3 else "")
-        issues.append(Issue(
-            WARNING, "too-many-colours",
-            f"Palette {palette + 1} ({names}) uses {len(used)} colours. A Mega Drive palette holds "
-            f"{MD_PALETTE_COLOURS}, so the export merges similar colours"
-            + (": put some of its images in another palette (Modules tab, the image's Palette)." if len(members) > 1
-               else "."),
-            ("image", members[0].id),
-        ))
+        built = palettes.colours_of(project, palette)
+        held = set(built)
+        missing = len(used - held)
+        if len(used) > room:
+            issues.append(Issue(
+                WARNING, "too-many-colours",
+                f"Palette '{palette.name}' ({names}) uses {len(used)} colours. A {console_name(project)} palette holds "
+                f"{room}, so similar colours show as one"
+                + (": put some of its images into another palette (Modules tab, the image's Palette)." if len(members) > 1
+                   else "."),
+                ("palette", palette.id),
+            ))
+        elif missing:
+            free = room - len(built)
+            issues.append(Issue(
+                WARNING, "colours-not-in-palette",
+                f"Palette '{palette.name}' lacks {_plural(missing, 'colour')} of its images ({names}): "
+                f"{_says(missing, 'it shows', 'they show')} as the nearest colour it has"
+                + ("." if missing <= free else f", and it has room for only {free} more: remove colours it no longer "
+                   "needs in the Palettes tab."),
+                ("palette", palette.id), "add-palette-colours" if free > 0 else None,
+            ))
+        doubled = palettes.duplicate_slots(palette)
+        if doubled:
+            issues.append(Issue(
+                INFO, "duplicate-palette-colour",
+                f"Palette '{palette.name}' has {_plural(len(doubled), 'colour')} twice: pixels of that colour take the "
+                f"first slot, so a palette swap that changes the second one changes nothing.",
+                ("palette", palette.id),
+            ))
     return issues
 
 
@@ -342,6 +368,31 @@ def _check_scenes(project: Project) -> List[Issue]:
                 f"{_says(lost, 'inherits', 'inherit')} one instead.",
                 target, "clear-missing-object-mappings",
             ))
+        swap_ids = {s.id for s in project.palette_swaps}
+        lost = sum(1 for obj in scene.objects
+                   if obj.palette_swap_id and obj.palette_swap_id != "original" and obj.palette_swap_id not in swap_ids)
+        if lost:
+            issues.append(Issue(
+                INFO, "missing-object-swap",
+                f"Scene '{scene.name}': {_plural(lost, 'object')} {_says(lost, 'uses', 'use')} a deleted palette swap and "
+                f"{_says(lost, 'inherits', 'inherit')} one instead.",
+                target, "clear-missing-object-swaps",
+            ))
+    return issues
+
+
+def _check_palette_swaps(project: Project) -> List[Issue]:
+    issues: List[Issue] = []
+    palette_ids = {p.id for p in project.palettes}
+    for swap in project.palette_swaps:
+        dead = sum(1 for pid in swap.palettes if pid not in palette_ids)
+        if dead:
+            issues.append(Issue(
+                INFO, "dead-swap-entries",
+                f"Palette swap '{swap.name}' changes {_plural(dead, 'palette')} that {_says(dead, 'was', 'were')} "
+                "deleted.",
+                ("palette_swap", swap.id), "drop-dead-swap-entries",
+            ))
     return issues
 
 
@@ -379,6 +430,8 @@ ID_LISTS: Tuple[Tuple[str, str, str, str, Optional[str]], ...] = (
     ("point_types", "point type", "point types", "ptype", None),
     ("event_types", "event type", "event types", "evt", None),
     ("timeline_scenes", "scene", "scenes", "scene", "scene"),
+    ("palettes", "palette", "palettes", "pal", "palette"),
+    ("palette_swaps", "palette swap", "palette swaps", "swap", "palette_swap"),
 )
 
 
@@ -478,7 +531,7 @@ def check_project(project: Project, pixels: bool = True) -> List[Issue]:
     """Every issue, errors first. ``pixels`` False skips reading the images (colours, transparency)."""
     issues: List[Issue] = []
     for check in (_check_ids, _check_modules, _check_frames, _check_animations, _check_mappings, _check_scenes,
-                  _check_symbols):
+                  _check_palette_swaps, _check_symbols):
         issues += check(project)
     issues = _check_images(project, pixels) + issues
     return sorted(issues, key=lambda issue: LEVEL_ORDER[issue.level])
@@ -499,10 +552,16 @@ def tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
 
 
 def palette_issue(lines: int) -> Optional[Issue]:
-    """How many palette lines the exported sprites use (None for one: the runtime's default PAL1 fits)."""
+    """How the exported palette entries (palettes, then the swaps' versions of them) fit the Mega Drive's four palette
+    lines (None for one: the runtime's default PAL1 fits)."""
     if lines <= 1:
         return None
-    if lines >= 4:
+    if lines > 4:
+        return Issue(WARNING, "palette-lines",
+                     f"The sprites use {lines} palettes and palette swaps, and the Mega Drive has four palette lines: "
+                     "ms_init() loads the first three (PAL1 to PAL3); load the others when they are needed "
+                     "(ms_load_palette).")
+    if lines == 4:
         return Issue(WARNING, "palette-lines", "The sprites use all four palette lines: start them at PAL0 with "
                                                "ms_init_ex(tile_index, PAL0), ms_init() starts at PAL1.")
     return Issue(INFO, "palette-lines", f"The sprites use {lines} palette lines, PAL1 to PAL{lines} with ms_init() "
@@ -602,6 +661,31 @@ def _fix_object_mappings(project: Project, target: Optional[Target]) -> int:
     return changed
 
 
+def _fix_object_swaps(project: Project, target: Optional[Target]) -> int:
+    swap_ids = {s.id for s in project.palette_swaps}
+    changed = 0
+    for scene in project.timeline_scenes:
+        if target and target != ("scene", scene.id):
+            continue
+        for obj in scene.objects:
+            if obj.palette_swap_id and obj.palette_swap_id != "original" and obj.palette_swap_id not in swap_ids:
+                obj.palette_swap_id = None
+                changed += 1
+    return changed
+
+
+def _fix_dead_swap_entries(project: Project, target: Optional[Target]) -> int:
+    palette_ids = {p.id for p in project.palettes}
+    changed = 0
+    for swap in project.palette_swaps:
+        if target and target != ("palette_swap", swap.id):
+            continue
+        for pid in [pid for pid in swap.palettes if pid not in palette_ids]:
+            del swap.palettes[pid]
+            changed += 1
+    return changed
+
+
 def _fix_missing_scene_sources(project: Project, target: Optional[Target]) -> int:
     """Objects and key swaps that show something deleted show nothing; their keys and motion stay."""
     changed = 0
@@ -617,6 +701,12 @@ def _fix_missing_scene_sources(project: Project, target: Optional[Target]) -> in
                 obj.source_type, obj.source_id = "none", None
                 changed += 1
     return changed
+
+
+def _fix_palette_colours(project: Project, target: Optional[Target]) -> int:
+    """Put the colours a palette's images use into its free slots."""
+    return sum(palettes.add_missing_colours(project, palette) for palette in project.palettes
+               if not target or target == ("palette", palette.id))
 
 
 def _fix_empty_hitboxes(project: Project, target: Optional[Target]) -> int:
@@ -678,8 +768,11 @@ FIXES: Dict[str, Tuple[str, Callable[[Project, Optional[Target]], int]]] = {
     "reset-missing-replacements": ("Show the original modules", _fix_missing_replacements),
     "drop-dead-entries": ("Remove those entries", _fix_dead_entries),
     "clear-missing-object-mappings": ("Inherit the mapping", _fix_object_mappings),
+    "clear-missing-object-swaps": ("Inherit the palette swap", _fix_object_swaps),
+    "drop-dead-swap-entries": ("Remove those changes", _fix_dead_swap_entries),
     "clear-missing-scene-sources": ("Clear those sources", _fix_missing_scene_sources),
     "remove-empty-hitboxes": ("Remove empty hitboxes", _fix_empty_hitboxes),
+    "add-palette-colours": ("Add the colours", _fix_palette_colours),
     "new-ids-in-frames": ("Give each its own id", _fix_ids_in_frames),
     "new-ids-in-scenes": ("Give each its own id", _fix_ids_in_scenes),
 }

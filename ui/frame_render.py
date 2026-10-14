@@ -14,7 +14,8 @@ from typing import Any, Dict, Optional, Set, Tuple
 import wx
 
 import compositor
-from models import Frame, ImageAsset, Module, ModuleMapping, Project
+import palettes
+from models import Frame, ImageAsset, Module, ModuleMapping, PaletteSwap, Project
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
@@ -54,6 +55,14 @@ def key_out(image: Any, colour: Optional[Tuple[int, int, int]]) -> Any:
 
 def mapping_key(mapping: Optional[ModuleMapping]) -> Any:
     return (mapping.id, tuple(sorted((k, v or "") for k, v in mapping.map.items()))) if mapping else None
+
+
+def swap_key(project: Project, swap: Optional[PaletteSwap]) -> Any:
+    """What decides how a palette swap recolours (hashable), None for no swap."""
+    if swap is None:
+        return None
+    return (swap.id, tuple((p.id, tuple(p.colours or ()), tuple(palettes.swapped_colours(p, swap)))
+                           for p in project.palettes if p.id in swap.palettes))
 
 
 def _module_key(project: Project, module_id: str, mapping: Optional[ModuleMapping]) -> Any:
@@ -97,8 +106,8 @@ class FrameRenderer:
 
     def __init__(self, max_items: int = 2000) -> None:
         self.max_items = max_items
-        self._images: Dict[str, Any] = {}  # sheets, by path + key colour
-        self._modules: Dict[str, Any] = {}  # cut-out modules, by module id
+        self._images: Dict[Any, Any] = {}  # sheets, by path + key colour (and a swap's colours)
+        self._modules: Dict[Any, Any] = {}  # cut-out modules, by module id (and a swap's colours)
         self._module_keys: Dict[str, Any] = {}
         self._results: "OrderedDict[Any, Tuple[Any, int, int]]" = OrderedDict()
 
@@ -122,8 +131,13 @@ class FrameRenderer:
                 elif content is not None:
                     mod_id = content[0]
                     if self._module_keys.get(mod_id) != content:
-                        self._modules.pop(mod_id, None)
+                        self._forget_module(mod_id)
                         self._module_keys[mod_id] = content
+
+    def _forget_module(self, mod_id: str) -> None:
+        """Drop a module's cut-outs, its swapped ones too."""
+        for key in [k for k in self._modules if k == mod_id or (isinstance(k, tuple) and k[0] == mod_id)]:
+            del self._modules[key]
 
     def render(
         self,
@@ -132,28 +146,31 @@ class FrameRenderer:
         mapping: Optional[ModuleMapping],
         a: Matrix = IDENTITY,
         b: Tuple[float, float] = (0.0, 0.0),
+        swap: Optional[PaletteSwap] = None,
     ) -> Tuple[Any, int, int]:
         signature = frame_signature(project, frame.id, mapping)
-        key = (signature, a, b)
+        key = (signature, swap_key(project, swap), a, b)
         cached = self._results.get(key)
         if cached is not None:
             self._results.move_to_end(key)
             return cached
         self._forget_changed_modules(project, signature)
-        image, hx, hy, _collisions = compositor.render_frame(project, frame, mapping, a, b, self._images, self._modules)
+        image, hx, hy, _collisions = compositor.render_frame(project, frame, mapping, a, b, self._images, self._modules,
+                                                             swap)
         result = (image, int(hx), int(hy))
         self._results[key] = result
         while len(self._results) > self.max_items:
             self._results.popitem(last=False)
         return result
 
-    def module(self, project: Project, module: Module) -> Any:
-        """A module's pixels (RGBA, key colour removed, packed rotation undone), cached by content."""
+    def module(self, project: Project, module: Module, swap: Optional[PaletteSwap] = None) -> Any:
+        """A module's pixels (RGBA, key colour removed, packed rotation undone, recoloured by ``swap``), cached by
+        content."""
         content = _module_key(project, module.id, None)
         if self._module_keys.get(module.id) != content:
-            self._modules.pop(module.id, None)
+            self._forget_module(module.id)
             self._module_keys[module.id] = content
-        return compositor.load_module_rgba(project, module, self._images, self._modules)
+        return compositor.load_module_rgba(project, module, self._images, self._modules, swap)
 
     def sheet(self, project: Project, asset: ImageAsset, keyed: bool = True) -> Any:
         """A whole image asset as RGBA (with its key colour removed unless ``keyed`` is False), or None."""

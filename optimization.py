@@ -8,7 +8,6 @@ from itertools import combinations
 from typing import Any, Dict, List, Optional, Tuple
 
 import compositor
-import palettes
 from models import FModule, Frame, Project, generate_id
 from rect_packer import MaxRectsBinPack
 
@@ -60,7 +59,7 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
         rects_to_pack.append((image.width + padding, image.height + padding, mod, image))
     if not rects_to_pack:
         return False, "No valid modules/images found."
-    used_palettes = {palettes.palette_of(project.get_image(mod.image_id)) for _w, _h, mod, _img in rects_to_pack}
+    used_palettes = {project.image_palette(project.get_image(mod.image_id)).id for _w, _h, mod, _img in rects_to_pack}
     if len(used_palettes) > 1:
         return False, ("These images use different palettes, and one sheet has one palette: optimize them one image "
                        "at a time (Local).")
@@ -96,7 +95,7 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
 
     sources = {mod.image_id for mod, _rect, _turned in placed} | {mod.image_id for mod in empty}
     new_asset = project.create_image(out_path, final_w, final_h)
-    new_asset.palette = used_palettes.pop()
+    new_asset.palette_id = used_palettes.pop()  # the same colours as before: the palette stays as it is
     for mod, rect, turned in placed:
         mod.image_id, mod.rect, mod.rotated = new_asset.id, rect, turned  # the pivot stays: it is the upright one's
     for mod in empty:

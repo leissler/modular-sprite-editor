@@ -1,5 +1,5 @@
 {
-  "format_version": 6,
+  "format_version": 7,
   "name": "Adventurer",
   "images": [
     {
@@ -8,7 +8,7 @@
       "width": 416,
       "height": 256,
       "transparent_color": null,
-      "palette": 0
+      "palette_id": "pal_1"
     }
   ],
   "modules": [
@@ -1883,5 +1883,15 @@
   "mappings": [],
   "collision_types": [],
   "point_types": [],
-  "event_types": []
+  "event_types": [],
+  "console": "megadrive",
+  "palettes": [
+    {
+      "id": "pal_1",
+      "name": "Palette 1",
+      "colours": null,
+      "cycles": []
+    }
+  ],
+  "palette_swaps": []
 }

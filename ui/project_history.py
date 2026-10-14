@@ -16,7 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from models import Project
 
-# Everything a project saves: the dataclass fields set by its constructor (active_mapping and load_notes are not).
+# Everything a project saves: the dataclass fields set by its constructor (active_mapping, active_palette_swap and
+# load_notes are not).
 SAVED_FIELDS = tuple(f.name for f in dataclasses.fields(Project) if f.init)
 
 
@@ -30,9 +31,11 @@ def replace_project_contents(target: Project, source: Project) -> None:
 
     Every saved field is copied, so a field added to Project later cannot be forgotten here."""
     active_mapping_id = target.active_mapping.id if target.active_mapping else None
+    active_swap_id = target.active_palette_swap.id if target.active_palette_swap else None
     for name in SAVED_FIELDS:
         setattr(target, name, getattr(source, name))
     target.active_mapping = next((m for m in target.mappings if m.id == active_mapping_id), None)
+    target.active_palette_swap = next((s for s in target.palette_swaps if s.id == active_swap_id), None)
 
 
 class ProjectHistory:

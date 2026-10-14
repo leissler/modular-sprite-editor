@@ -7,7 +7,8 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import wx
 
-from models import FModule, ModuleMapping, Project, TimelineKeyframe, TimelineObject, TimelineScene
+import consoles
+from models import FModule, ModuleMapping, PaletteSwap, Project, TimelineKeyframe, TimelineObject, TimelineScene
 from hardware_budget import Budget, HwPart
 from ui import first_steps
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
@@ -15,17 +16,9 @@ from ui.canvas import BUDGET, FrameCanvas
 from ui.scene_editor import ops
 from ui.dpi import px
 
-# Retro screen guides: label -> (width, height). The scene origin lies where the SGDK demo draws scenes
-# (ops.screen_origin: centred, three quarters down).
-SCREEN_GUIDES: List[Tuple[str, Optional[Tuple[int, int]]]] = [
-    ("None", None),
-    ("Mega Drive 320×224", (320, 224)),
-    ("Mega Drive 256×224", (256, 224)),
-    ("SNES 256×224", (256, 224)),
-    ("NES 256×240", (256, 240)),
-    ("GBA 240×160", (240, 160)),
-    ("Game Boy 160×144", (160, 144)),
-]
+# Retro screen guides from the console database: label -> (width, height), "None" first (the preferences keep the
+# position). The scene origin lies where the SGDK demo draws scenes (ops.screen_origin: centred, three quarters down).
+SCREEN_GUIDES: List[Tuple[str, Optional[Tuple[int, int]]]] = [("None", None)] + list(consoles.screen_guides())
 
 
 class StageCanvas(FrameCanvas):
@@ -188,6 +181,7 @@ class StageCanvas(FrameCanvas):
         states = ops.evaluate_states(self.project, self.scene, self.time_value)
         cache: Dict[str, ops.Matrix] = {}
         self._part_rects = []
+        self.colour_frame = self.time_value * 60.0  # colour cycles turn with the scene's time, in video frames
         for obj, _depth, _kids in ops.tree_rows(self.scene, set()):
             if obj.id not in states or self._is_hidden(obj):
                 continue
@@ -195,7 +189,7 @@ class StageCanvas(FrameCanvas):
             if not state.get("visible", True):
                 continue
             world = ops.world_matrix(self.scene, states, obj.id, cache)
-            with self.drawing_mapping(self.object_mapping(obj.id)):
+            with self.drawing_mapping(self.object_mapping(obj.id)), self.drawing_palette_swap(self.object_swap(obj.id)):
                 self._draw_source(gc, state, world)
                 bounds = self._source_bounds(state)
             if bounds:
@@ -249,6 +243,12 @@ class StageCanvas(FrameCanvas):
     def object_mapping(self, object_id: str) -> Optional[ModuleMapping]:
         """The object's own mapping, else its parent's, else the preview mapping."""
         return self.scene.object_mapping(self.project, object_id, self.project.active_mapping) if self.scene else None
+
+    def object_swap(self, object_id: str) -> Optional[PaletteSwap]:
+        """The object's own palette swap, else its parent's, else the preview's."""
+        if not self.scene:
+            return None
+        return self.scene.object_palette_swap(self.project, object_id, self.project.active_palette_swap)
 
     def _is_hidden(self, obj: TimelineObject) -> bool:
         current: Optional[TimelineObject] = obj

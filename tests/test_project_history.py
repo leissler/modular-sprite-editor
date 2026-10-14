@@ -15,6 +15,8 @@ from models import (  # noqa: E402
     ImageAsset,
     Module,
     ModuleMapping,
+    Palette,
+    PaletteSwap,
     PointType,
     Project,
     TimelineScene,
@@ -35,6 +37,9 @@ CHANGES = {
     "collision_types": lambda p: p.collision_types.append(CollisionType(id="ct_new", name="new", color=(1, 2, 3))),
     "point_types": lambda p: p.point_types.append(PointType(id="pt_new", name="new", color=(1, 2, 3))),
     "event_types": lambda p: p.event_types.append(EventType(id="evt_new", name="new", color=(1, 2, 3))),
+    "console": lambda p: setattr(p, "console", "snes"),
+    "palettes": lambda p: p.palettes.append(Palette(id="pal_new", name="new", colours=[(1, 2, 3)])),
+    "palette_swaps": lambda p: p.palette_swaps.append(PaletteSwap(id="swap_new", name="new")),
 }
 
 

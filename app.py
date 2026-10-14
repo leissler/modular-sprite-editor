@@ -17,6 +17,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 import wx
 import wx.lib.agw.flatnotebook as fnb
 
+import consoles
+import palettes
 from models import FModule, Project, generate_id
 from ui import app_services, autosave, preferences
 from ui.animation_editor.panel import AnimationEditorPanel
@@ -30,6 +32,7 @@ from ui.frame_render import SHARED
 from ui.image_watch import Stamp, changed_images, image_stamp, image_stamps, update_image_sizes
 from ui.frame_editor.panel import FrameEditorPanel
 from ui.mapping_editor.panel import MappingEditorPanel
+from ui.palette_editor.panel import PaletteEditorPanel
 from ui.module_editor.panel import ModuleEditorPanel
 from ui.project_history import ProjectHistory
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
@@ -41,7 +44,7 @@ from ui.dpi import px
 APP_NAME = "Modular Sprite Editor"
 # The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
 APP_VERSION = "0.8"
-TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings"]
+TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings", "Palettes"]
 CONFIG_WINDOW = "Window/Geometry"  # "x,y,width,height" when the editor last closed
 CONFIG_WINDOW_MAXIMIZED = "Window/Maximized"
 DEFAULT_WINDOW = (1500, 980)
@@ -160,10 +163,13 @@ def measure_tabs_on_screen() -> None:
 class ContextBar(wx.Panel):
     """Slim bar above the editor tabs showing state that affects every tab."""
 
-    def __init__(self, parent: wx.Window, on_mapping_selected: Callable[[Optional[str]], None]):
+    def __init__(self, parent: wx.Window, on_mapping_selected: Callable[[Optional[str]], None],
+                 on_swap_selected: Callable[[Optional[str]], None]):
         super().__init__(parent)
         self._on_mapping_selected = on_mapping_selected
+        self._on_swap_selected = on_swap_selected
         self._mapping_ids: List[Optional[str]] = [None]
+        self._swap_ids: List[Optional[str]] = [None]
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.AddStretchSpacer(1)
@@ -173,9 +179,18 @@ class ContextBar(wx.Panel):
         self.mapping_choice.SetSelection(0)
         self.mapping_choice.SetMinSize((px(180), -1))
         sizer.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        sizer.Add(self.mapping_choice, 0, wx.ALIGN_CENTER_VERTICAL)
+        sizer.Add(self.mapping_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14)
+        swap_label = wx.StaticText(self, label="Palette swap:")
+        swap_label.SetToolTip("Palette swap every preview draws with, and the GIF, sprite sheet and RetroAnimator exports. "
+                              "Edit swaps in the Palettes tab.")
+        self.swap_choice = wx.Choice(self, choices=["Original"])
+        self.swap_choice.SetSelection(0)
+        self.swap_choice.SetMinSize((px(150), -1))
+        sizer.Add(swap_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        sizer.Add(self.swap_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         self.SetSizer(sizer)
         self.mapping_choice.Bind(wx.EVT_CHOICE, self._on_choice)
+        self.swap_choice.Bind(wx.EVT_CHOICE, self._on_swap_choice)
 
     def set_mappings(self, project: Project) -> None:
         self._mapping_ids = [None] + [m.id for m in project.mappings]
@@ -187,6 +202,17 @@ class ContextBar(wx.Panel):
         idx = self.mapping_choice.GetSelection()
         if 0 <= idx < len(self._mapping_ids):
             self._on_mapping_selected(self._mapping_ids[idx])
+
+    def set_swaps(self, project: Project) -> None:
+        self._swap_ids = [None] + [s.id for s in project.palette_swaps]
+        self.swap_choice.SetItems(["Original"] + [s.name for s in project.palette_swaps])
+        active_id = project.active_palette_swap.id if project.active_palette_swap else None
+        self.swap_choice.SetSelection(self._swap_ids.index(active_id) if active_id in self._swap_ids else 0)
+
+    def _on_swap_choice(self, _event: wx.CommandEvent) -> None:
+        idx = self.swap_choice.GetSelection()
+        if 0 <= idx < len(self._swap_ids):
+            self._on_swap_selected(self._swap_ids[idx])
 
 
 class MainFrame(wx.Frame):
@@ -213,7 +239,7 @@ class MainFrame(wx.Frame):
         self.status_bar.SetStatusWidths([-1, 120])
 
         root = wx.Panel(self)
-        self.context_bar = ContextBar(root, self.on_preview_mapping_selected)
+        self.context_bar = ContextBar(root, self.on_preview_mapping_selected, self.on_preview_swap_selected)
 
         if sys.platform == "win32":
             # Windows: Use FlatNotebook (VC8 style) but DEFAULT colors
@@ -231,12 +257,14 @@ class MainFrame(wx.Frame):
         self.animation_editor = AnimationEditorPanel(self.book, self.project)
         self.timeline_editor = SceneEditorPanel(self.book, self.project)
         self.mapping_editor = MappingEditorPanel(self.book, self.project)
+        self.palette_editor = PaletteEditorPanel(self.book, self.project)
         self.panels = [
             self.module_editor,
             self.frame_editor,
             self.animation_editor,
             self.timeline_editor,
             self.mapping_editor,
+            self.palette_editor,
         ]
 
         pad = "  " if sys.platform == "win32" else ""
@@ -284,10 +312,13 @@ class MainFrame(wx.Frame):
             mapping_changed=self.sync_mapping_controls,
             images_changed=self.images_changed,
             revision=lambda: self.history.fingerprint,
+            swap_changed=self.sync_palette_swap_controls,
+            go_to=self.go_to,
         )
 
         self.history.reset(self.project)
         self.context_bar.set_mappings(self.project)
+        self.context_bar.set_swaps(self.project)
         # Serialising the project for a checkpoint costs milliseconds (tens in big projects), so the timer only
         # looks after user input (note_input), and now and then in case something else changed it.
         self._input_seen = False
@@ -438,11 +469,12 @@ class MainFrame(wx.Frame):
                         else "Scrolling zooms; Shift / Alt + scroll moves the view")
 
     def set_console_colours(self, shown: bool) -> None:
-        """View ▸ Mega Drive Colours: every canvas shows the art through the export's palettes."""
+        """View ▸ Console Colours: every canvas shows the art through the export's palettes, as the console shows it."""
         CONSOLE.enabled = bool(shown)
         self.m_console.Check(CONSOLE.enabled)
         self.images_changed()
-        self.set_status("Mega Drive colours: each image through its palette, 3 bits per channel" if shown
+        console = consoles.console_by_key(self.project.console)
+        self.set_status(f"{console.name} colours: each image through its palette, as the console shows it" if shown
                         else "The art's own colours")
 
     def images_changed(self) -> None:
@@ -470,8 +502,11 @@ class MainFrame(wx.Frame):
         if not changed:
             return []
         update_image_sizes(self.project, changed)
+        for palette in {self.project.image_palette(self.project.get_image(i)).id: None for i in changed
+                        if self.project.get_image(i)}:
+            palettes.add_missing_colours(self.project, self.project.get_palette(palette))  # new colours join
         self.images_changed()
-        self.history_checkpoint()  # a sheet that grew is project data (its size)
+        self.history_checkpoint()  # a sheet that grew is project data (its size), new colours too
         names = [os.path.basename(self.project.get_image(i).file_path) for i in changed if self.project.get_image(i)]
         shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
         self.set_status(f"Reloaded {shown}: changed on disk")
@@ -591,6 +626,7 @@ class MainFrame(wx.Frame):
         for panel in self.panels:
             panel.refresh_after_history()
         self.context_bar.set_mappings(self.project)
+        self.context_bar.set_swaps(self.project)
         self._update_title()
 
     def on_undo(self, _event: wx.CommandEvent) -> None:
@@ -670,8 +706,23 @@ class MainFrame(wx.Frame):
         self.project.active_mapping = next((m for m in self.project.mappings if m.id == mapping_id), None)
         self.sync_mapping_controls()
 
+    def on_preview_swap_selected(self, swap_id: Optional[str]) -> None:
+        self.project.active_palette_swap = self.project.get_palette_swap(swap_id) if swap_id else None
+        self.sync_palette_swap_controls()
+        name = self.project.active_palette_swap.name if self.project.active_palette_swap else "the original colours"
+        self.set_status(f"Every preview shows {name}")
+
+    def sync_palette_swap_controls(self) -> None:
+        """The preview's palette swap (or a swap it draws) changed: the choice above the tabs and every preview."""
+        self.context_bar.set_swaps(self.project)
+        for panel in self.panels:
+            handler = getattr(panel, "on_active_mapping_changed", None)
+            if handler:
+                handler()
+
     def sync_mapping_controls(self) -> None:
         self.context_bar.set_mappings(self.project)
+        self.context_bar.set_swaps(self.project)
         for panel in self.panels:
             handler = getattr(panel, "on_active_mapping_changed", None)
             if handler:
@@ -697,6 +748,8 @@ class MainFrame(wx.Frame):
             self.timeline_editor.on_tab_activated()
         elif page_idx == 4:
             self.mapping_editor.on_tab_activated()
+        elif page_idx == 5:
+            self.palette_editor.on_tab_activated()
 
         self._update_title()
         self._show_tab_hint()
@@ -853,8 +906,8 @@ class MainFrame(wx.Frame):
         view_menu.AppendSeparator()
         m_grid = view_menu.Append(wx.ID_ANY, "Toggle &Grid\tCtrl+G")
         self.m_console = view_menu.AppendCheckItem(
-            wx.ID_ANY, "Mega Drive Colours\tCtrl+Shift+P",
-            "Show the art as the console will: each image's palette, 15 colours each, 3 bits per channel")
+            wx.ID_ANY, "Console Colours\tCtrl+Shift+P",
+            "Show the art as the console will: each image through its palette, in the colours the console can show")
         self.m_scroll_moves = view_menu.AppendCheckItem(
             wx.ID_ANY, "Scroll Moves the View",
             f"Mouse wheel and two-finger scroll move the view; pinch or {MOD}+scroll zooms (off: scrolling zooms)")
@@ -946,6 +999,7 @@ class MainFrame(wx.Frame):
         self.history.reset(self.project, saved=saved)
         self._image_stamps = image_stamps(self.project)
         self.context_bar.set_mappings(self.project)
+        self.context_bar.set_swaps(self.project)
         self._update_title()
         if project.load_notes:
             wx.MessageBox("\n".join(project.load_notes), notes_title, wx.OK | wx.ICON_INFORMATION)
@@ -1080,8 +1134,9 @@ class MainFrame(wx.Frame):
             return
 
         default_name = (self.project.name or "sprite").strip().replace(" ", "_") or "sprite"
-        mapping = self.project.active_mapping  # the preview mapping is baked into the pictures
-        drawn = f"the mapping {mapping.name}" if mapping else "the original modules (no preview mapping)"
+        mapping = self.project.active_mapping  # the preview mapping and palette swap are baked into the pictures
+        swap = self.project.active_palette_swap
+        drawn = self._drawn_with()
         with wx.FileDialog(
             self,
             f"Export RetroAnimator Project, drawn with {drawn}",
@@ -1098,7 +1153,7 @@ class MainFrame(wx.Frame):
 
         try:
             with wx.BusyCursor():
-                report = self.project.to_retro_animator_json(path, mapping=self.project.active_mapping)
+                report = self.project.to_retro_animator_json(path, mapping=mapping, swap=swap)
         except Exception as exc:
             wx.MessageBox(f"Failed to export RetroAnimator project: {exc}", "Export Error", wx.OK | wx.ICON_ERROR)
             return
@@ -1146,6 +1201,12 @@ class MainFrame(wx.Frame):
         elif kind == "scene":
             self.select_tab(3)
             self.timeline_editor.refresh_scenes(select_id=ident)
+        elif kind == "palette":
+            self.select_tab(5)
+            self.palette_editor.select_palette(ident)
+        elif kind == "palette_swap":
+            self.select_tab(5)
+            self.palette_editor.select_swap(ident)
 
     def _after_fix(self, message: str) -> None:
         """Check Project changed the project: one undo step, every tab shows the result."""
@@ -1206,6 +1267,12 @@ class MainFrame(wx.Frame):
             answer = report.ShowModal()
         if answer == ID_CHECK_PROJECT:
             self.on_check_project()
+
+    def _drawn_with(self) -> str:
+        """What exports draw with: the preview mapping and palette swap (the bar above the tabs)."""
+        mapping, swap = self.project.active_mapping, self.project.active_palette_swap
+        return (f"the mapping {mapping.name}" if mapping else "the original modules (no preview mapping)") + (
+            f" and the palette swap {swap.name}" if swap else "")
 
     def on_export_gif(self, event: wx.CommandEvent) -> None:
         self.select_tab(2)

@@ -159,7 +159,8 @@ class FramePalette(wx.ScrolledWindow):
                 continue
                 
             # Draw Thumbnail
-            bmp = self.generator.render_thumbnail(self.project, frame, r.width, r.height, custom_scale=scale, mapping=self.project.active_mapping)
+            bmp = self.generator.render_thumbnail(self.project, frame, r.width, r.height, custom_scale=scale,
+                                                  mapping=self.project.active_mapping, swap=self.project.active_palette_swap)
             dc.DrawBitmap(bmp, r.x, r.y)
             
             # Draw Name Overlay (Bottom)

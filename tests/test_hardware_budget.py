@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import compositor  # noqa: E402
 import hardware_budget as hb  # noqa: E402
-from models import FModule, ModuleMapping, Project, TimelineKeyframe, generate_id  # noqa: E402
+from models import FModule, ModuleMapping, Palette, Project, TimelineKeyframe, generate_id  # noqa: E402
 
 
 def _transform(flip_x=False, flip_y=False, rotation=0.0, offset=(0.0, 0.0)):
@@ -219,7 +219,8 @@ class TestVideoMemory(unittest.TestCase):
             return hb.vram_tiles([part for mod in modules for part in calc.module_parts(project, mod.id, None, hb.MEGA_DRIVE_H40)])
 
         self.assertEqual(total(), 2, "two colours of one palette: different indices")
-        project.images[1].palette = 1
+        project.palettes.append(Palette("pal_2", "Second"))
+        project.images[1].palette_id = "pal_2"
         self.assertEqual(total(), 1, "each the first colour of its own palette: the same tile")
 
 

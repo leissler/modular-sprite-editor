@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 
-from models import PROJECT_FORMAT_VERSION, Project, migrate_project_dict
+from models import PROJECT_FORMAT_VERSION, Palette, Project, migrate_project_dict
 
 
 def _legacy_project_dict():
@@ -133,16 +133,59 @@ class TestFormatMigration(unittest.TestCase):
         again, notes = migrate_project_dict(migrated)
         self.assertEqual((again, notes), (migrated, []))
 
-    def test_v5_to_v6_images_start_in_the_first_palette(self):
+    def test_v5_images_start_in_the_first_palette(self):
         v5 = {"format_version": 5, "name": "v5", "modules": [], "frames": [],
               "images": [{"id": "img", "file_path": "sheet.png", "width": 8, "height": 8, "transparent_color": None}]}
         migrated, notes = migrate_project_dict(v5)
-        self.assertEqual((migrated["format_version"], migrated["images"][0]["palette"], notes), (PROJECT_FORMAT_VERSION, 0, []))
+        self.assertEqual((migrated["format_version"], migrated["images"][0]["palette_id"], notes),
+                         (PROJECT_FORMAT_VERSION, "pal_1", []))
+        self.assertEqual(migrated["palettes"], [{"id": "pal_1", "name": "Palette 1", "colours": None, "cycles": []}])
         project = Project.from_dict(migrated)
-        project.images[0].palette = 2
-        self.assertEqual(Project.from_dict(project.to_dict()).images[0].palette, 2)
-        broken = dict(migrated, images=[dict(migrated["images"][0], palette=9)])
-        self.assertEqual(Project.from_dict(broken).images[0].palette, 0, "out of range counts as the first")
+        self.assertIsNone(project.palettes[0].colours, "its image can't be read yet: built once it can")
+        project.palettes.append(Palette("pal_x", "Second"))
+        project.images[0].palette_id = "pal_x"
+        self.assertEqual(Project.from_dict(project.to_dict()).images[0].palette_id, "pal_x")
+        broken = dict(migrated, images=[dict(migrated["images"][0], palette_id="gone")])
+        loaded = Project.from_dict(broken)
+        self.assertIs(loaded.image_palette(loaded.images[0]), loaded.palettes[0], "an unknown palette counts as the first")
+
+    def test_v6_to_v7_palettes_keep_their_numbers_and_colours(self):
+        import tempfile
+        from collections import Counter
+
+        import palettes
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as folder:
+            colours = {"hero.png": [(200, 40, 40)] * 3 + [(20, 20, 20)], "slime.png": [(0, 250, 0), (0, 120, 0)]}
+            for name, pixels in colours.items():
+                image = Image.new("RGBA", (len(pixels), 1), (0, 0, 0, 0))
+                for x, rgb in enumerate(pixels):
+                    image.putpixel((x, 0), rgb + (255,))
+                image.save(os.path.join(folder, name))
+            v6 = {"format_version": 6, "name": "v6", "modules": [],
+                  "images": [{"id": "hero", "file_path": "hero.png", "width": 4, "height": 1, "palette": 0},
+                             {"id": "slime", "file_path": "slime.png", "width": 2, "height": 1, "palette": 2}],
+                  "frames": [{"id": "f", "name": "f"}], "animations": [{"id": "a", "name": "a"}],
+                  "timeline_scenes": [{"id": "s", "name": "s", "objects": [{"id": "o", "name": "o"}]}]}
+            migrated, notes = migrate_project_dict(v6)
+            self.assertEqual(notes, [])
+            self.assertEqual([(p["id"], p["name"]) for p in migrated["palettes"]],
+                             [("pal_1", "Palette 1"), ("pal_3", "Palette 3")], "the numbers images use, and the first")
+            self.assertEqual([i["palette_id"] for i in migrated["images"]], ["pal_1", "pal_3"])
+            self.assertTrue(all("palette" not in i for i in migrated["images"]))
+            obj = migrated["timeline_scenes"][0]["objects"][0]
+            self.assertIsNone(obj["palette_swap_id"])
+            self.assertEqual((migrated["console"], migrated["palette_swaps"]), ("megadrive", []))
+
+            project = Project.from_dict(migrated, base_path=folder)  # the colours come from the images, as in format 6
+            hero, slime = project.palettes
+            self.assertEqual(hero.colours, [(200, 40, 40), (20, 20, 20)], "most used first")
+            self.assertEqual(slime.colours, palettes.build_colours(Counter({(0, 250, 0): 1, (0, 120, 0): 1}), 15))
+            again, notes = migrate_project_dict(migrated)
+            self.assertEqual((again, notes), (migrated, []))
+            saved = Project.from_dict(json.loads(json.dumps(project.to_dict())))
+            self.assertEqual(saved.palettes[0].colours, hero.colours, "once built, the colours are stored")
 
     def test_v3_events_loop_and_follow_up_round_trip(self):
         from models import AFrame, Animation, EventType, StepEvent

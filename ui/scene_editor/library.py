@@ -45,7 +45,8 @@ class AnimationPalette(wx.ListCtrl):
                 continue
             preview = self.project.get_frame(anim.aframes[0].frame_id) if anim.aframes else None
             if preview:
-                bmp = self.generator.render_thumbnail(self.project, preview, THUMB, THUMB, mapping=self.project.active_mapping)
+                bmp = self.generator.render_thumbnail(self.project, preview, THUMB, THUMB, mapping=self.project.active_mapping,
+                                                      swap=self.project.active_palette_swap)
             else:
                 bmp = wx.Bitmap(THUMB, THUMB)
                 dc = wx.MemoryDC(bmp)

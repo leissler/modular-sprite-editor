@@ -909,6 +909,8 @@ class SceneEditorPanel(wx.Panel):
             obj.use_source_root_motion = bool(value)
         elif field == "mapping":
             obj.mapping_id = value or None
+        elif field == "palette_swap":
+            obj.palette_swap_id = value or None
         elif field == "path_mode":
             obj.path_mode = str(value)
         self._commit()

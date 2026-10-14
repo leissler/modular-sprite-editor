@@ -27,7 +27,7 @@ SCREEN_W, SCREEN_H = 320, 224
 POSITIONS = [(160, 112), (6, 10), (310, 216)]  # centre, across the top-left and the bottom-right edges
 VERSUS = [(100, 150), (220, 150)]  # hero, guard
 TILE_BASE = 16  # TILE_USER_INDEX in the stub
-FIRST_LINE = 1  # ms_init() puts the first palette on PAL1
+FIRST_LINE = 1  # ms_init() puts the first palette entry on PAL1, the next ones on the lines after it
 PROJECTS = [REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json"]
 
 
@@ -37,7 +37,7 @@ def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int 
         return ",\n".join("    {" + fmt(item) + "}" for item in items) or "    {0}"
 
     variants = rows(ctx.variants, lambda v: f"{v.first_piece}, {v.piece_count}, {v.tile_w}, {v.tile_h}")
-    pieces = rows(ctx.pieces, lambda p: f"{p[0]}, {p[1]}, {p[2]}, 0, {p[3]}")
+    pieces = rows(ctx.pieces, lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[4]}, {p[3]}")
     parts = rows(ctx.packed_parts(), lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[3]}, {p[4]}")
     frames = rows(ctx.render_frames, lambda r: f"{r.first_part}, {r.part_count}, 0, 0, 0, 0, "
                   + ", ".join(str(v) for v in ctx.render_frame_extent(r)))
@@ -47,6 +47,10 @@ def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int 
     records = rows(ctx.anim_records, lambda r: f"{r.first_step}, {r.step_count}, {r.fps}, {r.playback}, 0, "
                    f"{r.loop_start}, {r.next_animation}, {r.loop_count}")
     events = rows(ctx.step_events, lambda e: f"{e[0]}, {e[1]}")
+    words = ", ".join(str(w) for w in ctx.packed_palette_words()) or "0"
+    entries = rows(ctx.packed_palette_entries(), lambda e: f"{e[0]}, {e[1]}, {e[2]}, {e[3]}, 0")
+    cycles = rows(ctx.packed_colour_cycles(), lambda c: f"{c[0]}, {c[1]}, {c[2]}, {c[3]}, 0")
+    swap_entries = ", ".join(str(e) for e in ctx.packed_swap_entries()) or "0"
     return f"""
 #include <stdio.h>
 #include "modsprite.h"
@@ -73,6 +77,15 @@ static const MS_StepEvent g_events[] = {{
 {events}
 }};
 static const u16 g_frame_render[] = {{ {frame_render} }};
+static const u16 g_palette[] = {{ {words} }};
+static const MS_PaletteEntry g_entries[] = {{
+{entries}
+}};
+static const MS_ColourCycle g_cycles[] = {{
+{cycles}
+}};
+static const u8 g_swap_entries[] = {{ {swap_entries} }};
+extern u16 g_stub_cram[64];
 static const s16 g_positions[][2] = {{ {positions} }};
 extern u16 g_stub_sprites_sent;
 
@@ -81,10 +94,14 @@ u16 ms_module_count = 0; u16 ms_frame_count = {frame_count}; u16 ms_animation_co
 u16 ms_scene_count = 0; u16 ms_mapping_count = {mapping_count}; u16 ms_anim_step_count = {len(ctx.anim_steps)};
 u16 ms_scene_sample_count = 0; u16 ms_animation_record_count = {len(ctx.anim_records) if animation_count else 0}; u16 ms_scene_record_count = 0;
 u16 ms_event_type_count = 0; u16 ms_step_event_count = {len(ctx.step_events)};
-u16 ms_tile_count = {len(ctx.tile_data) // 32}; u16 ms_palette_count = {len(ctx.palettes)}; u16 ms_piece_count = {len(ctx.pieces)};
+u16 ms_tile_count = {len(ctx.tile_data) // 32}; u16 ms_piece_count = {len(ctx.pieces)};
+u16 ms_palette_entry_count = {len(ctx.palette_entries)}; u16 ms_base_palette_count = {len(ctx.palette_ids)};
+u16 ms_palette_swap_count = {len(ctx.swaps) + 1}; u16 ms_colour_cycle_count = {len(ctx.packed_colour_cycles())};
+const MS_PaletteEntry *ms_palette_entries = g_entries; const MS_ColourCycle *ms_colour_cycles = g_cycles;
+const u8 *ms_swap_entries = g_swap_entries;
 u16 ms_hitbox_count = 0; u16 ms_point_count = 0; u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
 const MS_Variant *ms_variants = g_variants; const MS_Piece *ms_pieces = g_pieces; const u32 *ms_tiles = NULL;
-const u16 *ms_palette = NULL; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
+const u16 *ms_palette = g_palette; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = g_parts; const MS_RenderFrame *ms_render_frames = g_frames;
 const u16 *ms_module_render_frames = NULL; const u16 *ms_frame_render_frames = g_frame_render;
 const MS_AnimStep *ms_anim_steps = g_steps; const MS_Animation *ms_animations = g_records;
@@ -99,6 +116,8 @@ const char *ms_scene_id(u16 i) {{ return ""; }} const char *ms_scene_name_data(u
 const char *ms_event_name_data(u16 i) {{ return ""; }}
 const char *ms_hitbox_type_name_data(u16 i) {{ return ""; }} const char *ms_point_type_name_data(u16 i) {{ return ""; }}
 const char *ms_role_name_data(u16 i) {{ return ""; }}
+const char *ms_palette_swap_id(u16 i) {{ return ""; }} const char *ms_palette_swap_name_data(u16 i) {{ return ""; }}
+const char *ms_palette_entry_name_data(u16 i) {{ return ""; }}
 """
 
 
@@ -107,8 +126,9 @@ def _harness(ctx, frame_count: int) -> str:
 int main(void)
 {{
     u16 f, i, p;
-    printf("sizes %u %u %u %u %u %u\\n", (unsigned)sizeof(MS_Part), (unsigned)sizeof(MS_RenderFrame),
-           (unsigned)sizeof(MS_Variant), (unsigned)sizeof(MS_Piece), (unsigned)sizeof(MS_Hitbox), (unsigned)sizeof(MS_Point));
+    printf("sizes %u %u %u %u %u %u %u %u\\n", (unsigned)sizeof(MS_Part), (unsigned)sizeof(MS_RenderFrame),
+           (unsigned)sizeof(MS_Variant), (unsigned)sizeof(MS_Piece), (unsigned)sizeof(MS_Hitbox), (unsigned)sizeof(MS_Point),
+           (unsigned)sizeof(MS_PaletteEntry), (unsigned)sizeof(MS_ColourCycle));
     ms_init();
     for (f = 0; f < ms_frame_count; f++)
         for (p = 0; p < {len(POSITIONS)}; p++)
@@ -130,8 +150,8 @@ int main(void)
 
 
 def _rasterise(sprites, tiles: bytes):
-    """{{(x, y): (palette, colour index)}} of the sprite list as the VDP shows it (earlier sprites in front); the
-    palette counts from the first line the runtime loaded."""
+    """{{(x, y): (palette entry, colour index)}} of the sprite list as the VDP shows it (earlier sprites in front); the
+    runtime loads the palette entries into consecutive lines from FIRST_LINE."""
     out = {}
     for x, y, size, attr in reversed(sprites):
         tw, th = ((size >> 2) & 3) + 1, (size & 3) + 1
@@ -150,10 +170,13 @@ def _rasterise(sprites, tiles: bytes):
     return out
 
 
-def _versus_harness(ctx, frame_count: int, animation_count: int, animations, ticks: int) -> str:
+def _versus_harness(ctx, frame_count: int, animation_count: int, animations, ticks: int,
+                    guard_draw: str = "ms_draw_anim_player_mapped(&guard, 1, {x}, {y})") -> str:
     """Two players of the same animation in one sprite table: the hero with the active mapping (0), the guard
-    with mapping 1 through ms_draw_anim_player_mapped. Prints both steps, the mapping left active and the list."""
+    with mapping 1 through ms_draw_anim_player_mapped (or ``guard_draw``). Prints both steps, the mapping (plus the
+    palette swap) left active and the list."""
     anim_list = ", ".join(str(i) for i in animations)
+    guard_call = guard_draw.format(x=VERSUS[1][0], y=VERSUS[1][1])
     return _tables(ctx, frame_count, mapping_count=2, animation_count=animation_count) + f"""
 int main(void)
 {{
@@ -170,11 +193,11 @@ int main(void)
             MS_FrameProfile profile;
             ms_begin_frame();
             ms_draw_anim_player(&hero, {VERSUS[0][0]}, {VERSUS[0][1]});
-            ms_draw_anim_player_mapped(&guard, 1, {VERSUS[1][0]}, {VERSUS[1][1]});
+            {guard_call};
             ms_get_frame_profile(&profile);
             ms_end_frame();
-            printf("versus %u %u %u %u %u %u", anims[a], hero.step_index, guard.step_index, ms_get_mapping(),
-                   profile.hw_sprites, profile.sprites_dropped);
+            printf("versus %u %u %u %u %u %u", anims[a], hero.step_index, guard.step_index,
+                   ms_get_mapping() + ms_get_palette_swap(), profile.hw_sprites, profile.sprites_dropped);
             for (i = 0; i < profile.hw_sprites; i++)
                 printf(" %d,%d,%u,%u", vdpSpriteCache[i].x - 0x80, vdpSpriteCache[i].y - 0x80, vdpSpriteCache[i].size,
                        vdpSpriteCache[i].attribut);
@@ -205,8 +228,9 @@ def _build_and_run(test: unittest.TestCase, ctx, tmp_path: Path, source: str):
 
 
 def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, palette_at=lambda x, y: 0):
-    """{(x, y): (palette, colour index)} of an editor render drawn at (draw_x, draw_y), clipped to the screen;
-    ``palette_at(x, y)`` (render pixel) says which palette the image there uses."""
+    """{(x, y): (palette entry, colour index)} of an editor render drawn at (draw_x, draw_y), clipped to the screen;
+    ``palette_at(x, y)`` (render pixel) says which palette entry the image there is drawn from. The index is the slot
+    of the entry's palette (a swap's entry has the same slots as its palette)."""
     rgba = image.convert("RGBA")
     pixels = {}
     for py in range(rgba.height):
@@ -214,8 +238,9 @@ def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, pale
             r, g, b, a = rgba.getpixel((px, py))
             x, y = hx + px + draw_x, hy + py + draw_y
             if a and 0 <= x < SCREEN_W and 0 <= y < SCREEN_H:
-                palette = palette_at(hx + px, hy + py)
-                pixels[(x, y)] = (palette, ctx._nearest_palette_index((r, g, b), palette) + 1)
+                entry = palette_at(hx + px, hy + py)
+                palette_id = ctx.palette_entries[entry].palette_id
+                pixels[(x, y)] = (entry, ctx._nearest_palette_index((r, g, b), palette_id) + 1)
     return pixels
 
 
@@ -235,7 +260,8 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
 
                 # The blob packs records exactly as large as the C structs.
                 sizes = [int(v) for v in lines[0].split()[1:]]
-                self.assertEqual(sizes, [struct.calcsize(fmt) for fmt in (">HBBhh", ">IHHIIHHhhhh", ">HHBB", ">hhBBH", ">BBHhhhh", ">BBHhh")])
+                self.assertEqual(sizes, [struct.calcsize(fmt) for fmt in (">HBBhh", ">IHHIIHHhhhh", ">HHBB", ">hhBBH", ">BBHhhhh",
+                                                                          ">BBHhh", ">BBHBB", ">BBHBB")])
 
                 renderer = FrameRenderer()
                 tiles = bytes(ctx.tile_data)
@@ -265,25 +291,29 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
         import export_sgdk_example as sg
         from PIL import Image
 
-        from models import FModule, ImageAsset, Module
+        import palettes
+        from models import FModule, ImageAsset, Module, Palette
         from ui.frame_render import FrameRenderer
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             project = Project()
+            project.palettes = [Palette("p0", "Warm"), Palette("p1", "Cool")]
             for index, (name, base) in enumerate((("warm.png", (200, 60, 40)), ("cool.png", (40, 80, 210)))):
                 image = Image.new("RGBA", (8, 8), (0, 0, 0, 0))
                 for x in range(8):
                     for y in range(8):
                         image.putpixel((x, y), (base[0] - 20 * (x % 3), base[1] + 10 * (y % 2), base[2], 255))
                 image.save(tmp_path / name)
-                project.images.append(ImageAsset(f"img{index}", str(tmp_path / name), 8, 8, palette=index))
+                project.images.append(ImageAsset(f"img{index}", str(tmp_path / name), 8, 8, palette_id=f"p{index}"))
                 project.modules.append(Module(f"m{index}", name, f"img{index}", (0, 0, 8, 8), (0, 0)))
+            for palette in project.palettes:
+                palettes.add_missing_colours(project, palette)
             frame = project.create_frame("both")
             frame.fmodules += [FModule("a", "module", "m0", (0, 0)), FModule("b", "module", "m1", (16, 0))]
             ctx = sg.SGDKBakeContext(project, [None], tmp_path / "out")
             ctx.bake()
-            self.assertEqual(len(ctx.palettes), 2)
+            self.assertEqual(len(ctx.palette_entries), 2)
             lines = _build_and_run(self, ctx, tmp_path, _harness(ctx, len(project.frames)))
             image, hx, hy = FrameRenderer().render(project, frame, None)
             fields = lines[1].split()
@@ -330,6 +360,117 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                                  f"'{anim.name}' step {hero_step}: hero and guard differ on the console")
                 shown.add((anim.name, hero_step))
             self.assertEqual(len(shown), sum(len(project.animations[i].aframes) for i in animations))
+
+    def test_a_guard_in_other_colours(self):
+        """The guard drawn with a mapping and a palette swap: his sprites come from the swap's palette line, the
+        hero's from the palette's, the tiles are the same slots, and the active swap stays as it was."""
+        import export_sgdk_example as sg
+        from ui.frame_render import FrameRenderer, transform
+
+        project = Project.from_json(str(PROJECTS[0]))
+        palette = project.palettes[0]
+        swap = next(s for s in project.palette_swaps if s.name == "Blue guard")  # the Swordfight's guard wears it
+        guard_mapping = next(m for m in project.mappings if m.name == "Normal")
+        names = ["C34 Attack", "C21 multi stab throw enemy"]
+        animations = [next(i for i, a in enumerate(project.animations) if a.name == n) for n in names]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ctx = sg.SGDKBakeContext(project, [None, guard_mapping], tmp_path)
+            ctx.bake()
+            self.assertEqual([(e.palette_id, e.swap_id) for e in ctx.palette_entries],
+                             [(palette.id, None), (palette.id, swap.id)])
+            words = ctx.packed_palette_words()
+            self.assertEqual(words[16 + 1], sg.palettes.md_word(swap.palettes[palette.id].colours[0]),
+                             "the swap's entry holds its colour")
+            self.assertEqual(words[16 + 2], words[2], "slots it leaves alone keep the palette's colour")
+            lines = _build_and_run(self, ctx, tmp_path, _versus_harness(
+                ctx, len(project.frames), len(project.animations), animations, ticks=60,
+                guard_draw="ms_draw_anim_player_as(&guard, 1, 1, {x}, {y})"))
+            renderer = FrameRenderer()
+            tiles = bytes(ctx.tile_data)
+            for line in lines:
+                fields = line.split()
+                anim = project.animations[int(fields[1])]
+                hero_step, _guard_step, active, count, dropped = (int(v) for v in fields[2:7])
+                self.assertEqual(active, 0, "the active mapping and swap stay as they were")
+                sprites = [tuple(int(v) for v in item.split(",")) for item in fields[7:]]
+                af = anim.aframes[hero_step]
+                a, b = transform(af.flip_x, af.flip_y, af.rotation_degrees, af.offset)
+                expected = {}
+                for mapping, entry, (draw_x, draw_y) in reversed(list(zip((None, guard_mapping), (0, 1), VERSUS))):
+                    image, hx, hy = renderer.render(project, project.get_frame(af.frame_id), mapping, a, b)
+                    expected.update(_palette_pixels(ctx, image, hx, hy, draw_x, draw_y, palette_at=lambda x, y, e=entry: e))
+                self.assertEqual(_rasterise(sprites, tiles), expected, f"'{anim.name}' step {hero_step}")
+
+    def test_scene_objects_keep_their_own_swap(self):
+        """A scene object with a palette swap of its own has the swap's entry fixed in its pieces; one that inherits
+        follows the swap the game draws the scene with."""
+        import export_sgdk_example as sg
+        from PIL import Image
+
+        from models import ImageAsset, Module, PaletteChange, PaletteSwap, TimelineScene
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            Image.new("RGBA", (8, 8), (200, 40, 40, 255)).save(tmp_path / "red.png")
+            project = Project()
+            project.images.append(ImageAsset("img", str(tmp_path / "red.png"), 8, 8, palette_id=project.default_palette().id))
+            project.modules.append(Module("m", "red", "img", (0, 0, 8, 8), (0, 0)))
+            palette = project.palettes[0]
+            swap = PaletteSwap("s", "Blue", {palette.id: PaletteChange(colours=[(40, 40, 200)])})
+            project.palette_swaps.append(swap)
+            scene = TimelineScene(id="scene", name="Duel")
+            hero = scene.create_object("hero", "module", "m")
+            guard = scene.create_object("guard", "module", "m")
+            guard.keyframes[0].x = 20
+            guard.palette_swap_id = swap.id
+            project.timeline_scenes.append(scene)
+            ctx = sg.SGDKBakeContext(project, [None], tmp_path / "out")
+            ctx.bake()
+            sample = ctx.render_frames[ctx.scene_samples[ctx.scene_records[0].first_sample]]
+            entries = []
+            for variant, *_rest in ctx.parts[sample.first_part:sample.first_part + sample.part_count]:
+                first, count = ctx._piece_list(variant, False, False)
+                entries.append(sorted({piece[4] for piece in ctx.pieces[first:first + count]}))
+            self.assertEqual(sorted(entries), [[0], [1 | sg.FIXED_ENTRY]], "the hero follows, the guard keeps Blue")
+            self.assertEqual(len(ctx.tile_data) // 32, 1, "both draw the same tile: a swap costs no video memory")
+            self.assertEqual(hero.palette_swap_id, None)
+
+    def test_colour_cycles_turn_like_the_preview(self):
+        """ms_palette_tick() rotates a loaded entry's cycles in the colour RAM the way palettes.rotate shows them."""
+        import export_sgdk_example as sg
+        import palettes
+        from models import ColourCycle
+
+        project = Project.from_json(str(PROJECTS[0]))
+        palette = project.palettes[0]
+        palette.cycles = [ColourCycle(first=3, count=4, frames=3), ColourCycle(first=9, count=2, frames=5, reverse=True)]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ctx = sg.SGDKBakeContext(project, [None], tmp_path)
+            ctx.bake()
+            source = _tables(ctx, len(project.frames)) + """
+int main(void)
+{
+    u16 t, i;
+    ms_init();
+    for (t = 0; t < 40; t++)
+    {
+        printf("cram");
+        for (i = 0; i < 16; i++)
+            printf(" %u", g_stub_cram[16 * 1 + i]);
+        printf("\\n");
+        ms_palette_tick();
+    }
+    return 0;
+}
+"""
+            lines = _build_and_run(self, ctx, tmp_path, source)
+            colours = palettes.colours_of(project, palette)
+            for frame, line in enumerate(lines):
+                shown = palettes.rotate(colours, palette.cycles, frame)
+                expected = [0] + [palettes.md_word(shown[s]) if s < len(shown) else 0 for s in range(15)]
+                self.assertEqual([int(v) for v in line.split()[1:]], expected, f"frame {frame}")
 
 
 if __name__ == "__main__":

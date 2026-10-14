@@ -5,7 +5,7 @@ All functions are safe no-ops when no main window is installed (tests, standalon
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import wx
 
@@ -15,6 +15,8 @@ _zoom: Optional[Callable[[float], None]] = None
 _mapping_changed: Optional[Callable[[], None]] = None
 _images_changed: Optional[Callable[[], None]] = None
 _revision: Optional[Callable[[], Optional[str]]] = None
+_swap_changed: Optional[Callable[[], None]] = None
+_go_to: Optional[Callable[[Tuple[str, str]], None]] = None
 
 
 def install(
@@ -24,14 +26,18 @@ def install(
     mapping_changed: Optional[Callable[[], None]] = None,
     images_changed: Optional[Callable[[], None]] = None,
     revision: Optional[Callable[[], Optional[str]]] = None,
+    swap_changed: Optional[Callable[[], None]] = None,
+    go_to: Optional[Callable[[Tuple[str, str]], None]] = None,
 ) -> None:
-    global _checkpoint, _status, _zoom, _mapping_changed, _images_changed, _revision
+    global _checkpoint, _status, _zoom, _mapping_changed, _images_changed, _revision, _swap_changed, _go_to
     _checkpoint = checkpoint
     _status = status
     _zoom = zoom
     _mapping_changed = mapping_changed
     _images_changed = images_changed
     _revision = revision
+    _swap_changed = swap_changed
+    _go_to = go_to
 
 
 def text_entry_has_focus() -> bool:
@@ -72,6 +78,18 @@ def show_zoom(zoom: float) -> None:
 def notify_active_mapping_changed() -> None:
     if _mapping_changed:
         _mapping_changed()
+
+
+def notify_active_palette_swap_changed() -> None:
+    """The preview's palette swap (Project.active_palette_swap) changed: every preview draws with it."""
+    if _swap_changed:
+        _swap_changed()
+
+
+def go_to(target: Tuple[str, str]) -> None:
+    """Show an item in its tab, as Check Project's Go to does: (kind, id), e.g. ("palette", id)."""
+    if _go_to:
+        _go_to(target)
 
 
 def notify_images_changed() -> bool:

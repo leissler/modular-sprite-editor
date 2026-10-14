@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import wx
 
-from models import AFrame, Animation, ModuleMapping, Project
+from models import AFrame, Animation, ModuleMapping, PaletteSwap, Project
 from ui.animation_editor import ops
-from ui.frame_render import SHARED, FrameRenderer, fit_bitmap, frame_signature, mapping_key, transform
+from ui.frame_render import SHARED, FrameRenderer, fit_bitmap, frame_signature, mapping_key, swap_key, transform
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 
@@ -38,15 +38,17 @@ class StepRenderer:
         mapping: Optional[ModuleMapping],
         mirror: Tuple[bool, bool] = (False, False),
         with_offset: bool = True,
+        swap: Optional[PaletteSwap] = None,
     ) -> Tuple[Any, int, int]:
-        """(RGBA image, x, y): the step's pixels and where their top-left lands in animation space."""
+        """(RGBA image, x, y): the step's pixels (recoloured by ``swap``) and where their top-left lands in animation
+        space."""
         frame = project.get_frame(af.frame_id)
         if frame is None:
             from PIL import Image as PILImage
 
             return (PILImage.new("RGBA", (1, 1), (0, 0, 0, 0)), 0, 0)
         a, b = step_affine(af, mirror[0], mirror[1], with_offset)
-        return self.frames.render(project, frame, mapping, a, b)
+        return self.frames.render(project, frame, mapping, a, b, swap)
 
     def thumbnail(
         self,
@@ -55,13 +57,14 @@ class StepRenderer:
         mapping: Optional[ModuleMapping],
         size: int,
         background: Tuple[int, int, int] = (50, 50, 50),
+        swap: Optional[PaletteSwap] = None,
     ) -> wx.Bitmap:
         """Square thumbnail of a step's frame with its flip/rotation (no offset), pixel-art scaled."""
         key = (frame_signature(project, af.frame_id, mapping), bool(af.flip_x), bool(af.flip_y),
-               int(round(af.rotation_degrees)) % 360, mapping_key(mapping), int(size), background)
+               int(round(af.rotation_degrees)) % 360, mapping_key(mapping), swap_key(project, swap), int(size), background)
         bmp = self._bitmaps.get(key)
         if bmp is None:
-            image, _x, _y = self.render(project, af, mapping, with_offset=False)
+            image, _x, _y = self.render(project, af, mapping, with_offset=False, swap=swap)
             bmp = fit_bitmap(image, size, size, background)
             if len(self._bitmaps) > 3000:
                 self._bitmaps.clear()
@@ -75,7 +78,8 @@ class StepRenderer:
                 int(round(af.rotation_degrees)) % 360)
 
     def strip_layout(
-        self, project: Project, anim: Animation, mapping: Optional[ModuleMapping], size: int
+        self, project: Project, anim: Animation, mapping: Optional[ModuleMapping], size: int,
+        swap: Optional[PaletteSwap] = None,
     ) -> Tuple[int, int, float, int, int]:
         """(x0, y0, scale, left, top): one scale and one origin for every step of an animation.
 
@@ -88,7 +92,7 @@ class StepRenderer:
             return layout
         boxes = []
         for af in anim.aframes:
-            image, x, y = self.render(project, af, mapping, with_offset=False)
+            image, x, y = self.render(project, af, mapping, with_offset=False, swap=swap)
             if image.getbbox():
                 boxes.append((x, y, x + image.size[0], y + image.size[1]))
         if not boxes:
@@ -114,6 +118,7 @@ class StepRenderer:
         size: int,
         background: Tuple[int, int, int] = (50, 50, 50),
         layout: Optional[Tuple[int, int, float, int, int]] = None,
+        swap: Optional[PaletteSwap] = None,
     ) -> wx.Bitmap:
         """A step's thumbnail in its animation's shared layout (same scale and origin for every step).
 
@@ -123,12 +128,13 @@ class StepRenderer:
 
         af = anim.aframes[index]
         if layout is None:
-            layout = self.strip_layout(project, anim, mapping, size)
-        key = ("strip",) + self._step_key(project, af, mapping) + (mapping_key(mapping), int(size), background, layout)
+            layout = self.strip_layout(project, anim, mapping, size, swap)
+        key = ("strip",) + self._step_key(project, af, mapping) + (mapping_key(mapping), swap_key(project, swap), int(size),
+                                                                   background, layout)
         bmp = self._bitmaps.get(key)
         if bmp is None:
             x0, y0, scale, left, top = layout
-            image, x, y = self.render(project, af, mapping, with_offset=False)
+            image, x, y = self.render(project, af, mapping, with_offset=False, swap=swap)
             canvas = PILImage.new("RGBA", (int(size), int(size)), tuple(background) + (255,))
             if image.getbbox():
                 tw, th = max(1, int(round(image.size[0] * scale))), max(1, int(round(image.size[1] * scale)))
@@ -151,15 +157,17 @@ def export_gif(
     mapping: Optional[ModuleMapping],
     mirror: Tuple[bool, bool] = (False, False),
     scale: int = 1,
+    swap: Optional[PaletteSwap] = None,
 ) -> int:
-    """Write one cycle of the animation (in its playback order) to an animated GIF. Returns the frame count."""
+    """Write one cycle of the animation (in its playback order, recoloured by ``swap``) to an animated GIF. Returns the
+    frame count."""
     from PIL import Image as PILImage
 
     renderer = StepRenderer()
     rendered: List[Tuple[Any, int, int, int]] = []
     for index in cycle_order(anim):
         af = anim.aframes[index]
-        image, x, y = renderer.render(project, af, mapping, mirror)
+        image, x, y = renderer.render(project, af, mapping, mirror, swap=swap)
         rendered.append((image, x, y, ops.hold(af)))
     if not rendered:
         return 0

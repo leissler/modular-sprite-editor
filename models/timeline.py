@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import playback
-from models.core import ModuleMapping, generate_id
+from models.core import ModuleMapping, PaletteSwap, generate_id
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -316,6 +316,7 @@ class TimelineObject:
     path_mode: str = "linear"
     use_source_root_motion: bool = False
     mapping_id: Optional[str] = None
+    palette_swap_id: Optional[str] = None  # like mapping_id: None inherits, TIMELINE_MAPPING_ORIGINAL, or a swap's id
     keyframes: List[TimelineKeyframe] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -326,6 +327,7 @@ class TimelineObject:
             "source_type": self.source_type,
             "source_id": self.source_id,
             "mapping_id": self.mapping_id,
+            "palette_swap_id": self.palette_swap_id,
             "draw_order": self.draw_order,
             "playback_offset": self.playback_offset,
             "playback_speed": self.playback_speed,
@@ -368,6 +370,7 @@ class TimelineObject:
             path_mode=path_mode,
             use_source_root_motion=bool(data.get("use_source_root_motion", False)),
             mapping_id=str(data.get("mapping_id")) if data.get("mapping_id") else None,
+            palette_swap_id=str(data.get("palette_swap_id")) if data.get("palette_swap_id") else None,
             keyframes=keyframes,
         )
 
@@ -419,6 +422,25 @@ class TimelineScene:
                 mapping = project.get_mapping(obj.mapping_id)
                 if mapping:
                     return mapping
+            obj = self.get_object(obj.parent_id) if obj.parent_id else None
+        return default
+
+    def object_palette_swap(
+        self, project: "Project", object_id: str, default: Optional["PaletteSwap"]
+    ) -> Optional["PaletteSwap"]:
+        """The palette swap an object is drawn with, found like its mapping: its own, else its nearest ancestor's,
+        else ``default`` (the preview's in the editor). TIMELINE_MAPPING_ORIGINAL draws the palettes as they are;
+        an id that no longer exists counts as unset."""
+        seen: set = set()
+        obj = self.get_object(object_id)
+        while obj and obj.id not in seen:
+            seen.add(obj.id)
+            if obj.palette_swap_id == TIMELINE_MAPPING_ORIGINAL:
+                return None
+            if obj.palette_swap_id:
+                swap = project.get_palette_swap(obj.palette_swap_id)
+                if swap:
+                    return swap
             obj = self.get_object(obj.parent_id) if obj.parent_id else None
         return default
 

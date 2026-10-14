@@ -1,5 +1,5 @@
 {
-  "format_version": 6,
+  "format_version": 7,
   "name": "New Project",
   "images": [
     {
@@ -12,7 +12,7 @@
         0,
         255
       ],
-      "palette": 0
+      "palette_id": "pal_1"
     }
   ],
   "modules": [
@@ -47727,6 +47727,7 @@
           "source_type": "animation",
           "source_id": "0x3002",
           "mapping_id": "0x0003",
+          "palette_swap_id": "swap_0193df767dc74239",
           "draw_order": 0,
           "playback_offset": 0.0,
           "playback_speed": 1.0,
@@ -48007,6 +48008,7 @@
           "source_type": "animation",
           "source_id": "0x3002",
           "mapping_id": null,
+          "palette_swap_id": null,
           "draw_order": 1,
           "playback_offset": 0.0,
           "playback_speed": 1.0,
@@ -48516,6 +48518,135 @@
         220,
         140
       ]
+    }
+  ],
+  "console": "megadrive",
+  "palettes": [
+    {
+      "id": "pal_1",
+      "name": "Palette 1",
+      "colours": [
+        [
+          155,
+          22,
+          14
+        ],
+        [
+          2,
+          2,
+          1
+        ],
+        [
+          94,
+          13,
+          1
+        ],
+        [
+          88,
+          42,
+          33
+        ],
+        [
+          50,
+          7,
+          0
+        ],
+        [
+          0,
+          255,
+          255
+        ],
+        [
+          111,
+          163,
+          212
+        ],
+        [
+          190,
+          86,
+          42
+        ],
+        [
+          113,
+          107,
+          100
+        ],
+        [
+          222,
+          252,
+          250
+        ],
+        [
+          50,
+          50,
+          46
+        ],
+        [
+          236,
+          129,
+          53
+        ],
+        [
+          210,
+          190,
+          147
+        ],
+        [
+          11,
+          50,
+          64
+        ],
+        [
+          0,
+          233,
+          107
+        ]
+      ],
+      "cycles": []
+    }
+  ],
+  "palette_swaps": [
+    {
+      "id": "swap_0193df767dc74239",
+      "name": "Blue guard",
+      "palettes": {
+        "pal_1": {
+          "colours": [
+            [
+              36,
+              72,
+              182
+            ],
+            null,
+            [
+              0,
+              36,
+              109
+            ],
+            null,
+            [
+              0,
+              0,
+              72
+            ],
+            null,
+            null,
+            null,
+            [
+              145,
+              109,
+              36
+            ],
+            null,
+            [
+              182,
+              145,
+              36
+            ]
+          ],
+          "cycles": null
+        }
+      }
     }
   ]
 }

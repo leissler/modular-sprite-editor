@@ -22,7 +22,7 @@ from ui.frame_editor import ops
 from ui.frame_editor.inspector import FrameInspector
 from ui.frame_editor.library import PartLibrary
 from ui.frame_editor.stage import FrameStage
-from ui.frame_render import SHARED, fit_bitmap, frame_signature, mapping_key
+from ui.frame_render import SHARED, fit_bitmap, frame_signature, mapping_key, swap_key
 from ui.dpi import px
 
 ONION_MODES: List[Tuple[str, str]] = [("Off", "off"), ("Previous", "previous"), ("Next", "next"), ("Both", "both")]
@@ -407,11 +407,11 @@ class FrameEditorPanel(wx.Panel):
         frame = self.project.get_frame(frame_id)
         if frame is None or not frame.fmodules:
             return None
-        mapping = self.project.active_mapping
-        key = (frame_signature(self.project, frame_id, mapping), mapping_key(mapping), size)
+        mapping, swap = self.project.active_mapping, self.project.active_palette_swap
+        key = (frame_signature(self.project, frame_id, mapping), mapping_key(mapping), swap_key(self.project, swap), size)
         bmp = self._thumbs.get(key)
         if bmp is None:
-            image, _x, _y = SHARED.render(self.project, frame, mapping)
+            image, _x, _y = SHARED.render(self.project, frame, mapping, swap=swap)
             bmp = fit_bitmap(image, size, size, TILE_BG, max_scale=4)
             if len(self._thumbs) > 2000:
                 self._thumbs.clear()

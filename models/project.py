@@ -16,6 +16,8 @@ from models.core import (
     ImageAsset,
     Module,
     ModuleMapping,
+    Palette,
+    PaletteSwap,
     PointType,
     generate_id,
 )
@@ -36,9 +38,13 @@ class Project:
     collision_types: List[CollisionType] = field(default_factory=list)
     point_types: List[PointType] = field(default_factory=list)
     event_types: List[EventType] = field(default_factory=list)
+    console: str = "megadrive"  # the target console (consoles.py): its palettes' size, colours and limits
+    palettes: List[Palette] = field(default_factory=list)
+    palette_swaps: List[PaletteSwap] = field(default_factory=list)
 
     # Runtime state (not serialized)
     active_mapping: Optional[ModuleMapping] = field(default=None, init=False)
+    active_palette_swap: Optional[PaletteSwap] = field(default=None, init=False)  # the preview's, like the mapping
     load_notes: List[str] = field(default_factory=list, init=False)
     imported_from: str = field(default="", init=False)  # e.g. "AuroraGT sprite"; empty for the editor's own files
     # Where each id was found in its list (see _find); the lists are edited in place everywhere, so positions are
@@ -81,6 +87,23 @@ class Project:
     def get_event_type(self, type_id: str) -> Optional[EventType]:
         return self._find("event_types", self.event_types, type_id)
 
+    def get_palette(self, palette_id: Optional[str]) -> Optional[Palette]:
+        return self._find("palettes", self.palettes, palette_id)
+
+    def get_palette_swap(self, swap_id: Optional[str]) -> Optional[PaletteSwap]:
+        return self._find("palette_swaps", self.palette_swaps, swap_id)
+
+    def default_palette(self) -> Palette:
+        """The first palette (vector shapes and images without one use it), made when the project has none."""
+        if not self.palettes:
+            self.palettes.append(Palette(id=generate_id("pal"), name="Palette 1"))
+        return self.palettes[0]
+
+    def image_palette(self, asset: Optional[ImageAsset]) -> Palette:
+        """The palette an image's colours go into: its own, else the first."""
+        palette = self.get_palette(asset.palette_id) if asset is not None else None
+        return palette or self.default_palette()
+
     def get_timeline_scene(self, scene_id: str) -> Optional[TimelineScene]:
         return self._find("timeline_scenes", self.timeline_scenes, scene_id)
 
@@ -119,7 +142,8 @@ class Project:
             file_path=file_path,
             width=width,
             height=height,
-            transparent_color=transparent_color
+            transparent_color=transparent_color,
+            palette_id=self.default_palette().id,
         )
         self.images.append(asset)
         return asset
@@ -308,6 +332,9 @@ class Project:
             "collision_types": [ct.to_dict() for ct in self.collision_types],
             "point_types": [pt.to_dict() for pt in self.point_types],
             "event_types": [et.to_dict() for et in self.event_types],
+            "console": self.console,
+            "palettes": [palette.to_dict() for palette in self.palettes],
+            "palette_swaps": [swap.to_dict() for swap in self.palette_swaps],
         }
 
     def to_json(self, path: str, keep_backup: bool = True) -> None:
@@ -317,10 +344,11 @@ class Project:
         text = json.dumps(self.to_dict(base_path=base_path), indent=2)  # fails before the file is touched
         write_text_atomically(path, text, keep_backup=keep_backup)
 
-    def to_retro_animator_json(self, path: str, mapping: Optional[ModuleMapping] = None) -> Dict[str, Any]:
+    def to_retro_animator_json(self, path: str, mapping: Optional[ModuleMapping] = None,
+                               swap: Optional[PaletteSwap] = None) -> Dict[str, Any]:
         from exporters import retroanimator  # the exporters import the model
 
-        return retroanimator.export(self, path=path, mapping=mapping)
+        return retroanimator.export(self, path=path, mapping=mapping, swap=swap)
 
     @staticmethod
     def from_dict(data: Dict, base_path: Optional[str] = None) -> "Project":
@@ -342,6 +370,8 @@ class Project:
         collision_types = [CollisionType.from_dict(ct) for ct in data.get("collision_types", [])]
         point_types = [PointType.from_dict(pt) for pt in data.get("point_types", [])]
         event_types = [EventType.from_dict(et) for et in data.get("event_types", [])]
+        palette_list = [Palette.from_dict(p) for p in data.get("palettes", []) or []]
+        palette_swaps = [PaletteSwap.from_dict(s) for s in data.get("palette_swaps", []) or []]
 
         project = Project(
             name=data.get("name", "New Project"),
@@ -354,8 +384,14 @@ class Project:
             collision_types=collision_types,
             point_types=point_types,
             event_types=event_types,
+            console=str(data.get("console") or "megadrive"),
+            palettes=palette_list,
+            palette_swaps=palette_swaps,
         )
         project.load_notes = notes
+        import palettes  # the palette rules import the model
+
+        palettes.build_missing(project)  # a project from format 6: its palettes from the images, as that format did
         return project
 
     @staticmethod

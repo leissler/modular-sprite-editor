@@ -11,7 +11,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import wx
 
-from models import ImageAsset, Module, Project, generate_id
+import palettes
+from models import ImageAsset, Module, Palette, Project, generate_id
 from ui import app_services
 from ui.animation_editor import ops as anim_ops
 from ui.components import confirm
@@ -281,7 +282,7 @@ class ModuleEditorPanel(wx.Panel):
         if asset is None:
             self.canvas.set_sheet(self.sheet_key, None, (0, 0))
             return
-        if CONSOLE.enabled and not self.show_key_colour:  # View ▸ Mega Drive Colours
+        if CONSOLE.enabled and not self.show_key_colour:  # View ▸ Console Colours
             image = CONSOLE.image(self.project, asset) or SHARED.sheet(self.project, asset, keyed=True)
         else:
             image = SHARED.sheet(self.project, asset, keyed=not self.show_key_colour)
@@ -309,7 +310,9 @@ class ModuleEditorPanel(wx.Panel):
                 width, height = img.size
         except OSError:
             return None
-        return self.project.create_image(path, width, height)
+        asset = self.project.create_image(path, width, height)
+        palettes.add_missing_colours(self.project, self.project.image_palette(asset))  # its colours join the palette
+        return asset
 
     def add_images(self) -> None:
         with wx.FileDialog(self, "Add Images", wildcard=IMAGE_WILDCARD, style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE) as dlg:
@@ -467,16 +470,25 @@ class ModuleEditorPanel(wx.Panel):
         self._commit()
         app_services.show_status(f"Key colour #{colour[0]:02X}{colour[1]:02X}{colour[2]:02X}" if colour else "No key colour")
 
-    def _set_palette(self, index: int) -> None:
-        """Put the image's colours into another Mega Drive palette (the export builds one per palette)."""
+    def _set_palette(self, palette_id: str) -> None:
+        """Put the image's colours into another palette ("": a new one); the colours it lacks go into its free
+        slots."""
         asset = self.asset()
-        if asset is None or asset.palette == index:
+        if asset is None or (palette_id and palette_id == asset.palette_id):
             return
-        asset.palette = index
+        if not palette_id:
+            palette = Palette(id=generate_id("pal"), name=palettes.new_palette_name(self.project), colours=[])
+            self.project.palettes.append(palette)
+            palette_id = palette.id
+        asset.palette_id = palette_id
+        palette = self.project.image_palette(asset)
+        added = palettes.add_missing_colours(self.project, palette)
+        still = len(palettes.missing_colours(self.project, palette))
         self._commit()
-        if CONSOLE.enabled:
-            app_services.notify_images_changed()  # the canvases show the new palettes
-        app_services.show_status(f"'{ops.image_label(asset)}' uses Palette {index + 1}")
+        app_services.show_status(
+            f"'{ops.image_label(asset)}' uses {palette.name}"
+            + (f"; {added} of its colours went into free slots" if added else "")
+            + (f"; {still} don't fit and show as the nearest colour" if still else ""))
 
     def _on_show_key_colour(self, shown: bool) -> None:
         self.show_key_colour = shown

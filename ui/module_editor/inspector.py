@@ -2,62 +2,19 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any, Callable, List, Optional, Tuple
 
 import wx
 
 import palettes
 from models import ImageAsset, Module, Project
+from ui import app_services
+from ui.components.palette_swatches import PaletteStrip
 from ui.components.inspector_kit import bind_spin, dim_text, hbox, relayout, row, section, set_spin, small_button, spin
 from ui.module_editor import ops
 from ui.dpi import px
 
 PRESET_GLYPHS = ("◤", "▲", "◥", "◀", "●", "▶", "◣", "▼", "◢")
-_PALETTE_SUMMARIES: dict = {}  # (palette, its images' files and settings) -> (colours, the 15-colour palette)
-
-
-def palette_summary(project: Project, index: int) -> Tuple[int, List[Tuple[int, int, int]]]:
-    """(colours the palette's images use, its 15 colours as the export builds them); cached until an image of it,
-    its file or its key colour changes."""
-    members = [a for a in project.images if palettes.palette_of(a) == index]
-    key = (index, tuple(
-        (a.file_path, tuple(a.transparent_color or ()),
-         os.path.getmtime(a.file_path) if os.path.exists(a.file_path) else 0) for a in members))
-    found = _PALETTE_SUMMARIES.get(key)
-    if found is None:
-        counts = palettes.palette_colours(project, index)
-        found = _PALETTE_SUMMARIES[key] = (len(counts), palettes.build_palette(counts))
-    return found
-
-
-class PaletteStrip(wx.Panel):
-    """A palette's colours as small swatches, as the console shows them."""
-
-    SIZE = px(11)
-
-    def __init__(self, parent: wx.Window):
-        super().__init__(parent, size=(15 * (self.SIZE + 1) + 1, self.SIZE + 2))
-        self.colours: List[Tuple[int, int, int]] = []
-        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.Bind(wx.EVT_PAINT, self._on_paint)
-
-    def set_colours(self, colours: List[Tuple[int, int, int]]) -> None:
-        self.colours = [palettes.md_colour(c) for c in colours]
-        self.SetToolTip("The palette's 15 colours on the Mega Drive: " + " ".join(
-            f"#{r:02X}{g:02X}{b:02X}" for r, g, b in self.colours))
-        self.Refresh()
-
-    def _on_paint(self, _event: wx.PaintEvent) -> None:
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
-        dc.Clear()
-        dc.SetPen(wx.Pen(wx.Colour(30, 30, 34)))
-        for index, (r, g, b) in enumerate(self.colours):
-            dc.SetBrush(wx.Brush(wx.Colour(r, g, b)))
-            dc.DrawRectangle(index * (self.SIZE + 1), 0, self.SIZE + 1, self.SIZE + 1)
-
-
 class ModuleInspector(wx.ScrolledWindow):
     def __init__(self, parent: wx.Window):
         super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
@@ -66,6 +23,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.project: Optional[Project] = None
         self.modules: List[Module] = []
         self._updating = False
+        self._sheet_asset: Optional[ImageAsset] = None
         self._shape_types: List[str] = [key for key, _label in ops.SHAPE_TYPES]
 
         # Callbacks (set by the panel)
@@ -73,7 +31,7 @@ class ModuleInspector(wx.ScrolledWindow):
         self.on_preset: Optional[Callable[[Tuple[float, float]], None]] = None
         self.on_tool: Optional[Callable[[str], None]] = None           # see the buttons below
         self.on_draw_shape: Optional[Callable[[str, Tuple[int, int, int]], None]] = None
-        self.on_palette: Optional[Callable[[int], None]] = None        # the sheet's palette (0-3)
+        self.on_palette: Optional[Callable[[str], None]] = None        # the sheet's palette by id ("": a new one)
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.hint = dim_text(self)
@@ -98,16 +56,15 @@ class ModuleInspector(wx.ScrolledWindow):
         row(grid, p, "Key colour", hbox(self.key_swatch, 4, self.key_info, "stretch"))
         grid.Add((0, 0))
         grid.Add(hbox(self.btn_pick, self.btn_clear_key), 0, wx.EXPAND)
-        self.palette_choice = wx.Choice(p, choices=[f"Palette {i + 1}" for i in range(palettes.PALETTE_COUNT)])
+        self.palette_choice = wx.Choice(p)
         self.palette_choice.SetToolTip(
-            "The Mega Drive palette this image's colours go into. A palette holds 15 colours (plus transparent); "
-            "put characters with different colours into different palettes. View ▸ Mega Drive Colours shows the "
-            "result.")
-        self.palette_choice.Bind(wx.EVT_CHOICE, lambda e: self.on_palette and self.on_palette(
-            self.palette_choice.GetSelection()))
+            "The palette this image's colours go into; the colours it lacks go into its free slots. Put characters "
+            "with different colours into different palettes. View ▸ Console Colours shows the result.")
+        self.palette_choice.Bind(wx.EVT_CHOICE, self._on_palette_choice)
+        self._palette_ids: List[str] = []
         self.palette_info = dim_text(p)
         row(grid, p, "Palette", hbox(self.palette_choice, 6, self.palette_info, "stretch"))
-        self.palette_strip = PaletteStrip(p)
+        self.palette_strip = PaletteStrip(p, on_click=self._edit_palette)
         grid.Add((0, 0))
         grid.Add(self.palette_strip, 0)
         self.btn_grid = small_button(p, "Grid slice…", "Cut the image into equal tiles", lambda: self._tool("grid"))
@@ -204,6 +161,16 @@ class ModuleInspector(wx.ScrolledWindow):
         if self.on_tool:
             self.on_tool(name)
 
+    def _on_palette_choice(self, _event: wx.CommandEvent) -> None:
+        index = self.palette_choice.GetSelection()
+        if not self._updating and self.on_palette:
+            self.on_palette(self._palette_ids[index] if 0 <= index < len(self._palette_ids) else "")
+
+    def _edit_palette(self) -> None:
+        """Open the sheet's palette in the Palettes tab."""
+        if self.project is not None and self._sheet_asset is not None:
+            app_services.go_to(("palette", self.project.image_palette(self._sheet_asset).id))
+
     def _field(self, name: str, value: Any) -> None:
         if not self._updating and self.on_field:
             self.on_field(name, value)
@@ -275,6 +242,7 @@ class ModuleInspector(wx.ScrolledWindow):
         relayout(self)
 
     def _fill_sheet(self, project: Project, asset: ImageAsset) -> None:
+        self._sheet_asset = asset
         missing = ops.image_missing(asset)
         self.file_name.SetLabel(_short(ops.image_label(asset), 30))
         self.file_name.SetToolTip(asset.file_path)
@@ -290,17 +258,21 @@ class ModuleInspector(wx.ScrolledWindow):
         self.btn_clear_key.Enable(bool(key))
         for btn in (self.btn_pick, self.btn_grid, self.btn_detect, self.btn_auto):
             btn.Enable(not missing)
-        index = palettes.palette_of(asset)
-        self.palette_choice.SetSelection(index)
-        used, colours = palette_summary(project, index)
-        over = used > palettes.COLOURS_PER_PALETTE
-        self.palette_info.SetLabel(f"{used} colour{'s' if used != 1 else ''}" + (" (merged to 15)" if over else ""))
-        self.palette_info.SetForegroundColour(wx.Colour(255, 140, 120) if over else wx.Colour(150, 156, 170))
+        palette = project.image_palette(asset)
+        self._palette_ids = [p.id for p in project.palettes]
+        self.palette_choice.Set([p.name for p in project.palettes] + ["New palette…"])
+        self.palette_choice.SetSelection(self._palette_ids.index(palette.id))
+        spec = palettes.hardware(project)
+        colours = palettes.colours_of(project, palette)
+        lacking = len([rgb for rgb in palettes.image_colours(asset.file_path, asset.transparent_color)
+                       if rgb not in set(colours)])
+        self.palette_info.SetLabel(f"{len(colours)} of {spec.visible}" + (f", {lacking} missing" if lacking else ""))
+        self.palette_info.SetForegroundColour(wx.Colour(255, 140, 120) if lacking else wx.Colour(150, 156, 170))
         self.palette_info.SetToolTip(
-            f"The images in Palette {index + 1} use {used} colours" + (
-                ": the Mega Drive shows 15 per palette, so the export merges similar ones. Put an image into another "
-                "palette, or use fewer colours." if over else "."))
-        self.palette_strip.set_colours(colours)
+            f"'{palette.name}' holds {len(colours)} of the {spec.visible} colours a palette can have" + (
+                f"; {lacking} colours of this image are not in it and show as the nearest one. Add them in the "
+                "Palettes tab, or let Check Project add them." if lacking else "."))
+        self.palette_strip.set_palette(colours, spec, palette.name)
 
     def _fill_modules(self, project: Project, modules: List[Module]) -> None:
         single = modules[0] if len(modules) == 1 else None

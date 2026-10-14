@@ -3,6 +3,8 @@
 #include "modsprite.h"
 
 #define MS_DEFAULT_SPRITE_LIMIT 80u
+#define MS_NO_LINE 0xFFu
+#define MS_MAX_ENTRIES 128u
 
 static u8 g_initialized = FALSE;
 static u8 g_tiles_fit = FALSE;
@@ -13,7 +15,16 @@ static u16 g_tile_base = TILE_USER_INDEX;
 static u16 g_palette = PAL1;
 static u16 g_sprite_limit = MS_DEFAULT_SPRITE_LIMIT;
 static u16 g_hw_count = 0;
-static u16 g_attr_base = TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, TILE_USER_INDEX);
+static u16 g_attr_base = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX);  /* palette bits per piece */
+/* Palette entries and lines: which line each entry is in, which entry each line shows, and the attribute palette
+   bits for a piece's entry byte (indexed with MS_FIXED_ENTRY too), refreshed when a swap or a line changes. */
+static u8 g_line_of[MS_MAX_ENTRIES];
+static u8 g_line_entry[4];
+static u16 g_entry_bits[256];
+static u16 g_active_swap = 0;
+static u32 g_palette_frame = 0;
+static u16 g_line_colours[4][16];  /* what each line shows, its colour cycles applied */
+static u16 g_line_phase[4];        /* a mark of the cycle steps each line last showed */
 static s16 g_screen_w = 320;
 static s16 g_screen_h = 224;
 
@@ -120,7 +131,7 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
                 sprite->y = y + piece->y;
                 sprite->size = piece->size;
                 sprite->link = (u8)++link;
-                sprite->attribut = attribute + piece->tile_offset;
+                sprite->attribut = attribute + piece->tile_offset + g_entry_bits[piece->palette];
                 sprite->x = x + piece->x;
             }
         }
@@ -140,7 +151,8 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
         x = ox + part->x;
         y = oy + part->y;
         for (k = part->piece_count; k > 0; k--, piece++)
-            ms_push_sprite(x + piece->x, y + piece->y, piece->size, attribute + piece->tile_offset);
+            ms_push_sprite(x + piece->x, y + piece->y, piece->size,
+                           attribute + piece->tile_offset + g_entry_bits[piece->palette]);
     }
     g_frame_profile.hw_sprites = g_hw_count;
 }
@@ -193,6 +205,85 @@ static void ms_anim_finish(MS_AnimPlayer *player, const MS_Animation *anim)
     player->ticks_left = 1;
 }
 
+/* The line an entry is drawn from: its own if it is loaded, else its palette's, else the first line. */
+static u16 ms_entry_line(u16 entry)
+{
+    if (entry >= MS_PALETTE_ENTRY_COUNT)
+        return g_palette;
+    if (g_line_of[entry] != MS_NO_LINE)
+        return g_line_of[entry];
+    entry = ms_palette_entries[entry].palette;
+    if (entry < MS_PALETTE_ENTRY_COUNT && g_line_of[entry] != MS_NO_LINE)
+        return g_line_of[entry];
+    return g_palette;
+}
+
+static void ms_refresh_palette_bits(void)
+{
+    u16 entry;
+    u16 count = MS_PALETTE_ENTRY_COUNT < MS_MAX_ENTRIES ? MS_PALETTE_ENTRY_COUNT : MS_MAX_ENTRIES - 1;
+
+    for (entry = 0; entry < count; entry++)
+    {
+        u16 shown = entry;
+
+        /* The active swap recolours the palettes themselves; a swap's entries and fixed pieces keep theirs. */
+        if (g_active_swap && entry < MS_BASE_PALETTE_COUNT)
+            shown = ms_swap_entries[(u32)(g_active_swap - 1) * MS_BASE_PALETTE_COUNT + entry];
+        g_entry_bits[entry] = ms_entry_line(shown) << 13;
+        g_entry_bits[entry | MS_FIXED_ENTRY] = ms_entry_line(entry) << 13;
+    }
+}
+
+/* Each colour cycle's step at the current frame, as one number (it changes when any step does). */
+static u16 ms_line_phase(u16 line)
+{
+    const MS_PaletteEntry *pe = &ms_palette_entries[g_line_entry[line]];
+    u16 c, phase = 0;
+
+    for (c = 0; c < pe->cycle_count; c++)
+    {
+        const MS_ColourCycle *cycle = &ms_colour_cycles[pe->first_cycle + c];
+        u16 frames = cycle->frames ? cycle->frames : 1;
+
+        phase = (u16)(phase * 31u + (u16)((g_palette_frame / frames) % (cycle->count ? cycle->count : 1)) + 1u);
+    }
+    return phase;
+}
+
+/* Put a line's entry into CRAM, its colour cycles at the current frame: a cycle moves its colours one slot up per
+   step (down if reverse), as the editor's preview shows it. */
+static void ms_show_line(u16 line)
+{
+    const MS_PaletteEntry *pe;
+    u16 entry = g_line_entry[line];
+    u16 c, k;
+
+    if (entry == MS_NO_LINE || entry >= MS_PALETTE_ENTRY_COUNT)
+        return;
+    pe = &ms_palette_entries[entry];
+    memcpy(g_line_colours[line], ms_palette + (u32)entry * 16u, 32);
+    for (c = 0; c < pe->cycle_count; c++)
+    {
+        const MS_ColourCycle *cycle = &ms_colour_cycles[pe->first_cycle + c];
+        u16 count = cycle->count, first = cycle->first, frames = cycle->frames ? cycle->frames : 1;
+        u16 steps, shift;
+        u16 run[16];
+
+        if (count < 2 || first < 1 || first + count > 16)
+            continue;
+        steps = (u16)((g_palette_frame / frames) % count);
+        if (!steps)
+            continue;
+        shift = cycle->reverse ? (u16)(count - steps) : steps;
+        memcpy(run, &g_line_colours[line][first], (u32)count * 2u);
+        for (k = 0; k < count; k++)
+            g_line_colours[line][first + k] = run[(k + count - shift) % count];
+    }
+    g_line_phase[line] = ms_line_phase(line);
+    PAL_setColors(line * 16, g_line_colours[line], 16, DMA);
+}
+
 void ms_init(void)
 {
     ms_init_ex(TILE_USER_INDEX, PAL1);
@@ -206,23 +297,31 @@ void ms_init_ex(u16 tile_index, u16 palette)
     ms_data_init();
     g_tile_base = tile_index;
     g_palette = palette & 3;
-    g_attr_base = TILE_ATTR_FULL(g_palette, FALSE, FALSE, FALSE, g_tile_base);
+    g_attr_base = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, g_tile_base);
     g_tiles_fit = FALSE;
     g_palettes_fit = FALSE;
+    g_active_swap = 0;
+    g_palette_frame = 0;
+    memset(g_line_of, MS_NO_LINE, sizeof(g_line_of));
+    memset(g_line_entry, MS_NO_LINE, sizeof(g_line_entry));
     if (ms_data_is_ready())
     {
-        u16 lines = MS_PALETTE_COUNT ? MS_PALETTE_COUNT : 1;
+        u16 entry;
 
         g_tiles_fit = ((u32)g_tile_base + (u32)MS_TILE_COUNT) <= (u32)TILE_FONT_INDEX;
         if (g_tiles_fit && MS_TILE_COUNT > 0)
             VDP_loadTileData(ms_tiles, g_tile_base, MS_TILE_COUNT, DMA);
-        /* One line per palette from the first one; a piece's tile offset carries its palette in bits 13-14,
-           so the lines must fit below line 4 (the sum would run into the priority bit). */
-        g_palettes_fit = (g_palette + lines) <= 4;
-        if (!g_palettes_fit)
-            lines = 4 - g_palette;
-        PAL_setColors(g_palette * 16, ms_palette, lines * 16, DMA);
+        /* The palette entries go into consecutive lines from the first one, as many as fit; a game with more
+           entries than lines loads the rest itself (ms_load_palette). */
+        g_palettes_fit = (g_palette + MS_PALETTE_ENTRY_COUNT) <= 4;
+        for (entry = 0; entry < MS_PALETTE_ENTRY_COUNT && g_palette + entry < 4; entry++)
+        {
+            g_line_of[entry] = (u8)(g_palette + entry);
+            g_line_entry[g_palette + entry] = (u8)entry;
+            ms_show_line(g_palette + entry);
+        }
     }
+    ms_refresh_palette_bits();
     ms_set_mapping(0);
     g_initialized = TRUE;
 }
@@ -560,6 +659,81 @@ void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, 
     g_active_mapping = active;
 }
 
+void ms_draw_anim_player_as(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y)
+{
+    u16 mapping = g_active_mapping;
+    u16 swap = g_active_swap;
+
+    ms_set_mapping(mapping_index);
+    ms_set_palette_swap(swap_index);
+    ms_draw_anim_player(player, x, y);
+    g_active_mapping = mapping;
+    ms_set_palette_swap(swap);
+}
+
+void ms_load_palette(u16 entry, u16 line)
+{
+    if (entry >= MS_PALETTE_ENTRY_COUNT || entry >= MS_MAX_ENTRIES - 1 || line > 3)
+        return;
+    if (g_line_entry[line] != MS_NO_LINE)
+        g_line_of[g_line_entry[line]] = MS_NO_LINE;  /* whatever was in that line is not loaded any more */
+    if (g_line_of[entry] != MS_NO_LINE)
+        g_line_entry[g_line_of[entry]] = MS_NO_LINE;  /* the entry moves */
+    g_line_of[entry] = (u8)line;
+    g_line_entry[line] = (u8)entry;
+    ms_show_line(line);
+    ms_refresh_palette_bits();
+}
+
+s16 ms_palette_line(u16 entry)
+{
+    if (entry >= MS_PALETTE_ENTRY_COUNT || g_line_of[entry] == MS_NO_LINE)
+        return -1;
+    return g_line_of[entry];
+}
+
+void ms_set_palette_swap(u16 swap_index)
+{
+    if (swap_index >= MS_PALETTE_SWAP_COUNT)
+        swap_index = 0;
+    if (swap_index != g_active_swap)
+    {
+        g_active_swap = swap_index;
+        ms_refresh_palette_bits();
+    }
+}
+
+u16 ms_get_palette_swap(void)
+{
+    return g_active_swap;
+}
+
+void ms_palette_tick(void)
+{
+    u16 line;
+
+    g_palette_frame++;
+    for (line = 0; line < 4; line++)
+    {
+        u16 entry = g_line_entry[line];
+
+        if (entry == MS_NO_LINE || entry >= MS_PALETTE_ENTRY_COUNT || !ms_palette_entries[entry].cycle_count)
+            continue;
+        if (ms_line_phase(line) != g_line_phase[line])
+            ms_show_line(line);
+    }
+}
+
+const char *ms_palette_swap_name(u16 swap_index)
+{
+    return ms_palette_swap_name_data(swap_index);
+}
+
+const char *ms_palette_entry_name(u16 entry)
+{
+    return ms_palette_entry_name_data(entry);
+}
+
 static u16 ms_render_hitboxes(u16 render_index, const MS_Hitbox **out)
 {
     const MS_RenderFrame *rf;
@@ -800,6 +974,20 @@ s16 ms_find_scene_index_by_id(const char *id)
     for (i = 0; i < MS_SCENE_COUNT; i++)
     {
         if (strcmp(ms_scene_id(i), id) == 0)
+            return (s16)i;
+    }
+    return -1;
+}
+
+s16 ms_find_palette_swap_index_by_id(const char *id)
+{
+    u16 i;
+
+    if (!id || !id[0])
+        return -1;
+    for (i = 1; i < MS_PALETTE_SWAP_COUNT; i++)
+    {
+        if (strcmp(ms_palette_swap_id(i), id) == 0)
             return (s16)i;
     }
     return -1;

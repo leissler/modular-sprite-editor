@@ -38,14 +38,15 @@ typedef struct
     u16 sprites_dropped;  /* pieces that did not fit into the sprite table */
 } MS_FrameProfile;
 
-/* All tiles stay in VRAM: ms_init() loads them once at TILE_USER_INDEX with the palettes from PAL1 on;
-   ms_init_ex() picks the place (e.g. after a game's background tiles) and the first palette line: the
-   sprites use MS_PALETTE_COUNT lines from it (one per palette in the editor). Drawing then only writes
-   the sprite table, which ms_end_frame() queues for DMA (SYS_doVBlankProcess() sends it). */
+/* All tiles stay in VRAM: ms_init() loads them once at TILE_USER_INDEX with the palette entries from PAL1 on;
+   ms_init_ex() picks the place (e.g. after a game's background tiles) and the first palette line. Palette entries
+   are the editor's palettes, then each palette swap's version of the palettes it changes; they go into consecutive
+   lines from the first one as far as they fit. Drawing then only writes the sprite table, which ms_end_frame()
+   queues for DMA (SYS_doVBlankProcess() sends it). */
 void ms_init(void);
 void ms_init_ex(u16 tile_index, u16 palette);
 u8 ms_tiles_fit(void);          /* FALSE when the tiles did not fit below the font in VRAM */
-u8 ms_palettes_fit(void);       /* FALSE when the palettes need more lines than there are from the first one */
+u8 ms_palettes_fit(void);       /* FALSE when not every palette entry got a line (load them with ms_load_palette) */
 u16 ms_tile_base(void);
 u16 ms_tiles_used(void);
 void ms_set_sprite_limit(u16 limit);  /* 80 in H40 (default), 64 in H32 */
@@ -59,14 +60,25 @@ u8 ms_add_hw_sprite(s16 x, s16 y, u8 size, u16 attribute);
 void ms_set_mapping(u16 mapping_index);
 u16 ms_get_mapping(void);
 
+/* A palette swap recolours everything drawn afterwards (0 = the palettes as they are), like the mapping: set it per
+   character (the guard in other clothes, a hit flash). Its entries must be loaded to show; scene objects with a swap
+   of their own keep it. */
+void ms_set_palette_swap(u16 swap_index);
+u16 ms_get_palette_swap(void);
+void ms_load_palette(u16 entry, u16 line);  /* put an entry's colours into a line (MS_PALETTE_ENTRY_COUNT entries) */
+s16 ms_palette_line(u16 entry);             /* the line an entry is in, -1 if none */
+/* Colour cycles: call once per video frame (after drawing) to rotate the loaded entries' cycles. */
+void ms_palette_tick(void);
+
 void ms_draw_module(u16 module_index, s16 x, s16 y);
 void ms_draw_frame(u16 frame_index, s16 x, s16 y);
 
 void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index);
 void ms_anim_player_tick(MS_AnimPlayer *player);
 void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y);
-/* Draw with another mapping; the active mapping is left as it was. */
+/* Draw with another mapping (and palette swap); the active ones are left as they were. */
 void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y);
+void ms_draw_anim_player_as(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y);
 
 /* Animation events (MS_EVENT_* from modsprite_data.h) on the step being shown.
    has_event: active while the step shows (hit windows, invulnerability, cancel windows).
@@ -100,12 +112,15 @@ const char *ms_frame_name(u16 frame_index);
 const char *ms_animation_name(u16 animation_index);
 const char *ms_scene_name(u16 scene_index);
 const char *ms_mapping_name(u16 mapping_index);
+const char *ms_palette_swap_name(u16 swap_index);
+const char *ms_palette_entry_name(u16 entry);
 
 s16 ms_find_module_index_by_id(const char *id);
 s16 ms_find_frame_index_by_id(const char *id);
 s16 ms_find_animation_index_by_id(const char *id);
 s16 ms_find_scene_index_by_id(const char *id);
 s16 ms_find_mapping_index_by_id(const char *id);
+s16 ms_find_palette_swap_index_by_id(const char *id);
 
 void ms_get_frame_profile(MS_FrameProfile *out_profile);
 
