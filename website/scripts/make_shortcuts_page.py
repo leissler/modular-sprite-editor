@@ -39,7 +39,7 @@ def clean(text: str) -> str:
     return text.replace("…", "to").replace("|", "\\|")
 
 
-def main() -> None:
+def page() -> str:
     lines = [INTRO]
     current = None
     for where, action, keys in shortcuts():
@@ -47,7 +47,11 @@ def main() -> None:
             current = where
             lines += ["", f"## {where}", "", "| Action | Shortcut |", "| --- | --- |"]
         lines.append(f"| {clean(action)} | {clean(keys)} |")
-    OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    OUT.write_text(page(), encoding="utf-8")
     print(f"Wrote {OUT.relative_to(REPO)}")
 
 

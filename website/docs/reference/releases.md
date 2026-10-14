@@ -2,6 +2,22 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## Next version (not released yet)
+
+**Palettes, palette swaps and colour cycles.** A new **Palettes** tab holds the project's palettes with their colours in fixed slots, palette swaps that recolour them without touching an image, and colour cycles that make colours move. Choose a swap for the preview, per scene object or, in the game, per character: the guard of the *Swordfight* example now fights in blue. A swap costs no video memory on the console. See [Colours, palettes and swaps](../guide/palettes.md).
+
+**Timing like the game.** The Animations tab plays every step for the video frames the game shows it, **View ▸ Play at 50 Hz** shows how a PAL console plays it, **Spread** gives selected steps a rhythm (1-1-2-2, slow start, slow end), and **Tools ▸ Change Animations...** sets one tick rate, playback, repeat count or group for many animations at once. See [Timing](../guide/animations.md#timing).
+
+**Bigger scenes.** Scenes have a list with pictures, several layers can be selected and moved, flipped, deleted or copied together, layers paste into other scenes, and a layer can follow a point of its parent's frames, such as a sword in a hand. Scenes export as GIFs. See [Stage a scene](../guide/scenes.md).
+
+**Work with other tools.** Export sprite sheets with JSON for engines that read Aseprite's layout, Godot 4 SpriteFrames or Unity sprites, and PNG sequences; import Aseprite files and sprite sheets with JSON, tags as animations. See [Work with other tools](../guide/other-tools.md).
+
+**Long lists and your own settings.** Frames and animations can be put into groups and sorted by name, each project opens where you left it, and **Edit ▸ Preferences** gathers the settings that apply everywhere.
+
+**Consoles.** The editor keeps what it knows about the Mega Drive, the SNES, the NES, the Game Boy Advance and the Game Boy in one place, the start for more consoles. See [Consoles](consoles.md).
+
+Projects are saved in file format 7. Older projects are upgraded when you open them; version 0.8 cannot keep the new palettes, swaps, attachments and groups. For programmers: the Mega Drive data changed (blob version 5), so take the runtime from this version together with the new export.
+
 ## 0.8, October 2026
 
 **Safer work.** Saving replaces the project file in one go and keeps the previous version next to it as `name.json.bak`. While you have unsaved changes, the editor keeps a recovery copy every 30 seconds and offers it after a crash. Undo covers everything in a project now, and sheets you change in another program reload when you come back to the editor. See [Undo, save and hints](../start/tour.md#undo-save-and-hints).

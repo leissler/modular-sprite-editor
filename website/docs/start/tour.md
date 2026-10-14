@@ -1,6 +1,6 @@
 # A tour of the editor
 
-The editor keeps one project open at a time: your images, the modules cut from them, the frames, animations, scenes and mappings. Five tabs show the same project from different sides.
+The editor keeps one project open at a time: your images, the modules cut from them, the frames, animations, scenes, mappings and palettes. Six tabs show the same project from different sides.
 
 When it starts without a project, the editor shows its welcome screen: start a new project, open one, pick up a recent project, or open one of the example projects. **Help ▸ Welcome Screen** brings it back, and **Help ▸ User Guide** opens this guide.
 
@@ -14,11 +14,11 @@ When it starts without a project, the editor shows its welcome screen: start a n
   <figcaption>The Frames tab. Every tab has the same layout: lists on the left, the canvas in the middle with its view bar below, and the inspector on the right. Click a section's title in the inspector to fold it away; it stays folded.</figcaption>
 </figure>
 
-## The five tabs
+## The six tabs
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The tab bar with Modules, Frames, Animations, Timeline and Mappings, and the Preview mapping choice on the right](../assets/images/screens/tour-top.png){ width="948" height="55" loading="lazy" }](../assets/images/screens/tour-top.png)
-  <figcaption>The five tabs, and on the right the preview mapping.</figcaption>
+  [![The tab bar with Modules, Frames, Animations, Timeline, Mappings and Palettes, and the Preview mapping and Palette swap choices on the right](../assets/images/screens/tour-top.png){ width="1005" height="55" loading="lazy" }](../assets/images/screens/tour-top.png)
+  <figcaption>The six tabs, and on the right the preview mapping and palette swap.</figcaption>
 </figure>
 
 **Modules** shows your images. Here you cut them into modules and set each module's pivot, the point that is placed when the module is used in a frame. See [Cut a sheet into modules](../guide/modules.md).
@@ -31,11 +31,13 @@ When it starts without a project, the editor shows its welcome screen: start a n
 
 **Mappings** swaps modules for others to make variants. See [Variants with mappings](../guide/mappings.md).
 
-Switch tabs with the tab bar or with ++cmd+1++ to ++cmd+5++ (++ctrl++ on Windows and Linux).
+**Palettes** holds the colours your images use, palette swaps that recolour them and colour cycles. See [Colours, palettes and swaps](../guide/palettes.md).
 
-## The preview mapping
+Switch tabs with the tab bar or with ++cmd+1++ to ++cmd+6++ (++ctrl++ on Windows and Linux).
 
-At the top right, **Preview mapping** chooses the mapping every tab shows. Leave it at **<none>** to see the original modules. Choose a mapping to see every frame, animation and scene with its replacements, without changing anything.
+## The preview mapping and palette swap
+
+At the top right, **Preview mapping** chooses the mapping every tab shows. Leave it at **<none>** to see the original modules. Choose a mapping to see every frame, animation and scene with its replacements, without changing anything. **Palette swap** next to it does the same for colours: every tab shows the art recoloured, and the exports draw with it.
 
 ## Moving around the canvas
 
@@ -57,6 +59,8 @@ The view bar under each canvas holds the view options: **Grid** and its size, th
 
 Lists work the same in every tab. **+ New**, **Duplicate** and **Delete** sit under the list. Double-click a name or press ++f2++ to rename it, drag rows to reorder them, and type in **Filter** to find something by name. Thumbnails show what each entry looks like.
 
+The long lists, frames and animations, also have **groups**: give an entry a group in the inspector (or with **Group** in the list's right-click menu), then show one group at a time with the choice under the filter. The choice next to it sorts the list by **Name** (numbers count as numbers: *walk 2* comes before *walk 10*) or by **Group**; in **List order** you can drag rows.
+
 <figure class="ms-shot ms-shot--part" markdown="span">
   [![The frames list: a filter, rows with a thumbnail, the number of parts and animations, and New, Duplicate and Delete below](../assets/images/screens/tour-list.png){ width="270" height="372" loading="lazy" }](../assets/images/screens/tour-list.png)
   <figcaption>The <strong>Frames</strong> list. Each row shows a thumbnail and what the frame is made of.</figcaption>
@@ -70,4 +74,10 @@ The window title shows an asterisk when there are unsaved changes, and the edito
 
 Saving keeps the previous version of the file next to it, as `name.json.bak`. While there are unsaved changes, the editor also keeps a copy of them every 30 seconds: if it ever quits unexpectedly, the next start offers to restore them.
 
+When you open a project again, the editor brings back where you left it: the tab, what each tab showed, and each canvas's zoom, pan and grid.
+
 The status bar at the bottom shows hints for the canvas under your mouse and the current zoom. **Help ▸ Keyboard & Mouse Shortcuts** (++cmd+slash++) lists every shortcut, and so does [Keyboard and mouse](../reference/shortcuts.md).
+
+## Preferences
+
+**Edit ▸ Preferences** (++cmd+comma++; on a Mac in the application menu) holds the settings that apply everywhere: whether scrolling moves the view, previews at 50 Hz, the backdrop colour, the tick rate of new animations, how often unsaved changes are kept for recovery, and the welcome screen at the start. **Clear Recent Projects** empties the recent list.

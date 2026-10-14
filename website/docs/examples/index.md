@@ -6,7 +6,7 @@ The sprite art in the examples belongs to its owners and is included only to sho
 
 ## Prince of Persia
 
-`examples/sgdk/PoP_WW.json` is the most complete example: the Prince from a mobile Prince of Persia game, cut into 165 small parts on one sheet, with 207 poses, 68 animations, two mappings and a scene.
+`examples/sgdk/PoP_WW.json` is the most complete example: the Prince from a mobile Prince of Persia game, cut into 165 small parts on one sheet, with 207 poses, 68 animations, two mappings, a palette swap and a scene.
 
 <div class="ms-art" markdown="span">![The Prince slashes while the hooded guard blocks with sparks](../assets/images/art/step-scene.png){ .ms-pixel width="408" height="216" }</div>
 
@@ -18,6 +18,7 @@ Things to look at:
 - **Hitboxes and points**: choose **Hitboxes** or **Points** above the stage of the **Frames** tab. Every pose has hurt boxes for the head and the body, the striking poses an attack box, and points mark the feet and, in combat, the tip of the blade. See [Hitboxes and points](../guide/hitboxes-points.md).
 - **Animations**: play **C34 Attack**, **C06 slash** or **A05 run**. Turn on **Path** to see how a jump moves. The attacks have a `hit` event on the step where the blade strikes, the runs a `footstep` when a foot lands.
 - **Mappings**: **Normal** turns the Prince into a hooded guard. **Invizibil** swaps 89 body parts for an empty module, so only his swords remain visible. Try both with **Preview mapping** at the top of the window.
+- **Palettes**: the sheet's 15 colours, and the **Blue guard** palette swap that dresses the guard in blue and gold. Try it with **Palette swap** at the top of the window.
 - **Timeline**: the **Swordfight** scene, explained in [Inside the Swordfight](swordfight.md).
 
 ## Sonic

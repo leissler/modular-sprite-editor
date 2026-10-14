@@ -12,7 +12,8 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | --- | --- |
 | Undo / Redo (all editors) | Cmd+Z / Cmd+Shift+Z |
 | New / Open / Save / Save As | Cmd+N / Cmd+O / Cmd+S / Cmd+Shift+S |
-| Switch tab | Cmd+1 to Cmd+5 |
+| Switch tab | Cmd+1 to Cmd+6 |
+| Preferences | Cmd+, |
 | This help | Cmd+/ |
 
 ## Every canvas
@@ -25,7 +26,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Zoom in / out | Cmd+= / Cmd+- |
 | Fit content / actual pixels (1×) | Cmd+0 / Cmd+Shift+0 |
 | Toggle grid | Cmd+G |
-| Mega Drive colours (View menu) | Cmd+Shift+P |
+| Console colours (View menu) | Cmd+Shift+P |
 
 ## Modules
 
@@ -88,7 +89,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Copy / Paste / Duplicate / Select all steps | Cmd+C / Cmd+V / Cmd+D / Cmd+A |
 | Delete selected steps | Delete / Backspace |
 | Open a step's frame in the Frames tab | Double-click the step |
-| Rename / reorder animations | Double-click or F2 / drag in the list |
+| Rename / reorder animations | Double-click or F2 / drag in the list (list order) |
 | Zoom / scroll the step sequence | Wheel / Shift+wheel or trackpad sideways (Scroll Moves the View: Cmd+wheel / wheel) |
 
 ## Timeline
@@ -100,10 +101,14 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Previous / next key of the selected layer | Shift+, / Shift+. |
 | First / last frame | Home / End |
 | Set key at playhead / add-or-remove key | K / Shift+K |
-| Flip horizontal / vertical, rotate | H / V, R / Shift+R |
-| Nudge selected object 1 px / 8 px | Arrows / Shift+arrows (stage focused) |
-| Delete selected keys (else the layer) | Delete / Backspace |
+| Flip horizontal / vertical, rotate the selected layers | H / V, R / Shift+R |
+| Nudge the selected layers 1 px / 8 px | Arrows / Shift+arrows (stage focused) |
+| Select layers: a range / add or remove | Shift+click / Cmd+click a layer name |
+| Select layers on the stage | Shift+click / Cmd+click, or drag on empty space (Shift or Cmd adds) |
+| Delete selected keys (else the layers) | Delete / Backspace |
 | Copy / Paste / Duplicate / Select all keys | Cmd+C / Cmd+V / Cmd+D / Cmd+A |
+| Copy / Paste layers (also into another scene) | Cmd+C / Cmd+V with layers but no keys selected |
+| Rename / reorder / delete scenes | Double-click or F2 / drag / Delete in the Scenes list |
 | Select keys / add / add or remove / box-select | Click / Shift+click / Cmd+click / drag empty track |
 | Retime keys / add key | Drag keys / double-click track |
 | Segment easing, swap image, layer menu | Right-click bar / key / layer |
@@ -118,3 +123,11 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Original / hide the selected modules | Delete / H |
 | Select several modules | Cmd+click / Shift+click |
 | Rename / reorder mappings | Double-click or F2 / drag in the list |
+
+## Palettes
+
+| Action | Shortcut |
+| --- | --- |
+| Select a slot / a run / add or remove | Click / Shift+click / Cmd+click (or click a pixel of the image) |
+| Change a slot's colour / move a slot | Double-click it / drag it |
+| Rename / delete a palette or a palette swap | Double-click or F2 / Delete in its list |

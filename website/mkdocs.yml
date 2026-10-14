@@ -55,13 +55,16 @@ nav:
       - Animate: guide/animations.md
       - Stage a scene: guide/scenes.md
       - Variants with mappings: guide/mappings.md
+      - Colours, palettes and swaps: guide/palettes.md
       - Stay within the console's limits: guide/hardware-budget.md
+      - Work with other tools: guide/other-tools.md
   - Examples:
       - The example projects: examples/index.md
       - Inside the Swordfight: examples/swordfight.md
   - Help and reference:
       - Keyboard and mouse: reference/shortcuts.md
       - For your programmer: reference/programmers.md
+      - Consoles: reference/consoles.md
       - Troubleshooting: reference/troubleshooting.md
       - Glossary: reference/glossary.md
       - Release notes: reference/releases.md

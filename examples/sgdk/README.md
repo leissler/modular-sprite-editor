@@ -19,16 +19,19 @@ Mega Drive code should not parse JSON or transform images per frame, so the expo
 
 - **Tiles and palettes**: every module image as it is used (flipped parts reuse the same tiles through the
   sprite's flip bits; rotations are baked), cut into hardware sprites of at most 32×32 on the same grid as the
-  editor's Budget overlay (`hardware_budget.py`), as 4 bpp tiles in VDP order, deduplicated; one 15-colour
-  palette per palette group (Modules tab ▸ sheet ▸ **Palette**, `ImageAsset.palette`), built from the colours its
-  images use (`palettes.py`, shared with the editor's View ▸ Mega Drive Colours).
+  editor's Budget overlay (`hardware_budget.py`), as 4 bpp tiles in VDP order, deduplicated; the editor's palettes
+  (Palettes tab; Modules tab ▸ image ▸ **Palette**, `ImageAsset.palette_id`) in their slot order, each palette
+  swap's version of the palettes it changes, and the colour cycles (`palettes.py`, shared with the editor's
+  View ▸ Console Colours). A piece stores which palette entry its pixels index; a swap recolours by changing the
+  entry, so swaps cost no tiles.
 - **Pieces**: the hardware sprites of each image, laid out once for every flip combination a part uses.
 - **Render frames**: the parts of each frame, animation step and scene sample, with their hitboxes and points,
   sprite count and bounds; animations, scenes, mappings, step events and all names.
 
-At start `ms_init()` loads all tiles into VRAM (at `TILE_USER_INDEX`) and the palettes into consecutive palette
-lines from `PAL1` (Palette 1 into `PAL1`, Palette 2 into `PAL2`, ...; a piece's tile offset carries its palette in
-the attribute's palette bits, so drawing adds it with the tile index). Drawing
+At start `ms_init()` loads all tiles into VRAM (at `TILE_USER_INDEX`) and the palette entries into consecutive
+palette lines from `PAL1` (the palettes first, then the swaps' versions); a table maps every entry to its line, and
+drawing puts the line into each sprite's palette bits (entries a scene object fixed with a swap of its own keep it).
+Drawing
 then only writes SGDK's sprite table cache: a part becomes its pieces plus the part's position and flip bits;
 frames that lie fully on screen are copied without per-sprite tests, others are culled sprite by sprite (a
 sprite at x = -128 would hide the sprites behind it). `ms_end_frame()` queues one sprite-table DMA, which
@@ -55,15 +58,23 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
   warns above three quarters of that and reports an error above it; the editor shows the same count in the
   Budget readout (MD modes) and in Check Project. `ms_tiles_fit()` reports at runtime whether they fit; use
   `ms_init_ex(tile_index, palette)` to put them after a game's own tiles or to start at another palette line.
-- **Palettes**: up to four, 15 colours plus transparent each. The runtime loads Palette 1 up to the last palette
-  used into consecutive lines (one left unused in between gets Palette 1's colours); `ms_palettes_fit()` is false
-  when they would run past `PAL3` (start at `PAL0` with `ms_init_ex(tile_index, PAL0)` for four). Check Project
-  and the export warn when a palette's images use more than 15 visible colours; similar colours merge.
+- **Palettes**: 15 colours plus transparent each, in the order of the editor's slots. The runtime loads the palette
+  entries (palettes, then palette swaps' versions) into consecutive lines; `ms_palettes_fit()` is false when they
+  would run past `PAL3` (start at `PAL0` with `ms_init_ex(tile_index, PAL0)` for one more). With more entries than
+  lines, load the ones a screen needs with `ms_load_palette(entry, line)`; a swap's entry without a line draws in
+  its palette's line (the colours unswapped), anything else without one in the first line. Check Project and the export warn when a palette's images use more than 15 visible colours
+  (similar colours merge) or colours its slots lack.
 - **80 hardware sprites** per screen (H40); `ms_set_sprite_limit(64)` in H32 or to leave room for other sprites.
   Pieces that do not fit are counted in `MS_FrameProfile.sprites_dropped`.
 - **Scenes** are baked as one render frame per tick: they play back exactly, but objects cannot be moved
   individually at runtime. Each scene is baked once per mapping; objects with a mapping of their own (Timeline
-  inspector ▸ Mapping) keep it in all of them, the others follow the mapping chosen at runtime.
+  inspector ▸ Mapping) keep it in all of them, the others follow the mapping chosen at runtime. The same holds for
+  palette swaps (Timeline inspector ▸ Colours), and objects that follow a point of their parent's frames (Follows)
+  are baked where the point puts them.
+- **Timing**: the runtime counts video frames. Each animation step is exported as its hold at the animation's
+  tick rate in whole frames at 60 a second (`playback.console_frames`); rates that do not divide 60 round each
+  step, which the editor's preview plays and Check Project notes. A 50 Hz (PAL) console plays everything at 5/6 of
+  the speed, which the editor previews with View ▸ Play at 50 Hz.
 
 ## Files
 
@@ -105,8 +116,11 @@ Both then list what the game would get differently from the editor, the same iss
 (it looks or behaves differently, e.g. more than 15 colours) and a note on video memory. `--strict` makes the
 command fail (exit code 1) when there are errors, for build scripts.
 
-Blob version 4 (2026-10-13): several palettes (the header's spare field counts them, 16 colours each follow in
-the palette section) and the palette bits in the pieces' tile offsets. Version 3 (2026-10-11): tiles, pieces and
+Blob version 5 (2026-10-14): palette entries (the palettes in slot order, then each palette swap's version of the
+palettes it changes) with their colour cycles, the palette entry of every piece (bit 7 set: a scene object's own
+swap, not remapped at draw time) and the swaps' entry tables. Version 4 (2026-10-13): several palettes (the
+header's spare field counts them, 16 colours each follow in the palette section) and the palette bits in the
+pieces' tile offsets. Version 3 (2026-10-11): tiles, pieces and
 palette in the blob (no SGDK sprite resources), hitboxes and points, type and role names, sprite count and bounds
 per render frame. Version 2 added step events, loop-from, follow-up animation and repeat count. Regenerate the
 data with the exporter after updating.
@@ -132,6 +146,10 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 ## Runtime API summary (`inc/modsprite.h`)
 
 - `ms_init()` / `ms_init_ex(tile_index, palette)`, `ms_tiles_fit()`, `ms_tiles_used()`, `ms_palettes_fit()`
+- Palettes: `ms_set_palette_swap(index)` recolours everything drawn afterwards (0 = the palettes as they are),
+  like the mapping; `ms_load_palette(entry, line)` / `ms_palette_line(entry)` when there are more entries than
+  lines; `ms_palette_tick()` once per video frame turns the colour cycles of the loaded entries
+  (`MS_PALETTE_SWAP_COUNT`, `ms_palette_swap_name()`, `ms_find_palette_swap_index_by_id()`)
 - Per video frame: `ms_begin_frame()`, any number of draw calls, `ms_end_frame()`, then `SYS_doVBlankProcess()`
 - `ms_draw_module(index, x, y)`, `ms_draw_frame(index, x, y)`
 - `ms_anim_player_*()` for animation playback. The player follows the editor exactly
@@ -165,6 +183,7 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
   ```c
   ms_draw_anim_player(&hero, hero_x, hero_y);                              /* active mapping */
   ms_draw_anim_player_mapped(&guard, guard_mapping, guard_x, guard_y);    /* active one stays */
+  ms_draw_anim_player_as(&guard, guard_mapping, blue_swap, guard_x, guard_y);  /* re-skinned and recoloured */
   ```
 - `ms_get_frame_profile()`: render calls, parts, hardware sprites used and dropped this frame
 
@@ -173,8 +192,8 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 - `UP / DOWN`: switch unit type (`Module`, `Frame`, `Animation`, `Scene`)
 - `LEFT / RIGHT`: previous / next entry; `X / Y`: jump `-10 / +10`
 - `A`: pause/resume playback; `B`: reset the player
-- `START + B`: versus view (animations): the animation again on the right, drawn with the next mapping through
-  `ms_draw_anim_player_mapped`
+- `START + B`: versus view (animations): the animation again on the right, drawn with the next mapping and the
+  first palette swap through `ms_draw_anim_player_as` (in the Prince of Persia example: the guard in blue)
 - `START` (press and release): cycle the active mapping (`<none>` / mapped variants)
 - `START + A`: show hitboxes (red corner marks) and points (green crosses)
 - `START + UP / DOWN`: background brightness
@@ -192,9 +211,12 @@ counts. It redraws one text line per frame at most, because drawing many lines i
   testbeds in the middle of the screen and across its edges, rasterises the sprite table from the exported
   tiles like the VDP and compares it with the editor's renderer pixel by pixel; it also checks the C record
   sizes against the blob. It also draws two players of one animation with different mappings into one sprite
-  table (`ms_draw_anim_player_mapped`).
+  table (`ms_draw_anim_player_mapped`), and once with a palette swap (`ms_draw_anim_player_as`: the guard's sprites
+  take the swap's palette line, the tiles are the same), scene objects with a swap of their own, and colour cycles
+  turned by `ms_palette_tick()` against the editor's preview.
 - `tests/test_sgdk_scenes.py` checks that scene objects are placed like on the Timeline stage (root motion
-  mirrored and turned with the object) and keep a mapping of their own in every baked mapping.
+  mirrored and turned with the object, objects that follow a point of their parent's frames) and keep a mapping of
+  their own in every baked mapping.
 - `tests/test_runtime_player.py` compiles the C animation player and compares it with the editor's preview
   tick by tick.
 - `tests/test_sgdk_markers.py` checks hitbox / point export (types, roles, step transforms, defines).

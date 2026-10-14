@@ -9,7 +9,7 @@ A frame is a pose made from modules. You place each part, flip or turn it, and d
 
 ## Make a frame
 
-Choose **+ New** under the **Frames** list. **Duplicate** copies the selected frame, which is often the quickest start for the next pose.
+Choose **+ New** under the **Frames** list. **Duplicate** copies the selected frame, which is often the quickest start for the next pose. In a long list, give frames a **Group** in the inspector and show one group at a time, see [Lists](../start/tour.md#lists).
 
 The stage shows the frame's **origin** as two thin lines. The origin is the point the game positions, usually between the character's feet.
 
@@ -58,7 +58,7 @@ Drag a frame from the library onto the stage to use it as one part. A nested fra
 With nothing selected, the inspector shows the frame. **Whole frame** mirrors or turns every part at once. **Origin** has two helpers: **Feet on origin** moves all parts so the middle of the pose's bottom edge sits on the origin, and **Centre** puts the middle of the pose there.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The inspector for a frame: its name, contents, size and use, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="280" loading="lazy" }](../assets/images/screens/frames-whole.png)
+  [![The inspector for a frame: its name, contents, size and use, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="310" loading="lazy" }](../assets/images/screens/frames-whole.png)
   <figcaption>With nothing selected, the inspector shows the frame.</figcaption>
 </figure>
 

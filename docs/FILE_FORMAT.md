@@ -14,13 +14,24 @@ ignored on load (and dropped when the editor saves).
 | `3` | Animation step events + project event types, loop-from step, follow-up animation. Added 2026-10-11. |
 | `4` | Timeline objects carry a module mapping (`mapping_id`); an animation swapped in at a later key plays from that key; root motion turns with the object. Added 2026-10-12. |
 | `5` | Timeline objects play animations "as animated" (`playback_mode: "as_animated"`, the default for new objects; `"backward"` joins the overrides); flips and visibility switch at a key. Added 2026-10-13. |
-| `6` | Current. Every image belongs to one of four Mega Drive palettes (`images[].palette`, 0–3). Added 2026-10-13. |
+| `6` | Every image belongs to one of four Mega Drive palettes (`images[].palette`, 0–3). Added 2026-10-13. |
+| `7` | Current. The target console (`console`); palettes are project data with their colours in slot order and colour cycles (`palettes`, `images[].palette_id`); palette swaps (`palette_swaps`, `objects[].palette_swap_id`); scene objects that follow a point of their parent's frames (`attach_point_role`, `attach_point_type`); groups for frames and animations (`group`). Added 2026-10-14. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
 warning. v3, v4 and v6 are additive: older builds open them with a warning and drop the new keys on save. A v5 object
 set to "as_animated" or "backward" plays as Loop in an older build; an older build exports every image with one
-merged palette.
+merged palette. A v7 file opened by a v6 build puts every image into the first palette (the `palette` key is gone)
+and drops swaps, cycles, attachments and groups.
+
+v6 → v7 makes palettes project data. The format 6 palettes the images use (and the first, which vector shapes use)
+become `{"id": "pal_N", "name": "Palette N", "colours": null}`; `images[].palette` becomes `palette_id`. A palette
+whose `colours` is `null` is *automatic*: it takes its images' colours with format 6's rules (most used first, at
+most 15, similar ones merged) until the editor stores them in the order of their slots, which it does when it opens
+the project and when an image is added, so palettes and their slot order are fixed from then on (other consoles
+have other palette sizes, and a stored order is what palette swaps and cycles refer to). Everything else is
+additive: `console: "megadrive"`, `palette_swaps: []`, objects get `palette_swap_id: null` (inherit),
+`attach_point_role: ""` and `attach_point_type: null`, frames and animations `group: ""`.
 
 v5 → v6 adds `palette: 0` to every image: all images share the first palette, as every export did before. Images
 in the same palette share its 15 colours; the Mega Drive export stores one palette per group and the runtime loads
@@ -88,17 +99,36 @@ Later on 2026-10-13 the same 19 files were migrated to v6 (originals in
 `~/Downloads/ModularSpriteEditor_format_v5_backup_2026-10-13.zip`); each was checked to equal its original except for
 `format_version` and the added `palette: 0`, and to load to the same project.
 
-## Schema (v6)
+On 2026-10-14 all 19 files went to v7: `examples/sgdk/PoP_WW.json` was saved by the editor (its palette stored in slot
+order, and the *Swordfight* guard drawn with the new *Blue guard* palette swap), the other 18 were migrated (originals
+in `~/Downloads/ModularSpriteEditor_format_v6_backup_2026-10-14.zip`); each was checked to equal its original
+without the added keys (with `palette_id` read back as the old number) and to load to the same project.
+`~/Downloads/PoP_WW.json` then got the example's palette and swap, so it equals the repo's copy again.
+
+## Schema (v7)
 
 ```jsonc
 {
-  "format_version": 6,
+  "format_version": 7,
   "name": "New Project",
+  "console": "megadrive",                                // the target console (consoles.py): palette rules
   "images": [
     {"id": "img_…", "file_path": "modules_POP.bmp",      // relative to the project file
      "width": 778, "height": 635,
      "transparent_color": [255, 0, 255],                 // or null
-     "palette": 0}                                       // Mega Drive palette 0–3 (shown as Palette 1–4)
+     "palette_id": "pal_1"}                              // the palette its pixels use
+  ],
+  "palettes": [
+    {"id": "pal_1", "name": "Palette 1",
+     "colours": [[r, g, b], …],                          // slot 1, 2, … (transparent is slot 0, not stored);
+                                                         //    null = automatic: built from the images
+     "cycles": [{"first": 3, "count": 4,                 // slots 3–6 rotate,
+                 "frames": 8, "reverse": false}]}        //    one step every 8 video frames, towards slot 6
+  ],
+  "palette_swaps": [
+    {"id": "swap_…", "name": "Blue guard",
+     "palettes": {"pal_1": {"colours": [[36, 36, 218], null, …],   // per slot: what it shows, null = its own
+                            "cycles": null}}}             // null = the palette's cycles, a list = its own
   ],
   "modules": [
     {"id": "mod_…", "name": "0cap01", "image_id": "img_…",
@@ -112,6 +142,7 @@ Later on 2026-10-13 the same 19 files were migrated to v6 (originals in
   ],
   "frames": [
     {"id": "frm_…", "name": "stand01",
+     "group": "",                                        // where it sits in long lists ("" = no group)
      "fmodules": [
        {"id": "fmod_…", "ref_type": "module",            // or "frame" (nested frame)
         "ref_id": "mod_…", "position": [x, y],           // where the pivot lands, frame space
@@ -123,6 +154,7 @@ Later on 2026-10-13 the same 19 files were migrated to v6 (originals in
   ],
   "animations": [
     {"id": "anim_…", "name": "run",
+     "group": "",                                        // where it sits in long lists ("" = no group)
      "playback_type": "loop",                            // forward | backward | loop | ping_pong
      "loop_count": 0,                                    // 0 = infinite
      "fps": 10,                                          // ticks per second
@@ -142,6 +174,9 @@ Later on 2026-10-13 the same 19 files were migrated to v6 (originals in
        {"id": "tlo_…", "name": "Hero", "parent_id": null,
         "source_type": "animation", "source_id": "anim_…",   // none | module | frame | animation
         "mapping_id": null,                              // null = inherit, "original", or a mapping id
+        "palette_swap_id": null,                         // null = inherit, "original", or a palette swap id
+        "attach_point_role": "",                         // follow this point role of the parent's frames ("" = none)
+        "attach_point_type": null,                       //    and this point type (null = any)
         "draw_order": 0, "playback_offset": 0.0, "playback_speed": 1.0,
         "playback_mode": "as_animated",                  // as_animated | loop | once | ping_pong | backward
         "path_mode": "linear",                           // linear | spline
@@ -193,18 +228,34 @@ to the step offset the same way.
 An object's `mapping_id` re-skins it and its children: `null` inherits the parent's mapping, and at the top level
 the preview mapping in the editor or the mapping being exported (the SGDK exporter bakes every scene once per
 mapping; objects with their own mapping keep it in all of them). `"original"` draws the original modules. An id
-that no longer exists counts as `null`; deleting a mapping resets the objects that used it.
+that no longer exists counts as `null`; deleting a mapping resets the objects that used it. `palette_swap_id`
+works the same way for palette swaps.
 
-Not stored in the file: the active (preview) mapping, view state, grid size, zoom.
+An object with `attach_point_role` and a parent sits on that point of the parent's current frame (the frame its
+source shows at the time): its key positions are offsets from the point, inside the parent's transform, so a
+mirrored or turned parent carries it along. While the parent's frame has no such point the object does not show
+(its keys' `visible` stays as it is). Reparenting an object ends the attachment and keeps its keys where the point
+put them.
+
+Palette notes: a palette swap changes slots per palette; a slot it leaves `null` shows the palette's colour.
+Colour cycles count video frames (60 a second; a 50 Hz console runs them at 50). The SGDK export stores every
+palette and every swap's version of the palettes it changes as palette entries (see `examples/sgdk/README.md`).
+
+Not stored in the file: the active (preview) mapping and palette swap, view state (each tab's selection, zoom, pan
+and grid are kept per project file in the editor's preferences, `ui/view_memory.py`).
 
 ## Other formats
 
 - **Import:** AuroraGT `.sprite` text (`importers/aurora.py`), RetroAnimator JSON (`importers/retroanimator.py`,
   `ProjectType: "RetroAnimator"`; the playback type and repeat count this editor's export writes into an animation's
-  `Properties` come back). What an importer leaves out or can't find goes into `Project.load_notes`, shown once;
+  `Properties` come back), Aseprite `.aseprite` / `.ase` files and sprite sheets with Aseprite / TexturePacker JSON
+  (`importers/aseprite.py`: tags become animations; an Aseprite file's frames are packed into
+  `<name>.sheet.png` next to it). What an importer leaves out or can't find goes into `Project.load_notes`, shown once;
   `Project.imported_from` names the format, and the editor opens an import as a new, unsaved project.
 - **Export:** RetroAnimator JSON with baked part PNGs (`exporters/retroanimator.py`, bakes the active mapping; the
   report lists what the format can't hold; `Cropped parts/.modular-sprite-editor.json` records which parts each export
   file uses, so exporting again removes its own unused ones and nothing else);
   SGDK binary blob with tiles, palettes, frames, animations, scenes, hitboxes and points
-  (`examples/sgdk/tools/export_sgdk_example.py`); animated GIF (Animations tab).
+  (`examples/sgdk/tools/export_sgdk_example.py`); sprite sheets for other engines (`exporters/sheet.py`: a packed
+  PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4 SpriteFrames `.tres` or a Unity `.png.meta`);
+  PNG sequences and animated GIFs of an animation, animated GIFs of a scene.

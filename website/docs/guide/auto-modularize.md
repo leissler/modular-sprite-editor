@@ -5,7 +5,7 @@ Many sprite sheets are drawn as whole poses: every frame a complete picture. Tha
 **Auto Modularize** looks for the pieces your sprites have in common, also mirrored ones, puts each piece on a new image once and rebuilds every frame from them. The result looks exactly the same, pixel for pixel, and uses less memory.
 
 <figure class="ms-shot" markdown="span">
-  [![The Auto Modularize window: the list of sprites, one Sonic sprite cut into outlined parts, and the goal, options and result on the right](../assets/images/screens/automod.png)](../assets/images/screens/automod.png)
+  [![The Auto Modularize window: the list of sprites, one Sonic sprite cut into outlined parts, and the goal, options and result on the right](../assets/images/screens/automod.png){ width="1300" height="820" loading="lazy" }](../assets/images/screens/automod.png)
   <figcaption>Auto Modularize on a sheet of 38 whole Sonic sprites: 873 video memory tiles become 595, 32 % fewer, with every frame unchanged.</figcaption>
 </figure>
 

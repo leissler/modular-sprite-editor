@@ -1,6 +1,6 @@
 # Inside the Swordfight
 
-The Swordfight is a short scene in the Prince of Persia example: the Prince and a hooded guard draw their swords, trade attacks and blocks, and the Prince wins with a finishing move. It uses only the Prince's animations. The guard is the Prince with the "Normal" mapping.
+The Swordfight is a short scene in the Prince of Persia example: the Prince and a hooded guard draw their swords, trade attacks and blocks, and the Prince wins with a finishing move. It uses only the Prince's animations. The guard is the Prince with the "Normal" mapping, in the colours of the "Blue guard" palette swap.
 
 <div class="ms-art" markdown="span">![The Swordfight scene playing: slashes, blocks with sparks, a dash attack and a finishing throw](../assets/images/art/swordfight.webp){ .ms-pixel width="420" height="136" }</div>
 
@@ -12,8 +12,8 @@ The scene runs at 10 frames a second for 110 frames, eleven seconds, and loops. 
 
 There are two layers, one per fighter:
 
-- **Guard** is flipped to face left and has its **Mapping** set to **Normal**. It is the upper row, so it is drawn behind the Prince.
-- **Prince** inherits the preview mapping, so you can try other looks on him.
+- **Guard** is flipped to face left, has its **Mapping** set to **Normal** and its **Colours** set to **Blue guard**. It is the upper row, so it is drawn behind the Prince.
+- **Prince** inherits the preview mapping and palette swap, so you can try other looks on him.
 
 Both play their animations in **Play once** mode with **Root motion** on: a step forward really moves the fighter, and because root motion follows the mirror, the guard steps forward to the left.
 
@@ -52,7 +52,8 @@ Select a key and look at **Position** in the inspector to see it. After the Prin
 
 ## Try something
 
-- Set the guard's **Mapping** to **Original modules**: two Princes fight.
+- Set the guard's **Mapping** to **Original modules**: two Princes fight, one of them in blue. Set his **Colours** to **Original** as well, and they are twins.
+- Choose **Blue guard** under **Palette swap** at the top: now the Prince wears blue too. In the **Palettes** tab, change a slot of the swap and both change at once.
 - Set **Preview mapping** at the top to **Invizibil**: the Prince becomes invisible except for his swords, while the guard keeps his own mapping.
 - Drag the guard's attack key at frame 36 a few frames later and play it. The Prince now blocks too early.
 - Turn on **Budget** at frame 70, during the finishing move, to see what both fighters together cost on the console.

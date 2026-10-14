@@ -9,7 +9,12 @@ The **Timeline** tab puts several things in one scene: characters playing animat
 
 ## Scenes
 
-The scene bar at the top chooses the scene and holds **New**, **Duplicate** and **Delete**. **Scene Settings** shows the scene in the inspector: its name, **Frame rate**, **Length** in frames, whether it loops, and its background colour.
+The **Scenes** list at the top left holds the project's scenes, each with a picture of its first frame, like the lists of the other tabs: **+ New**, **Duplicate** and **Delete** below it, a double-click or ++f2++ renames, and dragging reorders. Click a scene to show it; its settings appear in the inspector: its name, **Frame rate**, **Length** in frames, whether it loops, and its background colour. Click the scene again, or empty space on the stage, to bring the settings back after selecting a layer.
+
+<figure class="ms-shot ms-shot--part" markdown="span">
+  [![The Scenes list with the Swordfight scene: a picture of its two fighters, its two layers and 110 frames at 10 frames a second, and New, Duplicate and Delete below](../assets/images/screens/scenes-list.png){ width="270" height="200" loading="lazy" }](../assets/images/screens/scenes-list.png)
+  <figcaption>The <strong>Scenes</strong> list of the Prince of Persia example.</figcaption>
+</figure>
 
 The timeline counts in frames of the scene. A scene at 10 frames a second plays an animation at 10 ticks a second one step per frame, which keeps timing easy to read.
 
@@ -18,6 +23,12 @@ The timeline counts in frames of the scene. A scene at 10 frames a second plays 
 Drag an animation, frame or module from the **Library** onto the stage, or double-click it to add it in the middle of the view. Each object becomes a layer. **+ Group** adds an empty object that other layers can follow.
 
 Layers are listed in drawing order: lower rows draw on top. Drag a layer up or down to change the order, or onto another layer to make it that layer's child. A child moves, flips and turns with its parent. The eye hides a layer, the lock stops it from being picked on the stage.
+
+## Several layers at once
+
+++shift++-click layers in the list to select a range, ++cmd++-click to add or remove one. On the stage, ++shift++- or ++cmd++-click objects, or drag over empty space to select everything the box touches. Dragging any of them moves them all; the arrow keys, ++h++, ++v++, ++r++, **Duplicate** and **Delete** work on all of them too. The inspector shows the last one you clicked; its **Mapping** and **Colours**, and the playback **Mode**, **Speed** and **Root motion**, change all of them.
+
+**Copy** (++cmd+c++) and **Paste** (++cmd+v++) work on layers as well, with their children: paste them into another scene to reuse a character or a whole group there. Next to the original, the copy's name gets "copy" added.
 
 ## Keys
 
@@ -68,17 +79,25 @@ Select a key and turn on **Swap the image here** in the inspector. From this key
 
 ## Give an object its own look
 
-**Mapping** in the inspector chooses the [mapping](mappings.md) the object is drawn with. **Inherit** uses the parent's mapping, or for top-level objects the preview mapping at the top of the window. **Original modules** always shows the original parts. In the Swordfight, the guard is the Prince's animations with the "Normal" mapping.
+**Mapping** in the inspector chooses the [mapping](mappings.md) the object is drawn with. **Inherit** uses the parent's mapping, or for top-level objects the preview mapping at the top of the window. **Original modules** always shows the original parts. **Colours** does the same for [palette swaps](palettes.md#palette-swaps). In the Swordfight, the guard is the Prince's animations with the "Normal" mapping, in the colours of the "Blue guard" swap.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The guard's object settings in the inspector: name Guard, shows an animation, no parent, Mapping Normal](../assets/images/screens/scene-mapping.png){ width="311" height="150" loading="lazy" }](../assets/images/screens/scene-mapping.png)
+  [![The guard's object settings in the inspector: name Guard, shows an animation, no parent, Mapping Normal](../assets/images/screens/scene-mapping.png){ width="311" height="180" loading="lazy" }](../assets/images/screens/scene-mapping.png)
   <figcaption>The guard's settings: the Prince's animations, drawn with the <strong>Normal</strong> mapping.</figcaption>
 </figure>
+
+## Follow a point
+
+A child can sit on a point of its parent's frames and follow it from frame to frame: a sword in a hand, a spark on a blade, a rider in a saddle. Give the parent's frames points with a role in the [Frames](hitboxes-points.md) tab, make the object a child of it, and choose the role under **Follows** in the inspector. The object then sits on that point in every frame, mirrors and turns with the parent, and hides on frames that have no such point. Its keys now say where it sits relative to the point.
+
+Choosing **Follows** keeps the object where it is at the playhead; giving it another parent ends the following. **Tools ▸ Check Project** warns when no frame of the parent has the point.
 
 ## See it on screen
 
 **Screen** in the view bar outlines a console screen: Mega Drive, SNES, NES, Game Boy Advance or Game Boy. The scene's origin sits where the Mega Drive demo shows scenes, in the middle and three quarters down, so what is inside the outline is what fits on the console's screen. The **Budget** overlay counts the hardware sprites of everything in view at the playhead.
 
-Press ++enter++ to play the scene. ++comma++ and ++period++ step one frame, ++shift+comma++ and ++shift+period++ jump between the selected layer's keys.
+Press ++enter++ to play the scene. ++comma++ and ++period++ step one frame, ++shift+comma++ and ++shift+period++ jump between the selected layer's keys. **View ▸ Play at 50 Hz** plays it at the speed of a PAL console.
+
+**Export GIF...** in the scene settings writes the scene as an animated GIF on its background colour.
 
 The [Inside the Swordfight](../examples/swordfight.md) page shows how a finished scene is put together.

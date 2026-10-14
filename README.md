@@ -1,13 +1,14 @@
-![Modules cut from a sheet, a frame built from them, an animation step and a scene with a remapped guard](assets/readme_banner.png)
+![Modules cut from a sheet, a frame built from them, an animation step and a scene with a remapped guard in other colours](assets/readme_banner.png)
 
 # Modular Sprite Editor
 
 A desktop editor for modular pixel-art sprites on retro consoles, with the Mega Drive (SGDK) as the main target.
 
 Artwork is cut into reusable **modules**, assembled into **frames** (positioned, flipped and rotated parts, nested
-frames, hitboxes and points), sequenced into **animations**, composed in **timeline scenes** and re-skinned with
-**mappings**. The SGDK exporter bakes it all into one blob that a small C runtime draws on the console exactly as the
-editor shows it.
+frames, hitboxes and points), sequenced into **animations**, composed in **timeline scenes**, re-skinned with
+**mappings** and recoloured with **palette swaps**. The SGDK exporter bakes it all into one blob that a small C runtime
+draws on the console exactly as the editor shows it; sprite sheets for other engines (Godot, Unity, any engine that
+reads Aseprite's JSON) and Aseprite files go both ways.
 
 **Website and user guide: [modularsprites.bionic-productions.com](https://modularsprites.bionic-productions.com/)**
 
@@ -23,9 +24,11 @@ right-click › Open the first time.
 ## Status
 
 - **Modules, Frames, Animations and Mappings** are the most complete and most used part of the tool.
-- **Timeline** (scenes) is newer: objects can carry their own mapping and animations can be choreographed with keys;
-  the UX may still change.
-- Project files carry a `format_version` (currently 6); older files are upgraded when opened. See
+- **Timeline** (scenes) is newer: objects can carry their own mapping and palette swap, follow a point of their
+  parent's frames, and animations can be choreographed with keys; the UX may still change.
+- **Palettes** (the newest tab): palettes in slot order, palette swaps and colour cycles, for the Mega Drive; the
+  console database (`consoles.py`) prepares the other consoles.
+- Project files carry a `format_version` (currently 7); older files are upgraded when opened. See
   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 - The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md).
 
@@ -49,8 +52,12 @@ right-click › Open the first time.
 - **One canvas model**: wheel/trackpad zoom glides and settles on whole pixel sizes (1×, 2×, 3×…), Space/Alt/middle-drag
   pans, `Cmd/Ctrl+0` fits. **View ▸ Scroll Moves the View** makes scrolling pan instead, with pinch or `Cmd`+scroll
   to zoom.
-- **Preview mapping** above the tabs: the mapping every preview and export uses.
-- **Filters** on all long lists (modules, frames, animations, palettes).
+- **Preview mapping and palette swap** above the tabs: what every preview and export draws with.
+- **Filters** on all long lists (modules, frames, animations, scenes, palettes); frames and animations also have
+  **groups** and sort by list order, name (numbers count as numbers) or group.
+- **Each project opens where you left it**: the tab, each tab's selection, zoom, pan and grid.
+- **Preferences** (`Cmd+,`): scrolling, 50 Hz previews, the backdrop colour, the tick rate of new animations, how
+  often unsaved changes are kept, the welcome screen.
 
 ### Modules
 - **Cut directly on the sheet**: drag over a sprite to make a module; move, resize (8 handles, optional grid snap) and
@@ -71,9 +78,9 @@ right-click › Open the first time.
   **modules list** with thumbnails, size and how often each is used.
 - **Optimize Sprite Sheet** repacks an image's modules (or every image's) into a tight new sheet; every frame stays
   pixel-identical.
-- **Palettes**: each image belongs to one of the Mega Drive's four palettes; the inspector shows the palette's colours
-  as the console shows them and warns when its images use more than 15. **View ▸ Mega Drive Colours** shows every
-  canvas in the console's colours (3 bits per channel, through the export's palettes).
+- **Palettes**: each image belongs to a palette (chosen in the inspector, edited in the Palettes tab); the inspector
+  shows the palette's colours as the console shows them. **View ▸ Console Colours** shows every canvas in the
+  console's colours (3 bits per channel, through the export's palettes).
 - **Vector shape modules** (rects, arcs, triangles, lines, markers) on their own *Shapes* sheet, rendered pixel-exact.
 
 ### Frames
@@ -88,19 +95,25 @@ right-click › Open the first time.
 - **Hitboxes and points** with types and semantic roles, which the game looks up per frame (`ms_find_hitbox` /
   `ms_find_point`); types managed inline.
 - **Onion skin**: ghost the previous/next frame of the list.
+- **Groups**: give frames a group (inspector or the list's menu), show one group, sort by name or group.
 
 ### Animations
 - **Sequence on a tick ruler**: every step is as wide as its hold; drag a step's right edge to change the hold, drag
   steps to reorder (Alt copies), drop frames from the library where they should go (several at once: Shift+click a run
   of frames; right-click makes them a new animation).
-- **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime tick by tick;
-  preview speed ½× / ¼× / 2×.
+- **Playback like the game**: Loop, Play once, Ping-pong and Loop backwards follow the SGDK runtime, each step held for
+  the video frames the game shows it (60 a second; **View ▸ Play at 50 Hz** for PAL consoles); preview speed
+  ½× / ¼× / 2×.
+- **Timing tools**: **Spread** hold patterns over the selected steps (1-1-2-2, 1-2, slow start, slow end), and
+  **Change Animations** (Tools menu): one tick rate (keeping the timing), playback, repeat count or group for many
+  animations at once.
 - **Stage**: drag to move the selected steps' offsets, motion path, onion skin, mirror preview, part bounds, hitboxes
   and points.
 - **Game data**: step **events** (hit windows, sounds, spawns, with a value), **Loop from** a step (an intro plays
   once) and **Then play** a follow-up animation (`attack → idle`). The runtime plays them exactly like the preview; the
   stage shows the current step's events and lights them up when they fire.
-- **GIF export** of one playback cycle, pixel-identical to the editor.
+- **GIF and PNG sequence export** of one playback cycle, pixel-identical to the editor.
+- **Groups** and sort orders for long lists (Sonic has 171 animations).
 
 ### Timeline (scenes)
 - **Library → stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES /
@@ -116,8 +129,22 @@ right-click › Open the first time.
 - **Animations play as animated**: an object plays its animation exactly like the Animations tab and the game (Play
   once ends, repeat counts, "loop from", the follow-up animation takes over); Loop, Play once, Ping-pong and Loop
   backwards override that. Flips and visibility change exactly at a key.
-- **Mapping per object**: a guard drawn from the hero's animations, next to the hero. Objects inherit their parent's
-  mapping (at the top level the preview mapping) or use one of their own, also in the SGDK export.
+- **Mapping and colours per object**: a guard drawn from the hero's animations, next to the hero, in other clothes.
+  Objects inherit their parent's mapping and palette swap (at the top level the preview's) or use their own, also in
+  the SGDK export.
+- **Follow a point**: an object sits on a point of its parent's frames (a sword in a hand, a spark on a blade) and
+  moves, mirrors and turns with it from frame to frame; it hides on frames without the point.
+- **Scenes list** with pictures; **several layers** at once (`Shift`/`Cmd`+click in the layers, a marquee on the
+  stage) to move, flip, delete, duplicate or copy; paste layers into another scene; **scene GIF export**.
+
+### Palettes
+- **Palettes in slot order**: the colours stay where the artist put them; add an image's missing colours, remove unused
+  ones, sort, edit a slot (snapped to the console's colours). Check Project warns about colours a palette has no room
+  for.
+- **Palette swaps**: recolour slots without touching an image (a guard in blue, a hit flash, the second player),
+  chosen like mappings: for the preview, per Timeline object, per draw in the game. A swap costs no video memory.
+- **Colour cycles**: runs of slots that turn (water, lava, a glowing super form), in the preview and in the game.
+- **Click a pixel** of the preview to find its slot; highlight shows where a slot is used.
 
 ### Mappings
 - **Module variants**: replace modules ("clean armour" → "damaged armour") or hide them without touching any frame.
@@ -137,21 +164,25 @@ right-click › Open the first time.
   colours and anything Check Project finds.
 - **Runtime** (`examples/sgdk/sgdk_demo`): tiles stay in VRAM and drawing only writes the sprite table (on average 7 %
   of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
-  scenes; characters can share animations and differ by mapping (`ms_draw_anim_player_mapped`). Tests compile it for
-  the host and compare what it draws with the editor pixel by pixel.
+  scenes; characters can share animations and differ by mapping and palette swap (`ms_draw_anim_player_as`), colour
+  cycles turn with `ms_palette_tick`. Tests compile it for the host and compare what it draws with the editor pixel
+  by pixel.
 - **Demo ROM**: browse every module, frame, animation and scene with live profiling.
 
 ### Import and export
-- Import AuroraGT `.sprite` files and RetroAnimator JSON: whatever an import leaves out or can't find is listed, and the
-  import opens as a new project, so Save never writes over the original.
-- Export RetroAnimator JSON (with the preview mapping baked in; the report lists what RetroAnimator has no place for,
-  such as step events and scenes), SGDK data and animated GIFs.
+- Import Aseprite files (read the way Aseprite flattens them, tags as animations), sprite sheets with Aseprite or
+  TexturePacker JSON, AuroraGT `.sprite` files and RetroAnimator JSON: whatever an import leaves out or can't find is
+  listed, and the import opens as a new project, so Save never writes over the original.
+- Export **sprite sheets** for other engines: one packed PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4
+  SpriteFrames resource or Unity sprites with their pivots (checked in Godot 4.6 and Unity 6); PNG sequences;
+  RetroAnimator JSON (the report lists what RetroAnimator has no place for); SGDK data; animated GIFs of animations
+  and scenes. Exports draw with the preview mapping and palette swap.
 
 ## Examples
 
 | Project | What it shows |
 | :--- | :--- |
-| [`examples/sgdk/PoP_WW.json`](examples/sgdk/PoP_WW.json) | Prince of Persia: 165 modules, 207 frames, 68 animations, 2 mappings and the *Swordfight* scene (the Prince against a guard drawn with the "Normal" mapping) |
+| [`examples/sgdk/PoP_WW.json`](examples/sgdk/PoP_WW.json) | Prince of Persia: 165 modules, 207 frames, 68 animations, 2 mappings, a palette swap and the *Swordfight* scene (the Prince against a guard drawn with the "Normal" mapping and the "Blue guard" palette swap) |
 | [`examples/sonic/sonic.json`](examples/sonic/sonic.json) | Sonic: 65 modules, 38 frames, 171 animations |
 | [`examples/adventurer/adventurer.json`](examples/adventurer/adventurer.json) | A sheet of 15 whole sprites to try Auto Modularize on |
 
@@ -210,11 +241,12 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 | :--- | :--- | :--- |
 | **General** | New / Open / Save / Save As | `Cmd+N` / `Cmd+O` / `Cmd+S` / `Cmd+Shift+S` |
 | | Undo / Redo (all editors) | `Cmd+Z` / `Cmd+Shift+Z` |
-| | Switch tab | `Cmd+1` … `Cmd+5` |
+| | Switch tab | `Cmd+1` … `Cmd+6` |
+| | Preferences | `Cmd+,` |
 | **Canvas** | Zoom at cursor (settles on whole pixel sizes) | `Mouse Wheel` / two-finger scroll / pinch (with View ▸ Scroll Moves the View: pinch / `Cmd/Ctrl + Wheel`) |
 | | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` (with Scroll Moves the View: plain scroll) |
 | | Fit / Actual pixels / Grid | `Cmd+0` / `Cmd+Shift+0` / `Cmd+G` |
-| | Mega Drive colours | `Cmd+Shift+P` |
+| | Console colours | `Cmd+Shift+P` |
 | **Modules** | New module / move / resize | Drag on the image / drag a module / drag a handle |
 | | Move pivot / select several / add or remove one | `Shift + Drag` / `Cmd + Drag` / `Cmd + Click` |
 | | Nudge 1 px / 8 px | `Arrows` / `Shift+Arrows` |
@@ -232,14 +264,17 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 | | Flip / Rotate selected steps | `H` `V` / `R` (`Shift+R` = CCW) |
 | **Timeline** | Previous/Next key, first/last frame | `Shift+,` / `Shift+.`, `Home` / `End` |
 | | Set key / add-or-remove key at playhead | `K` / `Shift+K` |
-| | Flip / Rotate selected object | `H` `V` / `R` (`Shift+R` = CCW) |
+| | Flip / Rotate selected objects | `H` `V` / `R` (`Shift+R` = CCW) |
+| | Select several layers | `Shift + Click` (a range) / `Cmd + Click` in the layers, `Shift`/`Cmd + Click` or drag on empty stage space |
+| | Copy / Paste layers (also into another scene) | `Cmd+C` / `Cmd+V` |
 
 ## Documentation
 
 - [The user guide](https://modularsprites.bionic-productions.com/) for artists and animators (source in [`website/`](website/README.md))
 - [`AGENTS.md`](AGENTS.md): architecture, conventions and workflows for contributors and coding agents
 - [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md): project JSON schema and versioning
-- [`docs/AUDIT_0.7.md`](docs/AUDIT_0.7.md): audit of 0.7.1, the plan that became 0.8, what is still open
+- [`docs/AUDIT_0.7.md`](docs/AUDIT_0.7.md): audit of 0.7.1 and how each finding was done
+- [`docs/PALETTES.md`](docs/PALETTES.md): palettes, palette swaps, colour cycles and the console database
 - [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items
 - [`docs/ANIMATION.md`](docs/ANIMATION.md): animation capabilities and roadmap
 - [`examples/sgdk/README.md`](examples/sgdk/README.md): SGDK export and the Mega Drive runtime

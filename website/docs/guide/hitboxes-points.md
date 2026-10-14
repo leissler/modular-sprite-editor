@@ -33,7 +33,7 @@ Choose **Points** above the stage and the type in **New**. Click to place a poin
 
 ## Roles
 
-A box or point can have a **role**, a short name such as `head`, `blade` or `hand_front`. Roles let the game find the right box in every frame without counting them. Agree on the names with your programmer.
+A box or point can have a **role**, a short name such as `head`, `blade` or `hand_front`. Roles let the game find the right box in every frame without counting them. Agree on the names with your programmer. In a scene, a layer can [follow a point](scenes.md#follow-a-point) of its parent by its role: a sword on `hand_front` stays in the hand in every frame.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
   [![The slash pose close up with its three boxes, each labelled with its role: blade, head and body](../assets/images/screens/hitboxes-stage.png){ width="481" height="481" loading="lazy" }](../assets/images/screens/hitboxes-stage.png)

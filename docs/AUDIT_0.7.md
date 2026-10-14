@@ -5,9 +5,12 @@ Audit of release 0.7.1 (commit `bf9e6d7`, 2026-10-13) as the starting point for 
 GIF, the SGDK exporter and the Mega Drive runtime), the build tooling and the user guide.
 
 **Status (release 0.8, 2026-10-14):** the plan in section 8 is done. C1–C13, U1–U5, U7, U8, P1–P3, K1, K2, K4, K7,
-F2, F5–F7 and H1–H5 are fixed (each finding says how). Still open: K3, K5 (one menu label with an ellipsis
-character), K6, U6's per-project view state, F1's palette swaps and cycling, F3's GBA and NES profiles and further
-exporters, F4 and F8–F12.
+F2, F5–F7 and H1–H5 are fixed (each finding says how).
+
+**Status (after 0.8, 2026-10-14):** everything else is done too, except F3's GBA and NES budget profiles and further
+consoles' exporters (left for later on purpose): K3, K5, K6, U6's per-project view state, F1's palette swaps and
+cycling (file format 7, blob version 5, see `docs/PALETTES.md`), F4 and F8–F12. F11 has no theme setting (see F11).
+The console database (`consoles.py`) prepares the other consoles.
 
 How it was checked:
 
@@ -219,6 +222,8 @@ editor and hard in the game. Check Project (C5) should flag them; the Modules ta
 shows".
 
 **Done (the warning):** Check Project warns about half-transparent pixels per image; a console preview is part of F1.
+**Done** with F1: View ▸ Console Colours shows half-transparent pixels fully opaque, as the console and the export do
+(`palettes.recolour(..., opaque=True)`, tested in `tests/test_palettes.py`).
 
 ### C10 (Low) Editing glitches on the canvas
 
@@ -299,10 +304,10 @@ draws as before.
 |---|---------|------------|
 | K1 | **Adding to a selection** is Cmd+click in Modules, Shift+click in Frames and the Timeline, Shift (range) / Cmd (toggle) in Animations and Mappings ([ui/shortcuts_dialog.py](../ui/shortcuts_dialog.py)). The marquee is Cmd+drag in Modules and a plain drag elsewhere. | One rule everywhere: Shift = range / add, Cmd = toggle. Modules keeps Cmd+drag for the marquee because a plain drag draws a module. **Done:** parts, points, Timeline keys and the Animations frame library follow it; Modules keeps Shift for pivots. |
 | K2 | **Creating markers:** a hitbox is a drag on empty space; a point is a **Shift+click**, and a plain click on empty space only deselects ([ui/canvas.py:1386](../ui/canvas.py)). | A plain click on empty space creates a point, like a drag creates a box. **Done.** |
-| K3 | **List buttons:** images have "+ Add ▾ / Remove", frames, animations and mappings "+ New / Duplicate / Delete", scenes "New / Duplicate / Delete" next to a dropdown. Scenes are the only collection without thumbnails, rename in place, reordering or the Delete key (an open item since the UX audit). | Same labels everywhere; scenes in a thumbnail list like the rest. |
+| K3 | **List buttons:** images have "+ Add ▾ / Remove", frames, animations and mappings "+ New / Duplicate / Delete", scenes "New / Duplicate / Delete" next to a dropdown. Scenes are the only collection without thumbnails, rename in place, reordering or the Delete key (an open item since the UX audit). | Same labels everywhere; scenes in a thumbnail list like the rest. **Done:** "+ New / Duplicate / Delete" everywhere (images: "+ Add ▾ / Delete", as they come from files); the Timeline has a Scenes list with pictures of each scene's first frame, rename in place, drag to reorder, the Delete key and a filter, in place of the scene bar. |
 | K4 | **Ping-pong, Play once and backwards differ between tabs** (C3). | One player. **Done** with C3. |
-| K5 | **Menus:** "Auto Modularize Image…" uses an ellipsis character, every other item three dots ([app.py:524](../app.py)). The Tools menu mixes current tools with older ones (Optimize Sprite Sheet, Optimize Nested Frame Combos, role tables) that the guide never mentions. | Consistent labels; group the older tools under "More tools" or document them. |
-| K6 | **Two time units:** animations count ticks at the animation's rate, scenes count frames at the scene's rate. It is documented, and the inspector shows seconds too. | Keep; show the other unit in tooltips where the two meet (a scene object's Start offset, Speed). |
+| K5 | **Menus:** "Auto Modularize Image…" uses an ellipsis character, every other item three dots ([app.py:524](../app.py)). The Tools menu mixes current tools with older ones (Optimize Sprite Sheet, Optimize Nested Frame Combos, role tables) that the guide never mentions. | Consistent labels; group the older tools under "More tools" or document them. **Done:** three dots everywhere; the optimizers are in the guide and the role tables are retired (H3). |
+| K6 | **Two time units:** animations count ticks at the animation's rate, scenes count frames at the scene's rate. It is documented, and the inspector shows seconds too. | Keep; show the other unit in tooltips where the two meet (a scene object's Start offset, Speed). **Done:** the Timeline inspector's Start offset and Speed say what they are in the animation's ticks and in seconds. |
 | K7 | **The preview mapping in exports:** the RetroAnimator export bakes the preview mapping, while `export_sgdk` takes `--mapping`. | Spell out the mapping choice in every export dialog. **Done:** the Mega Drive export has a Mappings choice; the RetroAnimator and GIF file dialogs name the mapping they draw with. |
 
 ---
@@ -379,8 +384,12 @@ The window always opens at 1500×980 ([app.py:134](../app.py)), larger than many
 position are not remembered. Zoom, pan, grid size and the selected items are not kept per project. Remember the window
 geometry; store view state in a sidecar next to the project or in the preferences.
 
-**Done** for the window (size, position, maximized; a first start fits the screen). Per-project view state is still
-open.
+**Done** for the window (size, position, maximized; a first start fits the screen). **Done** after 0.8 for the
+project: each tab reports what it shows (selected ids, the canvas' zoom and pan, the grid, a list's group and order,
+the Timeline's hidden, locked and folded layers) and takes it back; the main window keeps it in the preferences per
+project file (`ui/view_memory.py`, the 40 projects opened last) and restores it, with the tab and the preview mapping
+and palette swap, when the project opens again. A restored view replaces the tab's first fit. Smoke test step "view
+memory".
 
 ### U7 (Low) Example data
 
@@ -463,18 +472,18 @@ roadmap ([ANIMATION.md](ANIMATION.md)).
 
 | # | Feature | Value | Notes |
 |---|---------|-------|-------|
-| F1 | **Palettes**: colours per image / module, the four Mega Drive palette lines, warnings over 15 colours, a preview in console colours (9-bit), palette swaps as variants (like mappings), palette cycling | High | Today one merged palette at export (C7). Needed for any real Mega Drive / SNES game. **Done** except swaps and cycling: format v6 gives every image a palette (`ImageAsset.palette`, Modules inspector with its colours as the console shows them); `palettes.py` builds them for the exporter and the preview; blob v4 stores one per palette, the runtime loads them into consecutive lines (`ms_palettes_fit`), and the pieces carry their palette bits; Check Project warns per palette over 15 colours; View ▸ Mega Drive Colours shows every canvas through them. Tests: `tests/test_palettes.py`, two palettes drawn by the compiled runtime (`test_sgdk_runtime_draw`). |
+| F1 | **Palettes**: colours per image / module, the four Mega Drive palette lines, warnings over 15 colours, a preview in console colours (9-bit), palette swaps as variants (like mappings), palette cycling | High | Today one merged palette at export (C7). Needed for any real Mega Drive / SNES game. **Done** except swaps and cycling: format v6 gives every image a palette (`ImageAsset.palette`, Modules inspector with its colours as the console shows them); `palettes.py` builds them for the exporter and the preview; blob v4 stores one per palette, the runtime loads them into consecutive lines (`ms_palettes_fit`), and the pieces carry their palette bits; Check Project warns per palette over 15 colours; View ▸ Mega Drive Colours shows every canvas through them. Tests: `tests/test_palettes.py`, two palettes drawn by the compiled runtime (`test_sgdk_runtime_draw`). **Done** after 0.8 (format 7, blob 5, `docs/PALETTES.md`): palettes are project data in a fixed slot order (the Palettes tab: add missing colours, remove unused, sort, edit free slots snapped to the console's colours), palette swaps chosen like mappings (the preview, a Timeline object's Colours, `ms_set_palette_swap` / `ms_draw_anim_player_as` in the game; no extra tiles), colour cycles (`ms_palette_tick`), a console database that sizes palettes per console. The *Swordfight* guard fights in the *Blue guard* swap, checked in MAME. |
 | F2 | **Memory budget**: unique tiles per animation and per project (with flip dedupe), DMA per step, VRAM left | Medium | The overlay counts sprites and tiles per frame only. **Done:** `hardware_budget` stores each part's tile blocks like the exporter (palette indices, flips free); the readout shows the tiles of the view and the project's total against the free space, the Animations inspector the animation's, Check Project warns when it gets tight. `export_tiles` equals the exporter's count on all 19 project files and a synthetic project with turning scene objects, two palettes and a mapping. DMA per step does not apply: the runtime keeps every tile in VRAM. |
-| F3 | **More consoles**: SNES, GBA and NES sprite shapes and limits as budget profiles, then exporters | Medium (promised on the site) | The screen guide already knows five consoles; the budget knows the Mega Drive only. **Partly done:** SNES 8/16 and 16/32 budget profiles (square small / large sprites, 128 per screen, 32 and 272 px per line). Open: GBA and NES, and exporters. |
-| F4 | **Interchange**: sprite sheet PNG + JSON export (generic, Godot, Unity), Aseprite import (tags → animations), PNG sequence export, scene export as GIF | Medium | Today: RetroAnimator JSON, animation GIF, AuroraGT import. |
+| F3 | **More consoles**: SNES, GBA and NES sprite shapes and limits as budget profiles, then exporters | Medium (promised on the site) | The screen guide already knows five consoles; the budget knows the Mega Drive only. **Partly done:** SNES 8/16 and 16/32 budget profiles (square small / large sprites, 128 per screen, 32 and 272 px per line). After 0.8 the console database (`consoles.py`) holds all five (screens, sprite hardware, palettes, refresh rates); the budget profiles and screen guides come from it. Open on purpose: GBA and NES budgets, palettes for the other consoles, and exporters. |
+| F4 | **Interchange**: sprite sheet PNG + JSON export (generic, Godot, Unity), Aseprite import (tags → animations), PNG sequence export, scene export as GIF | Medium | Today: RetroAnimator JSON, animation GIF, AuroraGT import. **Done:** File ▸ Export ▸ Sprite Sheet (`exporters/sheet.py`: packed PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4 SpriteFrames `.tres`, a Unity `.png.meta`; loaded in Godot 4.6 and imported in Unity 6), PNG sequences, scene GIFs; File ▸ Import ▸ Aseprite File (`importers/aseprite.py`, pixel-exact against Aseprite's own export on 40 files) and Sprite Sheet with JSON. `tests/test_sheet_export.py` imports the exported JSON back and compares every frame. |
 | F5 | **Check Project** (C5) | Medium | **Done**, see C5. |
 | F6 | **Autosave and crash recovery** | Medium | **Done:** `ui/autosave.py`, a recovery copy every 30 s while unsaved, offered after a crash (Restore / Discard / Later); `tests/test_autosave.py`, smoke test step "autosave", checked with a real SIGKILL. |
 | F7 | **In-app Mega Drive export** (choose mappings and folder, show the report; optionally build and start an emulator) | Medium | **Done** without build / emulator: File ▸ Export ▸ Mega Drive (SGDK), folder and mappings remembered per project, a report with Check Project. Found on the way: the exporter overwrote the game's `res/resources.res` and deleted every `.png` / `.bin` in its `res/gen`; it now merges its line (`merged_resources`) and removes only older exporters' `var_NNNN.png` sheets. |
-| F8 | **Attachment points**: a scene object follows a parent's point role frame by frame (weapons, effects, riders) | Medium | Listed in ANIMATION.md. |
-| F9 | **Timing tools**: 50 / 60 Hz preview, spread presets (1-1-2-2…), batch edits across animations (tick rate, playback) | Low-medium | |
-| F10 | **Organising large projects**: folders or tags for animations and frames (Sonic has 171 animations), sort options | Low-medium | |
-| F11 | **Preferences window** (scroll behaviour, default tick rate, autosave, theme) | Low | Settings are spread over view bars. |
-| F12 | **Timeline**: several selected objects at once, copying objects between scenes | Low | Known limit since the redesign. |
+| F8 | **Attachment points**: a scene object follows a parent's point role frame by frame (weapons, effects, riders) | Medium | Listed in ANIMATION.md. **Done:** Timeline inspector ▸ Follows (format 7: `attach_point_role` / `attach_point_type`): the object sits on the point of its parent's current frame, mirrors and turns with it, hides where the frame has none; the stage, the budget and the SGDK bake place it alike (`tests/test_sgdk_scenes.py`, mirrored too); Check Project warns about points no frame has. |
+| F9 | **Timing tools**: 50 / 60 Hz preview, spread presets (1-1-2-2…), batch edits across animations (tick rate, playback) | Low-medium | **Done:** the preview plays the game's timing (each step in whole video frames, `playback.console_frames`, shared with the exporter), View ▸ Play at 50 Hz slows every preview to PAL speed, Check Project notes rates that round; Spread (1-1-2-2, 1-2, 2-1, slow start / end / both); Tools ▸ Change Animations (tick rate with or without keeping the timing, playback, repeats, group). |
+| F10 | **Organising large projects**: folders or tags for animations and frames (Sonic has 171 animations), sort options | Low-medium | **Done:** groups for frames and animations (format 7), set in the inspectors, the lists' menus and Change Animations; the lists show one group and sort by list order, name (numbers as numbers) or group; filters find groups too. |
+| F11 | **Preferences window** (scroll behaviour, default tick rate, autosave, theme) | Low | Settings are spread over view bars. **Done** without a theme: Edit ▸ Preferences (Cmd+,) has scrolling, 50 Hz previews, the backdrop colour, the tick rate of new animations, the autosave interval, the welcome screen and Clear Recent Projects. A light theme would need every custom-drawn list, canvas and timeline to take its colours from one place; not started. |
+| F12 | **Timeline**: several selected objects at once, copying objects between scenes | Low | Known limit since the redesign. **Done:** Shift / Cmd+click in the layers and on the stage, a marquee on empty stage space; drags, arrows, flips, Delete, Duplicate and Copy act on all of them, the inspector's Mapping, Colours and playback settings too; layers paste into any scene. |
 
 ---
 

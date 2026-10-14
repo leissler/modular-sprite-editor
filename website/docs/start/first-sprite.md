@@ -64,7 +64,7 @@ If a step ends up in the wrong place, drag it along the sequence. ++delete++ rem
 Timing is counted in ticks. In the inspector, **Tick rate** says how many ticks make a second. Set it to 12.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The animation settings in the inspector: name run, playback Loop, tick rate 12, one tick is 83 milliseconds](../assets/images/screens/lesson-timing.png){ width="311" height="280" loading="lazy" }](../assets/images/screens/lesson-timing.png)
+  [![The animation settings in the inspector: name run, playback Loop, tick rate 12, one tick is 83 milliseconds](../assets/images/screens/lesson-timing.png){ width="311" height="310" loading="lazy" }](../assets/images/screens/lesson-timing.png)
   <figcaption><strong>Tick rate</strong> 12: one tick lasts 83 milliseconds.</figcaption>
 </figure>
 

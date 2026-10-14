@@ -28,10 +28,12 @@ The Mega Drive is the first console with an exporter and a runtime. More console
 `export_sgdk`, on the [release page](https://github.com/leissler/modular-sprite-editor/releases/latest) next to the editor, turns a project into data for a Mega Drive game made with [SGDK](https://github.com/Stephane-D/SGDK). The source code includes a small runtime that draws it.
 
 - Everything is baked into one data file: tiles and palettes, frames, animations, scenes, hitboxes and points with their types and roles, step events, and every mapping.
-- Each palette chosen in the Modules tab gets a palette line of its own: Palette 1 goes into the first line the game gives the runtime, Palette 2 into the next, and so on.
+- Each palette gets a palette line of its own, with its colours in the order of the **Palettes** tab: Palette 1 goes into the first line the game gives the runtime, Palette 2 into the next, and so on, followed by the palette swaps' versions of the palettes they change.
+- The game picks a [palette swap](../guide/palettes.md#palette-swaps) when it draws a character, the way it picks a mapping; a swap costs no video memory. The colour cycles turn with one call per video frame.
 - Animations play on the console exactly as in the editor's preview, tick for tick, including loop-from steps, repeat counts and follow-up animations.
 - The game chooses a mapping when it draws a character, so several characters can share one set of animations.
-- Scenes play as they look on the Timeline, including objects with their own mapping.
+- Scenes play as they look on the Timeline, including objects with their own mapping or colours and objects that follow a point of their parent.
+- Each step lasts the video frames the preview shows it for: the game counts frames at 60 a second, so tick rates that do not divide 60 round each step, and a 50 Hz console plays everything at five sixths of the speed (**View ▸ Play at 50 Hz** previews it).
 - The numbers of the budget overlay are the exporter's own, so a pose that fits in the editor fits on the console.
 
 **File ▸ Export ▸ Mega Drive (SGDK)...** writes the data into the game's SGDK project folder. Choose the folder and which mappings to include; the editor remembers both for the project. The game's own resources stay as they are: the export adds one line for its data file. The report afterwards shows what the game gets: how much of the console's video memory the sprites take, colours that had to be merged, and anything **Check Project** finds.
@@ -51,12 +53,13 @@ The [SGDK guide in the repository](https://github.com/leissler/modular-sprite-ed
 
 ## Other exports
 
+- **File ▸ Export ▸ Sprite Sheet (JSON, Godot, Unity)...** packs every step into one PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4 SpriteFrames resource or Unity's import settings, the pivot on the editor's origin. See [Work with other tools](../guide/other-tools.md).
 - **File ▸ Export ▸ RetroAnimator Project (\*.json)...** writes a RetroAnimator project with a picture for every part, drawn with the preview mapping. Its report lists what RetroAnimator has no place for, such as step events, loop-from steps, follow-ups and scenes. Exported to the same file again, it removes the part pictures it wrote last time and no longer uses; nothing else in the parts folder is touched.
-- **Export GIF...** in the **Animations** tab writes one cycle of an animation, for sharing and reviews.
+- **Export GIF...** in the **Animations** tab and in the Timeline's scene settings writes an animation or a scene, and **File ▸ Export** a PNG sequence of an animation, for sharing and reviews.
 
 ## Importing
 
-**File ▸ Import** opens AuroraGT `.sprite` files and RetroAnimator projects, so you can bring existing modular sprites into the editor. If the file has something the editor can't read, or names an image it can't find, the editor lists it once the import is done. An imported sprite is a new project: **Save** asks where to put it and never writes over the file you imported.
+**File ▸ Import** opens Aseprite files, sprite sheets with Aseprite or TexturePacker JSON, AuroraGT `.sprite` files and RetroAnimator projects, so you can bring existing sprites into the editor. If the file has something the editor can't read, or names an image it can't find, the editor lists it once the import is done. An imported sprite is a new project: **Save** asks where to put it and never writes over the file you imported.
 
 ## The project format
 

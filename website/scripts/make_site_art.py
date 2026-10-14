@@ -25,7 +25,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 import compositor  # noqa: E402
 import make_readme_banner as banner  # noqa: E402
-from models import Project  # noqa: E402
+from models import Project, state_shows  # noqa: E402
 from ui.frame_geometry import part_bounds  # noqa: E402
 from ui.scene_editor import ops  # noqa: E402
 
@@ -48,10 +48,11 @@ def scene_image(project: Project, scene, frame: int, crop, scale: int, backgroun
     for obj, _depth, _kids in ops.tree_rows(scene, set()):
         state = states.get(obj.id)
         source = project.get_frame(state.get("frame_id")) if state and state.get("frame_id") else None
-        if not source or not state.get("visible", True):
+        if not source or not state_shows(state):
             continue
         a, _b, _c, _d, tx, ty = ops.world_matrix(scene, states, obj.id, cache)
-        art, hx, hy = banner.render(project, source, scene.object_mapping(project, obj.id, None), flip_x=a < 0, offset=(tx, ty))
+        art, hx, hy = banner.render(project, source, scene.object_mapping(project, obj.id, None), flip_x=a < 0,
+                                    offset=(tx, ty), swap=scene.object_palette_swap(project, obj.id, None))
         place(art, hx, hy, None, (-x0 * scale, -y0 * scale), scale, canvas)
     return canvas
 

@@ -55,17 +55,19 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 3. **Loop-from step and follow-up animation (done, format v3).** "Loop from" plays an intro once and then loops
    the rest; an animation that ends (Play once, or after its repeat count) hands over to its "Then play"
    animation — in the editor preview and in the SGDK runtime, which are tested to step identically.
-4. **Palettes (mostly done, format v6).** Every image belongs to one of the Mega Drive's four palettes; the Modules
-   inspector shows its colours as the console does, Check Project warns over 15 colours, View ▸ Mega Drive Colours
-   shows every canvas through the export's palettes, and the runtime loads them into consecutive lines. Still
-   missing: palette swaps as variants and palette cycling.
+4. **Palettes (done, formats v6 and v7).** Palettes are project data with a fixed slot order (the Palettes tab);
+   every image belongs to one. Palette swaps recolour per slot and are chosen per draw like mappings (the preview,
+   a Timeline object's Colours, `ms_set_palette_swap` / `ms_draw_anim_player_as` in the game), colour cycles turn
+   runs of slots (`ms_palette_tick`); View ▸ Console Colours shows every canvas as the console does. See
+   `docs/PALETTES.md`.
 5. **Previews disagree (fixed).** All thumbnails and GIF export use the renderer that matches the canvas and the
    RetroAnimator export pixel-exactly (`ui/frame_render.py`, checked by `tests/test_thumbnails.py` and
    `tools/check_export_parity.py`).
-6. **Timing UX (mostly done).** Duration-scaled cells, hold dragging, multi-select, step rotation and preview
-   speed exist now; still missing: a 50/60 Hz (PAL/NTSC) preview switch and timing presets.
-7. **No sprite-sheet / engine export** beyond RetroAnimator and SGDK (Aseprite JSON, Godot/Unity sheets), and no
-   Aseprite import for animators who draw there.
+6. **Timing UX (done).** Duration-scaled cells, hold dragging, multi-select, step rotation, preview speed, the
+   game's own timing in the preview (steps in whole video frames, View ▸ Play at 50 Hz), spread presets for holds
+   and Change Animations (one tick rate, playback or group for many).
+7. **Interchange (done).** Sprite sheets with JSON (Aseprite / TexturePacker layout), Godot 4 SpriteFrames and
+   Unity sprites, PNG sequences, scene GIFs; Aseprite files and sheets with JSON import, tags as animations.
 
 ## Recommended extensions (priority order)
 
@@ -103,19 +105,26 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
   against the canvas) draws every thumbnail, the frame strip, GIF export and the RetroAnimator export. The SGDK
   exporter shares its matrices and module images but cuts its own hardware-sprite pieces.
 
-### 6. Palette awareness (mostly done)
+### 6. Palette awareness (done)
 - Done (format v6): a palette per image, its colours in the Modules inspector, warnings over 15 colours, console
   colours on every canvas, one palette line per palette in the SGDK export.
-- Next: palette swaps as a mapping-like "palette variant", and palette-cycling previews (water, fire, damage
-  flashes) as an animation property.
+- Done (format v7): palettes as project data in slot order (the Palettes tab), palette swaps chosen per draw like
+  mappings (no tiles of their own in the export), colour cycles, the console database (`consoles.py`) that sizes
+  palettes per console.
+- Next: palettes for the other consoles in the database (SNES 15 colours in 5 bits a channel, NES and Game Boy
+  fixed colour sets), with their exporters.
 
-### 7. Attachment & constraints (medium)
-- Use control-point roles as sockets: in the Timeline, "attach object to point role X of parent" so weapons,
-  effects and riders follow the parent's per-frame point automatically. Export as per-step socket offsets.
+### 7. Attachment & constraints (done)
+- Done (format v7): a Timeline object follows a point role of its parent's frames (Inspector ▸ Follows): weapons,
+  effects and riders sit on the parent's per-frame point, mirror and turn with it, and hide on frames without the
+  point; the SGDK export bakes them into the scene samples.
+- Next: export the points as per-step socket offsets for objects the game moves itself.
 
-### 8. Interchange (medium)
-- Export: sprite sheet PNG + JSON (Aseprite-compatible frames/tags, Godot SpriteFrames, Unity sprite atlas).
-- Import: Aseprite `.ase/.json` tags as animations (frames become single-module frames or auto-modularised).
+### 8. Interchange (done)
+- Done: File ▸ Export ▸ Sprite Sheet (packed PNG + JSON in the Aseprite / TexturePacker layout, Godot 4
+  SpriteFrames `.tres`, Unity `.png.meta` with pivots), PNG sequences, scene GIFs; File ▸ Import ▸ Aseprite File
+  (read like Aseprite flattens it, tags as animations) and Sprite Sheet with JSON.
+- Next: Unity animation clips, Godot scenes with the hitboxes as areas.
 
 ### Not recommended for the retro target
 - Sub-pixel tweening or free rotation/scaling inside frame animations (no hardware support on MD/NES; bake

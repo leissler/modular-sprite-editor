@@ -97,16 +97,16 @@ An image no module uses any more leaves the project; its file stays on disk. Und
 
 ## Palettes
 
-The Mega Drive shows each sprite with one of four **palettes** of 15 colours (plus transparent). Every image belongs to one of them: select the image and choose its **Palette** in the inspector. Images in the same palette share its colours, so give a character in other colours, such as an enemy, its own image and palette.
+The Mega Drive shows each sprite with a **palette** of 15 colours (plus transparent), and up to four palettes at once. Every image belongs to a palette: select the image and choose its **Palette** in the inspector, or **New palette...** to give it one of its own. Images in the same palette share its colours. To show the same art in other colours, such as an enemy in other clothes, use a [palette swap](palettes.md#palette-swaps) rather than a recoloured copy of the sheet.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
   [![The Palette row of the inspector: Palette 1 chosen, 15 colours, and a strip of the 15 colours as the Mega Drive shows them](../assets/images/screens/modules-palette.png){ width="291" height="43" loading="lazy" }](../assets/images/screens/modules-palette.png)
   <figcaption>The Prince of Persia sheet uses exactly the 15 colours a palette holds.</figcaption>
 </figure>
 
-Next to the palette, the inspector counts the colours its images use and shows them in a strip, as the console shows them. When they use more than 15, the console merges similar colours, and **Check Project** warns.
+Next to the palette, the inspector counts the colours and shows them in a strip, as the console shows them. The **Palettes** tab edits them: see [Colours, palettes and swaps](palettes.md).
 
-**View ▸ Mega Drive Colours** (++cmd+shift+p++) shows every canvas in the console's colours: each image through its palette, with the console's 512 colours. Turn it on to see merged colours, and colours the console cannot show exactly, before you export.
+**View ▸ Console Colours** (++cmd+shift+p++) shows every canvas in the console's colours: each image through its palette, with the console's 512 colours. Turn it on to see merged colours, and colours the console cannot show exactly, before you export.
 
 ## Shapes
 

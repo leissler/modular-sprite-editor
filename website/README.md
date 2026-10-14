@@ -49,6 +49,7 @@ Every picture comes from the editor and the example projects; regenerate them wh
 | `docs/assets/images/logo.svg`, `favicon.png` | `python3 tools/make_app_icon.py` (also writes the app icons) |
 | `docs/assets/images/logo-title.png`: the logo on the landing page | `python3 tools/make_logo.py` (the app icon's mannequin over a pixel wordmark) |
 | `docs/reference/shortcuts.md` | `python3 website/scripts/make_shortcuts_page.py` (from `ui/shortcuts_dialog.py`) |
+| `docs/reference/consoles.md` | `python3 website/scripts/make_consoles_page.py` (from `consoles.py`) |
 | The product card on bionic-productions.com (`public/assets/modular-sprite-editor-logo.png` in the bionic-site repository) | `python3 tools/make_logo.py --card OUT.png` |
 
 Pixel art is scaled by whole numbers only and shown with `image-rendering: pixelated` (`.ms-pixel`). A part of the

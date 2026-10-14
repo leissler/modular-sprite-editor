@@ -6,11 +6,17 @@
 
 **Budget**: the overlay that shows what a pose or scene costs on a console in hardware sprites and tiles. It knows the Mega Drive and the SNES.
 
+**Colour cycle**: a run of palette slots whose colours move along while animations and scenes play, for water, lava or a glowing effect.
+
 **Easing**: how an object speeds up and slows down between two keys in a scene.
 
 **Event**: a named signal on an animation step, such as a footstep, that the game receives when the step starts.
 
+**Follow a point**: a scene layer that sits on a point of its parent's frames, such as a sword in a hand, and moves with it from frame to frame.
+
 **Frame**: a pose built from parts. A frame can contain other frames.
+
+**Group**: a name that sorts frames and animations in long lists, so one group can be shown at a time.
 
 **Hardware sprite**: a small rectangle of graphics that a console can show on its own, up to 32 by 32 pixels on the Mega Drive. A character is made of several.
 
@@ -34,7 +40,9 @@
 
 **Origin**: the point of a frame the game positions, usually between the feet.
 
-**Palette**: the colours a group of images shares on the console. The Mega Drive has four palettes of 15 colours plus transparent.
+**Palette**: the colours a group of images shares on the console, each in its slot. The Mega Drive shows up to four palettes of 15 colours plus transparent at once.
+
+**Palette swap**: other colours for some slots of a palette, chosen per character like a mapping: a guard in other clothes, a hit flash.
 
 **Part**: one use of a module or frame inside a frame, with its own position, flip and turn.
 
@@ -42,7 +50,7 @@
 
 **Point**: a marked spot on a frame, such as a hand or the tip of a sword, for the game.
 
-**Preview mapping**: the mapping all tabs show, chosen at the top of the window. It only changes the view.
+**Preview mapping** and **preview palette swap**: what all tabs show, chosen at the top of the window. They only change the view, and the exports draw with them.
 
 **Role**: a short name for a hitbox or point, such as `head`, so the game can find it in every frame.
 
@@ -52,10 +60,14 @@
 
 **SGDK**: the development kit most Mega Drive homebrew games are made with.
 
+**Slot**: one place in a palette. A pixel stores its slot, not its colour, which is why a palette swap can recolour it.
+
 **Step**: one entry of an animation: a frame, how long it holds, and its offset, flip and turn.
 
 **Tick**: the unit of animation time. **Tick rate** says how many ticks make a second.
 
 **Tile**: an 8 by 8 pixel block of graphics in a console's video memory.
+
+**Video frame**: one picture of the console's screen, 60 a second (50 on PAL consoles). In the game, every animation step lasts whole video frames.
 
 **H40, H32**: the Mega Drive's two screen widths, 320 and 256 pixels, each with its own sprite limits.

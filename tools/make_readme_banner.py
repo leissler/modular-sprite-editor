@@ -19,7 +19,7 @@ sys.path.insert(0, REPO)
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 import compositor  # noqa: E402
-from models import Frame, ModuleMapping, Project  # noqa: E402
+from models import Frame, ModuleMapping, PaletteSwap, Project  # noqa: E402
 from ui.frame_geometry import part_bounds  # noqa: E402
 from ui.scene_editor import ops  # noqa: E402
 
@@ -52,10 +52,10 @@ def font(size: float, weight: str = "Regular") -> ImageFont.FreeTypeFont:
 
 
 def render(project: Project, frame: Frame, mapping: Optional[ModuleMapping], flip_x: bool = False,
-           offset: Tuple[float, float] = (0.0, 0.0)) -> Tuple[Image.Image, int, int]:
-    """The frame in art pixels and the position of its top-left relative to the origin."""
+           offset: Tuple[float, float] = (0.0, 0.0), swap: Optional[PaletteSwap] = None) -> Tuple[Image.Image, int, int]:
+    """The frame in art pixels (recoloured by ``swap``) and the position of its top-left relative to the origin."""
     a = compositor.mat_mul(compositor.rotation_matrix(0.0), compositor.flip_matrix(flip_x, False))
-    image, hx, hy, _ = compositor.render_frame(project, frame, mapping, a, offset, _images, _modules)
+    image, hx, hy, _ = compositor.render_frame(project, frame, mapping, a, offset, _images, _modules, swap)
     return image, hx, hy
 
 
@@ -167,7 +167,8 @@ def main() -> None:
         if not frame:
             continue
         a, b, c, d, tx, ty = ops.world_matrix(scene, states, obj.id, cache)
-        art, hx, hy = render(project, frame, scene.object_mapping(project, obj.id, None), flip_x=a < 0, offset=(tx, ty))
+        art, hx, hy = render(project, frame, scene.object_mapping(project, obj.id, None), flip_x=a < 0, offset=(tx, ty),
+                             swap=scene.object_palette_swap(project, obj.id, None))
         paste_at_origin(banner, art, hx, hy, origin)
 
     # The steps between the canvases

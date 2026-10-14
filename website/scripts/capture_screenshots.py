@@ -173,6 +173,8 @@ def wanted(name: str, group: str) -> bool:
 
 
 def load(path: Path) -> None:
+    frame.current_path = None  # every shot starts from a freshly opened project, not where the last one left it
+    frame.config.DeleteGroup("ProjectView")
     frame.load_project(str(path))
     frame.recent_files = saved_recent
     frame._save_recent_files()
@@ -233,7 +235,7 @@ def run_pop() -> None:
         page = frame.frame_editor.GetScreenRect()
         frame.Raise()
         pump(0.8)
-        left = top.x + top.width * 34 // 100  # from just before the tabs to the preview mapping on the right
+        left = top.x + top.width * 30 // 100  # from just before the tabs to the preview choices on the right
         capture("tour-top", wx.Rect(left, top.y - 4, top.Right + 6 - left, page.y - top.y + 4))
 
     # ---------------------------------------------------------------- Modules
@@ -436,7 +438,8 @@ def run_pop() -> None:
     scene = next(s for s in proj.timeline_scenes if s.name == "Swordfight")
     guard = next(o for o in scene.objects if o.name == "Guard")
     prince = next(o for o in scene.objects if o.name != "Guard")
-    if any(wanted(n, group) for n in ("timeline", "scene-timeline", "scene-mapping", "scene-swap", "budget-lines")):
+    if any(wanted(n, group) for n in ("timeline", "scene-timeline", "scene-mapping", "scene-swap", "budget-lines",
+                                       "scene-colours", "scenes-list")):
         frame.select_tab(3)
         te.refresh_scenes(select_id=scene.id)
         te.on_tab_activated()
@@ -454,6 +457,10 @@ def run_pop() -> None:
             part("scene-timeline", te.timeline_view, pad=0)
         if wanted("scene-mapping", group):
             part("scene-mapping", te.inspector, pad=0, bottom=te.inspector.obj_mapping)
+        if wanted("scene-colours", group):
+            part("scene-colours", te.inspector, pad=0, bottom=te.inspector.obj_swap)
+        if wanted("scenes-list", group):
+            part("scenes-list", te.scene_browser, pad=0)
         swap_key = next(k for k in prince.keyframes if round(k.time * scene.fps) == 22)  # the Prince's slash
         if wanted("scene-swap", group):
             te.seek(22)  # the swap settings work on the key under the playhead
@@ -524,6 +531,43 @@ def run_pop() -> None:
             pump(0.8)
             capture("mapping-chooser", wx.Rect(bar.Right - 300, bar.y - 4, 306, bar.height + 8))
         frame.on_preview_mapping_selected(None)
+
+    # ---------------------------------------------------------------- Palettes
+    pe = frame.palette_editor
+    if wanted("palettes", group) or wanted("palettes-slots", group):
+        frame.select_tab(5)
+        swap = next(s for s in proj.palette_swaps if s.name == "Blue guard")
+        pe.select_palette(proj.palettes[0].id)
+        pe.select_swap(swap.id)
+        pump(1.0)  # the preview fits the whole sheet once it is shown; then closer, on the sheet's busiest corner
+        pe.preview.set_zoom_level(2)
+        pe.preview.center_view((205, 200))
+        if wanted("palettes", group):
+            shoot("palettes")
+        if wanted("palettes-slots", group):
+            pe.select_swap(None)  # the palette's own slots and buttons
+            pe._slots_selected([0])
+            pump()
+            part("palettes-slots", pe.inspector.palette_section, pad=0)
+            pe._slots_selected([])
+
+    # ---------------------------------------------------------------- dialogs
+    if wanted("change-animations", group):
+        from ui.animation_editor.batch_dialog import ChangeAnimationsDialog
+
+        dialog = ChangeAnimationsDialog(frame, proj, [animation_named("A03 walk").id])
+        dialog.CentreOnScreen()
+        dialog.Show()
+        shoot("change-animations", dialog)
+        dialog.Destroy()
+    if wanted("sheet-export", group):
+        from ui.sheet_export_dialog import SheetExportDialog
+
+        dialog = SheetExportDialog(frame, proj, animation_named("C34 Attack").id, frame._drawn_with())
+        dialog.CentreOnScreen()
+        dialog.Show()
+        shoot("sheet-export", dialog)
+        dialog.Destroy()
 
 
 def run_sonic() -> None:
