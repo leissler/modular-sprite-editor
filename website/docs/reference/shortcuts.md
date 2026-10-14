@@ -33,8 +33,8 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | --- | --- |
 | New module (on an image) / shape (on Shapes) | Drag on empty space |
 | Select / move / resize | Click / drag a module / drag a handle |
-| Add to the selection / select with a marquee | Cmd+click / Cmd+drag |
-| Move pivot | Shift+drag (or the inspector's presets) |
+| Add or remove from the selection / select with a marquee | Cmd+click / Cmd+drag |
+| Move pivot (Shift is taken here) | Shift+drag (or the inspector's presets) |
 | Nudge selected modules 1 px / 8 px | Arrows / Shift+arrows |
 | Copy / Paste (onto any image) / Duplicate / Select all | Cmd+C / Cmd+V / Cmd+D / Cmd+A |
 | Rename / reorder modules | Double-click or F2 / drag in the list |
@@ -45,8 +45,8 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 
 | Action | Shortcut |
 | --- | --- |
-| Select / add to selection / cycle stacked parts | Click / Shift+click / click again |
-| Select with a marquee | Drag on empty space (Shift adds) |
+| Select / add / add or remove / cycle stacked parts | Click / Shift+click / Cmd+click / click again |
+| Select with a marquee | Drag on empty space (Shift or Cmd adds) |
 | Nudge selection 1 px / 8 px | Arrows / Shift+arrows |
 | Flip horizontal / vertical | H / V  (X / Y also work) |
 | Rotate 90° CW / CCW | R / Shift+R |
@@ -68,7 +68,8 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 
 | Action | Shortcut |
 | --- | --- |
-| Create point / move point | Shift+click / drag |
+| Create point / move point | Click on empty space / drag |
+| Add a point to the selection / add or remove | Shift+click / Cmd+click |
 
 ## Animations
 
@@ -81,7 +82,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Shorter / longer hold of the selected steps | [ / ]  (or drag a step's right edge) |
 | Flip horizontal / vertical, rotate selected steps | H / V, R / Shift+R |
 | Move the selected steps' offset 1 px / 8 px | Arrows / Shift+arrows (stage focused), or drag the stage |
-| Select steps / range / add | Click / Shift+click / Cmd+click (Shift+← / → in the sequence) |
+| Select steps / range / add or remove | Click / Shift+click / Cmd+click (Shift+← / → in the sequence) |
 | Reorder / copy steps | Drag a step / Alt+drag |
 | Insert a frame | Drag from Frames into the sequence or onto the stage, or double-click it |
 | Copy / Paste / Duplicate / Select all steps | Cmd+C / Cmd+V / Cmd+D / Cmd+A |
@@ -102,7 +103,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Nudge selected object 1 px / 8 px | Arrows / Shift+arrows (stage focused) |
 | Delete selected keys (else the layer) | Delete / Backspace |
 | Copy / Paste / Duplicate / Select all keys | Cmd+C / Cmd+V / Cmd+D / Cmd+A |
-| Select keys / add / box-select | Click / Shift+click / drag empty track |
+| Select keys / add / add or remove / box-select | Click / Shift+click / Cmd+click / drag empty track |
 | Retime keys / add key | Drag keys / double-click track |
 | Segment easing, swap image, layer menu | Right-click bar / key / layer |
 | Reorder or parent a layer | Drag the layer name (onto a layer = make child) |
