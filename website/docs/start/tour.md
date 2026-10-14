@@ -43,6 +43,7 @@ Every canvas works the same way:
 
 - **Zoom** with the mouse wheel, two fingers on a trackpad or a pinch. The zoom glides while you scroll and then settles on a whole pixel size (1×, 2×, 3× and so on), so pixels always stay square.
 - **Pan** by holding ++space++ and dragging, by dragging with ++alt++ held, or with the middle mouse button.
+- Rather scroll to move around, as most Mac apps do? Turn on **View ▸ Scroll Moves the View**: then scrolling moves the view, and a pinch or ++cmd++ + scroll zooms. The Animations step sequence and the Timeline follow the same choice.
 - **Fit** everything into view with ++cmd+0++. ++cmd+shift+0++ shows actual pixels.
 
 The view bar under each canvas holds the view options: **Grid** and its size, the backdrop behind the artwork (**Checker** or a **Colour**), **Bounds**, which outlines every module in a pose, and the [hardware budget overlay](../guide/hardware-budget.md) (**No budget** until you choose a console mode). These only change what you see, never your project. On a narrow window the bar wraps into a second row.

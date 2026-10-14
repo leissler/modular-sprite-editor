@@ -19,9 +19,9 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 
 | Action | Shortcut |
 | --- | --- |
-| Zoom at cursor (smooth, settles on whole pixel sizes) | Mouse wheel / two-finger scroll / pinch |
+| Zoom at cursor (smooth, settles on whole pixel sizes) | Mouse wheel / two-finger scroll / pinch (View ▸ Scroll Moves the View: pinch / Cmd+scroll) |
 | Pan | Space+drag, Alt+drag or middle-drag |
-| Pan horizontally / vertically | Shift+wheel / Alt+wheel |
+| Pan horizontally / vertically | Shift+wheel / Alt+wheel (Scroll Moves the View: scroll) |
 | Zoom in / out | Cmd+= / Cmd+- |
 | Fit content / actual pixels (1×) | Cmd+0 / Cmd+Shift+0 |
 | Toggle grid | Cmd+G |
@@ -89,6 +89,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Delete selected steps | Delete / Backspace |
 | Open a step's frame in the Frames tab | Double-click the step |
 | Rename / reorder animations | Double-click or F2 / drag in the list |
+| Zoom / scroll the step sequence | Wheel / Shift+wheel or trackpad sideways (Scroll Moves the View: Cmd+wheel / wheel) |
 
 ## Timeline
 
@@ -107,7 +108,7 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Retime keys / add key | Drag keys / double-click track |
 | Segment easing, swap image, layer menu | Right-click bar / key / layer |
 | Reorder or parent a layer | Drag the layer name (onto a layer = make child) |
-| Zoom / scroll time, scroll layers | Wheel / Shift+wheel or trackpad sideways, wheel over layers |
+| Zoom / scroll time, scroll layers | Wheel / Shift+wheel or trackpad sideways, wheel over layers (Scroll Moves the View: Cmd+wheel / sideways / wheel) |
 
 ## Mappings
 

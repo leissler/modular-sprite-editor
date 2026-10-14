@@ -6,6 +6,7 @@ import wx
 
 from ui import app_services
 from ui.dpi import px
+from ui.preferences import config
 
 # Integer levels keep every source pixel the same size on screen (nearest-neighbour scaling).
 ZOOM_LEVELS = (0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 32.0)
@@ -47,6 +48,34 @@ def snap_zoom_level(zoom: float, gesture_start: float, levels) -> float:
         idx = min(len(ordered) - 1, idx + 1) if moved > 0 else max(0, idx - 1)
         target = ordered[idx]
     return target
+
+
+class ScrollSetting:
+    """View ▸ Scroll Moves the View: whether the mouse wheel and two-finger scroll move every view (pinch or Cmd+scroll
+    zooms) or zoom it (Shift / Alt + scroll moves). Off by default; kept in the preferences."""
+
+    KEY = "View/ScrollMoves"
+
+    def __init__(self) -> None:
+        self._moves: Optional[bool] = None
+
+    @property
+    def moves(self) -> bool:
+        if self._moves is None:
+            store = config()
+            if store is None:  # no wx.App yet: the default, read again later
+                return False
+            self._moves = bool(store.ReadBool(self.KEY, False))
+        return self._moves
+
+    def set(self, moves: bool) -> None:
+        self._moves = bool(moves)
+        store = config()
+        if store is not None:
+            store.WriteBool(self.KEY, self._moves)
+
+
+SCROLL = ScrollSetting()
 
 
 def grid_step(spacing: float, zoom: float, min_gap: float) -> float:
@@ -387,9 +416,12 @@ class BaseCanvas(wx.Panel):
             return
 
         horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
-        if not self._wheel_filter.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
+        moves = SCROLL.moves
+        zooming = (event.CmdDown() and not horizontal) if moves else not (horizontal or event.ShiftDown() or event.AltDown())
+        # One axis per gesture while zooming, and while scrolling zooms; moving the view goes both ways at once.
+        if (zooming or not moves) and not self._wheel_filter.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
             return
-        if horizontal or event.ShiftDown() or event.AltDown():
+        if not zooming:
             # Pan: one notch moves ~48 screen pixels.
             delta_px = (rotation / 120.0) * 48.0
             if horizontal:

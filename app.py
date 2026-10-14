@@ -20,6 +20,7 @@ import wx.lib.agw.flatnotebook as fnb
 from models import FModule, Project, generate_id
 from ui import app_services, autosave, preferences
 from ui.animation_editor.panel import AnimationEditorPanel
+from ui.base_canvas import SCROLL
 from ui.canvas import BUDGET
 import project_check
 from ui.check_dialog import CheckProjectDialog
@@ -31,7 +32,7 @@ from ui.frame_editor.panel import FrameEditorPanel
 from ui.mapping_editor.panel import MappingEditorPanel
 from ui.module_editor.panel import ModuleEditorPanel
 from ui.project_history import ProjectHistory
-from ui.shortcuts_dialog import ShortcutsDialog
+from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
 from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
@@ -428,6 +429,13 @@ class MainFrame(wx.Frame):
         for asset in self.project.images:
             if asset.id not in self._image_stamps:
                 self._image_stamps[asset.id] = image_stamp(asset.file_path)
+
+    def set_scroll_moves(self, moves: bool) -> None:
+        """View ▸ Scroll Moves the View (kept in the preferences)."""
+        SCROLL.set(moves)
+        self.m_scroll_moves.Check(moves)
+        self.set_status(f"Scrolling moves the view; pinch or {MOD}+scroll zooms" if moves
+                        else "Scrolling zooms; Shift / Alt + scroll moves the view")
 
     def set_console_colours(self, shown: bool) -> None:
         """View ▸ Mega Drive Colours: every canvas shows the art through the export's palettes."""
@@ -847,6 +855,10 @@ class MainFrame(wx.Frame):
         self.m_console = view_menu.AppendCheckItem(
             wx.ID_ANY, "Mega Drive Colours\tCtrl+Shift+P",
             "Show the art as the console will: each image's palette, 15 colours each, 3 bits per channel")
+        self.m_scroll_moves = view_menu.AppendCheckItem(
+            wx.ID_ANY, "Scroll Moves the View",
+            f"Mouse wheel and two-finger scroll move the view; pinch or {MOD}+scroll zooms (off: scrolling zooms)")
+        self.m_scroll_moves.Check(SCROLL.moves)
         view_menu.AppendSeparator()
         for idx, name in enumerate(TAB_NAMES):
             item = view_menu.Append(wx.ID_ANY, f"{name}\tCtrl+{idx + 1}")
@@ -857,6 +869,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self._view_command(lambda c: c.set_zoom_level(1.0)), m_zoom_1x)
         self.Bind(wx.EVT_MENU, self.on_toggle_grid, m_grid)
         self.Bind(wx.EVT_MENU, lambda e: self.set_console_colours(e.IsChecked()), self.m_console)
+        self.Bind(wx.EVT_MENU, lambda e: self.set_scroll_moves(e.IsChecked()), self.m_scroll_moves)
         menubar.Append(view_menu, "&View")
 
         tools_menu = wx.Menu()

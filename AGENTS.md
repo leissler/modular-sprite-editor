@@ -242,7 +242,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   DC, which Windows gives 96 dpi: `measure_tabs_on_screen` measures them where they are drawn.
 - **Canvases** subclass `BaseCanvas`. In mouse handlers start with
   `if self.begin_pan_if_requested(event): return` and `if self.handle_pan_motion(event): return`.
-  Implement `get_content_bounds()` for Fit. Wheel/pinch zoom is continuous during a gesture and snaps to
+  Implement `get_content_bounds()` for Fit. The wheel follows `base_canvas.SCROLL` (View ▸ Scroll Moves the View:
+  scrolling moves, pinch / Cmd+scroll zooms); widgets with wheel handling of their own (the step sequence, the
+  timeline) read it too. Wheel/pinch zoom is continuous during a gesture and snaps to
   an integer level (`ZOOM_LEVELS`) ~180 ms after it stops (`snap_zoom_level`); `WheelGestureFilter` locks
   each trackpad gesture to one axis. Programmatic zoom uses `zoom_step` / `set_zoom_level`.
 - **Backdrop vs. key colour** are separate: `BaseCanvas.backdrop` (checker / solid colour, chosen in the view

@@ -8,7 +8,7 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 import wx
 
 from models import TimelineObject, TimelineScene
-from ui.base_canvas import WheelGestureFilter
+from ui.base_canvas import SCROLL, WheelGestureFilter
 from ui.scene_editor import ops
 from ui.dpi import px, pxf
 
@@ -559,16 +559,21 @@ class TimelineWidget(wx.Panel):
         if rotation == 0:
             return
         horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
-        if not self._wheel_filter.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
+        pos = event.GetPosition()
+        moves = SCROLL.moves  # View ▸ Scroll Moves the View: scrolling scrolls, Cmd+scroll zooms
+        if moves:
+            zooming = event.CmdDown() and not horizontal and pos.x >= self.left_w
+        else:
+            zooming = not (horizontal or event.ShiftDown() or event.AltDown() or pos.x < self.left_w)
+        if (zooming or not moves) and not self._wheel_filter.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
             return
         notches = rotation / float(max(1, event.GetWheelDelta()))
-        pos = event.GetPosition()
-        if horizontal or event.ShiftDown():
-            self.set_scroll(x=self.scroll_x + notches * max(pxf(48.0), self.frame_w * 3.0))
-        elif pos.x < self.left_w or event.AltDown():
-            self.set_scroll(y=self.scroll_y - notches * self.row_h)
-        else:
+        if zooming:
             self.set_frame_width(self.frame_w * math.pow(1.1, notches), anchor_x=pos.x)
+        elif horizontal or event.ShiftDown():
+            self.set_scroll(x=self.scroll_x + notches * max(pxf(48.0), self.frame_w * 3.0))
+        else:
+            self.set_scroll(y=self.scroll_y - notches * self.row_h)
 
     def _on_capture_lost(self, _event: wx.MouseCaptureLostEvent) -> None:
         self._mode = None

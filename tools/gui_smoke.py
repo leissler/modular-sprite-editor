@@ -1501,6 +1501,59 @@ def run():
 
     step("splitters remember their heights", splitter_memory)
 
+    def scroll_choice():
+        """View ▸ Scroll Moves the View: scrolling moves every view and Cmd+scroll zooms; off, scrolling zooms."""
+        from ui.base_canvas import SCROLL
+
+        def wheel(widget, handler, cmd=False):
+            evt = wx.MouseEvent(wx.wxEVT_MOUSEWHEEL)
+            evt.SetWheelRotation(120)
+            evt.SetWheelDelta(120)
+            evt.SetWheelAxis(wx.MOUSE_WHEEL_VERTICAL)
+            evt.SetControlDown(cmd)
+            size = widget.GetClientSize()
+            evt.SetPosition(wx.Point(size.width * 2 // 3, size.height // 2))
+            handler(evt)
+            pump(1)
+
+        before = SCROLL.moves
+        try:
+            frame.select_tab(1)
+            pump(2)
+            st = frame.frame_editor.stage
+            st.set_zoom_level(4.0)  # room to zoom both ways (a fit can sit at the maximum)
+            frame.set_scroll_moves(False)
+            zoom = st.zoom
+            wheel(st, st.on_mousewheel)
+            check(st.zoom != zoom, "scrolling zooms (the default)")
+            frame.set_scroll_moves(True)
+            check(wx.Config.Get().ReadBool(SCROLL.KEY, False), "the choice is kept in the preferences")
+            zoom, pan = st.zoom, tuple(st.pan)
+            wheel(st, st.on_mousewheel)
+            check(st.zoom == zoom and tuple(st.pan) != pan, "with Scroll Moves the View, scrolling moves the stage")
+            wheel(st, st.on_mousewheel, cmd=True)
+            check(st.zoom != zoom, "Cmd+scroll zooms")
+            frame.select_tab(2)
+            pump(2)
+            seq = frame.animation_editor.sequence
+            tick_w = seq.tick_w
+            wheel(seq, seq._on_wheel)
+            check(seq.tick_w == tick_w, "the step sequence scrolls instead of zooming")
+            wheel(seq, seq._on_wheel, cmd=True)
+            check(seq.tick_w != tick_w, "Cmd+scroll zooms the step sequence")
+            frame.select_tab(3)
+            pump(2)
+            tl = frame.timeline_editor.timeline
+            frame_w = tl.frame_w
+            wheel(tl, tl._on_wheel)
+            check(tl.frame_w == frame_w, "the timeline scrolls instead of zooming")
+            wheel(tl, tl._on_wheel, cmd=True)
+            check(tl.frame_w != frame_w, "Cmd+scroll zooms the timeline")
+        finally:
+            frame.set_scroll_moves(before)
+
+    step("scrolling moves or zooms (View menu)", scroll_choice)
+
     def open_foreign_file():
         """Opening another editor's file imports it: Save asks for a new file instead of writing over that one."""
         saved_recent = list(frame.recent_files)

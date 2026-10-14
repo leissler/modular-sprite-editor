@@ -11,7 +11,7 @@ import wx
 from models import Animation, ModuleMapping, Project
 from ui.animation_editor import ops
 from ui.animation_editor.render import StepRenderer
-from ui.base_canvas import WheelGestureFilter
+from ui.base_canvas import SCROLL, WheelGestureFilter
 from ui.dpi import px, pxf
 
 COL_BG = wx.Colour(34, 35, 38)
@@ -521,13 +521,15 @@ class SequenceWidget(wx.Panel):
         if rotation == 0:
             return
         horizontal = event.GetWheelAxis() == wx.MOUSE_WHEEL_HORIZONTAL
-        if not self._wheel.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
+        moves = SCROLL.moves  # View ▸ Scroll Moves the View: scrolling scrolls, Cmd+scroll zooms
+        zooming = event.CmdDown() if moves else not (horizontal or event.ShiftDown())
+        if (zooming or not moves) and not self._wheel.accept(horizontal, rotation, wheel_delta=event.GetWheelDelta()):
             return
         notches = rotation / float(max(1, event.GetWheelDelta()))
-        if horizontal or event.ShiftDown():
-            self.set_scroll(self.scroll_x + notches * max(48.0, self.tick_w))
-        else:
+        if zooming:
             self.zoom_at(1.1 ** notches, event.GetPosition().x)
+        else:  # the strip only scrolls sideways: a wheel turned down moves it on
+            self.set_scroll(self.scroll_x + (notches if horizontal or not moves else -notches) * max(pxf(48.0), self.tick_w))
 
     # ------------------------------------------------------------------ drops from the library
     def drag_over(self, x: int) -> None:

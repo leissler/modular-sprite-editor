@@ -204,8 +204,8 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 | **General** | New / Open / Save / Save As | `Cmd+N` / `Cmd+O` / `Cmd+S` / `Cmd+Shift+S` |
 | | Undo / Redo (all editors) | `Cmd+Z` / `Cmd+Shift+Z` |
 | | Switch tab | `Cmd+1` … `Cmd+5` |
-| **Canvas** | Zoom at cursor (settles on whole pixel sizes) | `Mouse Wheel` / two-finger scroll / pinch |
-| | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` |
+| **Canvas** | Zoom at cursor (settles on whole pixel sizes) | `Mouse Wheel` / two-finger scroll / pinch (with View ▸ Scroll Moves the View: pinch / `Cmd/Ctrl + Wheel`) |
+| | Pan | `Space + Drag`, `Alt + Drag`, `Middle Mouse Drag`, `Shift+Wheel` (with Scroll Moves the View: plain scroll) |
 | | Fit / Actual pixels / Grid | `Cmd+0` / `Cmd+Shift+0` / `Cmd+G` |
 | | Mega Drive colours | `Cmd+Shift+P` |
 | **Modules** | New module / move / resize | Drag on the image / drag a module / drag a handle |

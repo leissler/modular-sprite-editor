@@ -364,6 +364,10 @@ suits a mouse wheel, but on a MacBook most people expect scroll to pan and pinch
 
 **Fix:** a preference ("Scroll: zoom / pan").
 
+**Done:** View ▸ Scroll Moves the View (kept in the preferences, off by default): scrolling then moves every canvas in
+both directions at once, pinch or Cmd+scroll zooms, and the Animations step sequence and the Timeline scroll on a plain
+scroll and zoom time with Cmd. Smoke test step "scrolling moves or zooms".
+
 ### U6 (Low) Window and view memory
 
 The window always opens at 1500×980 ([app.py:134](../app.py)), larger than many laptop screens, and its size and
