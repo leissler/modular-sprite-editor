@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import playback
-from models.core import ModuleMapping, PaletteSwap, generate_id
+from models.core import ControlPoint, Frame, ModuleMapping, PaletteSwap, generate_id
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -53,6 +53,19 @@ TIMELINE_EASINGS = (
     "bounce_out",
     "bounce_in_out",
 )
+
+
+def find_point(frame: Optional[Frame], role: str, type_id: Optional[str] = None) -> Optional[ControlPoint]:
+    """The frame's first point with this role (and type, None = any)."""
+    if frame is None or not role:
+        return None
+    return next((p for p in frame.control_points
+                 if p.role == role and (type_id is None or p.type_id == type_id)), None)
+
+
+def state_shows(state: Optional[Dict[str, Any]]) -> bool:
+    """Whether an evaluated object shows: visible at its keys, and (following a point) its parent's frame has it."""
+    return bool(state) and bool(state.get("visible", True)) and not state.get("attach_missing", False)
 
 
 def _timeline_clamp01(value: float) -> float:
@@ -317,6 +330,9 @@ class TimelineObject:
     use_source_root_motion: bool = False
     mapping_id: Optional[str] = None
     palette_swap_id: Optional[str] = None  # like mapping_id: None inherits, TIMELINE_MAPPING_ORIGINAL, or a swap's id
+    # Attachment: follow the parent's current frame's point of this role (and type, None = any); "" = not attached.
+    attach_point_role: str = ""
+    attach_point_type: Optional[str] = None
     keyframes: List[TimelineKeyframe] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -328,6 +344,8 @@ class TimelineObject:
             "source_id": self.source_id,
             "mapping_id": self.mapping_id,
             "palette_swap_id": self.palette_swap_id,
+            "attach_point_role": self.attach_point_role,
+            "attach_point_type": self.attach_point_type,
             "draw_order": self.draw_order,
             "playback_offset": self.playback_offset,
             "playback_speed": self.playback_speed,
@@ -371,6 +389,8 @@ class TimelineObject:
             use_source_root_motion=bool(data.get("use_source_root_motion", False)),
             mapping_id=str(data.get("mapping_id")) if data.get("mapping_id") else None,
             palette_swap_id=str(data.get("palette_swap_id")) if data.get("palette_swap_id") else None,
+            attach_point_role=str(data.get("attach_point_role", "") or "").strip(),
+            attach_point_type=str(data.get("attach_point_type")) if data.get("attach_point_type") else None,
             keyframes=keyframes,
         )
 
@@ -582,6 +602,27 @@ class TimelineScene:
         return (resolved_type, resolved_id, started_at)
 
     def evaluate_object_state(self, project: "Project", object_id: str, time: float) -> Optional[Dict[str, Any]]:
+        """The object at ``time``: its pose from the keys, what its source shows, and when it follows a point of its
+        parent's frame, where that point is (``attach_offset``; ``attach_missing`` while the frame has none)."""
+        state = self._evaluate_pose(project, object_id, time)
+        obj = self.get_object(object_id)
+        if state is not None and obj is not None and obj.attach_point_role and obj.parent_id:
+            point = self.attachment_point(project, obj, time)
+            state["attach_offset"] = (float(point.x), float(point.y)) if point else (0.0, 0.0)
+            state["attach_missing"] = point is None
+        return state
+
+    def attachment_point(self, project: "Project", obj: "TimelineObject", time: float) -> Optional[ControlPoint]:
+        """The point of the parent's current frame that ``obj`` follows (None: it follows none, or the frame has
+        none). The parent's own attachment does not move the point within its frame."""
+        if not obj.attach_point_role or not obj.parent_id:
+            return None
+        parent_state = self._evaluate_pose(project, obj.parent_id, time)
+        frame_id = parent_state.get("frame_id") if parent_state else None
+        frame = project.get_frame(str(frame_id)) if frame_id else None
+        return find_point(frame, obj.attach_point_role, obj.attach_point_type)
+
+    def _evaluate_pose(self, project: "Project", object_id: str, time: float) -> Optional[Dict[str, Any]]:
         obj = self.get_object(object_id)
         if not obj:
             return None

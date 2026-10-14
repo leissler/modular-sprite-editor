@@ -103,10 +103,61 @@ class TestSceneObjectTransforms(unittest.TestCase):
         ):
             state = {"x": 100.0, "y": -20.0, "rotation_degrees": rotation, "flip_x": flip_x, "flip_y": flip_y,
                      "source_offset": (10.0, -3.0), "source_flip_x": source_flip, "source_flip_y": False,
-                     "source_rotation": source_rotation}
-            with self.subTest(**{k: v for k, v in state.items() if k != "source_offset"}):
+                     "source_rotation": source_rotation, "attach_offset": (5.0, -7.0)}
+            with self.subTest(**{k: v for k, v in state.items() if k not in ("source_offset", "attach_offset")}):
                 for v1, v2 in zip(sg.SGDKBakeContext._build_local_matrix(state), ops.local_matrix(state)):
                     self.assertAlmostEqual(v1, v2, places=9)
+
+
+
+class TestAttachedObjects(unittest.TestCase):
+    def test_an_object_follows_its_parents_point(self):
+        """A sword on the hero's hand point: it moves with the point from step to step, mirrors with the hero and
+        hides on the step whose frame has no such point; the export bakes it where the stage shows it."""
+        import export_sgdk_example as sg
+        from models import AFrame, Animation, ControlPoint, PointType
+        from ui.scene_editor import ops
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = _project(Path(tmp))
+            project.timeline_scenes.clear()
+            small = project.modules[0]
+            project.point_types.append(PointType("pt_hand", "Hand", (0, 0, 255)))
+            frames = []
+            for i, point in enumerate([(12, 4), (20, 6), None]):
+                frame = project.create_frame(f"hero {i}")
+                frame.fmodules.append(FModule(id=f"h{i}", ref_type="module", ref_id=small.id, position=(0, 0)))
+                if point:
+                    frame.control_points.append(ControlPoint(f"cp{i}", "pt_hand", point[0], point[1], role="hand"))
+                frames.append(frame)
+            project.animations.append(Animation(id="swing", name="swing", fps=10, aframes=[
+                AFrame(frame_id=f.id, duration_frames=1) for f in frames]))
+            scene = project.create_timeline_scene("Duel")
+            scene.fps, scene.duration_seconds = 10, 0.3  # three samples, one per step
+            hero = scene.create_object("Hero", "animation", "swing")
+            hero.keyframes = [TimelineKeyframe(id="k_hero", time=0.0, x=100.0)]
+            sword = scene.create_object("Sword", "frame", project.frames[0].id, parent_id=hero.id)
+            sword.keyframes = [TimelineKeyframe(id="k_sword", time=0.0)]
+            sword.attach_point_role = "hand"
+
+            def baked():
+                ctx = sg.SGDKBakeContext(project, [None], Path(tmp) / "out")
+                ctx.bake()
+                record = ctx.scene_records[-1]
+                out = []
+                for sample in ctx.scene_samples[record.first_sample:record.first_sample + record.sample_count]:
+                    span = ctx.render_frames[sample]
+                    out.append(sorted((x, y) for _v, x, y, _h, _f in ctx.parts[span.first_part:span.first_part + span.part_count]))
+                return out
+
+            self.assertEqual(baked(), [[(100, 0), (112, 4)], [(100, 0), (120, 6)], [(100, 0)]])
+            states = ops.evaluate_states(project, scene, 0.1)
+            self.assertEqual(ops.world_matrix(scene, states, sword.id)[4:], (120.0, 6.0), "the stage agrees")
+            hidden = ops.evaluate_states(project, scene, 0.2)[sword.id]
+            self.assertTrue(hidden["attach_missing"])
+            self.assertTrue(hidden["visible"], "the key's own visibility stays (a new key keeps it)")
+            hero.keyframes[0].flip_x = True  # the point's pixel mirrors to -x - 1: the sword's origin lands on -x
+            self.assertEqual(baked(), [[(80, 4), (92, 0)], [(72, 6), (92, 0)], [(92, 0)]])
 
 
 if __name__ == "__main__":

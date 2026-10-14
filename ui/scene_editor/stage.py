@@ -8,7 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import wx
 
 import consoles
-from models import FModule, ModuleMapping, PaletteSwap, Project, TimelineKeyframe, TimelineObject, TimelineScene
+from models import (
+    FModule, ModuleMapping, PaletteSwap, Project, TimelineKeyframe, TimelineObject, TimelineScene, state_shows,
+)
 from hardware_budget import Budget, HwPart
 from ui import first_steps
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
@@ -195,7 +197,7 @@ class StageCanvas(FrameCanvas):
             if obj.id not in states or self._is_hidden(obj):
                 continue
             state = states[obj.id]
-            if not state.get("visible", True):
+            if not state_shows(state):
                 continue
             world = ops.world_matrix(self.scene, states, obj.id, cache)
             with self.drawing_mapping(self.object_mapping(obj.id)), self.drawing_palette_swap(self.object_swap(obj.id)):
@@ -239,7 +241,7 @@ class StageCanvas(FrameCanvas):
         parts: List[HwPart] = []
         for obj, _depth, _kids in ops.tree_rows(self.scene, set()):
             state = states.get(obj.id)
-            if not state or self._is_hidden(obj) or not state.get("visible", True):
+            if not state_shows(state) or self._is_hidden(obj):
                 continue
             offset, rotation, flip_x, flip_y = self._matrix_to_frame_transform(ops.world_matrix(self.scene, states, obj.id, cache))
             a, b = transform(flip_x, flip_y, rotation, offset)
@@ -320,9 +322,10 @@ class StageCanvas(FrameCanvas):
         parent_cache: Dict[int, ops.Matrix] = {}
 
         def parent_at(frame: int) -> ops.Matrix:
+            """Where the keys live at a frame: the parent's space (on its point when the object follows one)."""
             if frame not in parent_cache:
                 parent_cache[frame] = (
-                    ops.parent_world_matrix(self.project, self.scene, obj, ops.time_of(frame, fps)) if obj.parent_id else ops.IDENTITY
+                    ops.key_space_matrix(self.project, self.scene, obj, ops.time_of(frame, fps)) if obj.parent_id else ops.IDENTITY
                 )
             return parent_cache[frame]
 

@@ -1010,11 +1010,16 @@ class SceneEditorPanel(wx.Panel):
             if obj.source_type == "none":
                 obj.source_id = None
         elif field == "parent":
-            if not ops.move_layer(self.project, scene, obj.id, value, None):
+            if not ops.move_layer(self.project, scene, obj.id, value, None):  # (it stops following a point)
                 self.refresh()
                 return
             if value:
                 self.collapsed_ids.discard(value)
+        elif field == "attach":
+            role, type_id = value
+            ops.set_attachment(self.project, scene, obj, role, type_id, ops.time_of(self.frame, scene.fps))
+            if role:
+                app_services.show_status(f"'{obj.name}' follows the point '{role}' of its parent's frames")
         elif field in GROUP_FIELDS:  # with several layers selected: all of them
             for target in [o for o in (scene.get_object(i) for i in self.selected_object_ids) if o] or [obj]:
                 if field == "playback_mode":

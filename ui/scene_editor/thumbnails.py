@@ -7,7 +7,7 @@ from typing import Any, List, Optional, Tuple
 
 import compositor
 import hardware_budget as hb
-from models import Project, TimelineScene
+from models import Project, TimelineScene, state_shows
 from ui.frame_render import SHARED
 from ui.scene_editor import ops
 
@@ -28,7 +28,7 @@ def scene_picture(project: Project, scene: TimelineScene, time: float = 0.0) -> 
     pieces: List[Tuple[Any, int, int]] = []
     for obj, _depth, _kids in ops.tree_rows(scene, set()):
         state = states.get(obj.id)
-        if not state or not bool(state.get("visible", True)):
+        if not state_shows(state):
             continue
         offset, rotation, flip_x, flip_y = hb._decompose(ops.world_matrix(scene, states, obj.id, cache))
         a, b = hb.frame_transform(offset, rotation, flip_x, flip_y)

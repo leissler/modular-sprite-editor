@@ -27,7 +27,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import compositor  # noqa: E402
 from models import (  # noqa: E402
-    TIMELINE_MAPPING_ORIGINAL, Frame, Module, ModuleMapping, PaletteSwap, Project, TimelineScene,
+    TIMELINE_MAPPING_ORIGINAL, Frame, Module, ModuleMapping, PaletteSwap, Project, TimelineScene, state_shows,
 )
 import palettes  # noqa: E402
 import project_check  # noqa: E402
@@ -864,7 +864,9 @@ class SGDKBakeContext:
             float(source_offset[0]), float(source_offset[1]), float(state.get("source_rotation", 0.0)),
             bool(state.get("source_flip_x", False)), bool(state.get("source_flip_y", False)),
         )
-        return SGDKBakeContext._compose_matrix(pose, source)
+        a, b, c, d, tx, ty = SGDKBakeContext._compose_matrix(pose, source)
+        ax, ay = state.get("attach_offset", (0.0, 0.0))  # following a point of the parent's frame
+        return (a, b, c, d, tx + float(ax), ty + float(ay))
 
     @staticmethod
     def _pose_matrix(tx: float, ty: float, rotation: float, flip_x: bool, flip_y: bool) -> Matrix2x3:
@@ -973,7 +975,7 @@ class SGDKBakeContext:
         world_cache: Dict[str, Matrix2x3],
     ) -> Tuple[PartEntry, ...]:
         state = state_map.get(object_id)
-        if not state or not bool(state.get("visible", True)):
+        if not state_shows(state):
             return ()
         world_matrix = self._world_matrix_for_object(scene, state_map, object_id, world_cache)
         offset, rotation, flip_x, flip_y = self._decompose_matrix_to_frame_transform(world_matrix)

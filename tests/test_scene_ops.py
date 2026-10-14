@@ -226,6 +226,61 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(again[0].name, f"{c.name} copy", "next to the original: told apart")
 
 
+class TestAttachment(unittest.TestCase):
+    def _hero_and_sword(self):
+        from models import AFrame, Animation, ControlPoint, Frame, PointType
+
+        project, scene = _scene(fps=10, seconds=1.0)
+        project.point_types.append(PointType("pt_hand", "Hand", (0, 0, 255)))
+        for i, (x, y) in enumerate([(12, 4), (20, 6)]):
+            project.frames.append(Frame(f"f{i}", f"hero {i}", control_points=[
+                ControlPoint(f"c{i}", "pt_hand", x, y, role="hand"), ControlPoint(f"t{i}", "pt_hand", 0, 0, role="tip")]))
+        project.animations.append(Animation(id="swing", name="swing", fps=10, aframes=[
+            AFrame(frame_id="f0", duration_frames=1), AFrame(frame_id="f1", duration_frames=1)]))
+        hero = ops.add_object(project, scene, "animation", "swing", 0, (100, 50))
+        sword = ops.add_object(project, scene, "none", None, 0, (130, 40))
+        ops.move_layer(project, scene, sword.id, hero.id, None)
+        return project, scene, hero, sword
+
+    def test_roles_to_follow_come_from_the_parents_frames(self):
+        project, scene, hero, _sword = self._hero_and_sword()
+        self.assertEqual([f.id for f in ops.frames_shown(project, hero)], ["f0", "f1"])
+        self.assertEqual(ops.point_roles(project, hero), [("hand", "pt_hand", "hand (Hand)"), ("tip", "pt_hand", "tip (Hand)")])
+
+    def test_following_keeps_the_object_in_place_then_moves_it_with_the_point(self):
+        project, scene, hero, sword = self._hero_and_sword()
+        world = lambda t: ops.world_matrix(scene, ops.evaluate_states(project, scene, t), sword.id)[4:]  # noqa: E731
+        self.assertEqual(world(0.0), (130.0, 40.0))
+        ops.set_attachment(project, scene, sword, "hand", "pt_hand", 0.0)
+        self.assertEqual(world(0.0), (130.0, 40.0), "where it was at the playhead")
+        self.assertEqual(world(0.1), (138.0, 42.0), "then it follows the point (+8, +2)")
+        ops.set_attachment(project, scene, sword, "", None, 0.0)
+        self.assertEqual((world(0.0), world(0.1)), ((130.0, 40.0), (130.0, 40.0)), "let go where it was")
+
+    def test_a_new_parent_ends_following_and_keeps_the_keys_in_place(self):
+        project, scene, hero, sword = self._hero_and_sword()
+        ops.set_attachment(project, scene, sword, "hand", None, 0.0)
+        before = ops.world_matrix(scene, ops.evaluate_states(project, scene, 0.0), sword.id)
+        self.assertTrue(ops.move_layer(project, scene, sword.id, None, None))
+        self.assertEqual((sword.attach_point_role, sword.attach_point_type), ("", None))
+        after = ops.world_matrix(scene, ops.evaluate_states(project, scene, 0.0), sword.id)
+        for v1, v2 in zip(before, after):
+            self.assertAlmostEqual(v1, v2)
+
+    def test_check_project_finds_points_no_frame_has(self):
+        import project_check as pc
+
+        project, scene, hero, sword = self._hero_and_sword()
+        sword.attach_point_role = "saddle"
+        issues = [i for i in pc.check_project(project, pixels=False) if i.code == "missing-attachment-point"]
+        self.assertEqual(len(issues), 1)
+        self.assertIn("'saddle'", issues[0].text)
+        pc.fix(project, issues[0])
+        self.assertEqual(sword.attach_point_role, "")
+        sword.attach_point_role = "hand"
+        self.assertNotIn("missing-attachment-point", [i.code for i in pc.check_project(project, pixels=False)])
+
+
 class TestRootMotion(unittest.TestCase):
     def _fighter(self, offset=(10.0, -2.0), step_flip=False, step_rotation=0.0):
         from models import AFrame, Animation

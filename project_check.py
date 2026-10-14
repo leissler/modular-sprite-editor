@@ -378,7 +378,32 @@ def _check_scenes(project: Project) -> List[Issue]:
                 f"{_says(lost, 'inherits', 'inherit')} one instead.",
                 target, "clear-missing-object-swaps",
             ))
+        for obj in _lost_attachments(project, scene):
+            parent = scene.get_object(obj.parent_id) if obj.parent_id else None
+            issues.append(Issue(
+                WARNING, "missing-attachment-point",
+                f"Scene '{scene.name}': '{obj.name}' follows the point '{obj.attach_point_role}', which "
+                + (f"no frame of '{parent.name}' has, so it never shows." if parent else
+                   "belongs to a parent it no longer has, so it follows nothing."),
+                target, "stop-following",
+            ))
     return issues
+
+
+def _lost_attachments(project: Project, scene: Any) -> List[Any]:
+    """Scene objects that follow a point their parent's frames never have (or that have no parent)."""
+    from ui.scene_editor import ops as scene_ops  # wx-free
+
+    lost = []
+    for obj in scene.objects:
+        if not obj.attach_point_role:
+            continue
+        parent = scene.get_object(obj.parent_id) if obj.parent_id else None
+        roles = {(role, type_id) for role, type_id, _label in scene_ops.point_roles(project, parent)} if parent else set()
+        if not any(role == obj.attach_point_role and (obj.attach_point_type is None or type_id == obj.attach_point_type)
+                   for role, type_id in roles):
+            lost.append(obj)
+    return lost
 
 
 def _check_palette_swaps(project: Project) -> List[Issue]:
@@ -674,6 +699,17 @@ def _fix_object_swaps(project: Project, target: Optional[Target]) -> int:
     return changed
 
 
+def _fix_lost_attachments(project: Project, target: Optional[Target]) -> int:
+    changed = 0
+    for scene in project.timeline_scenes:
+        if target and target != ("scene", scene.id):
+            continue
+        for obj in _lost_attachments(project, scene):  # the point was never there: nothing moves
+            obj.attach_point_role, obj.attach_point_type = "", None
+            changed += 1
+    return changed
+
+
 def _fix_dead_swap_entries(project: Project, target: Optional[Target]) -> int:
     palette_ids = {p.id for p in project.palettes}
     changed = 0
@@ -769,6 +805,7 @@ FIXES: Dict[str, Tuple[str, Callable[[Project, Optional[Target]], int]]] = {
     "drop-dead-entries": ("Remove those entries", _fix_dead_entries),
     "clear-missing-object-mappings": ("Inherit the mapping", _fix_object_mappings),
     "clear-missing-object-swaps": ("Inherit the palette swap", _fix_object_swaps),
+    "stop-following": ("Stop following the point", _fix_lost_attachments),
     "drop-dead-swap-entries": ("Remove those changes", _fix_dead_swap_entries),
     "clear-missing-scene-sources": ("Clear those sources", _fix_missing_scene_sources),
     "remove-empty-hitboxes": ("Remove empty hitboxes", _fix_empty_hitboxes),

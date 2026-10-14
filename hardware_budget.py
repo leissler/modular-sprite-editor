@@ -28,7 +28,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import compositor
 import consoles
 import palettes
-from models import Frame, ModuleMapping, Project
+from models import Frame, ModuleMapping, Project, state_shows
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
@@ -461,7 +461,7 @@ def scene_uses(project: Project, scene: Any, mapping: Optional[ModuleMapping]) -
         uses: List[Tuple[str, Any, Any, Matrix, Tuple[float, float]]] = []
         for obj in scene.objects:
             state = states.get(obj.id)
-            if not state or not bool(state.get("visible", True)):
+            if not state_shows(state):
                 continue
             offset, rotation, flip_x, flip_y = _decompose(scene_ops.world_matrix(scene, states, obj.id, cache))
             a, b = frame_transform(offset, rotation, flip_x, flip_y)

@@ -38,6 +38,8 @@ from models.timeline import (
     TimelineObject,
     TimelineScene,
     apply_timeline_easing,
+    find_point,
+    state_shows,
 )
 
 __all__ = [
@@ -71,4 +73,6 @@ __all__ = [
     "TimelineObject",
     "TimelineScene",
     "apply_timeline_easing",
+    "find_point",
+    "state_shows",
 ]

@@ -390,12 +390,15 @@ def source_matrix(state: Dict[str, Any]) -> Matrix:
 
 def local_matrix(state: Dict[str, Any]) -> Matrix:
     """Object transform for an evaluated state: the key's pose applied to what the source adds, so a mirrored or
-    turned object also mirrors or turns where its animation moves it (like a mirrored parent its children)."""
+    turned object also mirrors or turns where its animation moves it (like a mirrored parent its children). An
+    object that follows a point of its parent's frame sits on it (``attach_offset``, in the parent's space)."""
     pose = pose_matrix(
         float(state.get("x", 0.0)), float(state.get("y", 0.0)), float(state.get("rotation_degrees", 0.0)),
         bool(state.get("flip_x", False)), bool(state.get("flip_y", False)),
     )
-    return compose(pose, source_matrix(state))
+    a, b, c, d, tx, ty = compose(pose, source_matrix(state))
+    ax, ay = state.get("attach_offset", (0.0, 0.0))
+    return (a, b, c, d, tx + float(ax), ty + float(ay))
 
 
 def compose(parent: Matrix, child: Matrix) -> Matrix:
@@ -486,6 +489,15 @@ def parent_world_matrix(project: Project, scene: TimelineScene, obj: TimelineObj
     return world_matrix(scene, states, obj.parent_id) if obj.parent_id else IDENTITY
 
 
+def key_space_matrix(project: Project, scene: TimelineScene, obj: TimelineObject, time_value: float) -> Matrix:
+    """Where the object's key positions live at a time: its parent's space, moved onto the parent's point when the
+    object follows one."""
+    states = evaluate_states(project, scene, time_value)
+    a, b, c, d, tx, ty = world_matrix(scene, states, obj.parent_id) if obj.parent_id else IDENTITY
+    ax, ay = (states.get(obj.id) or {}).get("attach_offset", (0.0, 0.0))
+    return (a, b, c, d, tx + a * float(ax) + c * float(ay), ty + b * float(ax) + d * float(ay))
+
+
 def world_to_parent_delta(parent: Matrix, dx: float, dy: float) -> Tuple[float, float]:
     """Convert a world-space drag delta into the parent's local space."""
     inv = invert((parent[0], parent[1], parent[2], parent[3], 0.0, 0.0))
@@ -495,7 +507,8 @@ def world_to_parent_delta(parent: Matrix, dx: float, dy: float) -> Tuple[float, 
 def set_parent_keep_world(
     project: Project, scene: TimelineScene, obj: TimelineObject, new_parent_id: Optional[str]
 ) -> bool:
-    """Re-parent an object; every key is rewritten so the object stays where it is on stage."""
+    """Re-parent an object; every key is rewritten so the object stays where it is on stage. It stops following a
+    point (the point was the old parent's)."""
     if new_parent_id == obj.id or (new_parent_id and not scene.get_object(new_parent_id)):
         return False
     if new_parent_id and is_descendant(scene, obj.id, new_parent_id):
@@ -522,6 +535,7 @@ def set_parent_keep_world(
         key.flip_x = bool(flip_x)
         key.flip_y = bool(flip_y)
     obj.parent_id = new_parent_id
+    obj.attach_point_role, obj.attach_point_type = "", None  # its keys hold where the point put it
     return True
 
 
@@ -668,6 +682,60 @@ def clear_sources(project: Project, source_type: str, ids: Iterable[str]) -> int
                 obj.source_type, obj.source_id = "none", None
                 cleared += 1
     return cleared
+
+
+def frames_shown(project: Project, obj: TimelineObject) -> List[Any]:
+    """Every frame an object can show: its frame, or the frames of its animations (key swaps and the animations
+    they continue with included)."""
+    frames: Dict[str, Any] = {}
+    pending = [(obj.source_type, obj.source_id)] + [(k.source_type, k.source_id) for k in obj.keyframes
+                                                     if k.source_type is not None]
+    seen: Set[str] = set()
+    while pending:
+        kind, ident = pending.pop(0)  # in the order they show
+        if kind == "frame" and ident and project.get_frame(ident) is not None:
+            frames.setdefault(ident, project.get_frame(ident))
+        elif kind == "animation" and ident and ident not in seen:
+            seen.add(ident)
+            anim = project.get_animation(ident)
+            if anim is not None:
+                for af in anim.aframes:
+                    pending.append(("frame", af.frame_id))
+                pending.append(("animation", anim.next_animation_id))
+    return list(frames.values())
+
+
+def point_roles(project: Project, obj: TimelineObject) -> List[Tuple[str, Optional[str], str]]:
+    """The point roles the frames of ``obj`` carry, for a child to follow: (role, type id, label)."""
+    types = {t.id: t.name for t in project.point_types}
+    found: Dict[Tuple[str, Optional[str]], str] = {}
+    for frame in frames_shown(project, obj):
+        for point in frame.control_points:
+            if point.role:
+                found.setdefault((point.role, point.type_id), f"{point.role} ({types.get(point.type_id, 'point')})")
+    return [(role, type_id, label) for (role, type_id), label in sorted(found.items(), key=lambda e: e[1].lower())]
+
+
+def set_attachment(project: Project, scene: TimelineScene, obj: TimelineObject, role: str,
+                   type_id: Optional[str], time_value: float) -> None:
+    """Follow a point of the parent's frame (``role`` "" = none). The object stays where it is at ``time_value``:
+    its keys move by the difference, later frames follow the point."""
+    def offset() -> Tuple[float, float]:
+        point = scene.attachment_point(project, obj, time_value)
+        return (float(point.x), float(point.y)) if point else (0.0, 0.0)
+
+    before = offset()
+    obj.attach_point_role = role.strip()
+    obj.attach_point_type = type_id if obj.attach_point_role else None
+    after = offset()
+    dx, dy = before[0] - after[0], before[1] - after[1]
+    if dx or dy:
+        for key in obj.keyframes:
+            key.x, key.y = float(key.x) + dx, float(key.y) + dy
+            if key.path_in is not None:
+                key.path_in = (float(key.path_in[0]) + dx, float(key.path_in[1]) + dy)
+            if key.path_out is not None:
+                key.path_out = (float(key.path_out[0]) + dx, float(key.path_out[1]) + dy)
 
 
 def top_objects(scene: TimelineScene, object_ids: Iterable[str]) -> List[TimelineObject]:

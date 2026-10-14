@@ -175,7 +175,7 @@ class TestFormatMigration(unittest.TestCase):
             self.assertEqual([i["palette_id"] for i in migrated["images"]], ["pal_1", "pal_3"])
             self.assertTrue(all("palette" not in i for i in migrated["images"]))
             obj = migrated["timeline_scenes"][0]["objects"][0]
-            self.assertIsNone(obj["palette_swap_id"])
+            self.assertEqual((obj["palette_swap_id"], obj["attach_point_role"], obj["attach_point_type"]), (None, "", None))
             self.assertEqual((migrated["console"], migrated["palette_swaps"]), ("megadrive", []))
 
             project = Project.from_dict(migrated, base_path=folder)  # the colours come from the images, as in format 6

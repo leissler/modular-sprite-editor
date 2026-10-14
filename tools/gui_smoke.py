@@ -1000,6 +1000,77 @@ def run():
 
     step("timeline: several layers (Cmd+click, marquee, arrows, copy into another scene, undo)", several_layers)
 
+    def attachment():
+        """A layer that follows a point of its parent's frames: the Follows choice, shown where the frame has the
+        point, hidden where it has none; undone."""
+        from ui.scene_editor import ops as scene_ops
+
+        te = frame.timeline_editor
+        frame.select_tab(3)
+        pump(3)
+        project = frame.project
+        scene = te.scene()
+        frame.history_checkpoint()
+        start = project_fingerprint(project)
+        if scene is None:
+            te.new_scene()
+            scene = te.scene()
+        hero = next((o for o in scene.objects if scene_ops.point_roles(project, o)), None)
+        if hero is None:  # a project without point roles: give the first layer's frame one
+            from models import ControlPoint, generate_id
+
+            art = next((f for f in project.frames if f.fmodules), None)
+            shown = next((o for o in scene.objects if scene_ops.frames_shown(project, o)), None)
+            if shown is None and art is not None:
+                te.add_object("frame", art.id, (0, 0))
+                shown = te.obj()
+            if shown is not None:
+                point_type = project.ensure_default_point_type()
+                scene_ops.frames_shown(project, shown)[0].control_points.append(
+                    ControlPoint(generate_id("cp"), point_type.id, 4, -8, role="smoke_hand"))
+                frame.history_checkpoint()
+                hero = shown
+        check(hero is not None, "a layer whose frames have points with roles")
+        if hero is None or not project.frames:
+            return
+        te.add_object("frame", project.frames[0].id, (0, 0))
+        child = te.obj()
+        te._on_object_field("parent", hero.id)
+        pump()
+        roles = scene_ops.point_roles(project, hero)
+        check(te.inspector.obj_follow.IsEnabled() and te.inspector.obj_follow.GetCount() == len(roles) + 1,
+              "Follows lists the point roles of the parent's frames")
+        role, type_id, _label = roles[0]
+        te._on_object_field("attach", (role, type_id))
+        check(child.attach_point_role == role and te.inspector.obj_follow.GetSelection() == 1, "the layer follows it")
+        frames = range(scene_ops.scene_length_frames(scene) + 1)
+        has = [f for f in frames if scene.attachment_point(project, child, scene_ops.time_of(f, scene.fps))]
+        lacks = [f for f in frames if f not in has]
+        from models import state_shows
+
+        for found, label in ((has, "shown where the parent's frame has the point"),
+                             (lacks, "hidden where it has none")):
+            if found:
+                drawn_before = te.stage._drawn_objects
+                te.seek(found[0])
+                te.stage.Refresh()
+                te.stage.Update()
+                pump(4)
+                state = scene_ops.evaluate_states(project, scene, scene_ops.time_of(found[0], scene.fps)).get(child.id)
+                check(state_shows(state) == (found is has), label)
+                if te.stage._drawn_objects is not drawn_before:  # the stage painted the frame (the list is new)
+                    drawn = any(item["object_id"] == child.id for item in te.stage._drawn_objects)
+                    check(drawn == (found is has), label + " (on the stage)")
+        check(bool(has), "frames with the point")
+        for _ in range(10):
+            if project_fingerprint(frame.project) == start:
+                break
+            frame.on_undo(None)
+        pump()
+        check(project_fingerprint(frame.project) == start, "undo back to the start")
+
+    step("timeline: a layer follows a point of its parent's frames", attachment)
+
     def slow_playback():
         # A slow machine: every frame takes longer to draw than the playback interval. Waiting for events while
         # playing must still return and frames must keep coming (on Windows wx.Yield never returned while the

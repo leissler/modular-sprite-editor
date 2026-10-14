@@ -195,9 +195,16 @@ class SceneInspector(wx.ScrolledWindow):
             "Module mapping this object and its children are drawn with (also in the SGDK export). "
             "Inherit: the parent's mapping, or for top-level objects the preview mapping chosen in the bar above."
         )
+        self.obj_follow = wx.Choice(p)
+        self.obj_follow.SetToolTip(
+            "Sit on a point of the parent's frame and follow it from frame to frame: a sword in a hand, a spark on a "
+            "blade, a rider in a saddle (also in the SGDK export). Points get their roles in the Frames tab. The "
+            "layer hides while the parent's frame has no such point.")
+        self._follow: List[Tuple[str, Optional[str]]] = [("", None)]
         row(g, p, "Name", self.obj_name)
         row(g, p, "Shows", self.obj_source)
         row(g, p, "Parent", self.obj_parent)
+        row(g, p, "Follows", self.obj_follow)
         row(g, p, "Mapping", self.obj_mapping)
         self.obj_swap = wx.Choice(p)
         self.obj_swap.SetToolTip(
@@ -355,6 +362,8 @@ class SceneInspector(wx.ScrolledWindow):
         text_commit(self.obj_name, lambda: self.on_object_change, "name")
         self.obj_source.Bind(wx.EVT_BUTTON, lambda e: self._pick_source("source"))
         self.obj_parent.Bind(wx.EVT_CHOICE, self._on_parent_choice)
+        self.obj_follow.Bind(wx.EVT_CHOICE, lambda e: self._emit(
+            self.on_object_change, "attach", self._follow[max(0, self.obj_follow.GetSelection())]))
         self.obj_mapping.Bind(wx.EVT_CHOICE, self._on_mapping_choice)
         self.obj_swap.Bind(wx.EVT_CHOICE, self._on_swap_choice)
         self.pb_mode.Bind(
@@ -535,6 +544,19 @@ class SceneInspector(wx.ScrolledWindow):
             labels.append("   " * depth + row_obj.name)
         self.obj_parent.SetItems(labels)
         self.obj_parent.SetSelection(self._parent_ids.index(obj.parent_id) if obj.parent_id in self._parent_ids else 0)
+
+        # Follows: the point roles of the parent's frames.
+        parent = scene.get_object(obj.parent_id) if obj.parent_id else None
+        roles = ops.point_roles(project, parent) if parent else []
+        self._follow = [("", None)] + [(role, type_id) for role, type_id, _label in roles]
+        labels = ["— nothing —" if parent else "— needs a parent —"] + [label for _r, _t, label in roles]
+        current = (obj.attach_point_role, obj.attach_point_type) if obj.attach_point_role else ("", None)
+        if current not in self._follow:
+            self._follow.append(current)
+            labels.append(f"{obj.attach_point_role} (no frame of the parent has it)")
+        self.obj_follow.SetItems(labels)
+        self.obj_follow.SetSelection(self._follow.index(current))
+        self.obj_follow.Enable(parent is not None)
 
         # Mapping: inherit (showing what that resolves to), original, or one of the project's mappings.
         inherited = scene.object_mapping(project, obj.parent_id, project.active_mapping) if obj.parent_id else project.active_mapping
