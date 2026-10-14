@@ -849,6 +849,7 @@ class ModuleEditorPanel(wx.Panel):
 
     def auto_modularize(self) -> None:
         """Cut this image's sprites into shared hardware-sized parts (preview first), on a new image."""
+        import modularize
         from ui.module_editor.modularize_dialog import ModularizeDialog
 
         asset = self.asset()
@@ -856,6 +857,8 @@ class ModuleEditorPanel(wx.Panel):
             app_services.show_status("Select an image to modularize.")
             return
         modules = [m for m in ops.modules_of_sheet(self.project, asset.id) if m.type == "MD_IMAGE"]
+        only_mapped = modularize.mapping_only(self.project, [m.id for m in modules])  # stay whole for their mappings
+        modules = [m for m in modules if m.id not in only_mapped]
         if not modules:
             app_services.show_status("This image has no modules yet: slice it or detect its sprites first, then modularize.")
             return
@@ -884,8 +887,8 @@ class ModuleEditorPanel(wx.Panel):
             text += f", {applied.new_frames} new frames"
         if applied.kept_modules:
             text += f", {applied.kept_modules} sprites kept whole (freely rotated in a frame)"
-        if applied.mapping_entries_removed:
-            text += f", {applied.mapping_entries_removed} mapping entries removed"
+        if applied.stand_ins:
+            text += f", {applied.stand_ins} stand-ins keep the mappings working"
         app_services.show_status(text + ".")
         return applied
 

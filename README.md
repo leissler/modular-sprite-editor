@@ -68,10 +68,11 @@ right-click › Open the first time.
 - **From sheet to animation in one step**: select a row of whole sprites and choose **New animation** (a frame for
   each, an animation through them), or let grid slice make a frame for every tile and an animation for every row.
 - **Auto Modularize** (Slice ▾ or Tools): cuts an image's whole sprites into hardware-sized parts they share, found at
-  any offset and also mirrored, on a new image, and rebuilds the frames from them pixel for pixel. A preview shows every
-  sprite's cut and the Mega Drive cost before and after (VRAM tiles, hardware sprites); one slider trades fewer tiles
-  against fewer hardware sprites. The Sonic example's 38 whole frames go from 869 to 655 tiles with fewer hardware
-  sprites per frame than its hand-cut version.
+  any offset and also mirrored (also under parts drawn later), on a new image, and rebuilds the frames from them pixel
+  for pixel. A preview shows every sprite's cut and the cost before and after on the console you choose (its sprite
+  sizes, video memory tiles, hardware sprites); one slider trades fewer tiles against fewer hardware sprites. Mappings
+  keep working. The Sonic example's 38 whole frames go from 713 to 588 tiles, or to 669 with fewer hardware sprites
+  per frame than its hand-cut version.
 - **Pivots**: Shift+drag, type them, or a 3×3 preset (bottom centre = feet on the origin); **Trim** shrinks modules to
   their pixels.
 - **Images list** with thumbnails, missing files flagged (**Locate…** relinks), key colour picked from the image;

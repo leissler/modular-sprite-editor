@@ -5,13 +5,18 @@ packed on one image), runs auto-modularisation on it and reports, next to the fl
 
 - exact: every frame, rendered again, equals the original pixel for pixel (anything else is a bug)
 - modules / module px: modules the frames use and their pixel area (the sheet you would keep)
-- tiles: unique 8x8 tiles in VRAM as the SGDK exporter bakes the frames (the Mega Drive's memory cost)
-- sprites: hardware sprites per frame, average / worst (the Mega Drive's per-frame cost)
+- tiles: unique 8x8 tiles in video memory for the frames (on the Mega Drive as the SGDK exporter bakes them; for
+  another console's budget profile, each distinct module image's tiles as its cut counts them)
+- sprites: hardware sprites per frame, average / worst (the console's per-frame cost)
 - parts: parts per frame, average / worst (CPU cost of drawing and of editing)
 - seconds: time the modulariser took
 
+Every row measures the frames alone: the modules they use, without the project's animations, scenes, mappings or
+unused modules, so the original project compares with the flattened and the modularised ones.
+
 Usage:
-    python3 tools/automod_bench.py PROJECT.json... [--config NAME]...   (configs: see CONFIGS)
+    python3 tools/automod_bench.py PROJECT.json... [--config NAME]... [--console PROFILE]   (configs: see CONFIGS;
+    profiles: the budget's, md_h40 by default)
     python3 tools/automod_bench.py examples/sonic/sonic.json examples/adventurer/adventurer.json examples/sgdk/PoP_WW.json
 """
 from __future__ import annotations
@@ -30,19 +35,21 @@ sys.path.insert(0, str(REPO / "examples" / "sgdk" / "tools"))
 
 from PIL import Image  # noqa: E402
 
+import hardware_budget  # noqa: E402
 from models import FModule, Frame, Project, generate_id  # noqa: E402
 
 PixelMap = Dict[Tuple[int, int], bytes]
 
-def _new(**settings: Any) -> Callable[[Project, str], Tuple[bool, str]]:
-    def run(project: Project, image_id: str) -> Tuple[bool, str]:
+
+def _new(**settings: Any) -> Callable[[Project, str, Any], Tuple[bool, str]]:
+    def run(project: Project, image_id: str, profile: Any) -> Tuple[bool, str]:
         import modularize
         from ui.frame_render import FrameRenderer
 
         renderer = FrameRenderer()
         modules = [m for m in project.modules if m.image_id == image_id and m.type == "MD_IMAGE"]
         sprites = {m.id: renderer.module(project, m) for m in modules}
-        result = modularize.plan(sprites, modularize.Settings(**settings))
+        result = modularize.plan(sprites, modularize.Settings(hardware=profile.hardware, **settings))
         sheet = Path(project.get_image(image_id).file_path).with_name(f"parts_{generate_id('sheet')}.png")
         modularize.apply_plan(project, image_id, [m.id for m in modules], result, str(sheet))
         return True, f"{len(result.parts)} parts"
@@ -51,7 +58,7 @@ def _new(**settings: Any) -> Callable[[Project, str], Tuple[bool, str]]:
 
 
 # The Auto Modularize dialog's goal stops (sprite_weight), sharing off, and the thorough search.
-CONFIGS: Dict[str, Callable[[Project, str], Tuple[bool, str]]] = {
+CONFIGS: Dict[str, Callable[[Project, str, Any], Tuple[bool, str]]] = {
     "fewest-tiles": _new(sprite_weight=0.25),
     "fewer-tiles": _new(sprite_weight=0.5),
     "balanced": _new(sprite_weight=2.0),
@@ -59,6 +66,7 @@ CONFIGS: Dict[str, Callable[[Project, str], Tuple[bool, str]]] = {
     "fewest-sprites": _new(sprite_weight=16.0),
     "balanced-no-sharing": _new(sprite_weight=2.0, share=False),
     "balanced-thorough": _new(sprite_weight=2.0, window=4),
+    "balanced-no-underdraw": _new(sprite_weight=2.0, underdraw=False),
 }
 DEFAULT_CONFIGS = ["fewer-tiles", "balanced", "fewer-sprites"]
 
@@ -118,9 +126,18 @@ def flatten(project: Project, workdir: Path) -> Tuple[Project, Dict[str, PixelMa
     return flat, originals
 
 
-def measure(project: Project, workdir: Path) -> Dict[str, Any]:
+def frames_only(project: Project, used: set) -> Project:
+    """The project as its frames need it: the modules they use, no animations, scenes or mappings."""
+    pruned = copy.deepcopy(project)
+    pruned.modules = [m for m in pruned.modules if m.id in used]
+    pruned.animations, pruned.timeline_scenes, pruned.mappings = [], [], []
+    return pruned
+
+
+def measure(project: Project, workdir: Path, profile: Any = None) -> Dict[str, Any]:
     import export_sgdk_example as sg
 
+    profile = profile or hardware_budget.MEGA_DRIVE_H40
     used = set()
     parts = []
 
@@ -138,12 +155,29 @@ def measure(project: Project, workdir: Path) -> Dict[str, Any]:
     for frame in project.frames:
         parts.append(leaf_parts(frame))
     area = sum(m.rect[2] * m.rect[3] for m in project.modules if m.id in used)
-    ctx = sg.SGDKBakeContext(project, [None], workdir)
-    ctx.bake()
-    sprites = [ctx.render_frame_extent(ctx.render_frames[i])[0] for i in ctx.frame_render_frames]
+    pruned = frames_only(project, used)
+    if profile.vram_tiles:  # the Mega Drive: exactly as the SGDK exporter bakes the frames
+        ctx = sg.SGDKBakeContext(pruned, [None], workdir)
+        ctx.bake()
+        tiles = len(ctx.tile_data) // 32
+        sprites = [ctx.render_frame_extent(ctx.render_frames[i])[0] for i in ctx.frame_render_frames]
+    else:
+        import modularize
+        from ui.frame_render import FrameRenderer
+
+        renderer, seen, tiles = FrameRenderer(), set(), 0
+        for mod in pruned.modules:
+            image = modularize._normalised(renderer.module(pruned, mod))
+            box = image.getchannel("A").getbbox()
+            digest = modularize._digest(image.crop(box)) if box else None
+            if digest and digest not in seen:
+                seen.add(digest)
+                tiles += modularize.part_tiles(image.crop(box), profile.hardware)[0]
+        calc = hardware_budget.BudgetCalculator()
+        sprites = [calc.frame_budget(pruned, frame, None, profile).sprite_count for frame in pruned.frames]
     n = max(1, len(project.frames))
     return {
-        "modules": len(used), "module_px": area, "tiles": len(ctx.tile_data) // 32,
+        "modules": len(used), "module_px": area, "tiles": tiles,
         "sprites_avg": sum(sprites) / n, "sprites_max": max(sprites, default=0),
         "parts_avg": sum(parts) / n, "parts_max": max(parts, default=0),
     }
@@ -160,15 +194,17 @@ def check_exact(project: Project, originals: Dict[str, PixelMap]) -> List[str]:
     return bad
 
 
-def run_config(name: str, flat: Project, originals: Dict[str, PixelMap], workdir: Path) -> Dict[str, Any]:
+def run_config(name: str, flat: Project, originals: Dict[str, PixelMap], workdir: Path,
+               profile: Any = None) -> Dict[str, Any]:
+    profile = profile or hardware_budget.MEGA_DRIVE_H40
     project = copy.deepcopy(flat)
     image_id = project.images[0].id
     started = time.perf_counter()
-    ok, message = CONFIGS[name](project, image_id)
+    ok, message = CONFIGS[name](project, image_id, profile)
     seconds = time.perf_counter() - started
     if not ok:
         return {"config": name, "error": message, "seconds": seconds}
-    result = measure(project, workdir)
+    result = measure(project, workdir, profile)
     bad = check_exact(project, originals)
     result.update({"config": name, "seconds": seconds, "exact": not bad, "wrong_frames": bad[:5],
                    "wrong_count": len(bad)})
@@ -189,19 +225,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("projects", nargs="+")
     parser.add_argument("--config", action="append", choices=sorted(CONFIGS))
+    parser.add_argument("--console", default="md_h40", choices=[p.key for p in hardware_budget.PROFILES],
+                        help="the budget profile whose sprites and tiles count (default: md_h40)")
     args = parser.parse_args(argv)
     names = args.config or DEFAULT_CONFIGS
+    profile = hardware_budget.profile_by_key(args.console)
     failed = False
     for path in args.projects:
         project = Project.from_json(path)
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
             flat, originals = flatten(project, workdir)
-            print(f"{Path(path).name}: {len(project.frames)} frames")
-            print(format_row("original project", measure(project, workdir)))
-            print(format_row("flat (whole sprites)", measure(flat, workdir)))
+            print(f"{Path(path).name}: {len(project.frames)} frames, {profile.name}")
+            print(format_row("original project", measure(project, workdir, profile)))
+            print(format_row("flat (whole sprites)", measure(flat, workdir, profile)))
             for name in names:
-                result = run_config(name, flat, originals, workdir)
+                result = run_config(name, flat, originals, workdir, profile)
                 print(format_row(name, result), flush=True)
                 failed |= "error" in result or not result.get("exact", False)
     return 1 if failed else 0

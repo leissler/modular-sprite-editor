@@ -87,8 +87,9 @@ sprite_cut.py              How hardware sprites cover a part (wx-free, Pillow on
                            exporter, the budget and Auto Modularize: export_cut (Mega Drive: fewest sprites, then fewest
                            tiles, at any pixel; the 32 px grid where that is as good), cut per console (cells, squares,
                            GBA shapes via cover_with_shapes), tight_cut (band DP over a console's sizes)
-modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
-                           cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
+modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored / under parts drawn later,
+                           cut in a console's sprite sizes (Settings.hardware), cost = its tiles + weight x hardware
+                           sprites (sprite_cut); plan(own=...), apply_plan() (mapping stand-ins), mapping_roles
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
 palettes.py                Palettes (wx-free, shared with the SGDK exporter): a palette's colours (stored in slot order, or
                            automatic: built from its images; colours_of = as many as the console shows, stored_colours =
@@ -437,9 +438,16 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   packed (`rotated`) modules convert with `ops.visual_pivot` / `ops.logical_pivot`. Part bounds come from
   `ui/frame_geometry.py` only. Module thumbnails go through `components.module_palette.THUMBNAILS`.
 - **Auto modularize:** the engine (`modularize.py`) stays wx-free and exact by construction: a part is placed only where
-  all its pixels equal the sprite's, every opaque pixel is covered. Its cost model is the SGDK exporter's
-  (`part_tiles`); keep them in step. Measure changes with `tools/automod_bench.py` (flattened testbeds, exactness,
-  tiles, hardware sprites) — `tests/test_modularize.py` covers the rewrite of flipped / rotated references.
+  all its pixels equal the sprite's, or (``Settings.underdraw``) where the pixels that differ are opaque in the sprite
+  and still to be covered by parts drawn later (the leftovers at the latest), so placements are in draw order and
+  `apply_plan` keeps that order; every opaque pixel is covered. Its cost model is the chosen console's
+  (`Settings.hardware`, `part_tiles` = `sprite_cut`, what the budget and the export count). Mappings: modules that
+  mappings replace are planned with `own` (parts of their own) and get an empty stand-in in their frames, which the
+  mappings replace instead (their parts hidden); modules mappings show stay (`mapping_roles`, `mapping_only`: the
+  Modules tab leaves those out). Measure changes with `tools/automod_bench.py` (flattened testbeds, exactness, tiles,
+  hardware sprites; `--console`; every row the frames alone) — `tests/test_modularize.py` covers the rewrite of
+  flipped / rotated references, underdraw and mappings. Hand-made modular art such as PoP draws parts over each other
+  (a quarter of its pixels are hidden): flattened frames lack those pixels, so no plan gets near its tile count.
 - **Imports** list whatever they leave out or can't find in `Project.load_notes` (`importers.notes.Notes`: one line per
   kind, with examples), never silently; `Project.imported_from` marks an import, which the editor opens as a new,
   unsaved project (File ▸ Open of another editor's file too), so Save never writes over the file it came from. The

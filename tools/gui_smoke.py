@@ -1564,7 +1564,12 @@ def run():
         check(asset is not None, "an image with modules to modularize")
         if asset is None:
             return
+        import modularize as mz
+
         modules = [m for m in proj.modules if m.image_id == asset.id and m.type == "MD_IMAGE"]
+        only = mz.mapping_only(proj, [m.id for m in modules])  # as the Modules tab: they stay for their mappings
+        modules = [m for m in modules if m.id not in only]
+        replaced, shown = mz.mapping_roles(proj, [m.id for m in modules])
 
         def wait_plan(dlg):
             for _ in range(1500):
@@ -1590,25 +1595,29 @@ def run():
         if plan is None:
             return
 
-        def pixels(renderer, fr):
-            image, hx, hy = renderer.render(proj, fr, None)
+        def pixels(renderer, fr, mapping=None):
+            image, hx, hy = renderer.render(proj, fr, mapping)
             rgba = image.convert("RGBA")
             data = rgba.tobytes()
             return {(hx + i // 4 % rgba.width, hy + i // 4 // rgba.width): data[i:i + 4]
                     for i in range(0, len(data), 4) if data[i + 3]}
 
         renderer = FrameRenderer()
-        before = {fr.id: pixels(renderer, fr) for fr in proj.frames}
+        mappings = [None] + list(proj.mappings)
+        before = {(m.id if m else None, fr.id): pixels(renderer, fr, m) for m in mappings for fr in proj.frames}
         count = len(proj.modules)
         frame.history_checkpoint()
         folder = tempfile.mkdtemp(prefix="mse_smoke_")
         applied = me.apply_modularize(asset, modules, plan, os.path.join(folder, "parts.png"))
         pump()
         renderer = FrameRenderer()
-        changed = [fr.name for fr in proj.frames if fr.id in before and pixels(renderer, fr) != before[fr.id]]
-        check(not changed, f"frames look the same after modularizing (changed: {changed[:3]})")
+        changed = [(m.name if m else "no mapping", fr.name) for m in mappings for fr in proj.frames
+                   if (m.id if m else None, fr.id) in before and pixels(renderer, fr, m) != before[(m.id if m else None, fr.id)]]
+        check(not changed, f"frames look the same after modularizing, under every mapping (changed: {changed[:3]})")
         check(me.sheet_key == applied.image_id, "the parts image is shown")
-        check(all(m.image_id != asset.id for m in proj.modules if m.type == "MD_IMAGE"), "the sprites were replaced")
+        check(all(m.image_id != asset.id or m.id in only or m.id in shown for m in proj.modules if m.type == "MD_IMAGE"),
+              "the sprites were replaced (modules mappings show stay)")
+        check(applied.stand_ins == len(replaced), "a stand-in for each module mappings replace")
         frame.on_undo(None)
         pump()
         check(len(proj.modules) == count, "undo brings the modules back")

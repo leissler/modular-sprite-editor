@@ -202,11 +202,16 @@ def _check_images(project: Project, pixels: bool) -> List[Issue]:
 
 def _check_modules(project: Project) -> List[Issue]:
     issues: List[Issue] = []
-    # An empty module that mappings put in place of others is a way to hide them (an AuroraGT habit): not a problem.
+    # An empty module that mappings put in place of others is a way to hide them (an AuroraGT habit), and one that
+    # mappings replace with something is a stand-in (Auto Modularize leaves them where modules re-skinned by mappings
+    # were): neither is a problem.
     replacements = {dest for mapping in project.mappings for dest in mapping.map.values() if dest}
+    stand_ins = {key for mapping in project.mappings for key, dest in mapping.map.items() if dest}
     used_in_frames = {fm.ref_id for frame in project.frames for fm in frame.fmodules if fm.ref_type == "module"}
     for mod in project.modules:
         if int(mod.rect[2]) <= 0 or int(mod.rect[3]) <= 0:
+            if mod.id in stand_ins:
+                continue
             if mod.id in used_in_frames:
                 issues.append(Issue(WARNING, "empty-module", f"Module '{mod.name}' has no size: parts that show it "
                                     "draw nothing.", ("module", mod.id)))

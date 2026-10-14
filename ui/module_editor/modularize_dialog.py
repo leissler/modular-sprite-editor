@@ -1,8 +1,9 @@
 """Auto Modularize: preview how an image's sprites cut into shared hardware-sized parts, then apply.
 
 The plan is computed by ``modularize.plan`` in a worker thread whenever a setting changes; the dialog shows each
-sprite cut into its parts (shared parts in their own colour), the packed parts sheet and the Mega Drive cost before
-and after. Applying is left to the caller (``ModuleEditorPanel.auto_modularize``) with ``plan`` and ``sheet_path``.
+sprite cut into its parts (shared parts in their own colour), the packed parts sheet and the cost before and after on
+the chosen console (a budget profile: its sprite sizes, tiles and sprites). Applying is left to the caller
+(``ModuleEditorPanel.auto_modularize``) with ``plan`` and ``sheet_path``.
 """
 from __future__ import annotations
 
@@ -13,6 +14,8 @@ from typing import Dict, List, Optional, Tuple
 
 import wx
 
+import consoles
+import hardware_budget as hb
 import modularize as mz
 from models import ImageAsset, Module, Project
 from ui.base_canvas import BaseCanvas
@@ -21,6 +24,7 @@ from ui.components.inspector_kit import dim_text, fit_choice, section
 from ui.components.thumb_list import Browser, Row
 from ui.frame_render import SHARED, fit_bitmap, to_wx_image
 from ui.dpi import px
+from ui.preferences import config
 
 # Goal slider stops: how many tiles one more hardware sprite (in one sprite) is worth.
 GOALS: List[Tuple[float, str]] = [
@@ -34,6 +38,17 @@ GOALS: List[Tuple[float, str]] = [
 ]
 DEFAULT_GOAL = 3
 VIEW_PARTS, VIEW_ORIGINAL, VIEW_SHEET = "Parts", "Original", "Parts sheet"
+CONFIG_PROFILE = "AutoModularize/Profile"
+
+
+def default_profile(project: Project) -> hb.HardwareProfile:
+    """The console the parts are cut for: the one chosen last, else the project's console's first budget profile."""
+    cfg = config()
+    found = hb.profile_by_key(cfg.Read(CONFIG_PROFILE, "") if cfg else "")
+    if found is None:
+        setups = consoles.console_by_key(project.console).budgets
+        found = hb.profile_by_key(setups[0].key) if setups else None
+    return found or hb.MEGA_DRIVE_H40  # type: ignore[return-value]
 THUMB_BG = (30, 31, 34)
 WRAP = px(280)  # width of the explanatory texts in the settings column
 
@@ -158,6 +173,7 @@ class ModularizeDialog(wx.Dialog):
         self._selected: Optional[str] = modules[0].id if modules else None
         self._thumbs: Dict[Tuple[str, int], wx.Bitmap] = {}
 
+        self.profile = default_profile(project)
         self.sprites: Dict[str, object] = {m.id: SHARED.module(project, m) for m in modules}
         self.frame_uses = {m.id: 0 for m in modules}
         for frame in project.frames:
@@ -200,9 +216,14 @@ class ModularizeDialog(wx.Dialog):
 
         part, grid, _ = section(side, sizer, "Goal")
         panel = part.body  # the rows' parent
+        self.console_choice = wx.Choice(panel, choices=[profile.name for profile in hb.PROFILES])
+        self.console_choice.SetSelection(hb.PROFILES.index(self.profile))
+        self.console_choice.SetToolTip("The console the parts are cut for: its hardware sprite sizes, and how it "
+                                       "counts tiles and sprites (as the budget overlay does)")
+        self.console_choice.Bind(wx.EVT_CHOICE, self._on_console)
+        grid.Add(wx.StaticText(panel, label="Console"), 0, wx.ALIGN_CENTER_VERTICAL)
+        grid.Add(self.console_choice, 1, wx.EXPAND)
         self.goal = wx.Slider(panel, value=DEFAULT_GOAL, minValue=0, maxValue=len(GOALS) - 1, style=wx.SL_HORIZONTAL)
-        self.goal.SetToolTip("What matters more on the console: video memory (tiles) or hardware sprites per frame "
-                             "(the Mega Drive shows 80 per screen and 20 per line).")
         ends = wx.BoxSizer(wx.HORIZONTAL)
         ends.Add(dim_text(panel, "Fewer tiles"), 0)
         ends.AddStretchSpacer(1)
@@ -226,7 +247,7 @@ class ModularizeDialog(wx.Dialog):
         self.chk_flip_y = wx.CheckBox(panel, label="Mirrored vertically")
         for chk in (self.chk_flip_x, self.chk_flip_y):
             chk.SetValue(True)
-            chk.SetToolTip("Also reuse parts that appear mirrored (the Mega Drive flips hardware sprites for free).")
+            chk.SetToolTip("Also reuse parts that appear mirrored (the consoles flip hardware sprites for free).")
         self.chk_thorough = wx.CheckBox(panel, label="Thorough search (slower)")
         self.chk_thorough.SetToolTip("Also look for small shared parts (4×4 pixel matches instead of 8×8). "
                                      "Helps with sprites built from many small pieces; takes much longer.")
@@ -235,7 +256,7 @@ class ModularizeDialog(wx.Dialog):
             grid.Add(chk, 0)
             chk.Bind(wx.EVT_CHECKBOX, lambda e: self._settings_changed())
 
-        part, grid, _ = section(side, sizer, "Result (Mega Drive)")
+        part, grid, _ = section(side, sizer, "Result")
         panel = part.body  # the rows' parent
         table = wx.FlexGridSizer(0, 3, 4, 12)
         table.AddGrowableCol(0, 1)
@@ -244,7 +265,8 @@ class ModularizeDialog(wx.Dialog):
             table.Add(label, 0, wx.ALIGN_RIGHT if text else 0)
         self.result_cells: Dict[str, Tuple[wx.StaticText, wx.StaticText]] = {}
         for key, label, tip in (
-            ("tiles", "VRAM tiles", "8×8 tiles in video memory for these sprites, as the SGDK exporter bakes them"),
+            ("tiles", "VRAM tiles", "8×8 tiles in video memory for these sprites, as the console stores them (on the "
+                                    "Mega Drive as the SGDK export bakes them)"),
             ("sprites", "Hardware sprites", "Hardware sprites one sprite needs: average / worst"),
             ("parts", "Parts per sprite", "Parts that rebuild one sprite: average / worst"),
             ("modules", "Modules", "Modules on the image now / parts on the new image"),
@@ -262,9 +284,8 @@ class ModularizeDialog(wx.Dialog):
         self.saving_text = wx.StaticText(panel, label="")
         grid.Add((0, 0))
         grid.Add(self.saving_text, 0)
-        note = dim_text(panel, "Parts are at most 32×32, so each is one hardware sprite.")
-        note.Wrap(WRAP)
-        panel.GetSizer().Add(note, 0, wx.LEFT | wx.RIGHT | wx.TOP, 4)
+        self.size_note = dim_text(panel, "")
+        panel.GetSizer().Add(self.size_note, 0, wx.LEFT | wx.RIGHT | wx.TOP, 4)
 
         part, grid, _ = section(side, sizer, "Output")
         panel = part.body  # the rows' parent
@@ -303,6 +324,7 @@ class ModularizeDialog(wx.Dialog):
         self.Bind(wx.EVT_BUTTON, self._on_cancel, id=wx.ID_CANCEL)
         self.Bind(wx.EVT_BUTTON, self._on_apply, id=wx.ID_OK)
 
+        self._describe_console()
         self._fill_before()
         self._describe_output()
         side.Fit()
@@ -315,7 +337,30 @@ class ModularizeDialog(wx.Dialog):
     def settings(self) -> mz.Settings:
         return mz.Settings(sprite_weight=GOALS[self.goal.GetValue()][0], flip_x=self.chk_flip_x.GetValue(),
                            flip_y=self.chk_flip_y.GetValue(), share=self.chk_share.GetValue(),
-                           window=4 if self.chk_thorough.GetValue() else 8)
+                           window=4 if self.chk_thorough.GetValue() else 8, hardware=self.profile.hardware)
+
+    def _on_console(self, _event: wx.CommandEvent) -> None:
+        index = self.console_choice.GetSelection()
+        if not 0 <= index < len(hb.PROFILES) or hb.PROFILES[index] is self.profile:
+            return
+        self.profile = hb.PROFILES[index]
+        cfg = config()
+        if cfg:
+            cfg.Write(CONFIG_PROFILE, self.profile.key)
+            cfg.Flush()
+        self.before = self._before_costs()
+        self._describe_console()
+        self._fill_before()
+        self._settings_changed()
+
+    def _describe_console(self) -> None:
+        """The goal's and the parts' explanations for the chosen console."""
+        p = self.profile
+        self.goal.SetToolTip(f"What matters more on the console: video memory (tiles) or hardware sprites per frame "
+                             f"({p.name}: {p.sprites_per_screen} per screen, {p.sprites_per_line} per line).")
+        w, h = max(p.hardware.sizes, key=lambda size: (size[0] * size[1], size))
+        self.size_note.SetLabel(f"Each part is one hardware sprite of the console's sizes (at most {w}×{h}).")
+        self.size_note.Wrap(WRAP)
 
     def _settings_changed(self, delay: int = 250) -> None:
         self.goal_text.SetLabel(GOALS[self.goal.GetValue()][1])
@@ -336,6 +381,7 @@ class ModularizeDialog(wx.Dialog):
         run = self._run
         settings = self.settings()
         sprites = dict(self.sprites)
+        own = mz.mapping_roles(self.project, sprites)[0]  # their parts stay their own, so mappings keep working
         self._last_progress = (None, -1.0)
 
         def progress(text: str, fraction: float) -> None:
@@ -349,7 +395,7 @@ class ModularizeDialog(wx.Dialog):
 
         def work() -> None:
             try:
-                result = mz.plan(sprites, settings, progress, cancelled)
+                result = mz.plan(sprites, settings, progress, cancelled, own)
             except mz.Cancelled:
                 return
             except Exception as exc:  # shown to the user, the dialog stays usable
@@ -398,7 +444,7 @@ class ModularizeDialog(wx.Dialog):
             if not box:
                 continue
             image = image.crop(box)
-            t, s = mz.part_tiles(image)
+            t, s = mz.part_tiles(image, self.profile.hardware)
             sprites.append(s)
             digest = mz._digest(image)
             if digest not in seen:
@@ -444,12 +490,14 @@ class ModularizeDialog(wx.Dialog):
                 f"{len(frames)} frame{'s' if len(frames) != 1 else ''} using them "
                 f"{'are' if len(frames) != 1 else 'is'} rebuilt from the parts")
         text += f"; {unused} sprite{'s' if unused != 1 else ''} no frame uses get{'' if unused != 1 else 's'} a frame." if unused else "."
-        ids = set(self.frame_uses)
-        entries = sum(1 for mapping in self.project.mappings for key, target in mapping.map.items()
-                      if key in ids or target in ids)
-        if entries:
-            text += (f" {entries} mapping entr{'ies' if entries != 1 else 'y'} that re-skin these modules "
-                     f"{'are' if entries != 1 else 'is'} removed (a part-level mapping cannot be derived).")
+        replaced, shown = mz.mapping_roles(self.project, self.frame_uses)
+        if replaced:
+            text += (f" {len(replaced)} module{'s' if len(replaced) != 1 else ''} that mappings replace get"
+                     f"{'' if len(replaced) != 1 else 's'} parts of {'their' if len(replaced) != 1 else 'its'} own and an "
+                     "invisible stand-in, so the mappings keep working.")
+        if shown:
+            text += (f" {len(shown)} module{'s' if len(shown) != 1 else ''} that mappings show instead stay"
+                     f"{'' if len(shown) != 1 else 's'} too.")
         text += " Undo restores everything."
         self.output_text.SetLabel(text)
         self.output_text.Wrap(WRAP)
@@ -523,7 +571,7 @@ class ModularizeDialog(wx.Dialog):
             return
         image = self.plan.parts[part]
         users = [m.name for m in self.modules if any(pl.part == part for pl in self.plan.placements.get(m.id, []))]
-        tiles, _sprites = mz.part_tiles(image)
+        tiles, _sprites = mz.part_tiles(image, self.plan.hardware)
         where = ", ".join(users[:6]) + (f" and {len(users) - 6} more" if len(users) > 6 else "")
         self.status.SetLabel(f"Part {part + 1}: {image.width}×{image.height}, {tiles} tile{'s' if tiles != 1 else ''}, "
                              f"in {len(users)} sprite{'s' if len(users) != 1 else ''}: {where}")
