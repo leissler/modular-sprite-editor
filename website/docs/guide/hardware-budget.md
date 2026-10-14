@@ -20,7 +20,7 @@ In the view bar of the **Frames**, **Animations** or **Timeline** tab, change **
 - **GBA** is the Game Boy Advance. Its sprites come in twelve shapes from 8 by 8 to 64 by 64 pixels: squares, and rectangles twice or four times as wide as high or the other way round.
 - **GB 8×8** and **GB 8×16** are the Game Boy, with one sprite size per game like the NES.
 
-On the Mega Drive, a hardware sprite is 8 to 32 pixels wide and high, in steps of 8. On the SNES, the editor covers each part with the large squares, and uses small ones where the part's pixels only fill an edge or a corner of a large square. On the NES and the Game Boy, every 8 by 8 (or 8 by 16) piece of a part that holds a pixel is a sprite of its own. On the GBA, the editor covers each part with the shapes that cost least, weighing a sprite as much as 8 tiles: a 24 by 24 part becomes one 32 by 32 sprite, a 40 by 8 strip a 32 by 8 and an 8 by 8 sprite.
+On the Mega Drive, a hardware sprite is 8 to 32 pixels wide and high, in steps of 8. The editor covers each part with as few of them as it can and, with that, as few tiles: a sprite can start at any pixel, so the empty space around a sprite's pixels costs no tiles. On the SNES, the editor covers each part with the large squares, and uses small ones where the part's pixels only fill an edge or a corner of a large square. On the NES and the Game Boy, every 8 by 8 (or 8 by 16) piece of a part that holds a pixel is a sprite of its own. On the GBA, the editor covers each part with the shapes that cost least, weighing a sprite as much as 8 tiles: a 24 by 24 part becomes one 32 by 32 sprite, a 40 by 8 strip a 32 by 8 and an 8 by 8 sprite.
 
 The budget menu offers every console, whichever one your project's palettes follow.
 
@@ -38,7 +38,7 @@ Every hardware sprite the pose needs is outlined. A part bigger than the largest
 The readout in the corner counts:
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The budget readout: Mega Drive H40, 16 of 80 sprites, busiest line 10 of 20 sprites and 136 of 320 pixels, video memory 35 tiles here and 309 of about 1424 for the whole project](../assets/images/screens/budget-readout.png){ width="400" height="60" loading="lazy" }](../assets/images/screens/budget-readout.png)
+  [![The budget readout: Mega Drive H40, 16 of 80 sprites, busiest line 10 of 20 sprites and 136 of 320 pixels, video memory 35 tiles here and 305 of about 1424 for the whole project](../assets/images/screens/budget-readout.png){ width="400" height="60" loading="lazy" }](../assets/images/screens/budget-readout.png)
   <figcaption>The readout for the slash pose.</figcaption>
 </figure>
 
@@ -66,7 +66,7 @@ Every tile a sprite shows is stored in the console's video memory, which the spr
 In the **Animations** tab, the inspector also counts the tiles of all the animation's steps together.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![Budget in the Animations tab's inspector: worst step 8 with 16 sprites, busiest line 11 of 20 sprites and 144 of 320 pixels, video memory 88 tiles for the animation](../assets/images/screens/budget-animation.png){ width="311" height="64" loading="lazy" }](../assets/images/screens/budget-animation.png)
+  [![Budget in the Animations tab's inspector: worst step 8 with 16 sprites, busiest line 11 of 20 sprites and 144 of 320 pixels, video memory 87 tiles for the animation](../assets/images/screens/budget-animation.png){ width="311" height="64" loading="lazy" }](../assets/images/screens/budget-animation.png)
   <figcaption><strong>Budget</strong> in the inspector of the <strong>Animations</strong> tab, for a whole attack.</figcaption>
 </figure>
 

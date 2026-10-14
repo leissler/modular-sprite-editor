@@ -39,7 +39,7 @@ The Mega Drive is the first console with an exporter and a runtime. More console
 **File ▸ Export ▸ Mega Drive (SGDK)...** writes the data into the game's SGDK project folder. Choose the folder and which mappings to include; the editor remembers both for the project. The game's own resources stay as they are: the export adds one line for its data file. The report afterwards shows what the game gets: how much of the console's video memory the sprites take, colours that had to be merged, and anything **Check Project** finds.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The Mega Drive export report for the Prince of Persia example: 68 animations with 1044 steps, 207 frames, one scene and three mappings, 309 tiles of video memory, and a note that 1115 of about 1424 tiles are left](../assets/images/screens/export-report.png){ width="760" height="260" loading="lazy" }](../assets/images/screens/export-report.png)
+  [![The Mega Drive export report for the Prince of Persia example: 68 animations with 1044 steps, 207 frames, one scene and three mappings, 305 tiles of video memory, and a note that 1119 of about 1424 tiles are left](../assets/images/screens/export-report.png){ width="760" height="260" loading="lazy" }](../assets/images/screens/export-report.png)
   <figcaption>The report after exporting the Prince of Persia example.</figcaption>
 </figure>
 

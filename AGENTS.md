@@ -80,10 +80,13 @@ compositor.py              The reference compositor (Pillow, wx-free): 2×2 matr
                            shapes), leaf instances of nested frames, render_frame — previews, budget, Optimize Sprite
                            Sheet and both exporters build on it
 hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32, NES and Game Boy 8×8 /
-                           8×16, GBA): SGDK-exact part placement, ≤32×32 VDP sprite cut (SNES: square small / large
-                           sprites; NES, Game Boy: one size; GBA: the cheapest cover with its 12 shapes,
-                           cover_with_shapes), per-screen / per-line limits, video memory (tiles stored like the export,
-                           the project's total; Mega Drive only) — wx-free, tested against the SGDK exporter
+                           8×16, GBA): SGDK-exact part placement, the cuts of sprite_cut.py (Mega Drive: the export's),
+                           per-screen / per-line limits, video memory (tiles stored like the export, the project's total;
+                           Mega Drive only) — wx-free, tested against the SGDK exporter
+sprite_cut.py              How hardware sprites cover a part (wx-free, Pillow only), one implementation for the SGDK
+                           exporter, the budget and Auto Modularize: export_cut (Mega Drive: fewest sprites, then fewest
+                           tiles, at any pixel; the 32 px grid where that is as good), cut per console (cells, squares,
+                           GBA shapes via cover_with_shapes), tight_cut (band DP over a console's sizes)
 modularize.py              Auto-modularisation (wx-free): shared parts at any offset / mirrored, tight hardware-sprite
                            cut, cost = SGDK exporter's tiles + weight x hardware sprites; plan(), apply_plan()
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
@@ -312,12 +315,13 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `wx.ImageList`s with `mask=False` (a masked list costs ~6 ms per `Add` on macOS).
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
-  `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part` and its 32 px piece cut (`_ensure_variant`);
-  `tests/test_hardware_budget.py` compares them. Video memory (Mega Drive profiles): each part carries the ids of
-  the tile blocks the export stores for it (`HwPart.vram`, compared in palette indices, flips free), so
-  `Budget.unique_tiles` / `vram_tiles` count what a view, an animation or `export_tiles` (the whole export: every
-  module, frame, step and scene sample per mapping) needs; the test compares `export_tiles` with the exporter's
-  `tile_data`. The readouts take the project's total from `canvas.EXPORT_TILES` (worked out again per undo checkpoint,
+  `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part`; both cut parts with
+  `sprite_cut.export_cut` (`_ensure_variant`), never with a cut of their own. `tests/test_hardware_budget.py` compares
+  them, `tests/test_sgdk_runtime_draw.py` draws the pieces with the compiled runtime. Video memory (Mega Drive
+  profiles): each part carries the ids of the tile blocks the export stores for it (`HwPart.vram`, compared in palette
+  indices, flips free), so `Budget.unique_tiles` / `vram_tiles` count what a view, an animation or `export_tiles` (the
+  whole export: every module, frame, step and scene sample per mapping) needs; the test compares `export_tiles` with
+  the exporter's `tile_data`. The readouts take the project's total from `canvas.EXPORT_TILES` (worked out again per undo checkpoint,
   `app_services.project_revision`).
 - **Palettes:** a palette's slot order is fixed once stored (swaps and cycles refer to slots); `palettes.py` maps a
   colour to its slot (exact, else nearest) the way the exporter does; the exporter, Check Project (per palette:

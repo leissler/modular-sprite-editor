@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import compositor  # noqa: E402
 import hardware_budget as hb  # noqa: E402
+import sprite_cut  # noqa: E402
 from models import FModule, ModuleMapping, Palette, Project, TimelineKeyframe, generate_id  # noqa: E402
 
 
@@ -356,12 +357,12 @@ class TestNesGameBoyAndGba(unittest.TestCase):
     def test_cover_prefers_a_shape_to_many_small_ones(self):
         shapes = [(w // 8, h // 8) for w, h in hb.GBA.shapes]
         full = lambda w, h: [[True] * w for _ in range(h)]  # noqa: E731
-        self.assertEqual(hb.cover_with_shapes(full(3, 3), shapes), [(0, 0, 4, 4)])
-        self.assertEqual(hb.cover_with_shapes(full(7, 2), shapes), [(0, 0, 4, 2), (4, 0, 4, 2)])
+        self.assertEqual(sprite_cut.cover_with_shapes(full(3, 3), shapes), [(0, 0, 4, 4)])
+        self.assertEqual(sprite_cut.cover_with_shapes(full(7, 2), shapes), [(0, 0, 4, 2), (4, 0, 4, 2)])
         # A closed edge (another cell beyond it): nothing may stick out there.
-        closed = hb.cover_with_shapes(full(7, 2), shapes, open_edges=(False, True))
+        closed = sprite_cut.cover_with_shapes(full(7, 2), shapes, open_edges=(False, True))
         self.assertTrue(all(x + w <= 7 for x, _y, w, _h in closed))
-        self.assertEqual(hb.cover_with_shapes([[False, False], [False, False]], shapes), [])
+        self.assertEqual(sprite_cut.cover_with_shapes([[False, False], [False, False]], shapes), [])
 
 
 if __name__ == "__main__":

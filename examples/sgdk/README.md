@@ -18,8 +18,9 @@ Mega Drive code should not parse JSON or transform images per frame, so the expo
 `src/modsprite_data.c`):
 
 - **Tiles and palettes**: every module image as it is used (flipped parts reuse the same tiles through the
-  sprite's flip bits; rotations are baked), cut into hardware sprites of at most 32×32 on the same grid as the
-  editor's Budget overlay (`hardware_budget.py`), as 4 bpp tiles in VDP order, deduplicated; the editor's palettes
+  sprite's flip bits; rotations are baked), cut into hardware sprites of at most 32×32 (the fewest, then the fewest
+  tiles, at any pixel of the part: `sprite_cut.export_cut`, which the editor's Budget overlay counts too), as 4 bpp
+  tiles in VDP order, deduplicated; the editor's palettes
   (Palettes tab; Modules tab ▸ image ▸ **Palette**, `ImageAsset.palette_id`) in their slot order, each palette
   swap's version of the palettes it changes, and the colour cycles (`palettes.py`, shared with the editor's
   View ▸ Console Colours). A piece stores which palette entry its pixels index; a swap recolours by changing the
@@ -52,7 +53,7 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 
 ### Limits
 
-- **VRAM**: all tiles stay resident. `PoP_WW` needs 309 tiles, `sonic` 658; they must fit between the tile
+- **VRAM**: all tiles stay resident. `PoP_WW` needs 305 tiles, `sonic` 620; they must fit between the tile
   base and SGDK's font (`TILE_FONT_INDEX`). With SGDK's default layout that is about 1424 tiles (1536 below the
   plane maps at `0xC000`, minus 16 system and 96 font tiles); the export reports how many the sprites need,
   warns above three quarters of that and reports an error above it; the editor shows the same count in the

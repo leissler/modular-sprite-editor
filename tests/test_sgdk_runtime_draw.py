@@ -28,7 +28,8 @@ POSITIONS = [(160, 112), (6, 10), (310, 216)]  # centre, across the top-left and
 VERSUS = [(100, 150), (220, 150)]  # hero, guard
 TILE_BASE = 16  # TILE_USER_INDEX in the stub
 FIRST_LINE = 1  # ms_init() puts the first palette entry on PAL1, the next ones on the lines after it
-PROJECTS = [REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json"]
+PROJECTS = [REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json",
+            REPO_ROOT / "examples" / "adventurer" / "adventurer.json"]  # the last two cut parts off the 32 px grid
 
 
 def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int = 0) -> str:

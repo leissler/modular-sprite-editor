@@ -27,6 +27,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import compositor  # noqa: E402
 import consoles  # noqa: E402
+import sprite_cut  # noqa: E402
 from models import (  # noqa: E402
     TIMELINE_MAPPING_ORIGINAL, Frame, Module, ModuleMapping, PaletteSwap, Project, TimelineScene, state_shows,
 )
@@ -95,7 +96,6 @@ BLOB_VERSION = 5
 BLOB_COUNT_FIELDS = 23
 BLOB_SECTION_COUNT = 36
 BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
-SPRITE_BLOCK = 32  # largest Mega Drive sprite: 4×4 tiles (hardware_budget cuts parts the same way)
 TILE = 8
 MD_PALETTE = consoles.MEGA_DRIVE.palette  # every palette entry is a CRAM line: transparent + 15 colours
 
@@ -304,24 +304,19 @@ class SGDKBakeContext:
         padded.alpha_composite(rgba, (0, 0))
         indexed = self._to_indexed_4bpp(padded, palette)
         pixels = indexed.tobytes()
-        alpha = rgba.getchannel("A")
 
-        # Hardware sprites of at most 32×32 on a 32 px grid, empty blocks skipped (as hardware_budget counts them).
+        # Hardware sprites of at most 32×32: the fewest, then the fewest tiles, at any pixel of the padded part
+        # (sprite_cut.export_cut, which hardware_budget counts too).
         blocks: List[PieceEntry] = []
-        for by in range(0, out_h, SPRITE_BLOCK):
-            for bx in range(0, out_w, SPRITE_BLOCK):
-                bw, bh = min(SPRITE_BLOCK, out_w - bx), min(SPRITE_BLOCK, out_h - by)
-                crop = alpha.crop((bx, by, min(bx + bw, rgba.width), min(by + bh, rgba.height)))
-                if crop.size[0] <= 0 or crop.size[1] <= 0 or not crop.getbbox():
-                    continue
-                tiles = self._block_tiles(pixels, out_w, bx, by, bw // TILE, bh // TILE)
-                offset = self.piece_tiles_lookup.get(tiles)
-                if offset is None:
-                    offset = len(self.tile_data) // 32
-                    self.tile_data.extend(tiles)
-                    self.piece_tiles_lookup[tiles] = offset
-                size_code = (((bw // TILE) - 1) << 2) | ((bh // TILE) - 1)
-                blocks.append((bx, by, size_code, offset, entry))
+        for bx, by, bw, bh in sprite_cut.export_cut(rgba):
+            tiles = self._block_tiles(pixels, out_w, bx, by, bw // TILE, bh // TILE)
+            offset = self.piece_tiles_lookup.get(tiles)
+            if offset is None:
+                offset = len(self.tile_data) // 32
+                self.tile_data.extend(tiles)
+                self.piece_tiles_lookup[tiles] = offset
+            size_code = (((bw // TILE) - 1) << 2) | ((bh // TILE) - 1)
+            blocks.append((bx, by, size_code, offset, entry))
 
         idx = len(self.variants)
         self.variant_lookup[key] = idx

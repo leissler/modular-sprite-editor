@@ -3,13 +3,13 @@
 Mega Drive model, matching the SGDK exporter and runtime (examples/sgdk):
 - every visible part becomes one SGDK sprite whose image is padded to whole 8×8 tiles; axis-aligned parts use the
   module image with hardware flips, rotated parts are baked (``SGDKBakeContext._render_leaf_part``);
-- rescomp cuts each sprite into VDP sprites of at most 4×4 tiles (32×32 px). This model cuts on that grid and
-  skips blocks that are completely transparent; rescomp's optimiser can occasionally do a little better, so the
-  numbers are a safe estimate;
+- the export cuts each part into VDP sprites of at most 4×4 tiles (32×32 px) with ``sprite_cut.export_cut``: the
+  fewest sprites, and with that the fewest tiles, placed at any pixel of the part (or the part's 32 px grid when that
+  is as good); this model counts exactly those;
 - the VDP shows a limited number of sprites per screen and per scanline, and a limited number of sprite pixels per
   scanline (the rest of the line's sprites disappear);
 - video memory: the export stores each part image once (flips are hardware bits) as 4 bpp tiles in palette indices,
-  and hardware sprite blocks with the same pixels share their tiles (``SGDKBakeContext._ensure_variant``). The runtime
+  and hardware sprites with the same pixels share their tiles (``SGDKBakeContext._ensure_variant``). The runtime
   keeps every tile in VRAM, so the project's total (``export_tiles``) is what has to fit.
 
 The other consoles have budgets but no exporter yet, so their cut is a model of what a game would do; parts are
@@ -27,6 +27,8 @@ memory is not counted:
   sprite tiles for 128 sprites): guillotine cuts of the cell, every piece one shape (which may stick out past the
   pixels) or two smaller pieces. A line has 1210 drawing cycles, one per pixel of an ordinary sprite.
 
+The cuts themselves live in ``sprite_cut`` (shared with the SGDK exporter and Auto Modularize).
+
 No wx here: the editor draws the result, tests check it.
 """
 
@@ -39,21 +41,14 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import compositor
 import consoles
 import palettes
+import sprite_cut
 from models import Frame, ModuleMapping, Project, state_shows
+from sprite_cut import CELLS, GRID, SHAPES, SQUARES
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 Size = Tuple[int, int]
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
 TILE = 8
-SPRITE_BLOCK = 32  # the export cuts part images into hardware sprites of at most 32×32 px
-SHAPE_CELL = 64  # the GBA cut covers a part 64×64 px at a time (its largest sprite)
-SPRITE_WEIGHT = 8  # tiles a GBA sprite counts as when the cut picks shapes: 1024 sprite tiles for 128 sprites
-
-# How a profile cuts a part into hardware sprites (see the module docstring).
-GRID = "grid"  # any width and height in tiles up to the largest (Mega Drive): blocks of the largest size
-SQUARES = "squares"  # two square sizes (SNES): large cells, small ones where a cell is mostly empty
-CELLS = "cells"  # one size (NES, Game Boy): every cell that holds a pixel
-SHAPES = "shapes"  # a few shapes (GBA): the cheapest cover of each 64 px cell
 
 
 @dataclass(frozen=True)
@@ -71,6 +66,11 @@ class HardwareProfile:
     def max_sprite_tiles(self) -> int:
         """The longest side of a sprite, in tiles."""
         return max(max(w, h) for w, h in self.shapes) // TILE
+
+    @property
+    def hardware(self) -> sprite_cut.Hardware:
+        """How the profile's sprites cover a part (``sprite_cut``)."""
+        return sprite_cut.Hardware(self.cut, self.shapes)
 
 
 def _profile(console: consoles.Console, setup: consoles.BudgetSetup) -> HardwareProfile:
@@ -353,8 +353,8 @@ class BudgetCalculator:
         return info[0] if info else self._first_palette
 
     def _stored_blocks(self, key: Any, image: Any, palette: str) -> Tuple[Tuple[int, int], ...]:
-        """(block id, tiles) of each hardware sprite block the export stores for this image: padded to whole tiles,
-        cut on the 32 px grid, empty blocks skipped; blocks with the same tiles (in palette indices) share an id."""
+        """(block id, tiles) of each hardware sprite the export stores for this image: padded to whole tiles, cut by
+        ``sprite_cut.export_cut``; sprites with the same tiles (in palette indices) share an id."""
         found = self._vram.get((key, palette))
         if found is not None:
             return found
@@ -377,17 +377,14 @@ class BudgetCalculator:
         padded = PILImage.new("L", (pad_w, pad_h), 0)
         padded.paste(PILImage.frombytes("L", rgba.size, bytes(indices)), (0, 0))
         stored = []
-        for by in range(0, pad_h, SPRITE_BLOCK):
-            for bx in range(0, pad_w, SPRITE_BLOCK):
-                tiles_w, tiles_h = min(SPRITE_BLOCK, pad_w - bx) // TILE, min(SPRITE_BLOCK, pad_h - by) // TILE
-                if not padded.crop((bx, by, bx + tiles_w * TILE, by + tiles_h * TILE)).getbbox():
-                    continue
-                # Tiles in VDP sprite order: down each column, then the next column.
-                tiles = b"".join(
-                    padded.crop((bx + tx * TILE, by + ty * TILE, bx + (tx + 1) * TILE, by + (ty + 1) * TILE)).tobytes()
-                    for tx in range(tiles_w) for ty in range(tiles_h)
-                )
-                stored.append((self._block_ids.setdefault(tiles, len(self._block_ids)), tiles_w * tiles_h))
+        for bx, by, bw, bh in sprite_cut.export_cut(rgba):
+            tiles_w, tiles_h = bw // TILE, bh // TILE
+            # Tiles in VDP sprite order: down each column, then the next column.
+            tiles = b"".join(
+                padded.crop((bx + tx * TILE, by + ty * TILE, bx + (tx + 1) * TILE, by + (ty + 1) * TILE)).tobytes()
+                for tx in range(tiles_w) for ty in range(tiles_h)
+            )
+            stored.append((self._block_ids.setdefault(tiles, len(self._block_ids)), tiles_w * tiles_h))
         found = self._vram[(key, palette)] = tuple(stored)
         return found
 
@@ -447,132 +444,9 @@ class BudgetCalculator:
         """Hardware sprite blocks (x, y, w, h in px, in the unflipped padded image) that hold any pixel."""
         cache_key = (key, profile.cut, profile.shapes)
         cached = self._blocks.get(cache_key)
-        if cached is not None:
-            return cached
-        alpha = image.getchannel("A") if image.mode == "RGBA" else None
-        width, height = image.size
-
-        def filled(x: int, y: int, w: int, h: int) -> bool:
-            if alpha is None:
-                return x < width and y < height
-            if x >= width or y >= height:
-                return False
-            return bool(alpha.crop((x, y, min(x + w, width), min(y + h, height))).getbbox())
-
-        pad_w, pad_h = _pad(width, profile), _pad(height, profile, 1)
-        blocks = []
-        if profile.cut == SQUARES:
-            # Square sprites: a large one per cell, or small ones where the pixels fill at most half of the cell.
-            small, large = profile.shapes[0][0], profile.shapes[1][0]
-            for by in range(0, pad_h, large):
-                for bx in range(0, pad_w, large):
-                    squares = [(bx + sx, by + sy) for sy in range(0, large, small) for sx in range(0, large, small)]
-                    used = [(x, y) for x, y in squares if filled(x, y, small, small)]
-                    if not used:
-                        continue
-                    if 2 * len(used) <= len(squares):
-                        blocks += [(x, y, small, small) for x, y in used]
-                    else:
-                        blocks.append((bx, by, large, large))
-        elif profile.cut == CELLS:
-            cell_w, cell_h = profile.shapes[0]
-            blocks = [(bx, by, cell_w, cell_h) for by in range(0, pad_h, cell_h) for bx in range(0, pad_w, cell_w)
-                      if filled(bx, by, cell_w, cell_h)]
-        elif profile.cut == SHAPES:
-            shapes = [(w // TILE, h // TILE) for w, h in profile.shapes]
-            for by in range(0, pad_h, SHAPE_CELL):
-                for bx in range(0, pad_w, SHAPE_CELL):
-                    cols, rows = min(SHAPE_CELL, pad_w - bx) // TILE, min(SHAPE_CELL, pad_h - by) // TILE
-                    occupied = [[filled(bx + tx * TILE, by + ty * TILE, TILE, TILE) for tx in range(cols)]
-                                for ty in range(rows)]
-                    edges = (bx + SHAPE_CELL >= pad_w, by + SHAPE_CELL >= pad_h)  # the last cells end the image
-                    blocks += [(bx + tx * TILE, by + ty * TILE, tw * TILE, th * TILE)
-                               for tx, ty, tw, th in cover_with_shapes(occupied, shapes, open_edges=edges)]
-        else:
-            step = profile.max_sprite_tiles * TILE
-            for by in range(0, pad_h, step):
-                for bx in range(0, pad_w, step):
-                    bw, bh = min(step, pad_w - bx), min(step, pad_h - by)
-                    if filled(bx, by, bw, bh):
-                        blocks.append((bx, by, bw, bh))
-        self._blocks[cache_key] = blocks
-        return blocks
-
-
-def cover_with_shapes(occupied: Sequence[Sequence[bool]], shapes: Sequence[Size], weight: int = SPRITE_WEIGHT,
-                      open_edges: Tuple[bool, bool] = (True, True)) -> List[Tuple[int, int, int, int]]:
-    """Sprites (x, y, w, h in tiles) of the given shapes (w, h in tiles) that cover every occupied tile of the grid
-    (rows of booleans), costing least: the tiles they hold plus ``weight`` per sprite, then fewer sprites.
-
-    Guillotine cuts: every piece is trimmed to its occupied tiles and either takes the smallest shape that holds it or
-    is cut in two along a tile line. A shape bigger than its piece sits at one of the piece's corners, never over
-    another piece's tiles: inside the grid, or sticking out past its right or bottom edge where that is open
-    (``open_edges``: the image ends there, no other cell's sprites lie beyond)."""
-    Box = Tuple[int, int, int, int]
-    Cover = Tuple[int, int, Tuple[Box, ...]]  # (cost, sprites, the sprites)
-    height = len(occupied)
-    width = max((len(row) for row in occupied), default=0)
-    rows = [sum(1 << x for x, used in enumerate(row) if used) for row in occupied]
-    memo: Dict[Box, Cover] = {}
-    by_area = sorted(shapes, key=lambda s: (s[0] * s[1], s[1], s[0]))
-
-    def span(x0: int, x1: int) -> int:
-        return ((1 << x1) - 1) ^ ((1 << max(0, x0)) - 1)
-
-    def trimmed(x0: int, y0: int, x1: int, y1: int) -> Optional[Box]:
-        mask = span(x0, x1)
-        used = [y for y in range(y0, y1) if rows[y] & mask]
-        if not used:
-            return None
-        either = 0
-        for y in used:
-            either |= rows[y] & mask
-        return (either & -either).bit_length() - 1, used[0], either.bit_length(), used[-1] + 1
-
-    def anchors(low: int, high: int, size: int, limit: int, open_edge: bool) -> List[int]:
-        inside = [a for a in dict.fromkeys((low, high - size)) if 0 <= a and a + size <= limit]
-        return inside + ([low] if open_edge and low + size > limit else [])
-
-    def covers_others(box: Box, x: int, y: int, w: int, h: int) -> bool:
-        x0, y0, x1, y1 = box
-        for row in range(max(0, y), min(height, y + h)):
-            others = rows[row] & span(x, x + w)
-            if y0 <= row < y1:
-                others &= ~span(x0, x1)
-            if others:
-                return True
-        return False
-
-    def one_sprite(box: Box) -> Optional[Box]:
-        x0, y0, x1, y1 = box
-        for w, h in by_area:
-            if w < x1 - x0 or h < y1 - y0:
-                continue
-            for y in anchors(y0, y1, h, height, open_edges[1]):
-                for x in anchors(x0, x1, w, width, open_edges[0]):
-                    if not covers_others(box, x, y, w, h):
-                        return x, y, w, h
-        return None
-
-    def best(x0: int, y0: int, x1: int, y1: int) -> Cover:
-        box = trimmed(x0, y0, x1, y1)
-        if box is None:
-            return 0, 0, ()
-        found = memo.get(box)
-        if found is not None:
-            return found
-        x0, y0, x1, y1 = box
-        options: List[Cover] = []
-        sprite = one_sprite(box)
-        if sprite is not None:
-            options.append((sprite[2] * sprite[3] + weight, 1, (sprite,)))
-        halves = [(best(x0, y0, x, y1), best(x, y0, x1, y1)) for x in range(x0 + 1, x1)]
-        halves += [(best(x0, y0, x1, y), best(x0, y, x1, y1)) for y in range(y0 + 1, y1)]
-        options += [(a[0] + b[0], a[1] + b[1], a[2] + b[2]) for a, b in halves]
-        found = memo[box] = min(options, key=lambda option: option[:2])  # the first of equals: one sprite, then cuts
-        return found
-
-    return list(best(0, 0, width, height)[2])
+        if cached is None:
+            cached = self._blocks[cache_key] = sprite_cut.cut(image, profile.hardware)
+        return cached
 
 
 def frame_transform(offset: Sequence[float], rotation: float, flip_x: bool, flip_y: bool) -> Tuple[Matrix, Tuple[float, float]]:
@@ -620,14 +494,8 @@ def _decompose(matrix: Sequence[float]) -> Tuple[Tuple[float, float], float, boo
 
 
 def _pad(size: int, profile: Optional[HardwareProfile] = None, axis: int = 0) -> int:
-    """A width (``axis`` 0) or height (1) in whole tiles (the export's padding); in whole sprites for a console whose
-    sprites have one size, or two square ones (padded to the large one)."""
-    grid = TILE
-    if profile is not None and profile.cut == SQUARES:
-        grid = profile.shapes[-1][axis]
-    elif profile is not None and profile.cut == CELLS:
-        grid = profile.shapes[0][axis]
-    return max(grid, ((int(size) + grid - 1) // grid) * grid)
+    """A width (``axis`` 0) or height (1) as the profile pads a part (``sprite_cut.pad``)."""
+    return sprite_cut.pad(size, profile.hardware if profile is not None else sprite_cut.MEGA_DRIVE, axis)
 
 
 def _axis_flip(a: Matrix) -> Optional[Tuple[bool, bool]]:

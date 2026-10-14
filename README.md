@@ -159,7 +159,8 @@ right-click › Open the first time.
 ### Mega Drive / SGDK
 - **Budget overlay** in the Frames, Animations and Timeline view bars (Mega Drive H40 / H32; also SNES with 8/16 or
   16/32 sprites, NES and Game Boy with 8×8 or 8×16 sprites, and the Game Boy Advance with its twelve sprite shapes):
-  the hardware sprites each part becomes, scanlines where sprites would drop out, sprite counts and, for the Mega
+  the hardware sprites each part becomes (on the Mega Drive the fewest, then the fewest tiles, placed tightly around
+  the pixels, as the export cuts them), scanlines where sprites would drop out, sprite counts and, for the Mega
   Drive, the video memory: tiles of what is shown, of the animation and of the whole project against the ~1424 SGDK
   leaves free. The Mega Drive's numbers follow the exporter exactly.
 - **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palettes,
