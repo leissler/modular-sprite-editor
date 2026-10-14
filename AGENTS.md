@@ -295,6 +295,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `ui/welcome.py` in place of the tabs (`MainFrame.show_welcome`; `select_tab` and opening a project leave it). The
   window remembers its size, position and maximized state (`Window/Geometry`, only if its title bar is still on a
   screen), else it opens at a size that fits the screen.
+- **Main tabs:** a FlatNotebook on Windows (`wx.Notebook` elsewhere). Its flags go in `agwStyle` (`style=` is the
+  panel's), and its `SetSelection` sends no page events: switch tabs with `MainFrame.select_tab`, which activates them
+  like a click on every platform.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`
   (on macOS `wx.SearchCtrl` is *not* a `wx.TextCtrl`) and leave Cmd/Ctrl combos to the menus. Shared keys:
   H/V flip, R / Shift+R rotate, arrows nudge (Shift = 8 px), Enter play/pause, `,`/`.` step, Delete.

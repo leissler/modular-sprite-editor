@@ -181,7 +181,7 @@ class MainFrame(wx.Frame):
         if sys.platform == "win32":
             # Windows: Use FlatNotebook (VC8 style) but DEFAULT colors
             style = fnb.FNB_VC8 | fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS | fnb.FNB_NO_TAB_FOCUS | fnb.FNB_TABS_BORDER_SIMPLE
-            self.book = fnb.FlatNotebook(root, style=style)
+            self.book = fnb.FlatNotebook(root, agwStyle=style)  # the FNB_ flags are agwStyle (style= is the panel's)
         else:
             self.book = wx.Notebook(root)
 
@@ -635,7 +635,10 @@ class MainFrame(wx.Frame):
         event.Veto()
 
     def on_page_changed(self, event) -> None:
-        page_idx = event.GetSelection()
+        self._page_shown(event.GetSelection())
+        event.Skip()
+
+    def _page_shown(self, page_idx: int) -> None:
         if page_idx == 0:
             self.module_editor.on_tab_activated()
         elif page_idx == 1:
@@ -656,12 +659,14 @@ class MainFrame(wx.Frame):
             wx.CallAfter(canvas.SetFocus)
         else:
             self.status_bar.SetStatusText("", 1)
-        event.Skip()
 
     def select_tab(self, index: int) -> None:
         self.show_welcome(False)
         if 0 <= index < self.book.GetPageCount():
+            changed = index != self.book.GetSelection()
             self.book.SetSelection(index)
+            if changed and isinstance(self.book, fnb.FlatNotebook):
+                self._page_shown(index)  # FlatNotebook.SetSelection sends no page events (wx.Notebook's does)
 
     def switch_to_frame_editor(self, frame_id: str) -> None:
         """Navigates to the Frame Editor and selects the given frame."""
@@ -1156,18 +1161,18 @@ class MainFrame(wx.Frame):
             controls.toggle_grid()
 
     def on_tool_auto_modularize(self, _: wx.CommandEvent) -> None:
-        self.book.SetSelection(0)
+        self.select_tab(0)
         self.module_editor.auto_modularize()
 
     def on_tool_optimize(self, _: wx.CommandEvent) -> None:
-        self.book.SetSelection(0)
+        self.select_tab(0)
         output_dir = os.path.dirname(self.current_path) if self.current_path else None
         self.module_editor.show_optimization_dialog(output_dir)
         self.history_checkpoint()
 
     def on_tool_optimize_nested(self, event: wx.CommandEvent) -> None:
         # Global frame-level optimization entry point.
-        self.book.SetSelection(1)
+        self.select_tab(1)
         self.frame_editor.on_optimize_nested_combos(event)
         self.history_checkpoint()
 
