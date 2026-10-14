@@ -2,6 +2,34 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.8, October 2026
+
+**Safer work.** Saving replaces the project file in one go and keeps the previous version next to it as `name.json.bak`. While you have unsaved changes, the editor keeps a recovery copy every 30 seconds and offers it after a crash. Undo covers everything in a project now, and sheets you change in another program reload when you come back to the editor. See [Undo, save and hints](../start/tour.md#undo-save-and-hints).
+
+**Check Project.** **Tools ▸ Check Project** lists everything an export would leave out or show differently, such as steps whose frame was deleted, missing images or more colours than the console shows, with **Go to** and a fix for most. Deleting something that is still in use asks whether to remove its uses too. See [Check the project first](programmers.md#check-the-project-first).
+
+**Mega Drive export in the editor.** **File ▸ Export ▸ Mega Drive (SGDK)...** writes the data into the game's folder and shows a report with the video memory the sprites need. See [Mega Drive (SGDK)](programmers.md#mega-drive-sgdk).
+
+**Palettes.** Every image belongs to one of the Mega Drive's four palettes. The Modules inspector shows its colours the way the console shows them, and **View ▸ Mega Drive Colours** shows every canvas like that. See [Palettes](../guide/modules.md#palettes).
+
+**More in the budget.** The budget overlay knows the Super Nintendo too, and for the Mega Drive it counts the video memory of what you see, of an animation and of the whole project. See [Video memory](../guide/hardware-budget.md#video-memory).
+
+**Scenes play animations as animated.** An object on the Timeline plays its animation the way the Animations tab and the game do: Play once ends, and repeat counts, loop-from steps and follow-up animations work. Flips and visibility change exactly at a key. See [Scenes](../guide/scenes.md).
+
+**Easier on a laptop and on the first start.** View bars wrap into a second row instead of hiding controls, inspector sections fold away, and the window opens where you left it. A welcome screen offers recent projects, the examples and this guide, and an empty tab says what to make first. **New animation** turns a row of whole sprites into an animation in one step. One selection rule everywhere: Shift+click adds, Cmd+click adds or removes, and a click on empty space places a point.
+
+**Scroll to move around.** With **View ▸ Scroll Moves the View**, the mouse wheel and two fingers on a trackpad move the view, and a pinch or Cmd+scroll zooms. The Timeline's dopesheet and the Animations step sequence keep the height you drag them to. See [Moving around the canvas](../start/tour.md#moving-around-the-canvas).
+
+**Sharp on Windows.** At 125 or 150 % display scaling the editor is no longer stretched: text is crisp and pixels stay square.
+
+**Imports say what they leave out.** An AuroraGT or RetroAnimator file opens as a new project, so **Save** never writes over it, and the editor lists anything it could not bring over. The RetroAnimator export lists what that format has no place for, such as step events and scenes.
+
+**Smaller things.** Parts, hitboxes and points move in whole pixels, a hitbox corner dragged past the opposite one turns the box around, mirrored points stay on their pixel, the grid thins out when you zoom far out, **Optimize Sprite Sheet** keeps every frame exactly as it was, and the guard's parts in the Prince of Persia example have proper names.
+
+Projects are saved in file format 6. Older projects are upgraded when you open them. Version 0.7.1 opens format 6 projects with a warning, but plays objects that play as animated as a loop, exports all images with one merged palette, and forgets both when it saves.
+
+For programmers: the Mega Drive data changed (blob version 4), so take the runtime (`modsprite.c` and `modsprite.h`) from this version together with the new export.
+
 ## 0.7.1, October 2026
 
 **Smoother playback on slow computers.** Playing an animation or a scene no longer keeps a slow computer busy with drawing alone, especially on Windows, so the editor stays quick to respond while it plays. The sequence of a long animation also draws about ten times faster.
