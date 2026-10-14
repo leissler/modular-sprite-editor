@@ -238,6 +238,17 @@ passed by the luck of float rounding before).
 - RetroAnimator export: the loss report omits step events, loop-from, follow-ups, scenes and point types
   ([models.py:2913](../models.py)). Exporting again into the same folder leaves stale part images behind.
 
+**Done:** both importers list what they leave out or can't find in the project's load notes, one line per kind with
+examples (lines they can't read, modules of an unknown kind or defined twice, parts, steps and mapping entries naming
+something the file doesn't define, missing images), shown once after importing; checked against the 18 AuroraGT sprites
+of the original PoP project: none has a note. The "four-number `MD_LINE`" was the editor's own invention (removed with
+H4), not an AuroraGT format. The AuroraGT import reads the images' sizes (they were 0 × 0) and has the same error
+handling as the RetroAnimator one, which brings back the playback type and repeat count the editor's export writes.
+Opening another editor's file with File ▸ Open (or a recent file) used to keep it as the project's file, so Save wrote
+the editor's format over it: it opens as an import now. The RetroAnimator export reports step events, loop-from steps,
+follow-ups, hitbox roles and scenes, and a list in its parts folder lets an export to the same file remove the parts it
+wrote before and no longer uses (never another export's, never other files).
+
 ### C12 (Low) Small robustness items
 
 - Running from source, preferences are stored as **"app"** (`~/Library/Preferences/app Preferences`).

@@ -51,12 +51,12 @@ The [SGDK guide in the repository](https://github.com/leissler/modular-sprite-ed
 
 ## Other exports
 
-- **File ▸ Export ▸ RetroAnimator Project (\*.json)...** writes a RetroAnimator project with a picture for every part, drawn with the preview mapping.
+- **File ▸ Export ▸ RetroAnimator Project (\*.json)...** writes a RetroAnimator project with a picture for every part, drawn with the preview mapping. Its report lists what RetroAnimator has no place for, such as step events, loop-from steps, follow-ups and scenes. Exported to the same file again, it removes the part pictures it wrote last time and no longer uses; nothing else in the parts folder is touched.
 - **Export GIF...** in the **Animations** tab writes one cycle of an animation, for sharing and reviews.
 
 ## Importing
 
-**File ▸ Import** opens AuroraGT `.sprite` files and RetroAnimator projects, so you can bring existing modular sprites into the editor.
+**File ▸ Import** opens AuroraGT `.sprite` files and RetroAnimator projects, so you can bring existing modular sprites into the editor. If the file has something the editor can't read, or names an image it can't find, the editor lists it once the import is done. An imported sprite is a new project: **Save** asks where to put it and never writes over the file you imported.
 
 ## The project format
 

@@ -58,7 +58,8 @@ models/                    The data model (wx-free); import from `models` (the p
   timeline.py              Timeline scenes: keys, easing, spline paths, source switching, evaluate_object_state
   migration.py             PROJECT_FORMAT_VERSION, migrate_project_dict (raw dicts, one step per version)
   project.py               Project: the lists, lookups by id, native JSON (from_json also imports the formats below)
-importers/                 aurora.py (AuroraGT .sprite), retroanimator.py (RetroAnimator JSON): parse() -> Project
+importers/                 aurora.py (AuroraGT .sprite), retroanimator.py (RetroAnimator JSON): parse() -> Project;
+                           notes.py groups what an import leaves out (Project.load_notes)
 exporters/                 retroanimator.py: export() (RetroAnimator JSON + baked part PNGs, the active mapping baked)
 compositor.py              The reference compositor (Pillow, wx-free): 2×2 matrices, module images (key colour,
                            shapes), leaf instances of nested frames, render_frame — previews, budget, Optimize Sprite
@@ -349,6 +350,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   all its pixels equal the sprite's, every opaque pixel is covered. Its cost model is the SGDK exporter's
   (`part_tiles`); keep them in step. Measure changes with `tools/automod_bench.py` (flattened testbeds, exactness,
   tiles, hardware sprites) — `tests/test_modularize.py` covers the rewrite of flipped / rotated references.
+- **Imports** list whatever they leave out or can't find in `Project.load_notes` (`importers.notes.Notes`: one line per
+  kind, with examples), never silently; `Project.imported_from` marks an import, which the editor opens as a new,
+  unsaved project (File ▸ Open of another editor's file too), so Save never writes over the file it came from.
 - **Destructive actions** confirm when they break references (count the references) and stay undoable. Deleting
   modules, an image or a frame that is still used asks through `confirm.ask_remove_uses` (call it module-qualified,
   the smoke test patches it): remove the uses too (`module_editor.ops.remove_module_uses`,

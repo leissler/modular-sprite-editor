@@ -130,6 +130,44 @@ class TestRetroAnimatorImport(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 Project.from_retro_animator_json(json_path)
+            self.assertEqual(Project.from_json(json_path).imported_from, "", "the editor's own file is no import")
+
+    def test_notes_playback_and_the_imported_mark(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parts_dir = os.path.join(tmpdir, "Cropped parts")
+            os.makedirs(parts_dir)
+            Image.new("RGBA", (3, 4), (255, 0, 0, 255)).save(os.path.join(parts_dir, "Sword.png"))
+            data = {
+                "ProjectType": "RetroAnimator",
+                "Frames": {
+                    "pose": {"Sprites": [
+                        {"FramePath": "Cropped parts\\Sword.png", "HandleX": 0, "HandleY": 0},
+                        {"FramePath": "Cropped parts\\Shield.png", "HandleX": 0, "HandleY": 0},
+                        {"FramePath": "", "HandleX": 0, "HandleY": 0},
+                    ]},
+                },
+                "Animations": {
+                    "guard": {
+                        "FrameData": [{"FrameID": "pose", "Duration": 5}, {"FrameID": "lost", "Duration": 5}],
+                        # what this editor's RetroAnimator export writes
+                        "Properties": {"source_playback_type": "ping_pong", "source_loop_count": "3"},
+                    },
+                },
+            }
+            json_path = os.path.join(tmpdir, "knight.json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            project = Project.from_json(json_path)
+
+        self.assertEqual(project.imported_from, "RetroAnimator project")
+        notes = project.load_notes
+        self.assertEqual(len(notes), 3, notes)
+        self.assertTrue(any(n.startswith("Part images not found") and "Shield.png" in n for n in notes), notes)
+        self.assertTrue(any(n.startswith("Parts without a picture, left out") and "pose" in n for n in notes), notes)
+        self.assertTrue(any(n.startswith("Animation steps showing a frame the file doesn't have") and "guard step 2" in n
+                            for n in notes), notes)
+        anim = project.animations[0]
+        self.assertEqual((anim.playback_type, anim.loop_count, len(anim.aframes)), ("ping_pong", 3, 1))
 
 
 if __name__ == "__main__":

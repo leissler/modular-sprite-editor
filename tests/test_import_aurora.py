@@ -1,8 +1,11 @@
-"""AuroraGT .sprite import: modules, frames, animations with flips, names, empty boxes, line shapes."""
+"""AuroraGT .sprite import: modules, frames, animations with flips, names, empty boxes, line shapes, and notes on
+whatever it leaves out or can't find."""
 
 import os
 import tempfile
 import unittest
+
+from PIL import Image
 
 from importers import aurora
 from models import Module, Project
@@ -131,6 +134,98 @@ class TestAuroraLines(unittest.TestCase):
         self.assertEqual((lines["down right"].rect, lines["down right"].params), ((0, 0, 8, 4), [0.0, 0.0, 100.0, 100.0]))
         self.assertEqual((lines["left"].rect, lines["left"].params), ((-6, 0, 6, 3), [100.0, 0.0, 0.0, 100.0]))
         self.assertEqual(lines["left"].color, (0, 255, 0))
+
+
+BROKEN = r"""
+/*SPRITE*/ {
+    VERSION 0001
+    IMAGE 0x0001 "sheet.png"
+    IMAGE 0x0002 "gone.png"
+    MODULES
+    {
+        MD	0x1000	MD_IMAGE	0	0	0	8	8	"head"
+        MD	0x1001	MD_IMAGE	0	0	x	8	8	"bad number"
+        MD	0x1002	MD_SPLINE	0xFF0000	3	3	"unknown kind"
+        MD	0x1000	MD_IMAGE	0	8	0	8	8	"same id"
+        MD	0x1003	MD_IMAGE	7	0	0	8	8	"no such image"
+        WHATEVER	1	2
+    }
+    FRAME "pose"
+    {
+        0x2000
+        FM	0x1000	0	0
+        FM	0x9999	0	0
+        FM	0x1000	zero	0
+        RC	1	2	three	4
+    }
+    ANIM "walk"
+    {
+        0x3000
+        AF	0x2000	4	0	0
+        AF	0x2999	4	0	0
+        AF	0x2000	soon	0	0
+    }
+    MAPPING "skin"
+    {
+        0x4000
+        MD_MAP	0x1000	0x7777
+        MD_MAP	0x1000
+    }
+}
+"""
+
+
+def line_of(text: str, exact: bool = False) -> int:
+    """The number of the first line of BROKEN that contains ``text`` (or, ``exact``, reads just that)."""
+    return next(n for n, line in enumerate(BROKEN.splitlines(), 1) if (line.strip() == text if exact else text in line))
+
+
+class TestAuroraNotes(unittest.TestCase):
+    def test_a_clean_file_imports_without_notes_and_with_image_sizes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Image.new("RGB", (90, 20), (255, 0, 255)).save(os.path.join(tmp, "modules_POP.bmp"))
+            project = aurora.parse(PRINCE, tmp)
+        self.assertEqual(project.load_notes, [])
+        self.assertEqual((project.images[0].width, project.images[0].height), (90, 20), "the real size, not 0 x 0")
+
+    def test_what_it_leaves_out_is_named_once_per_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Image.new("RGB", (16, 8)).save(os.path.join(tmp, "sheet.png"))
+            project = aurora.parse(BROKEN, tmp)
+        notes = "\n".join(project.load_notes)
+        lone_map = line_of("MD_MAP\t0x1000", exact=True)
+        expected = {
+            "Images not found next to the file": "gone.png",
+            "Module lines that couldn't be read, left out": f"line {line_of('bad number')} (MD",
+            "Modules of a kind the editor doesn't know, left out": "0x1002 (MD_SPLINE)",
+            "Modules defined twice, the second one left out": "0x1000",
+            "Modules on an image the file doesn't list (they use the first image)": "0x1003",
+            "Lines the importer doesn't know, ignored": f"line {line_of('WHATEVER')} (WHATEVER",
+            "Frame parts that couldn't be read, left out": f"line {line_of('zero')} (FM",
+            "Hitboxes that couldn't be read, left out": f"line {line_of('three')} (RC",
+            "Animation steps that couldn't be read, left out": f"line {line_of('soon')} (AF",
+            "Mapping lines that couldn't be read, left out": f"line {lone_map} (MD_MAP",
+            "Frame parts using a module the file doesn't define": "0x9999 in pose",
+            "Animation steps using a frame the file doesn't define": "0x2999 in walk step 2",
+            "Mapping entries naming a module the file doesn't define": "0x7777 in skin",
+        }
+        for message, example in expected.items():
+            line = next((l for l in project.load_notes if l.startswith(message)), None)
+            self.assertIsNotNone(line, f"{message!r} missing in:\n{notes}")
+            self.assertIn(example, line)
+        self.assertEqual(len(project.load_notes), len(expected), notes)
+        # What could be read is imported as before; what couldn't is not.
+        self.assertEqual(sorted(m.id for m in project.modules), ["0x1000", "0x1003"])
+        self.assertEqual(project.get_module("0x1000").name, "head", "the first definition wins")
+        self.assertEqual([fm.ref_id for fm in project.frames[0].fmodules], ["0x1000", "0x9999"])
+        self.assertEqual([af.frame_id for af in project.animations[0].aframes], ["0x2000", "0x2999"])
+
+    def test_opening_a_sprite_marks_the_project_imported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "prince.sprite")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(PRINCE)
+            self.assertEqual(Project.from_json(path).imported_from, "AuroraGT sprite")
 
 
 if __name__ == "__main__":

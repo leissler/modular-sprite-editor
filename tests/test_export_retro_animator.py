@@ -479,5 +479,70 @@ class TestRetroAnimatorExport(unittest.TestCase):
                 self.assertEqual(part_img.getpixel((1, 1))[3], 255)  # actual painted pixel is opaque
 
 
+class TestRetroAnimatorExportReport(unittest.TestCase):
+    def _project(self, tmpdir: str, modules: int = 2) -> Project:
+        sheet = os.path.join(tmpdir, "sheet.png")
+        image = Image.new("RGBA", (16, 4))
+        image.putdata([(x * 15, y * 60, 100, 255) for y in range(4) for x in range(16)])  # every part differs
+        image.save(sheet)
+        project = Project(name="Hero")
+        asset = project.create_image(sheet, 16, 4)
+        for index in range(modules):
+            mod = project.create_module(f"part{index}", asset.id, (index * 4, 0, 4, 4 - index % 2), (0, 0))
+            frame = project.create_frame(f"frame{index}")
+            frame.fmodules.append(FModule(id=generate_id("fmod"), ref_type="module", ref_id=mod.id, position=(0, 0)))
+        return project
+
+    def test_the_loss_report_names_what_the_format_has_no_place_for(self):
+        from models import EventType, StepEvent
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = self._project(tmpdir)
+            report = project.to_retro_animator_json(os.path.join(tmpdir, "plain.json"))
+            plain = " ".join(report["losses"])
+            for word in ("Step events", "Loop-from", "Follow-up", "Hitbox roles", "Timeline scenes"):
+                self.assertNotIn(word, plain, "only what the project uses")
+
+            run, idle = project.create_animation("run"), project.create_animation("idle")
+            for anim in (run, idle):
+                anim.aframes += [AFrame(frame_id=f.id, duration_frames=2) for f in project.frames]
+            project.event_types.append(EventType(id="ev_hit", name="hit", color=(255, 80, 80)))
+            run.aframes[0].events.append(StepEvent(type_id="ev_hit"))
+            run.loop_start = 1
+            run.next_animation_id = idle.id
+            ctype = project.ensure_default_collision_type()
+            project.frames[0].collision_rects.append(CollisionRect(id="cr", type_id=ctype.id, rect=(0, 0, 2, 2), role="body"))
+            project.create_timeline_scene("fight")
+            report = project.to_retro_animator_json(os.path.join(tmpdir, "full.json"))
+            full = " ".join(report["losses"])
+            for word in ("Step events", "Loop-from", "Follow-up", "Hitbox roles", "Timeline scenes"):
+                self.assertIn(word, full)
+
+    def test_exporting_again_removes_only_its_own_old_parts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = self._project(tmpdir, modules=3)
+            parts = os.path.join(tmpdir, "Cropped parts")
+            first = project.to_retro_animator_json(os.path.join(tmpdir, "hero.json"))
+            self.assertEqual((first["parts_written"], first["parts_removed"]), (3, 0))
+            before = set(os.listdir(parts))
+            Image.new("RGBA", (2, 2)).save(os.path.join(parts, "my_own.png"))  # the user's file in that folder
+            other = self._project(tmpdir, modules=1)
+            other.modules[0].rect = (12, 0, 4, 4)  # its part differs from every part of the hero export
+            other.to_retro_animator_json(os.path.join(tmpdir, "other.json"))  # another export sharing the folder
+            others = set(os.listdir(parts)) - before - {"my_own.png"}
+
+            # The hero loses two of its frames: their part images go, nothing else does.
+            del project.frames[1:]
+            second = project.to_retro_animator_json(os.path.join(tmpdir, "hero.json"))
+            self.assertEqual(second["parts_removed"], 2)
+            left = set(os.listdir(parts))
+            self.assertIn("my_own.png", left, "a file no export wrote stays")
+            self.assertTrue(others <= left, "the other export's parts stay")
+            with open(os.path.join(tmpdir, "hero.json"), encoding="utf-8") as fh:
+                used = {s["FramePath"].split("\\")[-1] for f in json.load(fh)["Frames"].values() for s in f["Sprites"]}
+            self.assertTrue(used <= left)
+            self.assertEqual(len(left - used - others - {"my_own.png"} - {".modular-sprite-editor.json"}), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

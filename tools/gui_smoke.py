@@ -1483,6 +1483,25 @@ def run():
 
     step("laptop UI: wrapping view bars, folding sections, welcome screen, sheet to animation, points, window", laptop_ui)
 
+    def open_foreign_file():
+        """Opening another editor's file imports it: Save asks for a new file instead of writing over that one."""
+        saved_recent = list(frame.recent_files)
+        with tempfile.TemporaryDirectory() as tmp:
+            exported = os.path.join(tmp, "retro.json")
+            frame.project.to_retro_animator_json(exported)
+            frame.load_project(exported)
+            pump()
+            check(frame.current_path is None and frame.project.imported_from == "RetroAnimator project"
+                  and frame.history.is_dirty(), "opening a RetroAnimator file imports it")
+            check(exported not in frame.recent_files, "an import is not a recent project")
+            frame.load_project(project_path)  # leaves the folder before it goes away
+        frame.recent_files = saved_recent
+        frame._save_recent_files()
+        pump()
+        check(frame.current_path == project_path and not frame.history.is_dirty(), "the project opens again")
+
+    step("opening another editor's file imports it", open_foreign_file)
+
     def close():
         frame.Close(True)
 

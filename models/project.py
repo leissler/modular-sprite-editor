@@ -40,6 +40,7 @@ class Project:
     # Runtime state (not serialized)
     active_mapping: Optional[ModuleMapping] = field(default=None, init=False)
     load_notes: List[str] = field(default_factory=list, init=False)
+    imported_from: str = field(default="", init=False)  # e.g. "AuroraGT sprite"; empty for the editor's own files
 
     def get_image(self, image_id: str) -> Optional[ImageAsset]:
         return next((img for img in self.images if img.id == image_id), None)
@@ -344,7 +345,9 @@ class Project:
         if path.endswith(".sprite"):
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-            return aurora.parse(content, os.path.dirname(path))
+            project = aurora.parse(content, os.path.dirname(path))
+            project.imported_from = "AuroraGT sprite"
+            return project
 
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -354,7 +357,9 @@ class Project:
             if project_type == "retroanimator":
                 base_path = os.path.dirname(os.path.abspath(path))
                 project_name = os.path.splitext(os.path.basename(path))[0]
-                return retroanimator.parse(data, base_path=base_path, project_name=project_name)
+                project = retroanimator.parse(data, base_path=base_path, project_name=project_name)
+                project.imported_from = "RetroAnimator project"
+                return project
 
         return Project.from_dict(data, base_path=os.path.dirname(os.path.abspath(path)))
 
@@ -370,4 +375,6 @@ class Project:
 
         base_path = os.path.dirname(os.path.abspath(path))
         project_name = os.path.splitext(os.path.basename(path))[0]
-        return retroanimator.parse(data, base_path=base_path, project_name=project_name)
+        project = retroanimator.parse(data, base_path=base_path, project_name=project_name)
+        project.imported_from = "RetroAnimator project"
+        return project

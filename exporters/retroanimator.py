@@ -8,7 +8,7 @@ import json
 import math
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import compositor
 from models import Frame, ModuleMapping, Project
@@ -17,11 +17,42 @@ from safe_files import write_text_atomically
 
 RETRO_TICKS_PER_SECOND = 50
 PARTS_DIRNAME = "Cropped parts"
+PARTS_LIST = ".modular-sprite-editor.json"  # in the parts folder: the part images each export (JSON name) uses
 
 
 def _sanitize_name(value: str, fallback: str = "item") -> str:
     v = re.sub(r"[^A-Za-z0-9 _.-]+", "_", str(value or "")).strip()
     return v if v else fallback
+
+
+def _read_parts_list(parts_dir: str) -> Dict[str, List[str]]:
+    try:
+        with open(os.path.join(parts_dir, PARTS_LIST), encoding="utf-8") as handle:
+            exports = json.load(handle).get("exports", {})
+    except (OSError, ValueError, AttributeError):
+        return {}
+    if not isinstance(exports, dict):
+        return {}
+    return {str(key): [str(name) for name in names] for key, names in exports.items() if isinstance(names, list)}
+
+
+def _tidy_parts(parts_dir: str, export_name: str, used: Set[str]) -> int:
+    """Remove the part images this export wrote last time and no longer uses, unless another export in the folder
+    lists them, and record what it uses now. The folder's other files are never touched. Returns how many it removed."""
+    exports = _read_parts_list(parts_dir)
+    others = {name for key, names in exports.items() if key != export_name for name in names}
+    removed = 0
+    for name in sorted(set(exports.get(export_name, [])) - used - others):
+        if os.path.basename(name) != name or not name.lower().endswith(".png"):
+            continue
+        try:
+            os.remove(os.path.join(parts_dir, name))
+            removed += 1
+        except OSError:  # already gone, or in use: it stays
+            pass
+    exports[export_name] = sorted(used)
+    write_text_atomically(os.path.join(parts_dir, PARTS_LIST), json.dumps({"exports": exports}, indent=1))
+    return removed
 
 
 def _make_unique_name(base: str, used: set[str]) -> str:
@@ -471,6 +502,17 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
         losses.append("Per-animation frame offsets/flips/rotations are baked into generated frame variants.")
     if any(mod.type != "MD_IMAGE" for mod in project.modules):
         losses.append("Procedural shape modules are rasterized during export.")
+    steps = [af for anim in project.animations for af in anim.aframes]
+    if any(af.events for af in steps):
+        losses.append("Step events (hits, footsteps, ...) are not part of RetroAnimator and are left out.")
+    if any(anim.loop_start > 0 for anim in project.animations):
+        losses.append("Loop-from steps are left out: those animations repeat from their first step.")
+    if any(anim.next_animation_id for anim in project.animations):
+        losses.append("Follow-up animations (\"then play\") are left out.")
+    if any(cr.role for frame in project.frames for cr in frame.collision_rects):
+        losses.append("Hitbox roles are left out: hitboxes are named after their type.")
+    if project.timeline_scenes:
+        losses.append("Timeline scenes are not exported: RetroAnimator has frames and animations only.")
 
     data = {
         "ProjectType": "RetroAnimator",
@@ -485,6 +527,7 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
         data["Properties"]["active_mapping_id"] = active_mapping.id
 
     write_text_atomically(path, json.dumps(data, indent=2))
+    removed = _tidy_parts(parts_dir, os.path.basename(path), set(part_hash_to_filename.values()))
 
     return {
         "path": os.path.abspath(path),
@@ -492,6 +535,7 @@ def export(project: Project, path: str, mapping: Optional[ModuleMapping] = None)
         "frames_exported": len(frame_payloads),
         "animations_exported": len(animations_json),
         "parts_written": written_parts,
+        "parts_removed": removed,  # this export's part images from before that it no longer uses
         "mapping_baked": bool(active_mapping),
         "losses": losses,
     }

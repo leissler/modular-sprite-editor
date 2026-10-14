@@ -198,7 +198,11 @@ Not stored in the file: the active (preview) mapping, view state, grid size, zoo
 ## Other formats
 
 - **Import:** AuroraGT `.sprite` text (`importers/aurora.py`), RetroAnimator JSON (`importers/retroanimator.py`,
-  `ProjectType: "RetroAnimator"`).
-- **Export:** RetroAnimator JSON with baked part PNGs (`exporters/retroanimator.py`, bakes the active mapping);
+  `ProjectType: "RetroAnimator"`; the playback type and repeat count this editor's export writes into an animation's
+  `Properties` come back). What an importer leaves out or can't find goes into `Project.load_notes`, shown once;
+  `Project.imported_from` names the format, and the editor opens an import as a new, unsaved project.
+- **Export:** RetroAnimator JSON with baked part PNGs (`exporters/retroanimator.py`, bakes the active mapping; the
+  report lists what the format can't hold; `Cropped parts/.modular-sprite-editor.json` records which parts each export
+  file uses, so exporting again removes its own unused ones and nothing else);
   SGDK binary blob with tiles, palettes, frames, animations, scenes, hitboxes and points
   (`examples/sgdk/tools/export_sgdk_example.py`); animated GIF (Animations tab).

@@ -923,7 +923,8 @@ class MainFrame(wx.Frame):
         self._drop_recovery()  # the changes were discarded on purpose
         return True
 
-    def _set_project(self, project: Project, path: Optional[str], saved: bool) -> None:
+    def _set_project(self, project: Project, path: Optional[str], saved: bool, notes_title: str = "Project Upgraded",
+                     notes_status: str = "Project format upgraded; save to keep the upgrade") -> None:
         self._drop_recovery()  # the previous project's changes were saved or discarded by now
         self.show_welcome(False)
         self.project = project
@@ -934,8 +935,8 @@ class MainFrame(wx.Frame):
         self.context_bar.set_mappings(self.project)
         self._update_title()
         if project.load_notes:
-            wx.MessageBox("\n".join(project.load_notes), "Project Upgraded", wx.OK | wx.ICON_INFORMATION)
-            self.set_status("Project format upgraded; save to keep the upgrade")
+            wx.MessageBox("\n".join(project.load_notes), notes_title, wx.OK | wx.ICON_INFORMATION)
+            self.set_status(notes_status)
 
     def on_new(self, _: wx.CommandEvent) -> None:
         if not self.confirm_discard_changes():
@@ -951,9 +952,20 @@ class MainFrame(wx.Frame):
         except Exception as e:
             wx.MessageBox(f"Failed to load project: {e}", "Error", wx.OK | wx.ICON_ERROR)
             return
+        if project.imported_from:
+            # Another editor's file: an import, saved as a new project (never over the file it came from).
+            self._set_imported(project, path)
+            return
         self._set_project(project, path, saved=True)
         self.add_file_to_recent(path)
         self.set_status(f"Opened {path}")
+
+    def _set_imported(self, project: Project, path: str) -> None:
+        kind = project.imported_from
+        self._set_project(project, None, saved=False, notes_title=f"Imported {kind}",
+                          notes_status=f"Imported {kind} with notes. Save it as a new project.")
+        if not project.load_notes:
+            self.set_status(f"Imported {kind} {os.path.basename(path)}. Save it as a new project.")
 
     def on_open(self, _: wx.CommandEvent) -> None:
         if not self.confirm_discard_changes():
@@ -1022,9 +1034,12 @@ class MainFrame(wx.Frame):
                 return
             path = dlg.GetPath()
         os.chdir(os.path.dirname(path))
-        # Not saved yet: Save prompts for a location (conversion).
-        self._set_project(Project.from_json(path), None, saved=False)
-        self.set_status("Imported AuroraGT sprite. Save it as a new project.")
+        try:
+            project = Project.from_json(path)
+        except Exception as exc:
+            wx.MessageBox(f"Failed to import: {exc}", "Import Error", wx.OK | wx.ICON_ERROR)
+            return
+        self._set_imported(project, path)  # not saved yet: Save asks for a location
 
     def on_import_retro_animator(self, _: wx.CommandEvent) -> None:
         if not self.confirm_discard_changes():
@@ -1044,8 +1059,7 @@ class MainFrame(wx.Frame):
         except Exception as exc:
             wx.MessageBox(f"Failed to import: {exc}", "Import Error", wx.OK | wx.ICON_ERROR)
             return
-        self._set_project(project, None, saved=False)
-        self.set_status("Imported RetroAnimator project. Save it as a new project.")
+        self._set_imported(project, path)
 
     def on_export_retro_animator(self, _: wx.CommandEvent) -> None:
         if not self.project.frames:
@@ -1087,6 +1101,8 @@ class MainFrame(wx.Frame):
             f"Parts folder: {report.get('parts_dir', '')}",
             f"Preview mapping baked: {mapping_name if report.get('mapping_baked') else 'No'}",
         ]
+        if report.get("parts_removed"):
+            summary.insert(5, f"Old parts removed: {report['parts_removed']} (written by this export before, no longer used)")
         if losses:
             summary.append("")
             summary.append("Important compatibility notes:")

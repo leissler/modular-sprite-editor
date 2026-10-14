@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from typing import Dict, Optional
 
+import playback
+from importers.notes import Notes
 from models import AFrame, Animation, CollisionRect, CollisionType, FModule, Frame, ImageAsset, Module, Project, generate_id
 
 
@@ -89,8 +91,10 @@ def _resolve_frame_path(base_path: str, frame_path: str) -> str:
 
 
 def parse(data: Dict, base_path: str, project_name: Optional[str] = None) -> Project:
-    """A project from a RetroAnimator JSON dict; part image paths are relative to ``base_path``."""
+    """A project from a RetroAnimator JSON dict; part image paths are relative to ``base_path``. Whatever it leaves
+    out or can't find is listed in ``project.load_notes``."""
     project = Project(name=project_name or data.get("Name", "RetroAnimator Import"))
+    notes = Notes()
 
     frames_data = data.get("Frames", {})
     if not isinstance(frames_data, dict):
@@ -116,7 +120,9 @@ def parse(data: Dict, base_path: str, project_name: Optional[str] = None) -> Pro
         abs_path = _resolve_frame_path(base_path, normalized)
         width = 0
         height = 0
-        if os.path.exists(abs_path):
+        if not os.path.exists(abs_path):
+            notes.add("Part images not found (Check Project helps to find them)", normalized)
+        else:
             try:
                 from PIL import Image as PILImage
                 with PILImage.open(abs_path) as img:
@@ -168,6 +174,7 @@ def parse(data: Dict, base_path: str, project_name: Optional[str] = None) -> Pro
                 frame_path = sprite_data.get("FramePath", "")
                 module_id = get_or_create_module(str(frame_path))
                 if not module_id:
+                    notes.add("Parts without a picture, left out", frame_name)
                     continue
 
                 frame.fmodules.append(
@@ -229,17 +236,24 @@ def parse(data: Dict, base_path: str, project_name: Optional[str] = None) -> Pro
         )
 
         payload = anim_payload if isinstance(anim_payload, dict) else {}
+        # Exported by this editor: its playback type and repeat count travel in the properties.
+        properties = payload.get("Properties", {})
+        if isinstance(properties, dict):
+            if properties.get("source_playback_type") in playback.PLAYBACKS:
+                anim.playback_type = properties["source_playback_type"]
+            if str(properties.get("source_loop_count", "")).isdigit():
+                anim.loop_count = int(properties["source_loop_count"])
         frame_data = payload.get("FrameData", [])
         if isinstance(frame_data, list):
-            for af_data in frame_data:
+            for index, af_data in enumerate(frame_data, 1):
                 if not isinstance(af_data, dict):
                     continue
 
                 source_frame_id = str(af_data.get("FrameID", "")).strip()
-                if not source_frame_id:
-                    continue
                 resolved_frame_id = frame_key_to_id.get(source_frame_id)
                 if not resolved_frame_id:
+                    notes.add("Animation steps showing a frame the file doesn't have, left out",
+                              f"{anim_name} step {index}")
                     continue
 
                 duration = max(1, _to_int(af_data.get("Duration"), 1))
@@ -256,4 +270,5 @@ def parse(data: Dict, base_path: str, project_name: Optional[str] = None) -> Pro
 
         project.animations.append(anim)
 
+    project.load_notes = notes.lines()
     return project

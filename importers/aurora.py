@@ -6,6 +6,7 @@ import os
 import re
 from typing import Tuple
 
+from importers.notes import Notes
 from models import (
     AFrame,
     Animation,
@@ -19,6 +20,20 @@ from models import (
     Project,
     generate_id,
 )
+
+
+SHAPE_TYPES = ("MD_RECT", "MD_FILL_RECT", "MD_MARKER", "MD_ARC", "MD_FILL_ARC", "MD_TRIANGLE", "MD_FILL_TRIANGLE", "MD_LINE")
+MODULE_TYPES = ("MD_IMAGE",) + SHAPE_TYPES
+
+
+def _image_size(path: str) -> Tuple[int, int]:
+    from PIL import Image as PILImage
+
+    try:
+        with PILImage.open(path) as image:
+            return image.size
+    except (OSError, ValueError):  # missing, or not an image Pillow reads
+        return (0, 0)
 
 
 def _parse_color(val: str) -> Tuple[int, int, int]:
@@ -40,8 +55,10 @@ def _parse_color(val: str) -> Tuple[int, int, int]:
 
 
 def parse(content: str, base_path: str) -> Project:
-    """A project from the text of a .sprite file; image paths are relative to ``base_path``."""
+    """A project from the text of a .sprite file; image paths are relative to ``base_path``. Whatever it leaves out
+    or can't find is listed in ``project.load_notes``."""
     project = Project()
+    notes = Notes()
     images_map = {}
     image_index = 0
     
@@ -49,11 +66,12 @@ def parse(content: str, base_path: str) -> Project:
     current_obj = None
     
     lines = content.splitlines()
-    for raw_line in lines:
+    for number, raw_line in enumerate(lines, 1):
         # Strip comments and trim
         line = raw_line.split("//")[0].split("/*")[0].strip()
         if not line:
             continue
+        unread = f"line {number} ({line[:32]})"
         
         # 1. Images
         img_match = re.search(r'IMAGE\s+(0x[\da-fA-F]+)\s+"([^"]+)"(?:\s+TRANSP\s+(0x[\da-fA-F]+))?', line)
@@ -68,6 +86,9 @@ def parse(content: str, base_path: str) -> Project:
                 trans_color = (r, g, b)
             
             abs_path = os.path.join(base_path, filename)
+            if not os.path.exists(abs_path):
+                notes.add("Images not found next to the file (Check Project helps to find them)", filename)
+            width, height = _image_size(abs_path)
             
             # Use generated ID instead of path (User Request)
             # But we map index -> ID for modules to reference
@@ -77,12 +98,15 @@ def parse(content: str, base_path: str) -> Project:
             img_asset = ImageAsset(
                 id=new_img_id,
                 file_path=abs_path,
-                width=0,
-                height=0,
+                width=width,
+                height=height,
                 transparent_color=trans_color 
             )
             project.images.append(img_asset)
             image_index += 1
+            continue
+
+        if line in ("{", "VERSION") or line.startswith("VERSION "):
             continue
 
         # 2. Block Starts
@@ -131,9 +155,16 @@ def parse(content: str, base_path: str) -> Project:
             if line.startswith("MD"):
                 # MD [id] [type] [params...] ["name"]
                 parts = line.split()
-                if len(parts) >= 3:
-                    md_id = parts[1].strip()
-                    md_type = parts[2].strip()
+                if len(parts) < 3:
+                    notes.add("Module lines that couldn't be read, left out", unread)
+                    continue
+                md_id = parts[1].strip()
+                md_type = parts[2].strip()
+                if md_type not in MODULE_TYPES:
+                    notes.add("Modules of a kind the editor doesn't know, left out", f"{md_id} ({md_type})")
+                elif any(m.id == md_id for m in project.modules):
+                    notes.add("Modules defined twice, the second one left out", md_id)
+                else:
                     
                     # Extract name if present
                     name = ""
@@ -161,8 +192,11 @@ def parse(content: str, base_path: str) -> Project:
                             target_img_id = images_map.get(img_idx, None)
                             if target_img_id:
                                 image_id = target_img_id
-                            elif project.images:
-                                image_id = project.images[0].id
+                            else:
+                                notes.add("Modules on an image the file doesn't list" + (
+                                    " (they use the first image)" if project.images else ""), md_id)
+                                if project.images:
+                                    image_id = project.images[0].id
 
                         # 2. MD_RECT / FILL_RECT / MARKER: color w h
                         elif md_type in ("MD_RECT", "MD_FILL_RECT", "MD_MARKER"):
@@ -235,7 +269,9 @@ def parse(content: str, base_path: str) -> Project:
                             params=params
                         ))
                     except (ValueError, IndexError):
-                        pass
+                        notes.add("Module lines that couldn't be read, left out", unread)
+            else:
+                notes.add("Lines the importer doesn't know, ignored", unread)
             continue
 
         if current_block == "FRAME" and isinstance(current_obj, Frame):
@@ -260,7 +296,10 @@ def parse(content: str, base_path: str) -> Project:
                             flip_y=flip_y
                         )
                         current_obj.fmodules.append(fmod)
-                    except ValueError: pass
+                    except ValueError:
+                        notes.add("Frame parts that couldn't be read, left out", unread)
+                else:
+                    notes.add("Frame parts that couldn't be read, left out", unread)
             elif line.startswith("RC"):
                 parts = line.split()
                 if len(parts) >= 5:
@@ -278,7 +317,12 @@ def parse(content: str, base_path: str) -> Project:
                             rect=(x1, y1, x2 - x1, y2 - y1)
                         )
                         current_obj.collision_rects.append(crect)
-                    except ValueError: pass
+                    except ValueError:
+                        notes.add("Hitboxes that couldn't be read, left out", unread)
+                else:
+                    notes.add("Hitboxes that couldn't be read, left out", unread)
+            else:
+                notes.add("Lines the importer doesn't know, ignored", unread)
             continue
 
         if current_block == "ANIM" and isinstance(current_obj, Animation):
@@ -303,7 +347,12 @@ def parse(content: str, base_path: str) -> Project:
                             flip_y=flip_y
                         )
                         current_obj.aframes.append(af)
-                    except ValueError: pass
+                    except ValueError:
+                        notes.add("Animation steps that couldn't be read, left out", unread)
+                else:
+                    notes.add("Animation steps that couldn't be read, left out", unread)
+            else:
+                notes.add("Lines the importer doesn't know, ignored", unread)
             continue
 
         if current_block == "MAPPING" and isinstance(current_obj, ModuleMapping):
@@ -317,7 +366,13 @@ def parse(content: str, base_path: str) -> Project:
                     if dest_id.upper() == "NONE":
                         dest_id = None
                     current_obj.map[src_id] = dest_id
+                else:
+                    notes.add("Mapping lines that couldn't be read, left out", unread)
+            else:
+                notes.add("Lines the importer doesn't know, ignored", unread)
             continue
+
+        notes.add("Lines the importer doesn't know, ignored", unread)
 
     # 4. Linking Pass: Resolve FModule references
     # Check if ref_id matches a Module or a Frame. Default was "module".
@@ -330,8 +385,18 @@ def parse(content: str, base_path: str) -> Project:
                 # It's a Frame (and not ambiguously a Module ID, though IDs should be unique)
                 fm.ref_type = "frame"
             elif fm.ref_id not in module_ids and fm.ref_id not in frame_ids:
-                # Unknown ref. Leave as module? or mark broken?
-                # Aurora GT usually links to modules.
-                pass
+                notes.add("Frame parts using a module the file doesn't define (Check Project lists them)",
+                          f"{fm.ref_id} in {frame.name}")
+    for anim in project.animations:
+        for index, af in enumerate(anim.aframes, 1):
+            if af.frame_id not in frame_ids:
+                notes.add("Animation steps using a frame the file doesn't define (Check Project lists them)",
+                          f"{af.frame_id} in {anim.name} step {index}")
+    for mapping in project.mappings:
+        for source, target in mapping.map.items():
+            for module_id in (source, target):
+                if module_id is not None and module_id not in module_ids:
+                    notes.add("Mapping entries naming a module the file doesn't define", f"{module_id} in {mapping.name}")
 
+    project.load_notes = notes.lines()
     return project
