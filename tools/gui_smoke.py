@@ -1967,6 +1967,52 @@ def run():
 
     step("scrolling moves or zooms (View menu)", scroll_choice)
 
+    def view_memory():
+        """Reopening a project brings back where it was left: the tab, the preview mapping, each tab's selection, the
+        canvas' zoom and pan and the grid (kept per project file in the preferences)."""
+        saved_recent = list(frame.recent_files)
+        me, fe, ae, te = frame.module_editor, frame.frame_editor, frame.animation_editor, frame.timeline_editor
+        project = frame.project
+        sheet = project.images[-1].id if project.images else None
+        if sheet:
+            me.select_sheet(sheet)
+            me.canvas.set_view_state((-11.0, 6.0), 3.0)
+        frame_id = project.frames[min(3, len(project.frames) - 1)].id
+        fe.select_frame_by_id(frame_id)
+        pump()
+        fe.stage.set_view_state((-7.0, 3.0), 5.0)
+        fe.canvas_controls.restore_grid({"grid": True, "grid_size": [16, 24]})
+        anim_id = project.animations[-1].id if project.animations else None
+        if anim_id:
+            ae.select_animation(anim_id)
+        scene = te.scene()
+        object_id = scene.objects[-1].id if scene is not None and scene.objects else None
+        if object_id:
+            te.select_object(object_id)
+        mapping = project.mappings[-1] if project.mappings else None
+        frame.on_preview_mapping_selected(mapping.id if mapping else None)
+        frame.select_tab(1)
+        pump()
+        frame.load_project(project_path)  # the same file again: where it was left is kept, then brought back
+        pump(8)
+        frame.recent_files = saved_recent
+        frame._save_recent_files()
+        check(frame.book.GetSelection() == 1, "view memory: the tab")
+        check(fe.selected_frame_id == frame_id, "view memory: the frame")
+        check(fe.stage.zoom == 5.0 and fe.stage.pan == (-7.0, 3.0), f"view memory: the stage's view {fe.stage.pan} {fe.stage.zoom}")
+        check(fe.canvas_controls.chk_grid.GetValue() and tuple(fe.stage.grid_spacing) == (16, 24), "view memory: the grid")
+        if sheet:
+            check(me.sheet_key == sheet and me.canvas.get_view_state() == ((-11.0, 6.0), 3.0), "view memory: the image and its view")
+        check(ae.selected_animation_id == anim_id, "view memory: the animation")
+        if object_id:
+            check(te.selected_object_id == object_id, "view memory: the scene's layer")
+        active = frame.project.active_mapping
+        check((active.id if active else None) == (mapping.id if mapping else None), "view memory: the preview mapping")
+        fe.canvas_controls.restore_grid({"grid": False, "grid_size": [8, 8]})
+        frame.on_preview_mapping_selected(None)
+
+    step("view memory: reopening a project brings back the tab, selections and views", view_memory)
+
     def open_foreign_file():
         """Opening another editor's file imports it: Save asks for a new file instead of writing over that one."""
         saved_recent = list(frame.recent_files)

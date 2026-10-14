@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import wx
 
@@ -230,6 +230,20 @@ class CanvasDisplayControls(wx.Panel):
     def toggle_grid(self) -> None:
         self.chk_grid.SetValue(not self.chk_grid.GetValue())
         self.canvas.set_show_grid(self.chk_grid.GetValue())
+
+    def grid_state(self) -> Dict[str, Any]:
+        """The grid as a tab's view state keeps it per project (ui/view_memory.py)."""
+        return {"grid": self.chk_grid.GetValue(), "grid_size": [self.grid_w.GetValue(), self.grid_h.GetValue()]}
+
+    def restore_grid(self, state: Dict[str, Any]) -> None:
+        if isinstance(state.get("grid"), bool):
+            self.chk_grid.SetValue(state["grid"])
+            self.canvas.set_show_grid(state["grid"])
+        size = state.get("grid_size")
+        if isinstance(size, list) and len(size) == 2 and all(isinstance(v, int) for v in size):
+            self.grid_w.SetValue(size[0])
+            self.grid_h.SetValue(size[1])
+            self._apply_grid_spacing()
 
     # --- backdrop
     def _set_backdrop_mode(self, mode: str, persist: bool = True) -> None:

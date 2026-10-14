@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 import wx
 
 from models import Project, TimelineKeyframe, TimelineObject, TimelineScene, generate_id
-from ui import app_services
+from ui import app_services, view_memory
 from ui.base_canvas import BACKDROP_COLOUR
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.inspector_kit import fit_choice
@@ -84,6 +84,7 @@ class SceneEditorPanel(wx.Panel):
         self._drag: Dict[str, Any] = {}
         self._play_start: Tuple[float, int] = (0.0, 0)
         self._fitted_scene_id: Optional[str] = None
+        self._remembered_view: Optional[Tuple[str, view_memory.View]] = None  # shown instead of the first fit
         self.timer = wx.Timer(self)
         self._arm_timer_when_idle = False  # see _on_timer
         self._frame_time = 0.0  # when the last playback frame started
@@ -281,7 +282,38 @@ class SceneEditorPanel(wx.Panel):
         self.collapsed_ids.clear()
         self._tick_cache.clear()
         self.frame = 0
+        self._remembered_view = None
         self.refresh_scenes()
+
+    def view_state(self) -> Dict[str, Any]:
+        """The scene shown, its playhead, the selected layer, the layers hidden, locked or folded and the stage's
+        zoom and pan (kept per project)."""
+        return {"scene": self.selected_scene_id, "frame": self.frame, "object": self.selected_object_id,
+                "hidden": sorted(self.hidden_ids), "locked": sorted(self.locked_ids),
+                "collapsed": sorted(self.collapsed_ids), "view": view_memory.canvas_view(self.stage),
+                **self.canvas_controls.grid_state()}
+
+    def restore_view_state(self, state: Dict[str, Any]) -> None:
+        self.canvas_controls.restore_grid(state)
+        objects = {o.id for scene in self.project.timeline_scenes for o in scene.objects}
+        for name, kept in (("hidden", self.hidden_ids), ("locked", self.locked_ids), ("collapsed", self.collapsed_ids)):
+            kept.clear()
+            kept.update(i for i in view_memory.ids(state.get(name)) if i in objects)
+        scene_id = view_memory.text(state.get("scene"))
+        scene = self.project.get_timeline_scene(scene_id) if scene_id else None
+        if scene is None:
+            self.refresh()
+            return
+        view = view_memory.parse_view(state.get("view"))
+        self._remembered_view = (scene.id, view) if view else None
+        self.refresh_scenes(scene.id)
+        if self._fitted_scene_id == scene.id and view:  # fitted already: show the remembered view now
+            self._remembered_view = None
+            self.stage.set_view_state(*view)
+        if isinstance(state.get("frame"), int):
+            self.frame = max(0, min(state["frame"], ops.scene_length_frames(scene)))
+        object_id = view_memory.text(state.get("object"))
+        self.select_object(object_id if object_id and scene.get_object(object_id) else None)
 
     def refresh_after_history(self) -> None:
         self._tick_cache.clear()
@@ -386,7 +418,11 @@ class SceneEditorPanel(wx.Panel):
             return  # retried from on_tab_activated / the next refresh_scenes
         self.refresh()
         self.timeline.fit_scene()
-        self.stage.fit_to_content()
+        remembered, self._remembered_view = self._remembered_view, None
+        if remembered and remembered[0] == self.selected_scene_id:
+            self.stage.set_view_state(*remembered[1])  # where the project was left
+        else:
+            self.stage.fit_to_content()
         self._fitted_scene_id = self.selected_scene_id
 
     def refresh(self, stage: bool = True, timeline: bool = True, inspector: bool = True) -> None:

@@ -241,8 +241,10 @@ class BaseCanvas(wx.Panel):
         self.Refresh(False)
 
     def set_view_state(self, pan: Tuple[float, float], zoom: float) -> None:
-        self.pan = pan
-        self.zoom = zoom
+        """Show a remembered view; it replaces a fit still waiting for the canvas to get its size."""
+        self.pan = (float(pan[0]), float(pan[1]))
+        self.zoom = max(self.min_zoom, min(self.max_zoom, float(zoom)))
+        self._fit_pending = False
         self._notify_zoom()
         self.Refresh(False)
 

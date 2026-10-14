@@ -13,7 +13,7 @@ import wx
 
 import palettes
 from models import ImageAsset, Module, Palette, Project, generate_id
-from ui import app_services
+from ui import app_services, view_memory
 from ui.animation_editor import ops as anim_ops
 from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
@@ -159,6 +159,33 @@ class ModuleEditorPanel(wx.Panel):
         """Frames may have started or stopped using modules (the usage counts)."""
         self.refresh_sheets()
         self.refresh_modules()
+
+    def view_state(self) -> Dict[str, Any]:
+        """The image shown, its selected modules and every image's zoom and pan (kept per project)."""
+        views = dict(self._view_states)
+        if self.sheet_key:
+            views[self.sheet_key] = self.canvas.get_view_state()
+        return {"sheet": self.sheet_key, "modules": list(self.selection),
+                "views": {key: view_memory.view_dict(view) for key, view in views.items() if key},
+                **self.canvas_controls.grid_state()}
+
+    def restore_view_state(self, state: Dict[str, Any]) -> None:
+        self.canvas_controls.restore_grid(state)
+        keys = self._sheet_keys()
+        sheet = view_memory.text(state.get("sheet"))
+        if sheet in keys and sheet != self.sheet_key:
+            self.select_sheet(sheet)
+        views = state.get("views") if isinstance(state.get("views"), dict) else {}
+        for key, data in views.items():
+            view = view_memory.parse_view(data)
+            if view is not None and key in keys:
+                self._view_states[key] = view
+        if self.sheet_key in self._view_states:
+            self.canvas.set_view_state(*self._view_states[self.sheet_key])
+        shown = {m.id for m in self.sheet_modules()}
+        modules = [i for i in view_memory.ids(state.get("modules")) if i in shown]
+        if modules:
+            self.select_modules(modules)
 
     def on_active_mapping_changed(self) -> None:
         pass  # the sheet shows the modules themselves, not their replacements

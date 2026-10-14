@@ -20,7 +20,7 @@ import wx.lib.agw.flatnotebook as fnb
 import consoles
 import palettes
 from models import FModule, Project, generate_id
-from ui import app_services, autosave, preferences
+from ui import app_services, autosave, preferences, view_memory
 from ui.animation_editor.panel import AnimationEditorPanel
 from ui.base_canvas import SCROLL
 from ui.canvas import BUDGET
@@ -1013,6 +1013,7 @@ class MainFrame(wx.Frame):
 
     def _set_project(self, project: Project, path: Optional[str], saved: bool, notes_title: str = "Project Upgraded",
                      notes_status: str = "Project format upgraded; save to keep the upgrade") -> None:
+        self._remember_view()  # where the project being closed was left
         self._drop_recovery()  # the previous project's changes were saved or discarded by now
         self.show_welcome(False)
         self.project = project
@@ -1020,6 +1021,7 @@ class MainFrame(wx.Frame):
         self._reload_project_into_panels()
         self.history.reset(self.project, saved=saved)
         self._image_stamps = image_stamps(self.project)
+        self._restore_view()
         self.context_bar.set_mappings(self.project)
         self.context_bar.set_swaps(self.project)
         self._update_title()
@@ -1244,6 +1246,45 @@ class MainFrame(wx.Frame):
         if target:
             self.go_to(target)
 
+    # ------------------------------------------------------------------ view memory
+    def _remember_view(self) -> None:
+        """Keep where the project was left (tab, preview mapping and swap, each tab's selection and view) in the
+        preferences, under the project file's path."""
+        if not self.current_path:
+            return
+        project = self.project
+        state = {
+            "tab": self.book.GetSelection(),
+            "mapping": project.active_mapping.id if project.active_mapping else None,
+            "palette_swap": project.active_palette_swap.id if project.active_palette_swap else None,
+            "tabs": {name: panel.view_state() for panel, name in zip(self.panels, TAB_NAMES)},
+        }
+        view_memory.save(self.config, self.current_path, state)
+
+    def _restore_view(self) -> None:
+        """Back to where the project was left the last time it was open (whatever of it still exists)."""
+        state = view_memory.load(self.config, self.current_path)
+        if not state:
+            return
+        project = self.project
+        mapping_id = view_memory.text(state.get("mapping"))
+        project.active_mapping = next((m for m in project.mappings if m.id == mapping_id), None)
+        swap_id = view_memory.text(state.get("palette_swap"))
+        project.active_palette_swap = project.get_palette_swap(swap_id) if swap_id else None
+        tabs = state.get("tabs") if isinstance(state.get("tabs"), dict) else {}
+        for panel, name in zip(self.panels, TAB_NAMES):
+            panel_state = tabs.get(name)
+            if isinstance(panel_state, dict):
+                panel.restore_view_state(panel_state)
+        if project.active_mapping is not None or project.active_palette_swap is not None:
+            for panel in self.panels:
+                handler = getattr(panel, "on_active_mapping_changed", None)
+                if handler:
+                    handler()
+        tab = state.get("tab")
+        if isinstance(tab, int) and 0 <= tab < self.book.GetPageCount():
+            self.select_tab(tab)
+
     def _export_preference(self) -> str:
         """Preferences key for this project's Mega Drive export folder."""
         path = os.path.abspath(self.current_path) if self.current_path else "untitled"
@@ -1395,6 +1436,7 @@ class MainFrame(wx.Frame):
             stop = getattr(panel, "stop_playback", None)
             if stop:
                 stop()
+        self._remember_view()
         self._save_recent_files()
         self._save_geometry()
         app_services.install()

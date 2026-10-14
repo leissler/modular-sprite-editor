@@ -9,7 +9,7 @@ import wx
 
 import playback
 from models import AFrame, Animation, Project
-from ui import app_services, grouping
+from ui import app_services, grouping, view_memory
 from ui.animation_editor import ops
 from ui.animation_editor.batch_dialog import ChangeAnimationsDialog
 from ui.animation_editor.browser import AnimationBrowser, FrameLibrary
@@ -59,6 +59,7 @@ class AnimationEditorPanel(wx.Panel):
         self._drag_bases: Dict[int, Tuple[int, int]] = {}
         self._hold_bases: Dict[int, int] = {}
         self._fitted_id: Optional[str] = None
+        self._remembered_view: Optional[Tuple[str, view_memory.View]] = None  # shown instead of the first fit
         self._view: List[Animation] = []
         self.on_edit_frame: Optional[Callable[[str], None]] = None  # set by the main window
         self.timer = wx.Timer(self)
@@ -258,6 +259,7 @@ class AnimationEditorPanel(wx.Panel):
         self.selection = set()
         self.tick = 0
         self._fitted_id = None
+        self._remembered_view = None
         self.refresh_animations()
 
     def refresh_after_history(self) -> None:
@@ -277,6 +279,22 @@ class AnimationEditorPanel(wx.Panel):
         self.library.refresh()
         self.refresh_animations()
         wx.CallAfter(self._fit_views)
+
+    def view_state(self) -> Dict[str, Any]:
+        """The animation shown, the list's group and order and the stage's zoom and pan (kept per project)."""
+        return {"animation": self.selected_animation_id, "view": view_memory.canvas_view(self.stage),
+                "list": self.browser.groups.state(), **self.canvas_controls.grid_state()}
+
+    def restore_view_state(self, state: Dict[str, Any]) -> None:
+        self.canvas_controls.restore_grid(state)
+        if isinstance(state.get("list"), dict):
+            self.browser.groups.restore(state["list"])
+            self.refresh_animations()
+        anim_id = view_memory.text(state.get("animation"))
+        if anim_id and self.project.get_animation(anim_id):  # the list's filter is empty: a project was just opened
+            view = view_memory.parse_view(state.get("view"))
+            self._remembered_view = (anim_id, view) if view else None
+            self.select_animation(anim_id)
 
     def refresh_library(self) -> None:
         self.library.refresh()
@@ -460,7 +478,11 @@ class AnimationEditorPanel(wx.Panel):
         anim = self.animation()
         if anim and self._fitted_id != anim.id and self.stage.IsShownOnScreen():
             self._fitted_id = anim.id
-            self.stage.fit_to_content()
+            remembered, self._remembered_view = self._remembered_view, None
+            if remembered and remembered[0] == anim.id:
+                self.stage.set_view_state(*remembered[1])  # where the project was left
+            else:
+                self.stage.fit_to_content()
             self.sequence.fit()
 
     # ================================================================== animations

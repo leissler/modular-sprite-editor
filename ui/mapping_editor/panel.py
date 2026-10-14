@@ -6,12 +6,12 @@ duplicating frames. The selected mapping is the preview mapping of every tab (co
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import wx
 
 from models import ModuleMapping, Project
-from ui import app_services, first_steps
+from ui import app_services, first_steps, view_memory
 from ui.components.frame_palette import FramePalette
 from ui.components.module_palette import SHAPES_KEY, ModulePalette, sheet_of
 from ui.components.inspector_kit import fit_choice
@@ -212,6 +212,16 @@ class MappingEditorPanel(wx.Panel):
     def on_tab_activated(self) -> None:
         self.current_mapping = self.project.active_mapping
         self._refresh_sheet_choices()
+        self.refresh_list()
+        self.refresh_table()
+
+    def view_state(self) -> Dict[str, Any]:
+        """The selected modules (the mapping shown is the preview mapping, which the main window keeps)."""
+        return {"modules": list(self.selection)}
+
+    def restore_view_state(self, state: Dict[str, Any]) -> None:
+        self.current_mapping = self.project.active_mapping
+        self.selection = [i for i in view_memory.ids(state.get("modules")) if self.project.get_module(i)]
         self.refresh_list()
         self.refresh_table()
 

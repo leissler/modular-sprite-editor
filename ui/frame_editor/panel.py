@@ -12,7 +12,7 @@ import wx
 
 from models import FModule, Frame, Project
 from optimization import optimize_nested_frame_combos
-from ui import app_services, grouping
+from ui import app_services, grouping, view_memory
 from ui.canvas import GHOST_NEXT, GHOST_PREVIOUS
 from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
@@ -53,6 +53,8 @@ class FrameEditorPanel(wx.Panel):
         self._swatches: Dict[Tuple[int, int, int], wx.Bitmap] = {}
         self._active_type: Dict[str, Optional[str]] = {"hitboxes": None, "points": None}
         self._fitted_id: Optional[str] = None
+        self._remembered_view: Optional[Tuple[str, view_memory.View]] = None  # shown instead of the frame's first fit
+        self._pending_fits = 0
         self.on_open_module: Optional[Callable[[str], None]] = None  # set by the main window
 
         self._build_ui()
@@ -191,6 +193,7 @@ class FrameEditorPanel(wx.Panel):
         self._active_type = {"hitboxes": None, "points": None}
         self._thumbs = {}
         self._fitted_id = None
+        self._remembered_view = None
         self.selected_frame_id = project.frames[0].id if project.frames else None
         self._clear_selection()
         self.set_mode("parts")
@@ -212,6 +215,26 @@ class FrameEditorPanel(wx.Panel):
         self.library.refresh()
         self.refresh_frames()
         self.show_frame(self.selected_frame_id, keep_selection=True)
+
+    def view_state(self) -> Dict[str, Any]:
+        """The frame shown, the editing mode, the list's group and order and the stage's zoom and pan (kept per
+        project)."""
+        return {"frame": self.selected_frame_id, "mode": self.mode, "view": view_memory.canvas_view(self.stage),
+                "list": self.browser.groups.state(), **self.canvas_controls.grid_state()}
+
+    def restore_view_state(self, state: Dict[str, Any]) -> None:
+        self.canvas_controls.restore_grid(state)
+        if isinstance(state.get("list"), dict):
+            self.browser.groups.restore(state["list"])
+            self.refresh_frames()
+        mode = view_memory.text(state.get("mode"))
+        if mode in ops.CANVAS_MODE and mode != self.mode:
+            self.set_mode(mode)
+        frame_id = view_memory.text(state.get("frame"))
+        if frame_id and self.project.get_frame(frame_id):
+            view = view_memory.parse_view(state.get("view"))
+            self._remembered_view = (frame_id, view) if view else None
+            self.select_frame_by_id(frame_id)
 
     def on_active_mapping_changed(self) -> None:
         self.stage.clear_cache()
@@ -342,7 +365,22 @@ class FrameEditorPanel(wx.Panel):
         self.refresh(frames=False)
         if frame is not None and (fit or self._fitted_id is None):
             self._fitted_id = frame.id
-            wx.CallAfter(self.stage.fit_to_content)
+            self._pending_fits += 1
+            wx.CallAfter(self._fit_stage)
+
+    def _fit_stage(self) -> None:
+        """Fit the frame in view once the frame and the stage have settled (the last of the fits asked for), or show
+        the view remembered for it when the project was opened again."""
+        if not self:
+            return
+        self._pending_fits -= 1
+        if self._pending_fits > 0:
+            return
+        remembered, self._remembered_view = self._remembered_view, None
+        if remembered and remembered[0] == self.selected_frame_id:
+            self.stage.set_view_state(*remembered[1])
+        else:
+            self.stage.fit_to_content()
 
     def _drop_stale_selection(self) -> None:
         frame = self.frame()

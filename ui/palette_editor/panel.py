@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import os
 import time
-from typing import List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import wx
 
 import palettes
 from models import Palette, PaletteSwap, Project
-from ui import app_services, first_steps
+from ui import app_services, first_steps, view_memory
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.palette_swatches import draw_empty_slot
 from ui.components.thumb_list import Browser, Row
@@ -40,6 +40,7 @@ class PaletteEditorPanel(wx.Panel):
         self.animate = True
         self.highlight = True
         self._fitted = False
+        self._remembered_view: Optional[Tuple[str, view_memory.View]] = None  # (image id, view) for the first fit
         self.cycle_frame = 0.0
         self._last_tick = 0.0
         self._thumbs: dict = {}
@@ -132,7 +133,30 @@ class PaletteEditorPanel(wx.Panel):
         self.image_id = None
         self.preview.forget()
         self._fitted = False
+        self._remembered_view = None
         self.refresh()
+
+    def view_state(self) -> Dict[str, Any]:
+        """The palette, the swap and the image shown and the preview's zoom and pan (kept per project)."""
+        return {"palette": self.palette_id, "swap": self.swap_id, "image": self.image_id,
+                "view": view_memory.canvas_view(self.preview), **self.canvas_controls.grid_state()}
+
+    def restore_view_state(self, state: Dict[str, Any]) -> None:
+        self.canvas_controls.restore_grid(state)
+        palette_id = view_memory.text(state.get("palette"))
+        if palette_id and self.project.get_palette(palette_id) is not None:
+            self.palette_id = palette_id
+            self.slots = []
+        swap_id = view_memory.text(state.get("swap"))
+        self.swap_id = swap_id if swap_id and self.project.get_palette_swap(swap_id) else None
+        image_id = view_memory.text(state.get("image"))
+        if image_id in [a.id for a in self._images()]:
+            self.image_id = image_id
+        view = view_memory.parse_view(state.get("view"))
+        self._remembered_view = (self.image_id, view) if view and self.image_id else None
+        self.refresh()
+        if self._fitted and self._remembered_view:  # shown and fitted already
+            self._fit()
 
     def on_tab_activated(self) -> None:
         self.refresh()
@@ -325,7 +349,11 @@ class PaletteEditorPanel(wx.Panel):
     def _fit(self) -> None:
         if not self:
             return
-        self.preview.fit_to_content()
+        remembered, self._remembered_view = self._remembered_view, None
+        if remembered and remembered[0] == self.image_id:
+            self.preview.set_view_state(*remembered[1])  # where the project was left
+        else:
+            self.preview.fit_to_content()
 
     def _begin_swap_rename(self) -> None:
         if self.swap_id:
