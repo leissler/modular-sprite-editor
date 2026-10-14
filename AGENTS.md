@@ -317,7 +317,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Keyboard:** panels use `EVT_CHAR_HOOK`; always bail out with `app_services.text_entry_has_focus()`
   (on macOS `wx.SearchCtrl` is *not* a `wx.TextCtrl`) and leave Cmd/Ctrl combos to the menus. Shared keys:
   H/V flip, R / Shift+R rotate, arrows nudge (Shift = 8 px), Enter play/pause, `,`/`.` step, Delete.
-  Update `ui/shortcuts_dialog.py` and the README controls table when adding shortcuts.
+  Update `ui/shortcuts_dialog.py` and the README controls table when adding shortcuts, then regenerate the guide's
+  page with `python3 website/scripts/make_shortcuts_page.py` (`website/docs/reference/shortcuts.md` is generated from
+  the dialog's list: never edit it by hand).
 - **Timeline (scene editor):** the UI counts in *frames* at the scene fps; the model stores seconds — convert
   with `ops.time_of` / `ops.frame_of` only. A segment's easing lives on its *end* key (`ops.segment_end_key`).
   Layer rows are listed in draw order (lower rows draw on top) and `ops.normalize_draw_order` keeps
