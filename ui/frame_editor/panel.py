@@ -12,10 +12,11 @@ import wx
 
 from models import FModule, Frame, Project
 from optimization import optimize_nested_frame_combos
-from ui import app_services
+from ui import app_services, grouping
 from ui.canvas import GHOST_NEXT, GHOST_PREVIOUS
 from ui.components import confirm
 from ui.components.canvas_display_controls import CanvasDisplayControls
+from ui.components.group_bar import group_menu
 from ui.components.module_palette import THUMBNAILS
 from ui.components.thumb_list import Browser, Row
 from ui.frame_editor import ops
@@ -64,6 +65,7 @@ class FrameEditorPanel(wx.Panel):
         self.outer_split = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         self.left_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         self.browser = Browser(self.left_split, "Frames", row_h=46, thumb=38, reorder=True)
+        self.browser.add_group_bar(lambda: self.refresh_frames(), "frames")
         self.btn_new = self.browser.add_button("+ New", "New empty frame after the selected one", self.new_frame)
         self.btn_dup = self.browser.add_button("Duplicate", "Duplicate the selected frame", self.duplicate_frame)
         self.btn_del = self.browser.add_button("Delete", "Delete the selected frame", self.delete_frame)
@@ -183,6 +185,8 @@ class FrameEditorPanel(wx.Panel):
         project.ensure_default_point_type()
         self.library.set_project(project)
         self.browser.search.ChangeValue("")
+        self.browser.groups.set_group(grouping.ALL)
+        self.browser.groups.set_sort("order")
         self.inspector.hidden_types = {"hitboxes": set(), "points": set()}
         self._active_type = {"hitboxes": None, "points": None}
         self._thumbs = {}
@@ -286,8 +290,11 @@ class FrameEditorPanel(wx.Panel):
 
     # ================================================================== frames list
     def refresh_frames(self) -> None:
-        query = self.browser.filter_text()
-        self._view = [f for f in self.project.frames if not query or query in f.name.lower()]
+        groups = self.browser.groups
+        groups.set_groups(self.project.frames)
+        self._view = grouping.shown(self.project.frames, self.browser.filter_text(), groups.group(), groups.sort())
+        self.browser.list.reorder = groups.sort() == "order"
+        show_group = groups.group() is grouping.ALL
         anims = ops.animation_counts(self.project)
         nested: Dict[str, int] = {}
         for f in self.project.frames:
@@ -302,7 +309,11 @@ class FrameEditorPanel(wx.Panel):
             if nested.get(f.id):
                 bits.append(f"nested ×{nested[f.id]}")
             used = bool(anims.get(f.id) or nested.get(f.id))
-            rows.append(Row(f.id, f.name, " · ".join(bits) if used else bits[0] + " · unused", dim=not used))
+            if not used:
+                bits = [bits[0], "unused"]
+            if f.group and show_group:
+                bits.append(f.group)
+            rows.append(Row(f.id, f.name, " · ".join(bits), dim=not used))
         if self.selected_frame_id and not self.project.get_frame(self.selected_frame_id):
             self.selected_frame_id = None
         self.browser.list.set_rows(rows, [self.selected_frame_id] if self.selected_frame_id else [])
@@ -545,6 +556,8 @@ class FrameEditorPanel(wx.Panel):
         add("Paste Hitboxes && Points", self._paste_markers, bool(_MARKER_CLIPBOARD["hitboxes"] or _MARKER_CLIPBOARD["points"]))
         add("Copy Hitboxes to All Frames…", lambda: self._markers_to_all("hitboxes"), bool(frame.collision_rects))
         add("Copy Points to All Frames…", lambda: self._markers_to_all("points"), bool(frame.control_points))
+        menu.AppendSeparator()
+        group_menu(self, menu, self.project.frames, frame.group, lambda name: self._on_frame_field("group", name))
         self.browser.list.PopupMenu(menu)
         menu.Destroy()
 
@@ -585,6 +598,11 @@ class FrameEditorPanel(wx.Panel):
         if frame is not None and field == "name" and value and value != frame.name:
             frame.name = value
             self._commit()
+        elif frame is not None and field == "group" and grouping.clean_name(str(value or "")) != frame.group:
+            frame.group = grouping.clean_name(str(value or ""))
+            self._commit()
+            app_services.show_status(f"'{frame.name}' is in the group '{frame.group}'" if frame.group
+                                     else f"'{frame.name}' has no group")
 
     def _on_frame_tool(self, name: str) -> None:
         frame = self.frame()

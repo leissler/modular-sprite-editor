@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Tuple
 # 6 = images belong to one of four palettes (ImageAsset.palette, 0-3, additive: existing images use the first).
 # 7 = palettes are project data (palettes: colours in hardware order and colour cycles; images name theirs with
 #     palette_id), palette swaps (palette_swaps) that scene objects choose like mappings (palette_swap_id), the target
-#     console (console), scene objects that follow a parent's point (attach_point_role / attach_point_type).
-#     Additive: format 6's palettes keep their numbers, and their colours are built from the images when the project
-#     opens, with that format's rules (palettes.build_missing).
+#     console (console), scene objects that follow a parent's point (attach_point_role / attach_point_type), groups for
+#     frames and animations (group). Additive: format 6's palettes keep their numbers, and their colours are built
+#     from the images when the project opens, with that format's rules (palettes.build_missing).
 PROJECT_FORMAT_VERSION = 7
 
 
@@ -149,7 +149,7 @@ def _migrate_v5_to_v6(data: Dict[str, Any], notes: List[str]) -> None:
 def _migrate_v6_to_v7(data: Dict[str, Any], notes: List[str]) -> None:
     """Palettes become project data. Format 6's Palette 1-4 keep their numbers (those the images use, and the first,
     which vector shapes use); their colours are left unset to be built from the images once the project is open. The
-    rest is additive: no swaps, objects inherit theirs and follow no point."""
+    rest is additive: no swaps, objects inherit theirs and follow no point, frames and animations sit in no group."""
     data.setdefault("console", "megadrive")
     images = data.get("images", []) or []
 
@@ -170,6 +170,8 @@ def _migrate_v6_to_v7(data: Dict[str, Any], notes: List[str]) -> None:
             obj.setdefault("palette_swap_id", None)
             obj.setdefault("attach_point_role", "")
             obj.setdefault("attach_point_type", None)
+    for item in (data.get("frames", []) or []) + (data.get("animations", []) or []):
+        item.setdefault("group", "")
 
 
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:

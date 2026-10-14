@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence
 
 import wx
+from ui.components.group_bar import GroupBar
 from ui.dpi import px
 
 COL_ROW = wx.Colour(40, 41, 45)
@@ -292,6 +293,14 @@ class Browser(wx.Panel):
         self.sizer.Add(self.buttons, 0, wx.EXPAND | wx.ALL, 6)
         self.SetSizer(self.sizer)
         self.search.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: self.search.SetValue(""))
+
+    def add_group_bar(self, on_change: Callable[[], None], what: str = "items") -> GroupBar:
+        """A group filter and sort order under the filter field (long lists: frames)."""
+        self.groups = GroupBar(self, on_change, what)
+        self.sizer.Insert(2, self.groups, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        self.sizer.GetItem(self.search).SetFlag(wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP)
+        self.Layout()
+        return self.groups
 
     def add_button(self, label: str, tooltip: str, handler: Callable[[], None], proportion: int = 1) -> wx.Button:
         btn = wx.Button(self, label=label, style=wx.BU_EXACTFIT)

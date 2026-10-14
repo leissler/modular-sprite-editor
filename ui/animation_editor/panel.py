@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import wx
 
 from models import AFrame, Animation, Project
-from ui import app_services
+from ui import app_services, grouping
 from ui.animation_editor import ops
 from ui.animation_editor.browser import AnimationBrowser, FrameLibrary
 from ui.animation_editor.inspector import AnimationInspector
@@ -16,6 +16,7 @@ from ui.animation_editor.render import StepRenderer, export_gif
 from ui.animation_editor.sequence import SequenceView
 from ui.animation_editor.stage import ONION_MODES, AnimationStage
 from ui.components.canvas_display_controls import CanvasDisplayControls
+from ui.components.group_bar import group_menu
 from ui.dpi import px
 from ui.components.split_memory import split_bottom_remembered
 
@@ -174,6 +175,7 @@ class AnimationEditorPanel(wx.Panel):
     def _bind(self) -> None:
         b = self.browser
         b.search.Bind(wx.EVT_TEXT, lambda e: self.refresh_animations())
+        b.on_view_changed = self.refresh_animations
         b.search.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, lambda e: b.search.SetValue(""))
         b.list.Bind(wx.EVT_LISTBOX, self._on_list_select)
         b.list.Bind(wx.EVT_LISTBOX_DCLICK, lambda e: b.list.begin_rename())
@@ -247,6 +249,8 @@ class AnimationEditorPanel(wx.Panel):
         self.stage.point_type_colors = {pt.id: pt.color for pt in project.point_types}
         self.library.set_project(project)
         self.browser.search.ChangeValue("")
+        self.browser.groups.set_group(grouping.ALL)
+        self.browser.groups.set_sort("order")
         self.selected_animation_id = project.animations[0].id if project.animations else None
         self.selection = set()
         self.tick = 0
@@ -318,11 +322,14 @@ class AnimationEditorPanel(wx.Panel):
 
     # ================================================================== refresh
     def refresh_animations(self) -> None:
-        query = self.browser.filter_text()
-        self._view = [a for a in self.project.animations if not query or query in a.name.lower()]
+        groups = self.browser.groups
+        groups.set_groups(self.project.animations)
+        self._view = grouping.shown(self.project.animations, self.browser.filter_text(), groups.group(), groups.sort())
+        self.browser.list.can_reorder = groups.sort() == "order"
+        self.browser.list.show_group = groups.group() is grouping.ALL
         total = len(self.project.animations)
         self.browser.title.SetLabel(
-            f"ANIMATIONS ({len(self._view)} OF {total})" if query else f"ANIMATIONS ({total})"
+            f"ANIMATIONS ({len(self._view)} OF {total})" if len(self._view) != total else f"ANIMATIONS ({total})"
         )
         if self.selected_animation_id and not self.project.get_animation(self.selected_animation_id):
             self.selected_animation_id = None
@@ -561,6 +568,10 @@ class AnimationEditorPanel(wx.Panel):
             label, handler = entry
             item = menu.Append(wx.ID_ANY, label)
             self.Bind(wx.EVT_MENU, lambda e, h=handler: h(), item)
+        menu.AppendSeparator()
+        anim = self.animation()
+        group_menu(self, menu, self.project.animations, anim.group if anim else "",
+                   lambda name: self._on_animation_field("group", name))
         self.browser.list.PopupMenu(menu)
         menu.Destroy()
 
@@ -582,6 +593,12 @@ class AnimationEditorPanel(wx.Panel):
             anim.next_animation_id = str(value) if value else None
         elif field == "fps":
             anim.fps = max(1, int(value))
+        elif field == "group":
+            group = grouping.clean_name(str(value or ""))
+            if group == anim.group:
+                return
+            anim.group = group
+            app_services.show_status(f"'{anim.name}' is in the group '{group}'" if group else f"'{anim.name}' has no group")
         if self.is_playing:
             self.player = ops.Player(anim, self.repeat)
             self.player.start(self.current_step())

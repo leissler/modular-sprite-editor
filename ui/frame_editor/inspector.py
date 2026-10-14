@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import wx
 
 from models import Frame, Project
-from ui import first_steps
+from ui import first_steps, grouping
 from ui.components.inspector_kit import (
     bind_spin, common, dim_text, hbox, relayout, row, section, set_spin, small_button, spin,
 )
@@ -45,6 +45,12 @@ class FrameInspector(wx.ScrolledWindow):
         p = self.frame_panel.body
         self.name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
         row(grid, p, "Name", self.name)
+        self.group = wx.ComboBox(p, style=wx.TE_PROCESS_ENTER)
+        self.group.SetHint("no group")
+        self.group.SetToolTip("Where the frame sits in the list: pick a group or type a new one (the list's group "
+                              "choice shows one group at a time)")
+        self._group_names: List[str] = []
+        row(grid, p, "Group", self.group)
         self.contents = wx.StaticText(p, label="")
         row(grid, p, "Contents", self.contents)
         self.size = wx.StaticText(p, label="")
@@ -152,6 +158,14 @@ class FrameInspector(wx.ScrolledWindow):
         self.name.Bind(wx.EVT_TEXT_ENTER, frame_name)
         self.name.Bind(wx.EVT_KILL_FOCUS, lambda e: (e.Skip(), frame_name()))
 
+        def frame_group(_event=None) -> None:
+            if not self._updating and self.frame and self.on_frame_field:
+                self.on_frame_field("group", self.group.GetValue())
+
+        self.group.Bind(wx.EVT_COMBOBOX, frame_group)
+        self.group.Bind(wx.EVT_TEXT_ENTER, frame_group)
+        self.group.Bind(wx.EVT_KILL_FOCUS, lambda e: (e.Skip(), frame_group()))
+
         def part(field: str, value: Any) -> None:
             if not self._updating and self.on_part_field:
                 self.on_part_field(field, value)
@@ -215,6 +229,12 @@ class FrameInspector(wx.ScrolledWindow):
     def _fill_frame(self, project: Project, frame: Frame, size: Optional[Tuple[int, int]]) -> None:
         if not self.name.HasFocus():
             self.name.ChangeValue(frame.name)
+        if not self.group.HasFocus():
+            names = [name for name, _count in grouping.groups_of(project.frames)]
+            if names != self._group_names:
+                self._group_names = names
+                self.group.SetItems(names)
+            self.group.ChangeValue(frame.group)
         self.contents.SetLabel(ops.summary(frame))
         self.size.SetLabel(f"{size[0]} × {size[1]} px" if size else "—")
         self.used_by.SetLabel(ops.describe_references(ops.frame_references(project, frame.id)))

@@ -755,6 +755,53 @@ def run():
 
     step("animations: events, loop from, follow-up", animation_events_loop_next)
 
+    def groups_and_order():
+        """Groups for frames and animations: set in the inspector's field, one group shown, sorted by name, undone."""
+        from ui.grouping import natural_key
+
+        fe, ae = frame.frame_editor, frame.animation_editor
+        project = frame.project
+        frame.select_tab(1)
+        pump()
+        frame.history_checkpoint()
+        first, second = project.frames[0], project.frames[1]
+        fe.select_frame_by_id(first.id)
+        fe._on_frame_field("group", "  Smoke   group ")
+        check(first.group == "Smoke group", "a frame's group, its spaces tidied")
+        fe.select_frame_by_id(second.id)
+        fe._on_frame_field("group", "Smoke group")
+        check(fe.inspector.group.GetValue() == "Smoke group", "the inspector shows the group")
+        bar = fe.browser.groups
+        check(bar.group_choice.IsEnabled() and "Smoke group (2)" in bar.group_choice.GetItems(), "the list's group choice")
+        bar.set_group("Smoke group")
+        fe.refresh_frames()
+        check([r.id for r in fe.browser.list.rows] == [first.id, second.id], "one group shown")
+        bar.set_group(None)
+        bar.set_sort("name")
+        fe.refresh_frames()
+        titles = [r.title for r in fe.browser.list.rows]
+        check(not fe.browser.list.reorder and titles == sorted(titles, key=natural_key), "sorted by name, no reordering")
+        bar.set_sort("order")
+        fe.refresh_frames()
+        check(len(fe.browser.list.rows) == len(project.frames) and fe.browser.list.reorder, "list order again")
+        frame.select_tab(2)
+        pump()
+        anim = project.animations[0]
+        ae.select_animation(anim.id)
+        ae._on_animation_field("group", "Smoke moves")
+        ae.browser.groups.set_group("Smoke moves")
+        ae.refresh_animations()
+        check([a.id for a in ae.browser.list.view] == [anim.id], "the Animations list shows one group")
+        ae.browser.groups.set_group(None)
+        ae.refresh_animations()
+        for _ in range(3):
+            frame.on_undo(None)
+        pump()
+        check(not any(f.group for f in frame.project.frames) and not frame.project.animations[0].group,
+              "undo takes the groups away")
+
+    step("frames + animations: groups and sort order", groups_and_order)
+
 
     # ---- Timeline (scene editor)
     te = frame.timeline_editor

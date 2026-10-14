@@ -289,11 +289,13 @@ class Frame:
     fmodules: List[FModule] = field(default_factory=list)
     collision_rects: List[CollisionRect] = field(default_factory=list)
     control_points: List[ControlPoint] = field(default_factory=list)
+    group: str = ""  # where the frame sits in long lists ("" = no group)
 
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
             "name": self.name,
+            "group": self.group,
             "fmodules": [fm.to_dict() for fm in self.fmodules],
             "collision_rects": [cr.to_dict() for cr in self.collision_rects],
             "control_points": [cp.to_dict() for cp in self.control_points],
@@ -343,6 +345,7 @@ class Frame:
             fmodules=fmodules,
             collision_rects=collision_rects,
             control_points=control_points,
+            group=str(data.get("group", "") or ""),
         )
 
 
@@ -408,11 +411,13 @@ class Animation:
     loop_start: int = 0
     # When the animation ends (Play once, or after its repeat count), continue with this animation.
     next_animation_id: Optional[str] = None
+    group: str = ""  # where the animation sits in long lists ("" = no group)
 
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
             "name": self.name,
+            "group": self.group,
             "playback_type": self.playback_type,
             "loop_count": self.loop_count,
             "fps": self.fps,
@@ -435,6 +440,7 @@ class Animation:
             fps=data.get("fps", 10),
             loop_start=max(0, int(data.get("loop_start", 0) or 0)),
             next_animation_id=data.get("next_animation_id") or None,
+            group=str(data.get("group", "") or ""),
         )
 
 

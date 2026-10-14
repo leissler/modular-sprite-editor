@@ -62,7 +62,7 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Animations", "Copy / Paste / Duplicate / Select all steps", f"{MOD}+C / {MOD}+V / {MOD}+D / {MOD}+A"),
     ("Animations", "Delete selected steps", "Delete / Backspace"),
     ("Animations", "Open a step's frame in the Frames tab", "Double-click the step"),
-    ("Animations", "Rename / reorder animations", "Double-click or F2 / drag in the list"),
+    ("Animations", "Rename / reorder animations", "Double-click or F2 / drag in the list (list order)"),
     ("Animations", "Zoom / scroll the step sequence",
      f"Wheel / Shift+wheel or trackpad sideways (Scroll Moves the View: {MOD}+wheel / wheel)"),
     ("Timeline", "Play / pause", "Enter"),

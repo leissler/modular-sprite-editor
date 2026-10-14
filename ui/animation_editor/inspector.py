@@ -7,7 +7,7 @@ from typing import Any, Callable, List, Optional, Tuple
 import wx
 
 from models import AFrame, Animation, Project
-from ui import first_steps
+from ui import first_steps, grouping
 from ui.animation_editor import ops
 from ui.components.inspector_kit import hbox, relayout, row, section
 from ui.dpi import px
@@ -48,6 +48,12 @@ class AnimationInspector(wx.ScrolledWindow):
         p = self.anim_panel.body
         self.name = wx.TextCtrl(p, style=wx.TE_PROCESS_ENTER)
         row(grid, p, "Name", self.name)
+        self.group = wx.ComboBox(p, style=wx.TE_PROCESS_ENTER)
+        self.group.SetHint("no group")
+        self.group.SetToolTip("Where the animation sits in the list: pick a group or type a new one (the list's "
+                              "group choice shows one group at a time)")
+        self._group_names: List[str] = []
+        row(grid, p, "Group", self.group)
         self.playback = wx.Choice(p, choices=[label for label, _ in ops.PLAYBACK_MODES])
         self.playback.SetToolTip(
             "Loop: start → end, again.  Play once: stops on the last step.\n"
@@ -191,6 +197,9 @@ class AnimationInspector(wx.ScrolledWindow):
                 self.on_animation_tool(name)
 
         self.name.Bind(wx.EVT_TEXT_ENTER, lambda e: anim("name", self.name.GetValue().strip()))
+        self.group.Bind(wx.EVT_COMBOBOX, lambda e: anim("group", self.group.GetValue()))
+        self.group.Bind(wx.EVT_TEXT_ENTER, lambda e: anim("group", self.group.GetValue()))
+        self.group.Bind(wx.EVT_KILL_FOCUS, lambda e: (e.Skip(), anim("group", self.group.GetValue())))
         self.name.Bind(wx.EVT_KILL_FOCUS, lambda e: (e.Skip(), anim("name", self.name.GetValue().strip())))
         self.playback.Bind(wx.EVT_CHOICE, lambda e: anim("playback", ops.PLAYBACK_MODES[self.playback.GetSelection()][1]))
         self.loops.Bind(wx.EVT_SPINCTRL, lambda e: anim("loops", self.loops.GetValue()))
@@ -272,6 +281,12 @@ class AnimationInspector(wx.ScrolledWindow):
     def _fill_animation(self, anim: Animation) -> None:
         if not self.name.HasFocus():
             self.name.ChangeValue(anim.name)
+        if not self.group.HasFocus():
+            names = [name for name, _count in grouping.groups_of(self.project.animations)] if self.project else []
+            if names != self._group_names:
+                self._group_names = names
+                self.group.SetItems(names)
+            self.group.ChangeValue(anim.group)
         self.playback.SetSelection(next((i for i, (_l, k) in enumerate(ops.PLAYBACK_MODES) if k == anim.playback_type), 0))
         repeating = anim.playback_type in ops.REPEATING_MODES
         self.loops.SetValue(int(anim.loop_count or 0))

@@ -1023,7 +1023,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2006",
@@ -1055,7 +1056,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2001",
@@ -1099,7 +1101,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x203B",
@@ -1143,7 +1146,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x203F",
@@ -1187,7 +1191,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x204F",
@@ -1231,7 +1236,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2040",
@@ -1275,7 +1281,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20DF",
@@ -1331,7 +1338,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2041",
@@ -1375,7 +1383,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2043",
@@ -1431,7 +1440,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2017",
@@ -1487,7 +1497,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x201A",
@@ -1555,7 +1566,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2018",
@@ -1599,7 +1611,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x201C",
@@ -1655,7 +1668,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2024",
@@ -1699,7 +1713,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2061",
@@ -1743,7 +1758,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x206E",
@@ -1775,7 +1791,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2077",
@@ -1819,7 +1836,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20D9",
@@ -1875,7 +1893,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20DA",
@@ -1943,7 +1962,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2029",
@@ -1975,7 +1995,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x202A",
@@ -2007,7 +2028,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2035",
@@ -2075,7 +2097,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2036",
@@ -2143,7 +2166,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x0207",
@@ -2187,7 +2211,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2086",
@@ -2219,7 +2244,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2085",
@@ -2263,7 +2289,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20D1",
@@ -2295,7 +2322,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20D3",
@@ -2351,7 +2379,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20D4",
@@ -2395,7 +2424,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2098",
@@ -2451,7 +2481,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x209A",
@@ -2543,7 +2574,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2027",
@@ -2587,7 +2619,8 @@
         }
       ],
       "collision_rects": [],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x202D",
@@ -2619,7 +2652,8 @@
         }
       ],
       "collision_rects": [],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x202E",
@@ -2663,7 +2697,8 @@
         }
       ],
       "collision_rects": [],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20BB",
@@ -2719,7 +2754,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x20BC",
@@ -2775,7 +2811,8 @@
           "role": ""
         }
       ],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     },
     {
       "id": "0x2002",
@@ -2795,7 +2832,8 @@
         }
       ],
       "collision_rects": [],
-      "control_points": []
+      "control_points": [],
+      "group": ""
     }
   ],
   "animations": [
@@ -2820,7 +2858,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3002",
@@ -2843,7 +2882,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3000",
@@ -2902,7 +2942,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A1",
@@ -2961,7 +3002,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x300E",
@@ -3020,7 +3062,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3017",
@@ -3055,7 +3098,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3018",
@@ -3090,7 +3134,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x303C",
@@ -3125,7 +3170,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x301B",
@@ -3160,7 +3206,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x301C",
@@ -3195,7 +3242,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3016",
@@ -3218,7 +3266,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3050",
@@ -3241,7 +3290,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3007",
@@ -3276,7 +3326,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3030",
@@ -3311,7 +3362,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x301E",
@@ -3334,7 +3386,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x301F",
@@ -3369,7 +3422,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x303A",
@@ -3428,7 +3482,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3001",
@@ -3487,7 +3542,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3034",
@@ -3546,7 +3602,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x300C",
@@ -3605,7 +3662,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3009",
@@ -3664,7 +3722,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3015",
@@ -3723,7 +3782,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x302F",
@@ -3782,7 +3842,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3004",
@@ -3841,7 +3902,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x300D",
@@ -3900,7 +3962,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3019",
@@ -3959,7 +4022,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3005",
@@ -4018,7 +4082,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3027",
@@ -4077,7 +4142,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3028",
@@ -4136,7 +4202,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3029",
@@ -4195,7 +4262,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3031",
@@ -4254,7 +4322,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x302A",
@@ -4313,7 +4382,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x302B",
@@ -4372,7 +4442,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x302C",
@@ -4431,7 +4502,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A2",
@@ -4490,7 +4562,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3003",
@@ -4549,7 +4622,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x300F",
@@ -4608,7 +4682,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3010",
@@ -4667,7 +4742,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3023",
@@ -4726,7 +4802,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3032",
@@ -4785,7 +4862,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3011",
@@ -4844,7 +4922,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3012",
@@ -4903,7 +4982,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3013",
@@ -4962,7 +5042,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x301A",
@@ -4997,7 +5078,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x301D",
@@ -5032,7 +5114,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x302E",
@@ -5067,7 +5150,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3021",
@@ -5102,7 +5186,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3022",
@@ -5137,7 +5222,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3033",
@@ -5172,7 +5258,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3024",
@@ -5207,7 +5294,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x302D",
@@ -5242,7 +5330,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3026",
@@ -5277,7 +5366,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3020",
@@ -5324,7 +5414,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x303E",
@@ -5371,7 +5462,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x303F",
@@ -5418,7 +5510,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3040",
@@ -5465,7 +5558,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3047",
@@ -5512,7 +5606,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3048",
@@ -5559,7 +5654,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3043",
@@ -5606,7 +5702,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3044",
@@ -5653,7 +5750,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3041",
@@ -5700,7 +5798,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3042",
@@ -5747,7 +5846,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3049",
@@ -5794,7 +5894,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x304A",
@@ -5841,7 +5942,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x304B",
@@ -5888,7 +5990,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x304C",
@@ -5935,7 +6038,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x304D",
@@ -5982,7 +6086,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x304E",
@@ -6029,7 +6134,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3025",
@@ -6088,7 +6194,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3039",
@@ -6123,7 +6230,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3036",
@@ -6158,7 +6266,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3035",
@@ -6193,7 +6302,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x303B",
@@ -6228,7 +6338,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3037",
@@ -6263,7 +6374,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3052",
@@ -6298,7 +6410,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3045",
@@ -6333,7 +6446,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x300A",
@@ -6368,7 +6482,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3038",
@@ -6403,7 +6518,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x300B",
@@ -6438,7 +6554,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x303D",
@@ -6473,7 +6590,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3046",
@@ -6616,7 +6734,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x304F",
@@ -6699,7 +6818,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3051",
@@ -6734,7 +6854,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3068",
@@ -6769,7 +6890,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3053",
@@ -6804,7 +6926,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3054",
@@ -6839,7 +6962,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x306A",
@@ -6874,7 +6998,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3055",
@@ -6909,7 +7034,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3056",
@@ -6944,7 +7070,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3057",
@@ -6979,7 +7106,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3058",
@@ -7014,7 +7142,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x306B",
@@ -7049,7 +7178,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3059",
@@ -7084,7 +7214,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x305A",
@@ -7119,7 +7250,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x305B",
@@ -7154,7 +7286,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x305C",
@@ -7189,7 +7322,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3069",
@@ -7224,7 +7358,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x305D",
@@ -7259,7 +7394,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x305E",
@@ -7294,7 +7430,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3067",
@@ -7329,7 +7466,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x305F",
@@ -7364,7 +7502,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3060",
@@ -7399,7 +7538,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3061",
@@ -7434,7 +7574,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3062",
@@ -7469,7 +7610,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3063",
@@ -7504,7 +7646,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3064",
@@ -7539,7 +7682,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3065",
@@ -7574,7 +7718,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3066",
@@ -7609,7 +7754,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x306C",
@@ -7644,7 +7790,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x306D",
@@ -7679,7 +7826,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x306E",
@@ -7714,7 +7862,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x306F",
@@ -7749,7 +7898,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3071",
@@ -7784,7 +7934,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3072",
@@ -7819,7 +7970,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3073",
@@ -7854,7 +8006,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3074",
@@ -7889,7 +8042,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3075",
@@ -7924,7 +8078,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3076",
@@ -7959,7 +8114,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3077",
@@ -7994,7 +8150,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3078",
@@ -8029,7 +8186,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3070",
@@ -8064,7 +8222,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3086",
@@ -8099,7 +8258,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3088",
@@ -8134,7 +8294,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3089",
@@ -8169,7 +8330,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x308A",
@@ -8204,7 +8366,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x308B",
@@ -8239,7 +8402,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x308C",
@@ -8274,7 +8438,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x308D",
@@ -8309,7 +8474,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x308E",
@@ -8344,7 +8510,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x308F",
@@ -8379,7 +8546,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3090",
@@ -8414,7 +8582,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3091",
@@ -8449,7 +8618,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3092",
@@ -8484,7 +8654,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3093",
@@ -8519,7 +8690,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3079",
@@ -8554,7 +8726,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x307A",
@@ -8589,7 +8762,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x307B",
@@ -8624,7 +8798,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x307C",
@@ -8659,7 +8834,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x307D",
@@ -8694,7 +8870,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x307E",
@@ -8729,7 +8906,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x307F",
@@ -8764,7 +8942,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3080",
@@ -8799,7 +8978,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3081",
@@ -8834,7 +9014,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3082",
@@ -8869,7 +9050,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3083",
@@ -8904,7 +9086,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3084",
@@ -8939,7 +9122,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3085",
@@ -8974,7 +9158,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3094",
@@ -9009,7 +9194,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3095",
@@ -9044,7 +9230,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3096",
@@ -9079,7 +9266,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3097",
@@ -9114,7 +9302,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3098",
@@ -9149,7 +9338,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3099",
@@ -9184,7 +9374,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x309A",
@@ -9219,7 +9410,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x309B",
@@ -9254,7 +9446,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x309C",
@@ -9289,7 +9482,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x309D",
@@ -9324,7 +9518,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x309E",
@@ -9359,7 +9554,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x309F",
@@ -9394,7 +9590,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A0",
@@ -9429,7 +9626,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3087",
@@ -9464,7 +9662,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3008",
@@ -9487,7 +9686,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x3014",
@@ -9546,7 +9746,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A3",
@@ -9605,7 +9806,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A4",
@@ -9628,7 +9830,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A5",
@@ -9651,7 +9854,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A6",
@@ -9674,7 +9878,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A7",
@@ -9697,7 +9902,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A8",
@@ -9720,7 +9926,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30A9",
@@ -9743,7 +9950,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     },
     {
       "id": "0x30AA",
@@ -9766,7 +9974,8 @@
         }
       ],
       "loop_start": 0,
-      "next_animation_id": null
+      "next_animation_id": null,
+      "group": ""
     }
   ],
   "mappings": [],

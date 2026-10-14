@@ -3816,6 +3816,7 @@
     {
       "id": "0x2000",
       "name": " _stand turn",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_67cf6f57",
@@ -3987,6 +3988,7 @@
     {
       "id": "0x2002",
       "name": " _stand01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8ac487c8",
@@ -4158,6 +4160,7 @@
     {
       "id": "0x2003",
       "name": " _stand01_arthur",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4a1d7fc8",
@@ -4353,6 +4356,7 @@
     {
       "id": "0x2004",
       "name": " _stand02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_16fac15e",
@@ -4524,6 +4528,7 @@
     {
       "id": "0x2005",
       "name": "01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_497d02b6",
@@ -4726,6 +4731,7 @@
     {
       "id": "0x2006",
       "name": "02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_abec4e74",
@@ -4928,6 +4934,7 @@
     {
       "id": "0x2007",
       "name": "03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b43035bf",
@@ -5118,6 +5125,7 @@
     {
       "id": "0x2008",
       "name": "04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2965246d",
@@ -5296,6 +5304,7 @@
     {
       "id": "0x2009",
       "name": "05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_76cfbac2",
@@ -5486,6 +5495,7 @@
     {
       "id": "0x200A",
       "name": "block01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_5cb7903e",
@@ -5676,6 +5686,7 @@
     {
       "id": "0x200B",
       "name": "block02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_0dc116e2",
@@ -5950,6 +5961,7 @@
     {
       "id": "0x200C",
       "name": "block03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4e8b8313",
@@ -6248,6 +6260,7 @@
     {
       "id": "0x200D",
       "name": "blocked01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c995fa14",
@@ -6450,6 +6463,7 @@
     {
       "id": "0x200E",
       "name": "blocked011",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_721a529a",
@@ -6652,6 +6666,7 @@
     {
       "id": "0x200F",
       "name": "blocked02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_6594b10a",
@@ -6854,6 +6869,7 @@
     {
       "id": "0x2010",
       "name": "blocked03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_aa68e781",
@@ -7056,6 +7072,7 @@
     {
       "id": "0x2017",
       "name": "chain going up 01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_77b24ef7",
@@ -7239,6 +7256,7 @@
     {
       "id": "0x2018",
       "name": "chain going up 01_1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_1025d592",
@@ -7422,6 +7440,7 @@
     {
       "id": "0x2019",
       "name": "chain going up 02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_46e11661",
@@ -7605,6 +7624,7 @@
     {
       "id": "0x201A",
       "name": "chain going up 02_1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_1913b8ea",
@@ -7788,6 +7808,7 @@
     {
       "id": "0x201B",
       "name": "chain going up 03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_45bfddec",
@@ -7983,6 +8004,7 @@
     {
       "id": "0x201C",
       "name": "chain going up 04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c3034b0a",
@@ -8166,6 +8188,7 @@
     {
       "id": "0x201D",
       "name": "chain going up 04_1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_3fe9165a",
@@ -8349,6 +8372,7 @@
     {
       "id": "0x201E",
       "name": "chain going up 05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_bb474c77",
@@ -8532,6 +8556,7 @@
     {
       "id": "0x201F",
       "name": "chain going up 06",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d2271d81",
@@ -8715,6 +8740,7 @@
     {
       "id": "0x2020",
       "name": "chain going up 06_1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ad3fbae1",
@@ -8898,6 +8924,7 @@
     {
       "id": "0x2021",
       "name": "chain wait 00_redux",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_19274da9",
@@ -9069,6 +9096,7 @@
     {
       "id": "0x2022",
       "name": "crouch turn01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_36ac429d",
@@ -9240,6 +9268,7 @@
     {
       "id": "0x2023",
       "name": "crouch turn01_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_15408827",
@@ -9423,6 +9452,7 @@
     {
       "id": "0x2024",
       "name": "crouch turn02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_aa112629",
@@ -9594,6 +9624,7 @@
     {
       "id": "0x2025",
       "name": "crouch turn02_s",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f6bff085",
@@ -9789,6 +9820,7 @@
     {
       "id": "0x2026",
       "name": "crouch01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_32b6f248",
@@ -9948,6 +9980,7 @@
     {
       "id": "0x2027",
       "name": "crouch01_s",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_94da4257",
@@ -10119,6 +10152,7 @@
     {
       "id": "0x2028",
       "name": "crouch02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_6adc74b5",
@@ -10254,6 +10288,7 @@
     {
       "id": "0x2029",
       "name": "crouch02_",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b679026d",
@@ -10425,6 +10460,7 @@
     {
       "id": "0x202A",
       "name": "crouch02_s",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_e54a1bcc",
@@ -10584,6 +10620,7 @@
     {
       "id": "0x202B",
       "name": "death 03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_31da39bf",
@@ -10755,6 +10792,7 @@
     {
       "id": "0x202C",
       "name": "death 04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_55e46ac4",
@@ -10914,6 +10952,7 @@
     {
       "id": "0x202D",
       "name": "death 05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_7ac3b414",
@@ -11073,6 +11112,7 @@
     {
       "id": "0x202E",
       "name": "death 06",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b7983504",
@@ -11220,6 +11260,7 @@
     {
       "id": "0x202F",
       "name": "death new",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4ad616d9",
@@ -11367,6 +11408,7 @@
     {
       "id": "0x2030",
       "name": "death_2 new",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_6def2967",
@@ -11538,6 +11580,7 @@
     {
       "id": "0x2031",
       "name": "death_3 new",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_fe64821a",
@@ -11709,6 +11752,7 @@
     {
       "id": "0x2032",
       "name": "death2 new",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_5c16f8aa",
@@ -11856,6 +11900,7 @@
     {
       "id": "0x2033",
       "name": "death2_2 new",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ba689a20",
@@ -12051,6 +12096,7 @@
     {
       "id": "0x2039",
       "name": "elbow hit1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2b67f7b4",
@@ -12253,6 +12299,7 @@
     {
       "id": "0x203A",
       "name": "elbow hit2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_0287d442",
@@ -12502,6 +12549,7 @@
     {
       "id": "0x203B",
       "name": "elbow hit2.1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_04235555",
@@ -12727,6 +12775,7 @@
     {
       "id": "0x203C",
       "name": "elbow hit3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b62caf80",
@@ -12952,6 +13001,7 @@
     {
       "id": "0x203D",
       "name": "fall",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_1b9d5256",
@@ -13099,6 +13149,7 @@
     {
       "id": "0x203E",
       "name": "fall on crouch01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_15a1f138",
@@ -13246,6 +13297,7 @@
     {
       "id": "0x203F",
       "name": "fall on crouch02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_bae4a247",
@@ -13405,6 +13457,7 @@
     {
       "id": "0x2040",
       "name": "ground_stab1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9c122a3c",
@@ -13666,6 +13719,7 @@
     {
       "id": "0x2041",
       "name": "ground_stab2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9ec98a61",
@@ -13915,6 +13969,7 @@
     {
       "id": "0x2042",
       "name": "ground_stab3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_35ca5ff5",
@@ -14105,6 +14160,7 @@
     {
       "id": "0x2043",
       "name": "ground_stab4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_5e5283bf",
@@ -14354,6 +14410,7 @@
     {
       "id": "0x2044",
       "name": "ground_stab5",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_13dc8e0e",
@@ -14544,6 +14601,7 @@
     {
       "id": "0x2045",
       "name": "ground_stab6",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d48d6d92",
@@ -14757,6 +14815,7 @@
     {
       "id": "0x2046",
       "name": "ground_stab7",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_34e1fb9c",
@@ -14935,6 +14994,7 @@
     {
       "id": "0x2047",
       "name": "ground_stab8",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_bea05350",
@@ -15137,6 +15197,7 @@
     {
       "id": "0x2048",
       "name": "hang up01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_42ef6861",
@@ -15284,6 +15345,7 @@
     {
       "id": "0x2049",
       "name": "hang up02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2dec58b1",
@@ -15479,6 +15541,7 @@
     {
       "id": "0x204A",
       "name": "hang up03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_91c24303",
@@ -15662,6 +15725,7 @@
     {
       "id": "0x204B",
       "name": "hang up04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b5817bfd",
@@ -15845,6 +15909,7 @@
     {
       "id": "0x204C",
       "name": "hang up05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4600e67a",
@@ -16016,6 +16081,7 @@
     {
       "id": "0x204E",
       "name": "hang02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9c0a901a",
@@ -16187,6 +16253,7 @@
     {
       "id": "0x2050",
       "name": "hang04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d9c2cc7f",
@@ -16346,6 +16413,7 @@
     {
       "id": "0x2052",
       "name": "hit00",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8b2b03c9",
@@ -16572,6 +16640,7 @@
     {
       "id": "0x2053",
       "name": "hit00 nos",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8ecc812b",
@@ -16767,6 +16836,7 @@
     {
       "id": "0x2054",
       "name": "hit001",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_296b8804",
@@ -16981,6 +17051,7 @@
     {
       "id": "0x2055",
       "name": "hit001 nos",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_60129f13",
@@ -17164,6 +17235,7 @@
     {
       "id": "0x2056",
       "name": "hit001_1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_98041ac4",
@@ -17354,6 +17426,7 @@
     {
       "id": "0x2057",
       "name": "hit001_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f25d70a6",
@@ -17544,6 +17617,7 @@
     {
       "id": "0x2058",
       "name": "hit001_3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_01697dee",
@@ -17722,6 +17796,7 @@
     {
       "id": "0x2059",
       "name": "hit001_4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_01c8f0e6",
@@ -17876,6 +17951,7 @@
     {
       "id": "0x205A",
       "name": "hit05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_defb9cc7",
@@ -18078,6 +18154,7 @@
     {
       "id": "0x205B",
       "name": "jump01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d1e28a39",
@@ -18237,6 +18314,7 @@
     {
       "id": "0x205C",
       "name": "jump02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_02b2c34d",
@@ -18432,6 +18510,7 @@
     {
       "id": "0x205D",
       "name": "jump03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_e2d64a05",
@@ -18603,6 +18682,7 @@
     {
       "id": "0x205E",
       "name": "jump04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_7f8d0a37",
@@ -18762,6 +18842,7 @@
     {
       "id": "0x205F",
       "name": "jump05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_10db4aa0",
@@ -18921,6 +19002,7 @@
     {
       "id": "0x2060",
       "name": "jump06",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4a19ece5",
@@ -19092,6 +19174,7 @@
     {
       "id": "0x2061",
       "name": "jump06_for fall",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_77dc8f14",
@@ -19263,6 +19346,7 @@
     {
       "id": "0x206C",
       "name": "knockback2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_97f25345",
@@ -19465,6 +19549,7 @@
     {
       "id": "0x206D",
       "name": "knockback2.5",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2e24a469",
@@ -19679,6 +19764,7 @@
     {
       "id": "0x206E",
       "name": "knockback3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2f59ed91",
@@ -19881,6 +19967,7 @@
     {
       "id": "0x206F",
       "name": "knockback3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_28f984ca",
@@ -20107,6 +20194,7 @@
     {
       "id": "0x2070",
       "name": "knockback4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2527552a",
@@ -20261,6 +20349,7 @@
     {
       "id": "0x2071",
       "name": "last01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_826137bb",
@@ -20451,6 +20540,7 @@
     {
       "id": "0x2072",
       "name": "last02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c2891558",
@@ -20653,6 +20743,7 @@
     {
       "id": "0x2073",
       "name": "last02_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_92818a3a",
@@ -20843,6 +20934,7 @@
     {
       "id": "0x2074",
       "name": "last03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9017d8eb",
@@ -21092,6 +21184,7 @@
     {
       "id": "0x2075",
       "name": "last03_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_44b1d2f4",
@@ -21282,6 +21375,7 @@
     {
       "id": "0x2076",
       "name": "last04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_3b697589",
@@ -21484,6 +21578,7 @@
     {
       "id": "0x2077",
       "name": "last04_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_fac76620",
@@ -21686,6 +21781,7 @@
     {
       "id": "0x2078",
       "name": "last05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9dd552d1",
@@ -21888,6 +21984,7 @@
     {
       "id": "0x2079",
       "name": "last05_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_5ddd1cef",
@@ -22078,6 +22175,7 @@
     {
       "id": "0x207A",
       "name": "last06",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ad2549bf",
@@ -22315,6 +22413,7 @@
     {
       "id": "0x207B",
       "name": "last06_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c27718ff",
@@ -22493,6 +22592,7 @@
     {
       "id": "0x207C",
       "name": "last07",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c620a0d9",
@@ -22730,6 +22830,7 @@
     {
       "id": "0x207D",
       "name": "last07_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_3825afab",
@@ -22908,6 +23009,7 @@
     {
       "id": "0x207E",
       "name": "last08",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f2c97ed8",
@@ -23110,6 +23212,7 @@
     {
       "id": "0x207F",
       "name": "last08_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f2cc97ab",
@@ -23288,6 +23391,7 @@
     {
       "id": "0x2080",
       "name": "last10",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_54caf9ee",
@@ -23490,6 +23594,7 @@
     {
       "id": "0x2081",
       "name": "last10_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8d0640d9",
@@ -23656,6 +23761,7 @@
     {
       "id": "0x2082",
       "name": "last11",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_af928701",
@@ -23846,6 +23952,7 @@
     {
       "id": "0x2083",
       "name": "last11_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_61a97e33",
@@ -24036,6 +24143,7 @@
     {
       "id": "0x2084",
       "name": "last12",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_52a211a2",
@@ -24238,6 +24346,7 @@
     {
       "id": "0x2085",
       "name": "last12_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_22f9b00f",
@@ -24404,6 +24513,7 @@
     {
       "id": "0x2086",
       "name": "last13",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_7d171694",
@@ -24642,6 +24752,7 @@
     {
       "id": "0x2087",
       "name": "last13_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_485398e5",
@@ -24844,6 +24955,7 @@
     {
       "id": "0x2088",
       "name": "last14",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_79562354",
@@ -25046,6 +25158,7 @@
     {
       "id": "0x2089",
       "name": "last14_e",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_59e74c51",
@@ -25236,6 +25349,7 @@
     {
       "id": "0x208A",
       "name": "last15",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f5d03c98",
@@ -25426,6 +25540,7 @@
     {
       "id": "0x208B",
       "name": "not dead yet 01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_154ee3dd",
@@ -25585,6 +25700,7 @@
     {
       "id": "0x208C",
       "name": "not dead yet 02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_43226d30",
@@ -25744,6 +25860,7 @@
     {
       "id": "0x208D",
       "name": "not_dead_01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_425cd172",
@@ -25891,6 +26008,7 @@
     {
       "id": "0x208E",
       "name": "not_dead_02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ae10b9e0",
@@ -26062,6 +26180,7 @@
     {
       "id": "0x208F",
       "name": "pull the blades",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c4211d6a",
@@ -26264,6 +26383,7 @@
     {
       "id": "0x2090",
       "name": "quick attack00",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2c941c8b",
@@ -26454,6 +26574,7 @@
     {
       "id": "0x2091",
       "name": "quick attack01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_652580ff",
@@ -26644,6 +26765,7 @@
     {
       "id": "0x2092",
       "name": "quick attack02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d198a13a",
@@ -26917,6 +27039,7 @@
     {
       "id": "0x2093",
       "name": "quick attack05",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_73c286cd",
@@ -27107,6 +27230,7 @@
     {
       "id": "0x2094",
       "name": "quick attack06",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4e7e19e2",
@@ -27297,6 +27421,7 @@
     {
       "id": "0x2095",
       "name": "roll01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8e51ec2b",
@@ -27456,6 +27581,7 @@
     {
       "id": "0x2096",
       "name": "roll02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_35abeb15",
@@ -27615,6 +27741,7 @@
     {
       "id": "0x2097",
       "name": "roll03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4b9ebcee",
@@ -27786,6 +27913,7 @@
     {
       "id": "0x2098",
       "name": "roll04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_a2ef4836",
@@ -27945,6 +28073,7 @@
     {
       "id": "0x2099",
       "name": "run01_2a",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9e276772",
@@ -28152,6 +28281,7 @@
     {
       "id": "0x209A",
       "name": "run01_2a_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c267ce38",
@@ -28359,6 +28489,7 @@
     {
       "id": "0x209B",
       "name": "run02_2a",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_54c42de9",
@@ -28566,6 +28697,7 @@
     {
       "id": "0x209C",
       "name": "run02_2a_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8f8b200b",
@@ -28773,6 +28905,7 @@
     {
       "id": "0x209D",
       "name": "run03_2a",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_661085e5",
@@ -28956,6 +29089,7 @@
     {
       "id": "0x209E",
       "name": "run03_2a_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_6c23be4e",
@@ -29139,6 +29273,7 @@
     {
       "id": "0x209F",
       "name": "run04_2a",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_00eeac75",
@@ -29322,6 +29457,7 @@
     {
       "id": "0x20A0",
       "name": "run04_2a_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d72d63fd",
@@ -29517,6 +29653,7 @@
     {
       "id": "0x20A1",
       "name": "run05_2a",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_dcea403e",
@@ -29712,6 +29849,7 @@
     {
       "id": "0x20A2",
       "name": "run05_2a_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_46cdeedf",
@@ -29907,6 +30045,7 @@
     {
       "id": "0x20A3",
       "name": "run06_2a",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_090a0092",
@@ -30078,6 +30217,7 @@
     {
       "id": "0x20A4",
       "name": "run06_2a_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_94cd18c5",
@@ -30249,6 +30389,7 @@
     {
       "id": "0x20A5",
       "name": "slash1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9700c01a",
@@ -30451,6 +30592,7 @@
     {
       "id": "0x20A6",
       "name": "slash3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_8a514c15",
@@ -30700,6 +30842,7 @@
     {
       "id": "0x20A7",
       "name": "slash3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b202ecf2",
@@ -30949,6 +31092,7 @@
     {
       "id": "0x20A8",
       "name": "slash4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d1c0c1ae",
@@ -31174,6 +31318,7 @@
     {
       "id": "0x20A9",
       "name": "slash4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_07aa951f",
@@ -31399,6 +31544,7 @@
     {
       "id": "0x20AA",
       "name": "slash5",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_396c4294",
@@ -31589,6 +31735,7 @@
     {
       "id": "0x20AB",
       "name": "slash5",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_17e143ea",
@@ -31779,6 +31926,7 @@
     {
       "id": "0x20AC",
       "name": "slash5_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_0d6ccfa1",
@@ -31981,6 +32129,7 @@
     {
       "id": "0x20AD",
       "name": "stab1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_176056f1",
@@ -32171,6 +32320,7 @@
     {
       "id": "0x20AE",
       "name": "stab2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_afbbe529",
@@ -32361,6 +32511,7 @@
     {
       "id": "0x20AF",
       "name": "stab3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_0e0f0677",
@@ -32622,6 +32773,7 @@
     {
       "id": "0x20B0",
       "name": "stab4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d25bc1f1",
@@ -32824,6 +32976,7 @@
     {
       "id": "0x20B1",
       "name": "stand attack01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d4b362fa",
@@ -33026,6 +33179,7 @@
     {
       "id": "0x20B2",
       "name": "stand attack01_1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ac79bfd5",
@@ -33228,6 +33382,7 @@
     {
       "id": "0x20B3",
       "name": "stand attack01_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_4466626f",
@@ -33430,6 +33585,7 @@
     {
       "id": "0x20B4",
       "name": "stand attack01_3",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b1ca47cf",
@@ -33632,6 +33788,7 @@
     {
       "id": "0x20B5",
       "name": "stand attack01_4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_9f6d97b8",
@@ -33834,6 +33991,7 @@
     {
       "id": "0x20B6",
       "name": "stand attack01_4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_3b8c3dff",
@@ -34036,6 +34194,7 @@
     {
       "id": "0x20B7",
       "name": "stand attack01_4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_250f2dda",
@@ -34238,6 +34397,7 @@
     {
       "id": "0x20B8",
       "name": "stand attack01_4",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_292d77c9",
@@ -34440,6 +34600,7 @@
     {
       "id": "0x20B9",
       "name": "stand attack01_arthur",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_40f2e730",
@@ -34642,6 +34803,7 @@
     {
       "id": "0x20BC",
       "name": "stop at the edge03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_666f2ae8",
@@ -34813,6 +34975,7 @@
     {
       "id": "0x20BD",
       "name": "stop at the edge04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_df5dc300",
@@ -34984,6 +35147,7 @@
     {
       "id": "0x20BE",
       "name": "stop at wall01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_39c6d797",
@@ -35155,6 +35319,7 @@
     {
       "id": "0x20BF",
       "name": "stop at wall02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ad355fc6",
@@ -35314,6 +35479,7 @@
     {
       "id": "0x20C0",
       "name": "stop01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_28c4c793",
@@ -35485,6 +35651,7 @@
     {
       "id": "0x20C1",
       "name": "stop01_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_5ac0319c",
@@ -35680,6 +35847,7 @@
     {
       "id": "0x20C2",
       "name": "stop04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b28da21f",
@@ -35851,6 +36019,7 @@
     {
       "id": "0x20C3",
       "name": "stop04_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_2371cf40",
@@ -36046,6 +36215,7 @@
     {
       "id": "0x20C4",
       "name": "up 1tile 01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f1c46d36",
@@ -36217,6 +36387,7 @@
     {
       "id": "0x20C5",
       "name": "up 1tile 02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_3fb385d6",
@@ -36388,6 +36559,7 @@
     {
       "id": "0x20C6",
       "name": "up 1tile 03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b7b5e57b",
@@ -36559,6 +36731,7 @@
     {
       "id": "0x20C7",
       "name": "up 1tile 04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_437dfd7d",
@@ -36730,6 +36903,7 @@
     {
       "id": "0x20C8",
       "name": "up 2tiles 01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f1d44414",
@@ -36901,6 +37075,7 @@
     {
       "id": "0x20C9",
       "name": "up 2tiles 02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ed513d35",
@@ -37072,6 +37247,7 @@
     {
       "id": "0x20CA",
       "name": "up 2tiles 03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_604f20d4",
@@ -37243,6 +37419,7 @@
     {
       "id": "0x20CB",
       "name": "up 3tiles 00",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_88335393",
@@ -37402,6 +37579,7 @@
     {
       "id": "0x20CC",
       "name": "up 3tiles 01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_18f60300",
@@ -37573,6 +37751,7 @@
     {
       "id": "0x20CD",
       "name": "up 3tiles 02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_7943bf6b",
@@ -37756,6 +37935,7 @@
     {
       "id": "0x20CE",
       "name": "up 3tiles 03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_31d908a4",
@@ -37951,6 +38131,7 @@
     {
       "id": "0x20CF",
       "name": "up 4tiles 01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_368ffe26",
@@ -38146,6 +38327,7 @@
     {
       "id": "0x20D0",
       "name": "upsw_e_007.1",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_dc6283a8",
@@ -38305,6 +38487,7 @@
     {
       "id": "0x20D1",
       "name": "w.w.s_III_00 A",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c7e57344",
@@ -38507,6 +38690,7 @@
     {
       "id": "0x20D2",
       "name": "w.w.s_III_00 B",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_e484a6f3",
@@ -38709,6 +38893,7 @@
     {
       "id": "0x20D3",
       "name": "w.w.s_III_00 C",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_eff8bdf1",
@@ -38911,6 +39096,7 @@
     {
       "id": "0x20D4",
       "name": "w.w.s_III_00 D",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_86b8f617",
@@ -39113,6 +39299,7 @@
     {
       "id": "0x20D5",
       "name": "walk on crouch01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ab2cde91",
@@ -39272,6 +39459,7 @@
     {
       "id": "0x20D6",
       "name": "walk on crouch01_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_03329e9d",
@@ -39455,6 +39643,7 @@
     {
       "id": "0x20D7",
       "name": "walk on crouch02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_32298795",
@@ -39602,6 +39791,7 @@
     {
       "id": "0x20D8",
       "name": "walk on crouch02_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d53a9e31",
@@ -39773,6 +39963,7 @@
     {
       "id": "0x20D9",
       "name": "walk on crouch03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_f880fd27",
@@ -39932,6 +40123,7 @@
     {
       "id": "0x20DA",
       "name": "walk on crouch03_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_5a327fa2",
@@ -40115,6 +40307,7 @@
     {
       "id": "0x20DB",
       "name": "walk on crouch04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_c84723d6",
@@ -40274,6 +40467,7 @@
     {
       "id": "0x20DC",
       "name": "walk on crouch04_b",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_08923a71",
@@ -40481,6 +40675,7 @@
     {
       "id": "0x20DD",
       "name": "walk01_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_b1ebe2ea",
@@ -40652,6 +40847,7 @@
     {
       "id": "0x20DF",
       "name": "walk02_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_aedbb0d4",
@@ -40811,6 +41007,7 @@
     {
       "id": "0x20E1",
       "name": "walk03_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d0c44355",
@@ -40970,6 +41167,7 @@
     {
       "id": "0x20E3",
       "name": "walk04_2",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_d1785c8c",
@@ -41141,6 +41339,7 @@
     {
       "id": "0x20E5",
       "name": "wall run01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_59f5d764",
@@ -41312,6 +41511,7 @@
     {
       "id": "0x20E6",
       "name": "wall run02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_fdfed882",
@@ -41439,6 +41639,7 @@
     {
       "id": "0x20E7",
       "name": "wall run03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_ec774676",
@@ -41586,6 +41787,7 @@
     {
       "id": "0x20E8",
       "name": "wall run04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_78eb5ad2",
@@ -41701,6 +41903,7 @@
     {
       "id": "0x20E9",
       "name": "wr_01",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_0278b432",
@@ -41891,6 +42094,7 @@
     {
       "id": "0x20EA",
       "name": "wr_02",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_75e3cf2f",
@@ -42038,6 +42242,7 @@
     {
       "id": "0x20EB",
       "name": "wr_03",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_52b0d35b",
@@ -42299,6 +42504,7 @@
     {
       "id": "0x20EC",
       "name": "wr_04",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_6dc1c569",
@@ -42493,6 +42699,7 @@
     {
       "id": "0x20ED",
       "name": "wrwb_stop",
+      "group": "",
       "fmodules": [
         {
           "id": "fmod_a820295e",
@@ -42709,6 +42916,7 @@
     {
       "id": "0x3002",
       "name": "A00 wait_notused",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -42744,6 +42952,7 @@
     {
       "id": "0x3001",
       "name": "A00 wait_enemyin",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -42767,6 +42976,7 @@
     {
       "id": "0x3003",
       "name": "A01 turn",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -42814,6 +43024,7 @@
     {
       "id": "0x3005",
       "name": "A03 walk",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -42873,6 +43084,7 @@
     {
       "id": "0x3007",
       "name": "A05 run",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -42966,6 +43178,7 @@
     {
       "id": "0x3008",
       "name": "A06 run_s",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43059,6 +43272,7 @@
     {
       "id": "0x3009",
       "name": "A07 run stop_re",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43094,6 +43308,7 @@
     {
       "id": "0x300A",
       "name": "A08 run stop_s_re",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43129,6 +43344,7 @@
     {
       "id": "0x300B",
       "name": "A09 way blocked",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43164,6 +43380,7 @@
     {
       "id": "0x300D",
       "name": "A11 stand to crouched",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43199,6 +43416,7 @@
     {
       "id": "0x300E",
       "name": "A12 stand to crouched_s",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43234,6 +43452,7 @@
     {
       "id": "0x300F",
       "name": "A13 crouched to stand",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43269,6 +43488,7 @@
     {
       "id": "0x3010",
       "name": "A14 crouched to stand_s",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43304,6 +43524,7 @@
     {
       "id": "0x3011",
       "name": "A15 crouched wait",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43327,6 +43548,7 @@
     {
       "id": "0x3012",
       "name": "A16 crouched wait_s",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43350,6 +43572,7 @@
     {
       "id": "0x3013",
       "name": "A17 crouched turn",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43409,6 +43632,7 @@
     {
       "id": "0x3014",
       "name": "A18 crouched turn_s",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43468,6 +43692,7 @@
     {
       "id": "0x3015",
       "name": "A19 crouched walk",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43539,6 +43764,7 @@
     {
       "id": "0x3016",
       "name": "A20 crouched walk_s",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43610,6 +43836,7 @@
     {
       "id": "0x3017",
       "name": "A21 crouched roll",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43669,6 +43896,7 @@
     {
       "id": "0x3018",
       "name": "A22 crouched way blocked",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43692,6 +43920,7 @@
     {
       "id": "0x301A",
       "name": "A24 jump start stand",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43763,6 +43992,7 @@
     {
       "id": "0x301B",
       "name": "A25 jump start run",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43810,6 +44040,7 @@
     {
       "id": "0x301C",
       "name": "A26 jump end",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43869,6 +44100,7 @@
     {
       "id": "0x301F",
       "name": "A28 edge fall",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43916,6 +44148,7 @@
     {
       "id": "0x3020",
       "name": "A29 edge fall_s_TODO",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43963,6 +44196,7 @@
     {
       "id": "0x3021",
       "name": "A30 fall",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -43986,6 +44220,7 @@
     {
       "id": "0x3023",
       "name": "A32 soft land",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44033,6 +44268,7 @@
     {
       "id": "0x3024",
       "name": "A33 hard land",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44092,6 +44328,7 @@
     {
       "id": "0x3025",
       "name": "A34 die",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44235,6 +44472,7 @@
     {
       "id": "0x3026",
       "name": "A35 up 1tile",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44378,6 +44616,7 @@
     {
       "id": "0x3027",
       "name": "A36 up 2tiles",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44509,6 +44748,7 @@
     {
       "id": "0x3028",
       "name": "A37 up 3tiles",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44688,6 +44928,7 @@
     {
       "id": "0x3029",
       "name": "A38 up 4tiles",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44795,6 +45036,7 @@
     {
       "id": "0x302A",
       "name": "A39 up 5tiles",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44902,6 +45144,7 @@
     {
       "id": "0x302B",
       "name": "A40 hang wait",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -44925,6 +45168,7 @@
     {
       "id": "0x302D",
       "name": "A42 hang up",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45020,6 +45264,7 @@
     {
       "id": "0x302E",
       "name": "A43 hang down",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45115,6 +45360,7 @@
     {
       "id": "0x302F",
       "name": "A46 wall run",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45198,6 +45444,7 @@
     {
       "id": "0x3030",
       "name": "A47 chain wait",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45221,6 +45468,7 @@
     {
       "id": "0x3031",
       "name": "A48 chain climb up",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45280,6 +45528,7 @@
     {
       "id": "0x3032",
       "name": "A49 chain climb down",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45363,6 +45612,7 @@
     {
       "id": "0x303F",
       "name": "A67 Hurt",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45398,6 +45648,7 @@
     {
       "id": "0x3040",
       "name": "C00 pull blades",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45421,6 +45672,7 @@
     {
       "id": "0x3044",
       "name": "C03 step forward",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45480,6 +45732,7 @@
     {
       "id": "0x3045",
       "name": "C04 step back",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45539,6 +45792,7 @@
     {
       "id": "0x3047",
       "name": "C06 slash",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45615,6 +45869,7 @@
     {
       "id": "0x3048",
       "name": "C07 stab",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45691,6 +45946,7 @@
     {
       "id": "0x304C",
       "name": "C12 elbow hit",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45755,6 +46011,7 @@
     {
       "id": "0x304D",
       "name": "C13 forward kick",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45874,6 +46131,7 @@
     {
       "id": "0x304E",
       "name": "C17 ground stab",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -45986,6 +46244,7 @@
     {
       "id": "0x3051",
       "name": "C20 multi stab throw",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46293,6 +46552,7 @@
     {
       "id": "0x3052",
       "name": "C21 multi stab throw enemy",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46604,6 +46864,7 @@
     {
       "id": "0x3055",
       "name": "C26 wallrun attack",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46668,6 +46929,7 @@
     {
       "id": "0x3056",
       "name": "C27 wallrun start stop",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46715,6 +46977,7 @@
     {
       "id": "0x3057",
       "name": "C28 block",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46738,6 +47001,7 @@
     {
       "id": "0x3058",
       "name": "C29 blocking",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46797,6 +47061,7 @@
     {
       "id": "0x3059",
       "name": "C30 blocked",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46868,6 +47133,7 @@
     {
       "id": "0x305A",
       "name": "C31 hit",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46903,6 +47169,7 @@
     {
       "id": "0x305C",
       "name": "C33 knockback_re",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -46974,6 +47241,7 @@
     {
       "id": "0x305D",
       "name": "C34 Attack",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47122,6 +47390,7 @@
     {
       "id": "0x3061",
       "name": "C35 dizzy",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47145,6 +47414,7 @@
     {
       "id": "0x3064",
       "name": "C36 Fallen",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47300,6 +47570,7 @@
     {
       "id": "0x3063",
       "name": "C37 die enemy",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47443,6 +47714,7 @@
     {
       "id": "0x306E",
       "name": "C38 diestabbed",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47526,6 +47798,7 @@
     {
       "id": "0x306A",
       "name": "C46 quick attack",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47626,6 +47899,7 @@
     {
       "id": "0x3042",
       "name": "C01 Combat Stand Arthur",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,
@@ -47649,6 +47923,7 @@
     {
       "id": "0x301D",
       "name": "A26 jump end wallrun",
+      "group": "",
       "playback_type": "loop",
       "loop_count": 0,
       "fps": 10,

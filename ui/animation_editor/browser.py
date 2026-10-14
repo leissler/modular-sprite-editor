@@ -10,6 +10,7 @@ from models import Animation, Project
 from ui.animation_editor import ops
 from ui.animation_editor.render import StepRenderer
 from ui.components.frame_palette import FramePalette
+from ui.components.group_bar import GroupBar
 from ui.dpi import px
 
 ROW_H = px(46)
@@ -38,6 +39,8 @@ class AnimationList(wx.VListBox):
         self.project: Optional[Project] = None
         self.renderer: Optional[StepRenderer] = None
         self.view: List[Animation] = []
+        self.can_reorder = True  # dragging rows reorders the project's list (not while the list is sorted)
+        self.show_group = True  # the group in each row (not while the list shows one group)
         self.drop_index = -1
         self._press: Optional[wx.Point] = None
         self._press_row = -1
@@ -87,6 +90,8 @@ class AnimationList(wx.VListBox):
         follow = self.project.get_animation(anim.next_animation_id) if anim.next_animation_id else None
         if follow is not None:
             meta += f" → {follow.name}"
+        if anim.group and self.show_group:
+            meta += f" · {anim.group}"
         dc.DrawText(_fit(dc, meta, rect.width - (x - rect.x) - px(6)), x, rect.y + ROW_H - px(19))
         if self.drop_index == n or (self.drop_index == len(self.view) and n == len(self.view) - 1):
             line_y = rect.y if self.drop_index == n else rect.y + rect.height - 2
@@ -148,7 +153,8 @@ class AnimationList(wx.VListBox):
         event.Skip()
 
     def _on_motion(self, event: wx.MouseEvent) -> None:
-        if not event.Dragging() or not event.LeftIsDown() or self._press is None or self._press_row < 0:
+        if (not event.Dragging() or not event.LeftIsDown() or self._press is None or self._press_row < 0
+                or not self.can_reorder):
             event.Skip()
             return
         if not self._dragging:
@@ -211,6 +217,8 @@ class AnimationBrowser(wx.Panel):
         self.search = wx.SearchCtrl(self, style=wx.TE_PROCESS_ENTER)
         self.search.SetDescriptiveText("Filter")
         self.search.ShowCancelButton(True)
+        self.groups = GroupBar(self, lambda: self.on_view_changed and self.on_view_changed(), "animations")
+        self.on_view_changed: Optional[Callable[[], None]] = None  # the group filter or the order changed
         self.list = AnimationList(self)
         self.btn_new = wx.Button(self, label="+ New", style=wx.BU_EXACTFIT)
         self.btn_dup = wx.Button(self, label="Duplicate", style=wx.BU_EXACTFIT)
@@ -223,7 +231,8 @@ class AnimationBrowser(wx.Panel):
             buttons.Add(btn, 1, wx.RIGHT, 4)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.title, 0, wx.LEFT | wx.TOP, 8)
-        sizer.Add(self.search, 0, wx.EXPAND | wx.ALL, 6)
+        sizer.Add(self.search, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 6)
+        sizer.Add(self.groups, 0, wx.EXPAND | wx.ALL, 6)
         sizer.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
         sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 6)
         self.SetSizer(sizer)

@@ -41,7 +41,7 @@ class AnimationPalette(wx.ListCtrl):
         self.animation_ids = []
         self.generator.clear_cache()
         for anim in self.project.animations:
-            if self.filter_text and self.filter_text not in anim.name.lower():
+            if self.filter_text and self.filter_text not in anim.name.lower() and self.filter_text not in anim.group.lower():
                 continue
             preview = self.project.get_frame(anim.aframes[0].frame_id) if anim.aframes else None
             if preview:

@@ -69,7 +69,8 @@ class FramePalette(wx.ScrolledWindow):
     def visible_frames(self) -> List[Frame]:
         if not self.filter_text:
             return list(self.project.frames)
-        return [f for f in self.project.frames if self.filter_text in f.name.lower()]
+        text = self.filter_text  # a frame's name or its group
+        return [f for f in self.project.frames if text in f.name.lower() or text in f.group.lower()]
 
     def layout_items(self) -> None:
         """Calculate virtual size based on item count and client width."""
