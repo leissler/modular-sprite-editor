@@ -53,7 +53,7 @@ The [SGDK guide in the repository](https://github.com/leissler/modular-sprite-ed
 
 ## Other exports
 
-- **File ▸ Export ▸ Sprite Sheet (JSON, Godot, Unity)...** packs every step into one PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4 SpriteFrames resource or Unity's import settings, the pivot on the editor's origin. See [Work with other tools](../guide/other-tools.md).
+- **File ▸ Export ▸ Sprite Sheet (JSON, Godot, Unity)...** packs every step into one PNG, the pivot on the editor's origin, with JSON in the Aseprite / TexturePacker layout, a Godot 4 SpriteFrames resource and scene, or Unity's sprites, clips, Animator Controller and prefab. Hitboxes, points and step events go along: as JSON per frame, as Area2D shapes, Marker2D points and the signal `sprite_event` in Godot, as trigger colliders, child transforms and `OnSpriteEvent` calls in Unity. See [Work with other tools](../guide/other-tools.md).
 - **File ▸ Export ▸ RetroAnimator Project (\*.json)...** writes a RetroAnimator project with a picture for every part, drawn with the preview mapping. Its report lists what RetroAnimator has no place for, such as step events, loop-from steps, follow-ups and scenes. Exported to the same file again, it removes the part pictures it wrote last time and no longer uses; nothing else in the parts folder is touched.
 - **Export GIF...** in the **Animations** tab and in the Timeline's scene settings writes an animation or a scene, and **File ▸ Export** a PNG sequence of an animation, for sharing and reviews.
 

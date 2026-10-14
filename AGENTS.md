@@ -31,6 +31,7 @@ python3 app.py [project.json]            # optional project path opens it on sta
 python3 -m pytest -q                     # unit tests (no display needed)
 python3 tools/gui_smoke.py [project]     # drives the real window (needs a display); default PoP_WW
 python3 tools/check_export_parity.py PROJECT...   # RetroAnimator export vs editor canvas, pixel-exact
+python3 tools/check_engine_exports.py             # Godot / Unity exports played inside Godot 4 and Unity 6 (installed)
 python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project files to the current format
 ./build_macos.sh | ./build_linux.sh | build_windows.bat     # PyInstaller builds
 <built executable> --smoke-test PROJECT.json [LOG]          # gui_smoke inside a build (own preferences file)
@@ -67,8 +68,11 @@ importers/                 aurora.py (AuroraGT .sprite), retroanimator.py (Retro
                            .ase files read and flattened like Aseprite exports them, sheets with Aseprite / TexturePacker
                            JSON): parse() -> Project; notes.py groups what an import leaves out (Project.load_notes)
 exporters/                 retroanimator.py: export() (RetroAnimator JSON + baked part PNGs, the active mapping baked);
-                           sheet.py: sprite sheets for other engines (packed PNG + Aseprite / TexturePacker JSON, Godot 4
-                           SpriteFrames .tres or Unity .png.meta) and PNG sequences, drawn through compositor
+                           sheet.py: sprite sheets for other engines (packed PNG + Aseprite / TexturePacker JSON) and PNG
+                           sequences, drawn through compositor; each step's hitboxes / points / events (step_markers) and
+                           the clips the engines play (clips: playback.Player's rules); godot.py: SpriteFrames .tres +
+                           scene .tscn (AnimationPlayer, Area2D hitboxes, Marker2D points, sprite_event signal);
+                           unity.py: texture .meta (layout v13), .anim clips, .controller, .prefab
 consoles.py                The console database (wx-free): screen modes, sprite hardware, tile flips, palettes,
                            refresh rates, budget setups; hardware_budget's profiles and the Timeline's screen guides
                            come from it
@@ -192,6 +196,7 @@ ui/
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
+                           check_engine_exports.py (+ engine_checks/: the Godot / Unity exports checked in the engines),
                            make_windows_kit.py, make_examples_zip.py (the examples download of a release),
                            make_readme_banner.py (README banner from the PoP example),
                            make_app_icon.py (the pixel-art app icon, a wooden mannequin: every size, nearest-neighbour only),
@@ -437,8 +442,16 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   Aseprite reader is checked pixel for pixel against Aseprite's own export; an import that writes a file (the
   packed `<name>.sheet.png`) never writes over an existing one.
 - **Exports for other engines** (`exporters/sheet.py`) draw through `compositor` with the preview's mapping and palette
-  swap, steps with their offsets, flips and turns; `tests/test_sheet_export.py` imports the JSON back and compares
-  every frame with its step. The Godot `.tres` and Unity `.meta` were checked in Godot 4.6 and Unity 6.
+  swap, steps with their offsets, flips and turns; hitboxes and points move like the SGDK export's (`step_markers`),
+  and `clips` turns each animation into engine clips that play like `playback.Player` (an intro clip and a loop clip
+  for "loop from"). `tests/test_sheet_export.py` imports the JSON back and compares every frame with its step, checks
+  the clips against `playback.step_after` in every mode and the markers against the SGDK exporter.
+  `exporters/godot.py` and `exporters/unity.py` write the engines' text assets in the layout the engines write
+  themselves (Godot 4.6, Unity 6000.6; Unity's clip binding table is CRC32 of path and property, its texture meta
+  must be serializedVersion 13 with `nameFileIdTable` or Unity gives the sprites new ids). After changing them run
+  `tools/check_engine_exports.py` (`tools/engine_checks`: a Godot script and Unity editor scripts that sample every
+  clip, play events and follow-ups); in Godot test after the scene is ready (autoplay, deferred method calls) and
+  stop the player between clips (it queues follow-ups when an animation starts).
 - **Destructive actions** confirm when they break references (count the references) and stay undoable. Deleting
   modules, an image or a frame that is still used asks through `confirm.ask_remove_uses` (call it module-qualified,
   the smoke test patches it): remove the uses too (`module_editor.ops.remove_module_uses`,

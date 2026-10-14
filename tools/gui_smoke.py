@@ -2140,13 +2140,14 @@ def run():
     step("view memory: reopening a project brings back the tab, selections and views", view_memory)
 
     def interchange():
-        """Sprite sheet (JSON) and PNG sequence of the selected animation, the scene as GIF, then the sheet's JSON
-        imported back: every imported frame as drawn; the project opens again."""
+        """Sprite sheet (JSON, Godot, Unity) and PNG sequence of the selected animation, the scene as GIF, then the
+        sheet's JSON imported back: every imported frame as drawn; the project opens again."""
         from ui import sheet_export_dialog
 
         class Answer:  # stands in for the file, folder and choice dialogs
             path = ""
             choice = 0
+            format = 0  # the sprite sheet's: JSON, Godot, Unity
 
             def __init__(self, *args, **kwargs):
                 pass
@@ -2172,7 +2173,8 @@ def run():
         saved_recent = list(frame.recent_files)
         real = (wx.FileDialog, wx.DirDialog, wx.SingleChoiceDialog, sheet_export_dialog.SheetExportDialog.ShowModal)
         wx.FileDialog = wx.DirDialog = wx.SingleChoiceDialog = Answer
-        sheet_export_dialog.SheetExportDialog.ShowModal = lambda dialog: (dialog.scope.SetSelection(1), wx.ID_OK)[1]
+        sheet_export_dialog.SheetExportDialog.ShowModal = lambda dialog: (
+            dialog.scope.SetSelection(1), dialog.format.SetSelection(Answer.format), wx.ID_OK)[2]
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 frame.select_tab(2)
@@ -2188,6 +2190,16 @@ def run():
                 frame.on_export_sheet()
                 data = os.path.join(tmp, "sheet.json")
                 check(os.path.exists(Answer.path) and os.path.exists(data), "sprite sheet PNG and JSON written")
+                Answer.path, Answer.format = os.path.join(tmp, "godot.png"), 1
+                frame.on_export_sheet()
+                check(all(os.path.exists(os.path.join(tmp, f"godot.{ext}")) for ext in ("png", "tres", "tscn")),
+                      "Godot: SpriteFrames and a scene")
+                Answer.path, Answer.format = os.path.join(tmp, "unity.png"), 2
+                frame.on_export_sheet()
+                check(all(os.path.exists(os.path.join(tmp, name)) for name in
+                          ("unity.png.meta", "unity.controller", "unity.prefab.meta", "unity Animations")),
+                      "Unity: sprites, clips, controller and prefab")
+                Answer.format = 0
                 Answer.path, Answer.choice = os.path.join(tmp, "seq"), 1
                 frame.animation_editor.export_png_sequence()
                 files = sorted(os.listdir(Answer.path)) if os.path.isdir(Answer.path) else []

@@ -1,5 +1,5 @@
 """File ▸ Export ▸ Sprite Sheet: which animations, which format (JSON / Godot / Unity), padding and scale; the
-exporter is exporters/sheet.py."""
+exporters are exporters/sheet.py, godot.py and unity.py."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from ui.preferences import config
 
 FORMAT_CHOICES: List[Tuple[str, str]] = [
     ("JSON (Aseprite / TexturePacker layout)", "json"),
-    ("Godot 4 SpriteFrames (.tres)", "godot"),
-    ("Unity sprites (.png.meta)", "unity"),
+    ("Godot 4: SpriteFrames and a scene", "godot"),
+    ("Unity 6: sprites, clips and a prefab", "unity"),
 ]
 CONFIG_KEY = "SheetExport/{}"
 
@@ -40,9 +40,14 @@ class SheetExportDialog(wx.Dialog):
         self.format.SetSelection(keys.index(stored) if stored in keys else 0)
         self.format.SetToolTip(
             "JSON: frames, durations and tags in the layout Aseprite and TexturePacker write, which Phaser, LÖVE, "
-            "Defold, GameMaker and many engines' importers read (this editor's Import too).\n"
-            "Godot 4: a SpriteFrames resource for AnimatedSprite2D (keep it next to the PNG in the Godot project).\n"
-            "Unity: the PNG's import settings, the sheet cut into sprites with their pivots on the origin.")
+            "Defold, GameMaker and many engines' importers read (this editor's Import too), with each frame's "
+            "hitboxes, points and events.\n"
+            "Godot 4: SpriteFrames for an AnimatedSprite2D, and a scene whose AnimationPlayer plays every animation "
+            "with its hitboxes (Area2D), points (Marker2D) and events (the signal sprite_event). Keep the files next "
+            "to the PNG in the Godot project.\n"
+            "Unity 6: the PNG's import settings (sprites with their pivots on the origin), a clip per animation with "
+            "its hitboxes (trigger colliders), points and events (OnSpriteEvent), an Animator Controller and a "
+            "prefab. Copy them into the project's Assets folder together.")
         grid.Add(wx.StaticText(self, label="Format"), 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(self.format, 0, wx.EXPAND)
 
@@ -53,6 +58,9 @@ class SheetExportDialog(wx.Dialog):
             self._scopes.append((f"The group {name} ({count})", name))
         self.scope = wx.Choice(self, choices=[label for label, _key in self._scopes])
         self.scope.SetSelection(0)
+        for choice in (self.format, self.scope):  # macOS sizes a choice by the item it shows: room for the longest
+            longest = max(choice.GetTextExtent(choice.GetString(i))[0] for i in range(choice.GetCount()))
+            choice.SetMinSize((longest + px(44), -1))
         grid.Add(wx.StaticText(self, label="Animations"), 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(self.scope, 0, wx.EXPAND)
 
@@ -75,7 +83,7 @@ class SheetExportDialog(wx.Dialog):
         grid.Add(sizes, 0)
         root.Add(grid, 0, wx.LEFT | wx.RIGHT, 12)
 
-        note = dim_text(self, f"Drawn with {drawn_with}, as chosen above the tabs. The data file goes next to "
+        note = dim_text(self, f"Drawn with {drawn_with}, as chosen above the tabs. The engine's files go next to "
                               "the PNG; identical pictures are stored once.")
         note.Wrap(px(440))
         root.Add(note, 0, wx.ALL, 12)

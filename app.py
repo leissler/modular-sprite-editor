@@ -1434,7 +1434,8 @@ class MainFrame(wx.Frame):
             f" and the palette swap {swap.name}" if swap else "")
 
     def on_export_sheet(self, _event: Optional[wx.CommandEvent] = None) -> None:
-        """File ▸ Export ▸ Sprite Sheet: the steps packed into a PNG with JSON, a Godot .tres or a Unity .meta."""
+        """File ▸ Export ▸ Sprite Sheet: the steps packed into a PNG with JSON, Godot's SpriteFrames and scene, or Unity's
+        sprites, clips, controller and prefab."""
         from exporters import sheet
 
         if not self.project.animations and not self.project.frames:
@@ -1463,9 +1464,13 @@ class MainFrame(wx.Frame):
             return
         width, height = report["size"]
         notes = "" if not report["notes"] else "\n\n" + "\n".join(report["notes"])
+        files = [os.path.basename(path) for path in report["files"] if not path.endswith(".meta")]
+        shown = "\n".join(files[:6]) + (f"\n… and {len(files) - 6} more" if len(files) > 6 else "")
+        clips = f" in {report['clips']} clips" if options["fmt"] != "json" else ""
         wx.MessageBox(
-            f"{report['entries']} steps of {report['animations']} animation(s) as {report['cells']} pictures on a "
-            f"{width} × {height} sheet:\n\n{report['image']}\n{report['data']}{notes}",
+            f"{report['entries']} steps of {report['animations']} animation(s){clips} as {report['cells']} pictures "
+            f"on a {width} × {height} sheet, in {os.path.dirname(report['image'])}:\n\n"
+            f"{os.path.basename(report['image'])}\n{shown}{notes}",
             "Export Sprite Sheet", wx.OK | wx.ICON_INFORMATION, self)
         self.set_status(f"Exported the sprite sheet to {os.path.basename(report['image'])}")
 

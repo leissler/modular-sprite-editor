@@ -91,6 +91,184 @@ class SheetExportTest(unittest.TestCase):
         self.assertEqual(len(sizes), 1, "one canvas: the origin stays put")
 
 
+def _clip_project(folder):
+    """Five frames of different pictures, and animations in every playback mode with uneven holds."""
+    from PIL import Image
+
+    from models import AFrame, FModule, generate_id
+
+    path = os.path.join(folder, "strip.png")
+    image = Image.new("RGBA", (40, 8), (0, 0, 0, 0))
+    for i in range(5):
+        image.paste((40 * i, 200, 100, 255), (8 * i, 0, 8 * i + 4 + i % 4, 8))
+    image.save(path)
+    project = Project()
+    asset = project.create_image(path, 40, 8)
+    frames = []
+    for i in range(5):
+        module = project.create_module(f"m{i}", asset.id, (8 * i, 0, 8, 8), (0, 0))
+        frame = project.create_frame(f"f{i}")
+        frame.fmodules.append(FModule(id=generate_id("fm"), ref_type="module", ref_id=module.id, position=(0, 0)))
+        frames.append(frame)
+    holds = [1, 2, 3, 1, 2]
+
+    def anim(name, playback, loop_count=0, loop_start=0, steps=5):
+        made = project.create_animation(name)
+        made.playback_type, made.loop_count, made.loop_start, made.fps = playback, loop_count, loop_start, 12
+        made.aframes = [AFrame(frame_id=frames[i].id, duration_frames=holds[i]) for i in range(steps)]
+        return made
+
+    cases = [anim("once", "forward"), anim("loop", "loop"), anim("loop from 2", "loop", loop_start=2),
+             anim("loop 3 times from 1", "loop", 3, 1), anim("backward", "backward"), anim("backward twice", "backward", 2),
+             anim("ping-pong", "ping_pong"), anim("ping-pong twice", "ping_pong", 2), anim("ping-pong one step", "ping_pong", steps=1),
+             anim("ping-pong two steps", "ping_pong", steps=2)]
+    cases[0].next_animation_id = cases[2].id  # once, then loop from 2
+    cases[7].next_animation_id = cases[0].id  # ping-pong twice, then once
+    cases[1].next_animation_id = cases[0].id  # loops forever: never follows up
+    return project, cases
+
+
+class EngineClipsTest(unittest.TestCase):
+    """What Godot and Unity get: clips that play like the editor, game data moved like the pictures."""
+
+    def test_clips_play_every_mode_like_the_editor(self):
+        import playback
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project, cases = _clip_project(tmp)
+            built = sheet.build_sheet(project)
+        clips = sheet.clips(built)
+        by_name = {c.name: c for c in clips}
+        self.assertEqual([c.name for c in clips if built.tags[c.tag].name == "loop from 2"], ["loop from 2", "loop from 2 loop"])
+        self.assertEqual(by_name["once"].next, "loop from 2")
+        self.assertIsNone(by_name["loop"].next, "it never ends")
+
+        def engine_shows(name, ticks):
+            """(tag, step) an engine shows ``ticks`` ticks after it starts the clip ``name``."""
+            clip = by_name[name]
+            while True:
+                holds = [built.entries[i].hold for i in clip.entries]
+                total = sum(holds)
+                if ticks >= total and clip.loops:
+                    ticks %= total
+                if ticks < total:
+                    for index, hold in zip(clip.entries, holds):
+                        if ticks < hold:
+                            return clip.tag, index - built.tags[clip.tag].first
+                        ticks -= hold
+                if clip.next is None:
+                    return clip.tag, clip.entries[-1] - built.tags[clip.tag].first
+                ticks -= total
+                clip = by_name[clip.next]
+
+        def editor_shows(anim, ticks):
+            """(tag, step) the editor shows: the animation, then its follow-ups once it ends."""
+            while True:
+                step, ended = playback.step_after(anim, ticks, playback.own_rules(anim))
+                follow = project.get_animation(anim.next_animation_id or "")
+                if ended is None or follow is None:
+                    return tag_of[anim.name], step
+                anim, ticks = follow, ticks - ended
+
+        tag_of = {t.name: i for i, t in enumerate(built.tags)}
+        for anim in cases:
+            for ticks in range(120):
+                with self.subTest(animation=anim.name, ticks=ticks):
+                    self.assertEqual(engine_shows(anim.name, ticks), editor_shows(anim, ticks))
+
+    def test_names_stay_apart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project, cases = _clip_project(tmp)
+            cases[1].name = cases[2].name = ""
+            built = sheet.build_sheet(project)
+        names = [t.name for t in built.tags]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertIn("Animation", names)
+        self.assertIn("Animation 2", names)
+
+    def test_markers_move_like_the_mega_drive_export(self):
+        """A step's hitboxes and points, flipped, turned and moved, land where the SGDK export puts them."""
+        sys.path.insert(0, str(ROOT / "examples" / "sgdk" / "tools"))
+        import export_sgdk_example as sg
+
+        project = Project.from_json(str(POP))
+        frame = next(f for f in project.frames if f.collision_rects and f.control_points)
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = sg.SGDKBakeContext(project, [None], Path(tmp))
+        for flip_x in (False, True):
+            for flip_y in (False, True):
+                for rotation in (0.0, 90.0, 180.0, 270.0):
+                    a = compositor.mat_mul(compositor.rotation_matrix(rotation), compositor.flip_matrix(flip_x, flip_y))
+                    boxes, points = sheet.step_markers(project, frame, a, (3.0, -2.0))
+                    want_boxes, want_points = ctx._frame_markers(frame, (3.0, -2.0), rotation, flip_x, flip_y)
+                    self.assertEqual([(b.x, b.y, b.w, b.h) for b in boxes], [tuple(w[2:]) for w in want_boxes])
+                    self.assertEqual([(p.x, p.y) for p in points], [tuple(w[2:]) for w in want_points])
+        self.assertEqual({b.kind for b in boxes}, {"Hurt"})
+        self.assertIn("head", {b.role for b in boxes})
+
+    def test_godot_scene(self):
+        project = Project.from_json(str(POP))
+        anims = [a for a in project.animations if any(af.events for af in a.aframes)][:2] + project.animations[:2]
+        anims[2].playback_type, anims[2].loop_start = "loop", 1
+        with tempfile.TemporaryDirectory() as tmp:
+            report = sheet.export_sheet(project, os.path.join(tmp, "hero.png"), "godot", animations=anims)
+            names = sorted(os.path.basename(f) for f in report["files"])
+            scene = open(os.path.join(tmp, "hero.tscn"), encoding="utf-8").read()
+        self.assertEqual(names, ["hero.gd", "hero.tres", "hero.tscn"])
+        self.assertEqual(report["clips"], 5, "four animations, one with an intro before its loop")
+        self.assertEqual(scene.count('[sub_resource type="Animation"'), 5)
+        for node in ('[node name="Sprite" type="AnimatedSprite2D"', '[node name="Hurt head" type="Area2D" parent="Hitboxes"]',
+                     '[node name="Shape" type="CollisionShape2D" parent="Hitboxes/Hurt head"]',
+                     '[node name="Ground feet" type="Marker2D" parent="Points"]', 'script = ExtResource("2_events")',
+                     f'"next/{anims[2].name}" = &"{anims[2].name} loop"', '"method": &"_sprite_events"',
+                     'NodePath("Hitboxes/Hurt head/Shape:shape:size")', "texture_filter = 1"):
+            self.assertIn(node, scene)
+
+    def test_unity_assets(self):
+        import zlib
+
+        from exporters import unity
+
+        project = Project.from_json(str(POP))
+        anims = [a for a in project.animations if any(af.events for af in a.aframes)][:2]
+        with tempfile.TemporaryDirectory() as tmp:
+            png = os.path.join(tmp, "hero.png")
+            report = sheet.export_sheet(project, png, "unity", animations=anims)
+            meta = open(png + ".meta", encoding="utf-8").read()
+            clip = open(next(f for f in report["files"] if f.endswith(".anim")), encoding="utf-8").read()
+            controller = open(os.path.join(tmp, "hero.controller"), encoding="utf-8").read()
+            prefab = open(os.path.join(tmp, "hero.prefab"), encoding="utf-8").read()
+            files = {os.path.relpath(f, tmp) for f in report["files"]}
+        self.assertIn(os.path.join("hero Animations", sheet.safe_name(anims[0].name) + ".anim.meta"), files)
+        self.assertEqual(len([f for f in files if f.endswith(".anim")]), report["clips"])
+        self.assertIn("serializedVersion: 13", meta)
+        self.assertIn("nameFileIdTable:", meta, "Unity keeps the sprite ids the clips use")
+        seed = os.path.abspath(png)
+        for index in range(report["cells"]):
+            self.assertIn(f"internalID: {unity.sprite_id(seed, index)}", meta)
+        self.assertIn(f"guid: {unity.guid(seed)}, type: 3", clip)
+        self.assertIn(f"path: {zlib.crc32('Hitboxes/Hurt head'.encode())}", clip)
+        self.assertIn(f"attribute: {zlib.crc32(b'm_Offset.x')}", clip)
+        self.assertIn("functionName: OnSpriteEvent", clip)
+        self.assertIn("messageOptions: 1", clip, "silent without a receiver")
+        self.assertEqual(controller.count("--- !u!1102 "), report["clips"])
+        self.assertIn(f"guid: {unity.guid(os.path.join(tmp, 'hero.controller'))}, type: 2", prefab)
+        self.assertIn("m_IsTrigger: 1", prefab)
+        self.assertIn("m_Name: Hitboxes", prefab)
+
+    def test_json_carries_the_game_data(self):
+        project = Project.from_json(str(POP))
+        anim = next(a for a in project.animations if any(af.events for af in a.aframes))
+        with tempfile.TemporaryDirectory() as tmp:
+            report = sheet.export_sheet(project, os.path.join(tmp, "hero.png"), "json", animations=[anim], scale=2)
+            frames = json.load(open(report["data"], encoding="utf-8"))["frames"]
+        first = next(iter(frames.values()))
+        self.assertTrue(first["hitboxes"] and first["points"])
+        self.assertEqual({"type", "role", "x", "y", "w", "h"}, set(first["hitboxes"][0]))
+        self.assertTrue(all(v % 2 == 0 for box in first["hitboxes"] for v in (box["x"], box["y"], box["w"], box["h"])),
+                        "scaled ×2 with the pictures")
+        self.assertTrue(any("events" in f for f in frames.values()))
+
 # ---------------------------------------------------------------------------- a tiny Aseprite writer for the tests
 def _chunk(kind, body):
     return struct.pack("<IH", len(body) + 6, kind) + body

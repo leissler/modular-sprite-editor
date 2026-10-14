@@ -177,8 +177,12 @@ right-click › Open the first time.
 - Import Aseprite files (read the way Aseprite flattens them, tags as animations), sprite sheets with Aseprite or
   TexturePacker JSON, AuroraGT `.sprite` files and RetroAnimator JSON: whatever an import leaves out or can't find is
   listed, and the import opens as a new project, so Save never writes over the original.
-- Export **sprite sheets** for other engines: one packed PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4
-  SpriteFrames resource or Unity sprites with their pivots (checked in Godot 4.6 and Unity 6); PNG sequences;
+- Export **sprite sheets** for other engines: one packed PNG with JSON in the Aseprite / TexturePacker layout (with
+  each frame's hitboxes, points and events), for Godot 4 a SpriteFrames resource and a scene whose AnimationPlayer
+  plays every animation with its hitboxes (Area2D), points (Marker2D) and events (a signal), for Unity 6 sprites with
+  their pivots, a clip per animation (hitboxes as trigger colliders, points, events), an Animator Controller and a
+  prefab; animations play as in the editor (loops, ping-pong, repeats, loop from, follow-ups), checked inside Godot
+  4.6 and Unity 6 (`tools/check_engine_exports.py`); PNG sequences;
   RetroAnimator JSON (the report lists what RetroAnimator has no place for); SGDK data; animated GIFs of animations
   and scenes. Exports draw with the preview mapping and palette swap.
 
@@ -230,6 +234,7 @@ PoP_WW and Sonic ROMs with those scripts.
 python3 -m pytest -q                               # unit tests (no display needed)
 python3 tools/gui_smoke.py [project.json]          # drives the real UI against a project (needs a display)
 python3 tools/check_export_parity.py PROJECT...    # RetroAnimator export vs. the editor canvas, pixel by pixel
+python3 tools/check_engine_exports.py              # the Godot and Unity exports played inside the engines
 python3 tools/migrate_projects.py --dry-run DIR    # upgrade project files to the current format
 python3 tools/automod_bench.py PROJECT.json        # Auto Modularize benchmark: exactness, tiles, hardware sprites
 python3 tools/make_readme_banner.py                # this README's banner, rendered from the PoP example
