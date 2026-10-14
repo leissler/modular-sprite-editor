@@ -2065,7 +2065,7 @@
     },
     {
       "id": "0x108C",
-      "name": "ZZZZ_0cap01 UNUSED",
+      "name": "guard_0cap01",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         276,
@@ -2088,7 +2088,7 @@
     },
     {
       "id": "0x108D",
-      "name": "ZZZZ_0cap06 UNUSED",
+      "name": "guard_0cap06",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         56,
@@ -2111,7 +2111,7 @@
     },
     {
       "id": "0x108E",
-      "name": "ZZZZ_0cap08 UNUSED",
+      "name": "guard_0cap08",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         84,
@@ -2134,7 +2134,7 @@
     },
     {
       "id": "0x108F",
-      "name": "ZZZZ_0cap09 UNUSED",
+      "name": "guard_0cap09",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         111,
@@ -2157,7 +2157,7 @@
     },
     {
       "id": "0x1090",
-      "name": "ZZZZ_0cap12 UNUSED",
+      "name": "guard_0cap12",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         139,
@@ -2180,7 +2180,7 @@
     },
     {
       "id": "0x1091",
-      "name": "ZZZZ_1corp01 UNUSED",
+      "name": "guard_1corp01",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         166,
@@ -2203,7 +2203,7 @@
     },
     {
       "id": "0x1092",
-      "name": "ZZZZ_1corp02 UNUSED",
+      "name": "guard_1corp02",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         194,
@@ -2226,7 +2226,7 @@
     },
     {
       "id": "0x1093",
-      "name": "ZZZZ_1corp03 UNUSED",
+      "name": "guard_1corp03",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         222,
@@ -2249,7 +2249,7 @@
     },
     {
       "id": "0x1094",
-      "name": "ZZZZ_1corp04 UNUSED",
+      "name": "guard_1corp04",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         249,
@@ -2272,7 +2272,7 @@
     },
     {
       "id": "0x1095",
-      "name": "ZZZZ_1corp06 UNUSED",
+      "name": "guard_1corp06",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         276,
@@ -2295,7 +2295,7 @@
     },
     {
       "id": "0x1096",
-      "name": "ZZZZ_1corp07 UNUSED",
+      "name": "guard_1corp07",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         2,
@@ -2318,7 +2318,7 @@
     },
     {
       "id": "0x1097",
-      "name": "ZZZZ_1corp09 UNUSED",
+      "name": "guard_1corp09",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         29,
@@ -2341,7 +2341,7 @@
     },
     {
       "id": "0x1098",
-      "name": "ZZZZ_1corp15 UNUSED",
+      "name": "guard_1corp15",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         1,
@@ -2364,7 +2364,7 @@
     },
     {
       "id": "0x1099",
-      "name": "ZZZZ_8mana101 UNUSED",
+      "name": "guard_8mana101",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         56,
@@ -2387,7 +2387,7 @@
     },
     {
       "id": "0x109A",
-      "name": "ZZZZ_8mana103 UNUSED",
+      "name": "guard_8mana103",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         84,
@@ -2410,7 +2410,7 @@
     },
     {
       "id": "0x109B",
-      "name": "ZZZZ_8mana103_0 UNUSED",
+      "name": "guard_8mana103_0",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         111,
@@ -2433,7 +2433,7 @@
     },
     {
       "id": "0x109C",
-      "name": "ZZZZ_8mana104 UNUSED",
+      "name": "guard_8mana104",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         139,
@@ -2456,7 +2456,7 @@
     },
     {
       "id": "0x109D",
-      "name": "ZZZZ_8mana107 UNUSED",
+      "name": "guard_8mana107",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         194,
@@ -2479,7 +2479,7 @@
     },
     {
       "id": "0x109E",
-      "name": "ZZZZ_8mana109 UNUSED",
+      "name": "guard_8mana109",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         221,
@@ -2502,7 +2502,7 @@
     },
     {
       "id": "0x109F",
-      "name": "ZZZZ_8mana110 UNUSED",
+      "name": "guard_8mana110",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         249,
@@ -2525,7 +2525,7 @@
     },
     {
       "id": "0x10A0",
-      "name": "ZZZZ_8mana113 UNUSED",
+      "name": "guard_8mana113",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         277,
@@ -2548,7 +2548,7 @@
     },
     {
       "id": "0x10A1",
-      "name": "ZZZZ_8mana115 UNUSED",
+      "name": "guard_8mana115",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         2,
@@ -2571,7 +2571,7 @@
     },
     {
       "id": "0x10A2",
-      "name": "ZZZZ_8mana115_0 UNUSED",
+      "name": "guard_8mana115_0",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         29,
@@ -2594,7 +2594,7 @@
     },
     {
       "id": "0x10A3",
-      "name": "ZZZZ_8mana202 UNUSED",
+      "name": "guard_8mana202",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         138,
@@ -2617,7 +2617,7 @@
     },
     {
       "id": "0x10A4",
-      "name": "ZZZZ_8mana203 UNUSED",
+      "name": "guard_8mana203",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         166,
@@ -2640,7 +2640,7 @@
     },
     {
       "id": "0x10A5",
-      "name": "ZZZZ_8mana204 UNUSED",
+      "name": "guard_8mana204",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         193,
@@ -2663,7 +2663,7 @@
     },
     {
       "id": "0x10A6",
-      "name": "ZZZZ_8mana205 UNUSED",
+      "name": "guard_8mana205",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         222,
@@ -2686,7 +2686,7 @@
     },
     {
       "id": "0x10A7",
-      "name": "ZZZZ_8mana210 UNUSED",
+      "name": "guard_8mana210",
       "image_id": "/Users/martin/Downloads/PoPClone/SpriteTool/SpriteTool/modules_POP.bmp",
       "rect": [
         248,

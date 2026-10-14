@@ -382,6 +382,9 @@ open.
 In PoP, the guard's replacement modules (used by the Normal mapping) are named `ZZZZ_… UNUSED`, which shows in the
 Mappings tab and on the guide's pictures. Rename them (`guard_…`) and regenerate the affected screenshots.
 
+**Done:** the 28 are `guard_…` (the six modules no frame or mapping uses keep their honest "UNUSED"), the SGDK demo's
+blob is exported again (it carries the names), and the guide's two Mappings pictures are taken again.
+
 ### U8 (Low) Smaller observations
 
 - The Timeline library's first tab reads "Animatio…" at the default width. **Done:** the column is as wide as in the
