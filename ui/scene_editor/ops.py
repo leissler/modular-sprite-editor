@@ -670,6 +670,49 @@ def clear_sources(project: Project, source_type: str, ids: Iterable[str]) -> int
     return cleared
 
 
+def top_objects(scene: TimelineScene, object_ids: Iterable[str]) -> List[TimelineObject]:
+    """The objects among ``object_ids`` that are not below another one of them (those follow their parent)."""
+    chosen = [o for o in (scene.get_object(i) for i in dict.fromkeys(object_ids)) if o is not None]
+    ids = {o.id for o in chosen}
+    return [o for o in chosen if not any(a != o.id and is_descendant(scene, a, o.id) for a in ids)]
+
+
+def copy_objects(scene: TimelineScene, object_ids: Iterable[str]) -> List[Dict[str, Any]]:
+    """The objects with everything below them, as data for ``paste_objects`` (parents before their children)."""
+    out: List[Dict[str, Any]] = []
+
+    def collect(obj: TimelineObject) -> None:
+        out.append(obj.to_dict())
+        for child in children_of(scene, obj.id):
+            collect(child)
+
+    for top in sorted(top_objects(scene, object_ids), key=lambda o: o.draw_order):
+        collect(top)
+    return out
+
+
+def paste_objects(scene: TimelineScene, data: List[Dict[str, Any]]) -> List[TimelineObject]:
+    """New objects from ``copy_objects`` data, in front of the scene's others (also in another scene: the keys keep
+    their times, sources, mappings and colours). Returns the top ones; next to their originals they are named
+    "… copy"."""
+    id_map = {entry["id"]: generate_id("tlo") for entry in data}
+    tops: List[TimelineObject] = []
+    for index, entry in enumerate(data):
+        clone = TimelineObject.from_dict(dict(entry))
+        clone.id = id_map[entry["id"]]
+        clone.parent_id = id_map.get(entry.get("parent_id")) if entry.get("parent_id") in id_map else None
+        for key in clone.keyframes:
+            key.id = generate_id("tlk")
+        if clone.parent_id is None:
+            if scene.get_object(entry["id"]) is not None:
+                clone.name = f"{clone.name} copy"
+            clone.draw_order = 10**6 + index  # in front, in the order they were copied
+            tops.append(clone)
+        scene.objects.append(clone)
+    normalize_draw_order(scene)
+    return tops
+
+
 def delete_object(project: Project, scene: TimelineScene, object_id: str) -> None:
     """Delete an object; its children move up to its parent and keep their world pose."""
     obj = scene.get_object(object_id)

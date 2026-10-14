@@ -29,6 +29,7 @@ class StageCanvas(FrameCanvas):
         self.scene: Optional[TimelineScene] = None
         self.time_value: float = 0.0
         self.selected_object_id: Optional[str] = None
+        self.selected_object_ids: Set[str] = set()  # every selected layer (selected_object_id among them)
         self.selected_key_ids: Set[str] = set()
         self.hidden_ids: Set[str] = set()
         self.locked_ids: Set[str] = set()
@@ -41,6 +42,7 @@ class StageCanvas(FrameCanvas):
 
         # Callbacks (set by the panel)
         self.on_select: Optional[Callable[[Optional[str]], None]] = None
+        self.on_select_objects: Optional[Callable[[List[str], Optional[str]], None]] = None  # (ids, the one shown)
         self.on_drag_begin: Optional[Callable[[str], None]] = None
         self.on_drag: Optional[Callable[[str, float, float], None]] = None
         self.on_drag_end: Optional[Callable[[], None]] = None
@@ -53,10 +55,15 @@ class StageCanvas(FrameCanvas):
         self._drawn_objects: List[Dict[str, Any]] = []
         self._drawn_keys: List[Dict[str, Any]] = []
         self._drawn_handles: List[Dict[str, Any]] = []
-        self._drag_kind: Optional[str] = None  # "object" | "key" | "handle"
+        self._drag_kind: Optional[str] = None  # "object" | "key" | "handle" | "marquee"
         self._drag_ids: Tuple[str, ...] = ()
         self._drag_start_world: Optional[Tuple[float, float]] = None
         self._last_hit_cycle: Tuple[Optional[Tuple[int, int, Tuple[str, ...]]], int] = (None, -1)
+        self._press_pos: Optional[wx.Point] = None
+        self._moved = False
+        self._only_on_click: Optional[str] = None  # a click (no drag) on a layer of a group selects it alone
+        self._marquee: Optional[wx.Rect] = None
+        self._marquee_base: List[str] = []
 
         self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
@@ -86,10 +93,12 @@ class StageCanvas(FrameCanvas):
         selected_key_ids: Set[str],
         hidden_ids: Set[str],
         locked_ids: Set[str],
+        selected_object_ids: Optional[Set[str]] = None,
     ) -> None:
         self.scene = scene
         self.time_value = time_value
         self.selected_object_id = selected_object_id
+        self.selected_object_ids = set(selected_object_ids or ()) | ({selected_object_id} if selected_object_id else set())
         self.selected_key_ids = set(selected_key_ids)
         self.hidden_ids = set(hidden_ids)
         self.locked_ids = set(locked_ids)
@@ -175,7 +184,7 @@ class StageCanvas(FrameCanvas):
         self._draw_grid(gc)
         if not self.scene:
             gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(190, 190, 190))
-            gc.DrawText(first_steps.scenes(self.project) or "No scene yet: click New in the scene bar to make one.", px(20), px(20))
+            gc.DrawText(first_steps.scenes(self.project) or "No scene yet: click + New in the Scenes list to make one.", px(20), px(20))
             return
 
         states = ops.evaluate_states(self.project, self.scene, self.time_value)
@@ -203,13 +212,19 @@ class StageCanvas(FrameCanvas):
 
         self._draw_screen_guide(gc)
         self._draw_motion_path(gc, states)
-        if self.selected_object_id:
-            item = next((i for i in reversed(self._drawn_objects) if i["object_id"] == self.selected_object_id), None)
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        for object_id in self.selected_object_ids:
+            item = next((i for i in reversed(self._drawn_objects) if i["object_id"] == object_id), None)
             if item:
                 r = item["screen_rect"]
-                gc.SetBrush(wx.TRANSPARENT_BRUSH)
-                gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 1, wx.PENSTYLE_SHORT_DASH))
+                # The layer the inspector shows in white, the others selected with it in blue.
+                colour = wx.Colour(255, 255, 255) if object_id == self.selected_object_id else wx.Colour(130, 190, 255)
+                gc.SetPen(wx.Pen(colour, 1, wx.PENSTYLE_SHORT_DASH))
                 gc.DrawRectangle(r.x, r.y, r.width, r.height)
+        if self._marquee is not None:
+            gc.SetPen(wx.Pen(wx.Colour(140, 200, 255), 1, wx.PENSTYLE_DOT))
+            gc.SetBrush(wx.Brush(wx.Colour(140, 200, 255, 40)))
+            gc.DrawRectangle(self._marquee.x, self._marquee.y, self._marquee.width, self._marquee.height)
         self._draw_budget_hud(gc)
 
     def compute_budget(self, states: Optional[Dict[str, Dict[str, Any]]] = None) -> Optional[Budget]:
@@ -409,10 +424,35 @@ class StageCanvas(FrameCanvas):
                 self.on_key_drag_begin(*self._drag_ids)
         else:
             object_id = self.hit_object(pos)
-            if self.on_select:
-                self.on_select(object_id)
-            if not object_id:
+            additive = event.ShiftDown() or event.CmdDown()
+            self._press_pos = pos
+            self._moved = False
+            self._only_on_click = None
+            if not object_id:  # empty space: a marquee (Shift or Cmd keeps the selection)
+                self._drag_kind = "marquee"
+                self._marquee_base = list(self.selected_object_ids) if additive else []
+                if not additive and self.on_select:
+                    self.on_select(None)
+                if not self.HasCapture():
+                    self.CaptureMouse()
                 return
+            if additive:  # Shift adds the layer, Cmd adds or removes it
+                ids = [i for i in self.selected_object_ids if i != self.selected_object_id]
+                ids += [self.selected_object_id] if self.selected_object_id else []
+                if object_id in ids and event.CmdDown():
+                    ids.remove(object_id)
+                    primary = self.selected_object_id if self.selected_object_id != object_id else (ids[-1] if ids else None)
+                else:
+                    ids = [i for i in ids if i != object_id] + [object_id]
+                    primary = object_id
+                if self.on_select_objects:
+                    self.on_select_objects(ids, primary)
+                if object_id not in ids:
+                    return
+            elif object_id in self.selected_object_ids and len(self.selected_object_ids) > 1:
+                self._only_on_click = object_id  # the group stays selected for a drag
+            elif self.on_select:
+                self.on_select(object_id)
             self._drag_kind = "object"
             self._drag_ids = (object_id,)
             if self.on_drag_begin:
@@ -423,6 +463,21 @@ class StageCanvas(FrameCanvas):
 
     def _on_motion(self, event: wx.MouseEvent) -> None:
         if self.handle_pan_motion(event):
+            return
+        pos = event.GetPosition()
+        if self._press_pos is not None and abs(pos.x - self._press_pos.x) + abs(pos.y - self._press_pos.y) > 3:
+            self._moved = True
+        if self._drag_kind == "marquee" and event.Dragging() and self._press_pos is not None:
+            if not self._moved:
+                return
+            x0, y0 = self._press_pos.x, self._press_pos.y
+            self._marquee = wx.Rect(min(x0, pos.x), min(y0, pos.y), abs(pos.x - x0) + 1, abs(pos.y - y0) + 1)
+            found = [i["object_id"] for i in self._drawn_objects
+                     if i["screen_rect"].Intersects(self._marquee) and i["object_id"] not in self.locked_ids]
+            ids = list(dict.fromkeys(self._marquee_base + found))
+            if self.on_select_objects:
+                self.on_select_objects(ids, found[-1] if found else (ids[-1] if ids else None))
+            self.Refresh(False)
             return
         if not (event.Dragging() and event.LeftIsDown() and self._drag_kind and self._drag_start_world):
             return
@@ -442,17 +497,25 @@ class StageCanvas(FrameCanvas):
             return
         if self.HasCapture():
             self.ReleaseMouse()
-        was_dragging = self._drag_kind is not None
+        kind = self._drag_kind
         self._drag_kind = None
         self._drag_ids = ()
         self._drag_start_world = None
-        if was_dragging and self.on_drag_end:
+        self._press_pos = None
+        if kind == "marquee":
+            self._marquee = None
+            self.Refresh(False)
+            return
+        if kind == "object" and self._only_on_click and not self._moved and self.on_select:
+            self.on_select(self._only_on_click)  # a click on one of several selected layers: it alone
+        self._only_on_click = None
+        if kind is not None and self.on_drag_end:
             self.on_drag_end()
 
     def _on_right_down(self, event: wx.MouseEvent) -> None:
         self.SetFocus()
         object_id = self.hit_object(event.GetPosition())
-        if object_id and self.on_select:
-            self.on_select(object_id)
+        if object_id and object_id not in self.selected_object_ids and self.on_select:
+            self.on_select(object_id)  # (a selected layer keeps the group selected for its menu)
         if self.on_context_menu:
             self.on_context_menu(object_id, event.GetPosition())

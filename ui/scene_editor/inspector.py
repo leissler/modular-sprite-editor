@@ -142,6 +142,7 @@ class SceneInspector(wx.ScrolledWindow):
         self.frame = 0
         self.auto_key = True
         self.selected_key_count = 0
+        self.selected_objects = 1  # layers selected (this one among them)
         self.selected_key_ids: Set[str] = set()
         self._updating = False
         self._parent_ids: List[Optional[str]] = []
@@ -462,8 +463,10 @@ class SceneInspector(wx.ScrolledWindow):
         auto_key: bool = True,
         selected_key_count: int = 0,
         selected_key_ids: Optional[Iterable[str]] = None,
+        selected_objects: int = 1,
     ) -> None:
         self.project = project
+        self.selected_objects = selected_objects
         self.scene = scene
         self.obj = obj
         self.frame = frame
@@ -488,7 +491,7 @@ class SceneInspector(wx.ScrolledWindow):
         has_obj = self.obj is not None
         anim = has_obj and (self.obj.source_type == "animation" or any(k.source_type == "animation" for k in self.obj.keyframes))
         self.hint.SetLabel(
-            (first_steps.scenes(self.project) or "Click New in the scene bar to make a scene.") if not has_scene else
+            (first_steps.scenes(self.project) or "Click + New in the Scenes list to make a scene.") if not has_scene else
             ("Nothing selected — scene settings. Click an object on the stage or a layer to edit it." if not has_obj else "")
         )
         self.hint.Show(bool(self.hint.GetLabel()))
@@ -514,6 +517,10 @@ class SceneInspector(wx.ScrolledWindow):
     def _fill_object(self) -> None:
         obj, scene, project = self.obj, self.scene, self.project
         fps = scene.fps
+        others = max(0, self.selected_objects - 1)
+        # Several layers selected: this one shows; Mapping, Colours and the playback settings change them all.
+        self.object_panel.set_title(f"Object  ·  {others + 1} selected" if others else "Object")
+        self.playback_panel.set_title(f"Animation playback  ·  {others + 1} layers" if others else "Animation playback")
         if not self.obj_name.HasFocus():
             self.obj_name.ChangeValue(obj.name)
         self.obj_source.SetLabel(_short(f"{SOURCE_TYPE_LABELS.get(obj.source_type, '?')}: {ops.source_name(project, obj.source_type, obj.source_id)}"))

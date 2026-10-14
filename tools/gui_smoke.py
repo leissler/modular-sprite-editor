@@ -877,6 +877,129 @@ def run():
 
     step("timeline: add, auto-key, easing, retime, parent, play, copy/paste, delete, undo", timeline)
 
+    def scenes_list():
+        """The Timeline's Scenes list: a row with a picture per scene; duplicate, rename, reorder, delete, undo."""
+        te = frame.timeline_editor
+        frame.select_tab(3)
+        pump()
+        scenes = te.scene_browser.list
+        check([r.id for r in scenes.rows] == [s.id for s in proj.timeline_scenes], "a row per scene")
+        check(scenes.selected_ids() == [te.selected_scene_id], "the scene shown is selected")
+        base = te.scene()
+        check(te._scene_thumbnail(base.id, scenes.thumb) is not None, "the scene's picture")
+        frame.history_checkpoint()
+        count = len(proj.timeline_scenes)
+        te.duplicate_scene()
+        copy = te.scene()
+        check(copy is not None and copy.id != base.id and scenes.selected_ids() == [copy.id], "duplicate shows the copy")
+        te._rename_scene(copy.id, "Smoke scene")
+        check(copy.name == "Smoke scene" and scenes.rows[scenes.index_of(copy.id)].title == "Smoke scene", "rename")
+        te._move_scene(copy.id, proj.timeline_scenes[0].id)
+        check(proj.timeline_scenes[0] is copy and scenes.rows[0].id == copy.id, "drag to the top")
+        scenes.SetSelection(scenes.index_of(base.id))
+        te._on_scene_row()
+        check(te.selected_scene_id == base.id and te.selected_object_id is None, "a click shows the scene and its settings")
+        te.refresh_scenes(copy.id)
+        te.delete_scene()
+        check(proj.get_timeline_scene(copy.id) is None and len(scenes.rows) == count, "delete")
+        frame.history_checkpoint()
+        frame.on_undo(None)
+        pump()
+        check(len(proj.timeline_scenes) == count + 1 and len(scenes.rows) == count + 1, "undo brings the scene back")
+        for _ in range(3):
+            frame.on_undo(None)
+        pump()
+        check([s.id for s in proj.timeline_scenes][:count] == [r.id for r in scenes.rows][:count] and
+              len(proj.timeline_scenes) == count, "undo back to the start")
+
+    step("timeline: the scenes list (duplicate, rename, reorder, delete, undo)", scenes_list)
+
+    def several_layers():
+        """Several layers at once: Cmd+click in the tree, a marquee on the stage, arrows move them together, Copy and
+        Paste into another scene; undone."""
+        from ui.scene_editor import ops as scene_ops
+
+        te = frame.timeline_editor
+        frame.select_tab(3)
+        pump(4)
+        frame.history_checkpoint()
+        start = project_fingerprint(frame.project)
+        if te.scene() is None:
+            te.new_scene()
+        scene = te.scene()
+        art = next((f for f in frame.project.frames if f.fmodules), None)
+        while len(scene.objects) < 3:  # layers that draw something (a marquee finds what it sees)
+            te.add_object("frame" if art else "none", art.id if art else None, (len(scene.objects) * 48, 0))
+        frame.history_checkpoint()
+        ids = [o.id for o in scene.objects[:3]]
+        te.select_object(ids[0])
+        te.select_objects(*te.timeline._extend_selection(ids[1], False))  # what Cmd+click on a layer does
+        check(set(te.selected_object_ids) == set(ids[:2]) and te.selected_object_id == ids[1], "Cmd+click adds a layer")
+        check(te.stage.selected_object_ids == set(ids[:2]) and te.timeline.selected_object_ids == set(ids[:2]),
+              "the stage and the layer tree show both")
+        check("2 SELECTED" in te.inspector.object_panel.title.GetLabel(), "the inspector says how many")
+        time_value = scene_ops.time_of(te.frame, scene.fps)
+
+        def xs():
+            return [round(scene.evaluate_object_state(frame.project, i, time_value)["x"]) for i in ids]
+
+        before = xs()
+        te.nudge_selected(5, 0)
+        frame.history_checkpoint()
+        after = xs()
+        check(after[:2] == [x + 5 for x in before[:2]] and after[2] == before[2], f"arrows move both {before} {after}")
+        te.select_objects(*te.timeline._extend_selection(ids[0], False))  # Cmd+click again: out
+        check(te.selected_object_ids == [ids[1]], "Cmd+click takes a layer out again")
+
+        st = te.stage
+        te.select_object(None)
+        st.fit_to_content()  # every layer in view, the corners empty
+        st.Refresh()
+        st.Update()
+        pump(2)
+        size = st.GetClientSize()
+        corners = [(2, 2), (size.width - 3, 2), (2, size.height - 3), (size.width - 3, size.height - 3)]
+        corner = next((c for c in corners if st.hit_object(wx.Point(*c)) is None), None)
+        check(corner is not None, "an empty corner on the stage")
+        if corner is not None:
+            far = (size.width - 1 - corner[0], size.height - 1 - corner[1])
+            for kind, pos, left in ((wx.wxEVT_LEFT_DOWN, corner, True), (wx.wxEVT_MOTION, far, True),
+                                    (wx.wxEVT_LEFT_UP, far, False)):
+                evt = wx.MouseEvent(kind)
+                evt.SetPosition(wx.Point(*pos))
+                evt.SetLeftDown(left)
+                synthetic_button[0] = left and kind != wx.wxEVT_LEFT_UP
+                {wx.wxEVT_LEFT_DOWN: st._on_left_down, wx.wxEVT_MOTION: st._on_motion,
+                 wx.wxEVT_LEFT_UP: st._on_left_up}[kind](evt)
+                pump(1)
+            shown = {item["object_id"] for item in st._drawn_objects} - te.locked_ids
+            check(len(te.selected_object_ids) >= 2 and set(te.selected_object_ids) == shown,
+                  "a marquee over the stage selects every layer on it")
+
+        te.select_objects(ids[:2])
+        te.selection.clear()
+        te.edit_copy()
+        count = len(scene_ops.copy_objects(scene, ids[:2]))
+        names = sorted(scene.get_object(i).name for i in ids[:2])
+        te.new_scene()
+        frame.history_checkpoint()
+        other = te.scene()
+        te.edit_paste()
+        frame.history_checkpoint()
+        check(other is not scene and len(other.objects) == count
+              and sorted(o.name for o in other.objects if o.parent_id is None) == names,
+              "Paste puts the copied layers into another scene, names kept")
+        check(sorted(te.selected_object_ids) == sorted(o.id for o in other.objects if o.parent_id is None),
+              "the pasted layers are selected")
+        for _ in range(20):
+            if project_fingerprint(frame.project) == start:
+                break
+            frame.on_undo(None)
+        pump()
+        check(project_fingerprint(frame.project) == start, "undo back to the start")
+
+    step("timeline: several layers (Cmd+click, marquee, arrows, copy into another scene, undo)", several_layers)
+
     def slow_playback():
         # A slow machine: every frame takes longer to draw than the playback interval. Waiting for events while
         # playing must still return and frames must keep coming (on Windows wx.Yield never returned while the

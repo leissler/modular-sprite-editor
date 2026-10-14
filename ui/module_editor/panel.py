@@ -62,7 +62,7 @@ class ModuleEditorPanel(wx.Panel):
         self.sheets = Browser(self.left_split, "Images", row_h=46, thumb=38, reorder=True)
         self.sheets.search.Hide()
         self.btn_add_image = self.sheets.add_button("+ Add ▾", "Add an image file or a whole folder", self._add_menu)
-        self.btn_remove_image = self.sheets.add_button("Remove", "Remove the image and its modules from the project", self.remove_image)
+        self.btn_remove_image = self.sheets.add_button("Delete", "Delete the image and its modules from the project (the file on disk stays)", self.remove_image)
 
         self.modules = Browser(self.left_split, "Modules", row_h=40, thumb=32, multiple=True, reorder=True)
         self.btn_slice = self.modules.add_button("Slice ▾", "Grid slice, detect sprites or auto modularize this image", self._slice_menu)

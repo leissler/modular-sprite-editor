@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import wx
 
@@ -12,10 +12,13 @@ from ui import app_services
 from ui.base_canvas import BACKDROP_COLOUR
 from ui.components.canvas_display_controls import CanvasDisplayControls
 from ui.components.inspector_kit import fit_choice
+from ui.components.thumb_list import Browser, Row
+from ui.frame_render import fit_bitmap, mapping_key, swap_key
 from ui.scene_editor import ops
 from ui.scene_editor.inspector import SceneInspector
 from ui.scene_editor.library import SceneLibrary
 from ui.scene_editor.stage import SCREEN_GUIDES, StageCanvas
+from ui.scene_editor.thumbnails import scene_image
 from ui.scene_editor.timeline import TimelineView
 from ui.dpi import px
 from ui.components.split_memory import split_bottom_remembered
@@ -37,6 +40,9 @@ QUICK_EASINGS: List[Tuple[str, str]] = [
 # Shared between scenes/projects for the session.
 _KEY_CLIPBOARD: List[Dict[str, Any]] = []
 _OBJECT_CLIPBOARD: List[Dict[str, Any]] = []
+_PASTE_KIND = ["keys"]  # what Paste pastes: what was copied last ("keys" or "layers")
+# Inspector fields that change every selected layer when several are selected.
+GROUP_FIELDS = ("playback_mode", "playback_speed", "root_motion", "mapping", "palette_swap")
 
 CONFIG_SCREEN_GUIDE = "SceneEditor/ScreenGuide"
 
@@ -63,7 +69,8 @@ class SceneEditorPanel(wx.Panel):
         super().__init__(parent)
         self.project = project
         self.selected_scene_id: Optional[str] = None
-        self.selected_object_id: Optional[str] = None
+        self.selected_object_id: Optional[str] = None  # the layer the inspector shows (the last one clicked)
+        self.selected_object_ids: List[str] = []  # every selected layer, that one last
         self.selection: Selection = {}
         self.frame = 0
         self.auto_key = True
@@ -71,7 +78,7 @@ class SceneEditorPanel(wx.Panel):
         self.hidden_ids: Set[str] = set()
         self.locked_ids: Set[str] = set()
         self.collapsed_ids: Set[str] = set()
-        self._scene_ids: List[Optional[str]] = []
+        self._scene_thumbs: Dict[str, Tuple[Any, wx.Bitmap]] = {}
         self._tick_cache: Dict[str, Tuple[Any, List[int]]] = {}
         self._drag: Dict[str, Any] = {}
         self._play_start: Tuple[float, int] = (0.0, 0)
@@ -88,31 +95,20 @@ class SceneEditorPanel(wx.Panel):
     def _build_ui(self) -> None:
         root = wx.BoxSizer(wx.VERTICAL)
 
-        # Scene bar
-        bar = wx.BoxSizer(wx.HORIZONTAL)
-        bar.Add(wx.StaticText(self, label="Scene"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        self.scene_choice = wx.Choice(self)
-        self.scene_choice.SetMinSize((px(200), -1))
-        self.btn_scene_add = wx.Button(self, label="New", style=wx.BU_EXACTFIT)
-        self.btn_scene_dup = wx.Button(self, label="Duplicate", style=wx.BU_EXACTFIT)
-        self.btn_scene_del = wx.Button(self, label="Delete", style=wx.BU_EXACTFIT)
-        self.btn_scene_settings = wx.Button(self, label="Scene Settings", style=wx.BU_EXACTFIT)
-        self.btn_scene_settings.SetToolTip("Show the scene's frame rate, length and background in the inspector")
-        for item, flag in (
-            (self.scene_choice, wx.RIGHT),
-            (self.btn_scene_add, wx.RIGHT),
-            (self.btn_scene_dup, wx.RIGHT),
-            (self.btn_scene_del, wx.RIGHT),
-        ):
-            bar.Add(item, 0, flag | wx.ALIGN_CENTER_VERTICAL, 4)
-        bar.AddSpacer(12)
-        bar.Add(self.btn_scene_settings, 0, wx.ALIGN_CENTER_VERTICAL)
-        root.Add(bar, 0, wx.EXPAND | wx.ALL, 6)
-
         self.vsplit = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
         top = wx.Panel(self.vsplit)
         self.outer_split = wx.SplitterWindow(top, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
-        self.library = SceneLibrary(self.outer_split, self.project)
+        # The left column: the scenes (a list like the other tabs') above the library of things to put in them.
+        self.left_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
+        self.scene_browser = Browser(self.left_split, "Scenes", row_h=44, thumb=40, reorder=True, filter_hint="Filter scenes")
+        self.btn_scene_add = self.scene_browser.add_button("+ New", "New scene", self.new_scene)
+        self.btn_scene_dup = self.scene_browser.add_button("Duplicate", "Duplicate the selected scene", self.duplicate_scene)
+        self.btn_scene_del = self.scene_browser.add_button("Delete", "Delete the selected scene", self.delete_scene)
+        self.scene_browser.list.SetToolTip("Click a scene to show it and its settings (frame rate, length, background) in "
+                                           "the inspector. Double-click or F2 renames, drag to reorder.")
+        self.library = SceneLibrary(self.left_split, self.project)
+        self.left_split.SplitHorizontally(self.scene_browser, self.library, px(200))
+        self.left_split.SetMinimumPaneSize(px(110))
         self.inner_split = wx.SplitterWindow(self.outer_split, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
 
         stage_panel = wx.Panel(self.inner_split)
@@ -137,7 +133,7 @@ class SceneEditorPanel(wx.Panel):
         self.inner_split.SplitVertically(stage_panel, self.inspector, -px(320))
         self.inner_split.SetSashGravity(1.0)
         self.inner_split.SetMinimumPaneSize(px(240))
-        self.outer_split.SplitVertically(self.library, self.inner_split, px(270))  # like the other tabs: room for the Animations tab label
+        self.outer_split.SplitVertically(self.left_split, self.inner_split, px(270))  # like the other tabs: room for the Animations tab label
         self.outer_split.SetMinimumPaneSize(px(180))
         top_sizer = wx.BoxSizer(wx.VERTICAL)
         top_sizer.Add(self.outer_split, 1, wx.EXPAND)
@@ -199,11 +195,15 @@ class SceneEditorPanel(wx.Panel):
         self._update_autokey_button()
 
     def _bind(self) -> None:
-        self.scene_choice.Bind(wx.EVT_CHOICE, self._on_scene_choice)
-        self.btn_scene_add.Bind(wx.EVT_BUTTON, lambda e: self.new_scene())
-        self.btn_scene_dup.Bind(wx.EVT_BUTTON, lambda e: self.duplicate_scene())
-        self.btn_scene_del.Bind(wx.EVT_BUTTON, lambda e: self.delete_scene())
-        self.btn_scene_settings.Bind(wx.EVT_BUTTON, lambda e: self.select_object(None))
+        scenes = self.scene_browser.list
+        scenes.thumbnail = self._scene_thumbnail
+        scenes.on_rename = self._rename_scene
+        scenes.on_move = self._move_scene
+        scenes.Bind(wx.EVT_LISTBOX, lambda e: self._on_scene_row())
+        scenes.Bind(wx.EVT_LEFT_UP, self._on_scene_click)
+        scenes.Bind(wx.EVT_LISTBOX_DCLICK, lambda e: scenes.begin_rename())
+        scenes.Bind(wx.EVT_KEY_DOWN, self._on_scene_key)
+        self.scene_browser.search.Bind(wx.EVT_TEXT, lambda e: self.refresh_scenes())
         self.screen_choice.Bind(wx.EVT_CHOICE, self._on_screen_choice)
 
         self.btn_first.Bind(wx.EVT_BUTTON, lambda e: self.seek(0))
@@ -229,6 +229,7 @@ class SceneEditorPanel(wx.Panel):
 
         st = self.stage
         st.on_select = self.select_object
+        st.on_select_objects = self.select_objects
         st.on_drag_begin = self._stage_drag_begin
         st.on_drag = self._stage_drag
         st.on_drag_end = self._stage_drag_end
@@ -241,6 +242,7 @@ class SceneEditorPanel(wx.Panel):
         tl = self.timeline
         tl.on_seek = self.seek
         tl.on_select_object = self.select_object
+        tl.on_select_objects = self.select_objects
         tl.on_select_keys = self.set_key_selection
         tl.on_move_keys = self._timeline_move_keys
         tl.on_move_keys_end = self._commit
@@ -356,10 +358,13 @@ class SceneEditorPanel(wx.Panel):
         target = select_id or self.selected_scene_id
         if not any(s.id == target for s in scenes):
             target = scenes[0].id if scenes else None
-        self._scene_ids = [s.id for s in scenes]
-        self.scene_choice.SetItems([s.name for s in scenes] or ["(no scenes)"])
-        self.scene_choice.SetSelection(self._scene_ids.index(target) if target in self._scene_ids else 0)
-        self.scene_choice.Enable(bool(scenes))
+        text = self.scene_browser.filter_text()
+        shown = [s for s in scenes if not text or text in s.name.lower()]
+        self.scene_browser.list.set_rows(
+            [Row(s.id, s.name, f"{len(s.objects)} layer{'s' if len(s.objects) != 1 else ''} · "
+                               f"{s.duration_in_frames()} frames @ {s.fps} fps") for s in shown],
+            [target] if target else [])
+        self.scene_browser.set_count(len(shown), len(scenes))
         self.btn_scene_dup.Enable(bool(scenes))
         self.btn_scene_del.Enable(bool(scenes))
         if target != self.selected_scene_id:
@@ -390,6 +395,12 @@ class SceneEditorPanel(wx.Panel):
             valid = {o.id for o in scene.objects}
             if self.selected_object_id not in valid:
                 self.selected_object_id = None
+            ids = [i for i in self.selected_object_ids if i in valid]
+            if self.selected_object_id is None:
+                ids = []
+            elif self.selected_object_id not in ids:  # set on its own (a new layer, a click): it alone
+                ids = [self.selected_object_id]
+            self.selected_object_ids = ids
             self.selection = {
                 oid: {k.id for k in scene.get_object(oid).keyframes if k.id in ids}
                 for oid, ids in self.selection.items()
@@ -399,24 +410,27 @@ class SceneEditorPanel(wx.Panel):
         else:
             self.frame = 0
             self.selected_object_id = None
+            self.selected_object_ids = []
             self.selection = {}
         key_ids = set().union(*self.selection.values()) if self.selection else set()
         time_value = ops.time_of(self.frame, scene.fps) if scene else 0.0
         if stage:
-            self.stage.set_view(scene, time_value, self.selected_object_id, key_ids, self.hidden_ids, self.locked_ids)
+            self.stage.set_view(scene, time_value, self.selected_object_id, key_ids, self.hidden_ids, self.locked_ids,
+                                set(self.selected_object_ids))
         if timeline:
             rows = ops.tree_rows(scene, self.collapsed_ids)
             self.timeline.set_data(
                 scene, rows, self.frame, self.selected_object_id, self.selection,
                 self.hidden_ids, self.locked_ids, self.collapsed_ids,
                 self._anim_ticks(scene) if scene else {}, self._source_labels(scene) if scene else {},
+                set(self.selected_object_ids),
             )
             self.timeline_view.sync_scrollbars()
         if inspector:
             obj = self.obj()
             self.inspector.show_context(
                 self.project, scene, obj, self.frame, self.auto_key, self._selected_key_count(),
-                self.selection.get(obj.id) if obj else None,
+                self.selection.get(obj.id) if obj else None, len(self.selected_object_ids),
             )
         self._update_transport()
 
@@ -445,11 +459,71 @@ class SceneEditorPanel(wx.Panel):
         self.btn_autokey.SetLabel("● Auto-Key" if self.auto_key else "○ Auto-Key")
 
     # ================================================================== scenes
-    def _on_scene_choice(self, _event: wx.CommandEvent) -> None:
-        idx = self.scene_choice.GetSelection()
-        if 0 <= idx < len(self._scene_ids):
+    def _on_scene_row(self) -> None:
+        ids = self.scene_browser.list.selected_ids()
+        if ids and ids[0] != self.selected_scene_id:
             self.stop_playback()
-            self.refresh_scenes(self._scene_ids[idx])
+            self.refresh_scenes(ids[0])
+            self.select_object(None)  # the inspector shows the scene's settings
+
+    def _on_scene_click(self, event: wx.MouseEvent) -> None:
+        """A click on the scene shown already brings its settings into the inspector."""
+        event.Skip()
+        if self.scene_browser.list.selected_ids() == [self.selected_scene_id] and self.selected_object_id:
+            wx.CallAfter(self.select_object, None)
+
+    def _on_scene_key(self, event: wx.KeyEvent) -> None:
+        if self.scene_browser.list.is_renaming():
+            event.Skip()
+            return
+        key = event.GetKeyCode()
+        if key in (wx.WXK_DELETE, wx.WXK_BACK):
+            self.delete_scene()
+        elif key == wx.WXK_F2:
+            self.scene_browser.list.begin_rename()
+        else:
+            event.Skip()
+
+    def _rename_scene(self, scene_id: str, name: str) -> None:
+        scene = self.project.get_timeline_scene(scene_id)
+        if scene is not None and name.strip() and name.strip() != scene.name:
+            scene.name = name.strip()
+            self.refresh_scenes(scene.id)
+            app_services.request_checkpoint()
+
+    def _move_scene(self, scene_id: str, before_id: Optional[str]) -> None:
+        scenes = self.project.timeline_scenes
+        scene = self.project.get_timeline_scene(scene_id)
+        if scene is None or scene_id == before_id:
+            return
+        scenes.remove(scene)
+        before = self.project.get_timeline_scene(before_id) if before_id else None
+        scenes.insert(scenes.index(before) if before else len(scenes), scene)
+        self.refresh_scenes(scene.id)
+        app_services.request_checkpoint()
+
+    def _scene_thumbnail(self, scene_id: str, size: int) -> Optional[wx.Bitmap]:
+        """The scene's first frame, made again after every undo step (anything in it may have changed)."""
+        scene = self.project.get_timeline_scene(scene_id)
+        if scene is None:
+            return None
+        key = (app_services.project_revision(), size, swap_key(self.project, self.project.active_palette_swap),
+               mapping_key(self.project.active_mapping))
+        found = self._scene_thumbs.get(scene_id)
+        if found is not None and found[0] == key and key[0] is not None:
+            return found[1]
+        image = scene_image(self.project, scene, 0.0)
+        bg = tuple(scene.background_color) if scene.background_color else (40, 42, 46)
+        if image is None:
+            bmp = wx.Bitmap(size, size)
+            dc = wx.MemoryDC(bmp)
+            dc.SetBackground(wx.Brush(wx.Colour(*bg)))
+            dc.Clear()
+            dc.SelectObject(wx.NullBitmap)
+        else:
+            bmp = fit_bitmap(image, size, size, bg, max_scale=4)
+        self._scene_thumbs[scene_id] = (key, bmp)
+        return bmp
 
     def new_scene(self) -> None:
         scene = self.project.create_timeline_scene(f"Scene {len(self.project.timeline_scenes) + 1}")
@@ -516,12 +590,35 @@ class SceneEditorPanel(wx.Panel):
     # ================================================================== selection & time
     def select_object(self, object_id: Optional[str]) -> None:
         self.selected_object_id = object_id
+        self.selected_object_ids = [object_id] if object_id else []
         if object_id:
             self.selection = {k: v for k, v in self.selection.items() if k == object_id}
             self.timeline.ensure_row_visible(object_id)
         else:
             self.selection = {}
         self.refresh()
+
+    def select_objects(self, ids: Sequence[str], primary: Optional[str] = None) -> None:
+        """Several layers (Shift / Cmd+click, the stage's marquee); ``primary`` is the one the inspector shows."""
+        scene = self.scene()
+        chosen = [i for i in dict.fromkeys(ids) if scene is not None and scene.get_object(i) is not None]
+        if primary not in chosen:
+            primary = chosen[-1] if chosen else None
+        if primary:
+            chosen.remove(primary)
+            chosen.append(primary)
+        self.selected_object_ids = chosen
+        self.selected_object_id = primary
+        self.selection = {k: v for k, v in self.selection.items() if k in chosen}
+        if primary:
+            self.timeline.ensure_row_visible(primary)
+        self.refresh()
+
+    def _selected_objects(self, unlocked: bool = False) -> List[TimelineObject]:
+        """The selected layers, the inspector's last; without those whose parent is selected too (they follow it)."""
+        scene = self.scene()
+        objs = ops.top_objects(scene, self.selected_object_ids) if scene else []
+        return [o for o in objs if o.id not in self.locked_ids] if unlocked else objs
 
     def set_key_selection(self, selection: Selection, live: bool = False) -> None:
         self.selection = {k: set(v) for k, v in selection.items() if v}
@@ -649,21 +746,23 @@ class SceneEditorPanel(wx.Panel):
             self._commit()
             app_services.show_status(f"Deleted {removed} key(s)")
             return
-        obj = self.obj()
-        if obj:
-            name = obj.name
-            ops.delete_object(self.project, scene, obj.id)
+        objs = [o for o in (scene.get_object(i) for i in self.selected_object_ids) if o is not None]
+        if objs:
+            for obj in objs:
+                ops.delete_object(self.project, scene, obj.id)
             self.selected_object_id = None
             self._commit()
-            app_services.show_status(f"Deleted layer '{name}'")
+            app_services.show_status(f"Deleted layer '{objs[0].name}'" if len(objs) == 1 else f"Deleted {len(objs)} layers")
 
     def duplicate_selected_object(self) -> None:
-        scene, obj = self.scene(), self.obj()
-        if scene and obj:
-            copy = ops.duplicate_object(scene, obj.id)
-            if copy:
-                self.selected_object_id = copy.id
-                self._commit()
+        """Duplicate every selected layer (with the layers below it); the copies are selected."""
+        scene, objs = self.scene(), self._selected_objects()
+        if not scene or not objs:
+            return
+        copies = [c for c in (ops.duplicate_object(scene, o.id) for o in objs) if c is not None]
+        if copies:
+            self.select_objects([c.id for c in copies])
+            self._commit()
 
     # ================================================================== keys
     def add_key_at_playhead(self) -> None:
@@ -715,8 +814,9 @@ class SceneEditorPanel(wx.Panel):
         return applied
 
     # ================================================================== editing the pose
-    def _apply_pose_change(self, obj: TimelineObject, field: str, value: Any) -> None:
-        """Auto-Key on (or a key at the playhead): edit that key. Off between keys: edit every key."""
+    def _apply_pose_change(self, obj: TimelineObject, field: str, value: Any, group: bool = False) -> None:
+        """Auto-Key on (or a key at the playhead): edit that key. Off between keys: edit every key. ``group``: one of
+        several layers edited together (the keys selected on the others stay selected)."""
         scene = self.scene()
         fps = scene.fps
         key = self._key_here(obj)
@@ -736,7 +836,10 @@ class SceneEditorPanel(wx.Panel):
             elif field in ("flip_x", "flip_y", "visible"):
                 setattr(target, field, bool(value))
         if key:
-            self.selection = {obj.id: {key.id}}
+            if group:
+                self.selection[obj.id] = {key.id}
+            else:
+                self.selection = {obj.id: {key.id}}
 
     def _on_transform_field(self, field: str, value: Any) -> None:
         obj = self.obj()
@@ -745,29 +848,34 @@ class SceneEditorPanel(wx.Panel):
             self._commit()
 
     def flip_selected(self, axis: str) -> None:
-        scene, obj = self.scene(), self.obj()
-        if not scene or not obj or obj.id in self.locked_ids:
+        """H / V: every selected layer mirrors in place."""
+        scene, objs = self.scene(), self._selected_objects(unlocked=True)
+        if not scene or not objs:
             return
-        state = scene.evaluate_object_state(self.project, obj.id, ops.time_of(self.frame, scene.fps)) or {}
         field = "flip_x" if axis == "x" else "flip_y"
-        self._apply_pose_change(obj, field, not bool(state.get(field, False)))
+        for obj in objs:
+            state = scene.evaluate_object_state(self.project, obj.id, ops.time_of(self.frame, scene.fps)) or {}
+            self._apply_pose_change(obj, field, not bool(state.get(field, False)), group=len(objs) > 1)
         self._commit()
 
     def rotate_selected(self, degrees: int) -> None:
-        obj = self.obj()
-        if obj and obj.id not in self.locked_ids:
-            self._apply_pose_change(obj, "rotate", degrees)
+        objs = self._selected_objects(unlocked=True)
+        for obj in objs:
+            self._apply_pose_change(obj, "rotate", degrees, group=len(objs) > 1)
+        if objs:
             self._commit()
 
     def nudge_selected(self, dx: int, dy: int) -> None:
-        scene, obj = self.scene(), self.obj()
-        if not scene or not obj or obj.id in self.locked_ids:
+        """Arrow keys: every selected layer moves (a child whose parent is selected moves with it)."""
+        scene, objs = self.scene(), self._selected_objects(unlocked=True)
+        if not scene or not objs:
             return
-        state = scene.evaluate_object_state(self.project, obj.id, ops.time_of(self.frame, scene.fps)) or {}
-        if dx:
-            self._apply_pose_change(obj, "x", round(float(state.get("x", 0.0))) + dx)
-        if dy:
-            self._apply_pose_change(obj, "y", round(float(state.get("y", 0.0))) + dy)
+        for obj in objs:
+            state = scene.evaluate_object_state(self.project, obj.id, ops.time_of(self.frame, scene.fps)) or {}
+            if dx:
+                self._apply_pose_change(obj, "x", round(float(state.get("x", 0.0))) + dx, group=len(objs) > 1)
+            if dy:
+                self._apply_pose_change(obj, "y", round(float(state.get("y", 0.0))) + dy, group=len(objs) > 1)
         self.refresh()
 
     # ---- stage drags
@@ -777,32 +885,40 @@ class SceneEditorPanel(wx.Panel):
         if not obj:
             self._drag = {}
             return
+        group = self._selected_objects(unlocked=True) if object_id in self.selected_object_ids else [obj]
         time_value = ops.time_of(self.frame, scene.fps)
-        parent = ops.parent_world_matrix(self.project, scene, obj, time_value)
         # Nothing changes until the mouse actually moves (a click only selects).
-        self._drag = {"object_id": obj.id, "parent": parent, "bases": None, "moved": False}
+        self._drag = {"object_id": obj.id, "moved": False, "objects": {
+            o.id: {"parent": ops.parent_world_matrix(self.project, scene, o, time_value), "bases": None} for o in group}}
 
     def _stage_drag(self, object_id: str, dx: float, dy: float) -> None:
+        """Drag on the stage: the layers move together, each in its parent's space."""
         scene = self.scene()
         if not scene or self._drag.get("object_id") != object_id:
             return
-        obj = scene.get_object(object_id)
-        lx, ly = ops.world_to_parent_delta(self._drag["parent"], dx, dy)
-        lx, ly = round(lx), round(ly)
-        if self._drag["bases"] is None:
-            if not (lx or ly):
-                return
-            key = self._key_here(obj)
-            if key is None and self.auto_key:
-                key = ops.ensure_key(self.project, scene, obj, self.frame)
-            self._drag["bases"] = {k.id: (k.x, k.y) for k in ([key] if key else obj.keyframes)}
-            if key:
-                self.selection = {obj.id: {key.id}}
-        for key in obj.keyframes:
-            base = self._drag["bases"].get(key.id)
-            if base:
-                key.x, key.y = float(base[0] + lx), float(base[1] + ly)
-        self._drag["moved"] = self._drag["moved"] or bool(lx or ly)
+        new_keys: Selection = {}
+        for oid, entry in self._drag["objects"].items():
+            obj = scene.get_object(oid)
+            if obj is None:
+                continue
+            lx, ly = ops.world_to_parent_delta(entry["parent"], dx, dy)
+            lx, ly = round(lx), round(ly)
+            if entry["bases"] is None:
+                if not (lx or ly):
+                    continue
+                key = self._key_here(obj)
+                if key is None and self.auto_key:
+                    key = ops.ensure_key(self.project, scene, obj, self.frame)
+                entry["bases"] = {k.id: (k.x, k.y) for k in ([key] if key else obj.keyframes)}
+                if key:
+                    new_keys[obj.id] = {key.id}
+            for key in obj.keyframes:
+                base = entry["bases"].get(key.id)
+                if base:
+                    key.x, key.y = float(base[0] + lx), float(base[1] + ly)
+            self._drag["moved"] = self._drag["moved"] or bool(lx or ly)
+        if new_keys:
+            self.selection = {**{k: v for k, v in self.selection.items() if k in self._drag["objects"]}, **new_keys}
         self.refresh(inspector=False)
 
     def _stage_drag_end(self) -> None:
@@ -899,18 +1015,20 @@ class SceneEditorPanel(wx.Panel):
                 return
             if value:
                 self.collapsed_ids.discard(value)
-        elif field == "playback_mode":
-            obj.playback_mode = str(value)
-        elif field == "playback_speed":
-            obj.playback_speed = max(0.05, float(value))
+        elif field in GROUP_FIELDS:  # with several layers selected: all of them
+            for target in [o for o in (scene.get_object(i) for i in self.selected_object_ids) if o] or [obj]:
+                if field == "playback_mode":
+                    target.playback_mode = str(value)
+                elif field == "playback_speed":
+                    target.playback_speed = max(0.05, float(value))
+                elif field == "root_motion":
+                    target.use_source_root_motion = bool(value)
+                elif field == "mapping":
+                    target.mapping_id = value or None
+                elif field == "palette_swap":
+                    target.palette_swap_id = value or None
         elif field == "playback_offset_frames":
             obj.playback_offset = ops.time_of(int(value), scene.fps)
-        elif field == "root_motion":
-            obj.use_source_root_motion = bool(value)
-        elif field == "mapping":
-            obj.mapping_id = value or None
-        elif field == "palette_swap":
-            obj.palette_swap_id = value or None
         elif field == "path_mode":
             obj.path_mode = str(value)
         self._commit()
@@ -1003,8 +1121,12 @@ class SceneEditorPanel(wx.Panel):
 
     def _layer_menu(self, menu: wx.Menu, obj: TimelineObject) -> None:
         scene = self.scene()
-        self._menu_item(menu, "Duplicate", self.duplicate_selected_object)
-        self._menu_item(menu, "Delete", lambda: (self.selection.clear(), self.delete_selection()))
+        count = len(self.selected_object_ids)
+        layers = f" {count} Layers" if count > 1 else ""
+        self._menu_item(menu, f"Duplicate{layers}", self.duplicate_selected_object)
+        self._menu_item(menu, f"Delete{layers}", lambda: (self.selection.clear(), self.delete_selection()))
+        self._menu_item(menu, f"Copy{layers}", lambda: (self.selection.clear(), self.edit_copy()))
+        self._menu_item(menu, "Paste Layers", self.paste_layers, bool(_OBJECT_CLIPBOARD))
         menu.AppendSeparator()
         self._menu_item(menu, "Bring Forward", lambda: self._step_layer(obj.id, +1))
         self._menu_item(menu, "Send Backward", lambda: self._step_layer(obj.id, -1))
@@ -1107,51 +1229,41 @@ class SceneEditorPanel(wx.Panel):
             return
         if self.selection:
             _KEY_CLIPBOARD[:] = ops.copy_keys(scene, self.selection)
+            _PASTE_KIND[0] = "keys"
             app_services.show_status(f"Copied {len(_KEY_CLIPBOARD)} key(s)")
         elif obj:
-            subtree: List[TimelineObject] = []
-
-            def collect(o: TimelineObject) -> None:
-                subtree.append(o)
-                for child in ops.children_of(scene, o.id):
-                    collect(child)
-
-            collect(obj)
-            _OBJECT_CLIPBOARD[:] = [o.to_dict() for o in subtree]
-            app_services.show_status(f"Copied layer '{obj.name}'")
+            tops = self._selected_objects()
+            _OBJECT_CLIPBOARD[:] = ops.copy_objects(scene, self.selected_object_ids)
+            _PASTE_KIND[0] = "layers"
+            app_services.show_status(f"Copied layer '{obj.name}'" if len(tops) == 1 else f"Copied {len(tops)} layers"
+                                     + " (paste them into any scene)")
 
     def edit_cut(self) -> None:
         self.edit_copy()
         self.delete_selection()
 
     def edit_paste(self) -> None:
+        """Paste what was copied last: keys (at the playhead, onto the selected layer) or layers (into this scene)."""
         scene = self.scene()
         if not scene:
             return
-        if _KEY_CLIPBOARD and (self.selection or self.obj()):
+        if _KEY_CLIPBOARD and (self.selection or self.obj()) and (_PASTE_KIND[0] == "keys" or not _OBJECT_CLIPBOARD):
             pasted = ops.paste_keys(scene, list(_KEY_CLIPBOARD), self.frame, self.selected_object_id)
             if pasted:
                 self.selection = pasted
                 self._commit()
             return
-        if _OBJECT_CLIPBOARD:
-            id_map = {data["id"]: generate_id("tlo") for data in _OBJECT_CLIPBOARD}
-            new_root = None
-            for data in _OBJECT_CLIPBOARD:
-                clone = TimelineObject.from_dict(dict(data))
-                clone.id = id_map[data["id"]]
-                clone.parent_id = id_map.get(data.get("parent_id")) if data.get("parent_id") in id_map else None
-                for key in clone.keyframes:
-                    key.id = generate_id("tlk")
-                if new_root is None:
-                    new_root = clone
-                    clone.name = f"{clone.name} copy"
-                    clone.draw_order = 10**6
-                scene.objects.append(clone)
-            ops.normalize_draw_order(scene)
-            self.selected_object_id = new_root.id if new_root else None
+        self.paste_layers()
+
+    def paste_layers(self) -> None:
+        """The copied layers (with the layers below them) into this scene, in front; also into another scene."""
+        scene = self.scene()
+        if scene and _OBJECT_CLIPBOARD:
+            tops = ops.paste_objects(scene, list(_OBJECT_CLIPBOARD))
             self.selection = {}
+            self.select_objects([o.id for o in tops])
             self._commit()
+            app_services.show_status(f"Pasted {len(tops)} layer{'s' if len(tops) != 1 else ''} into '{scene.name}'")
 
     def edit_duplicate(self) -> None:
         self.duplicate_selected_object()

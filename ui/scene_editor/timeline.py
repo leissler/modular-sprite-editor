@@ -18,6 +18,7 @@ COL_BG = wx.Colour(34, 35, 38)
 COL_ROW_A = wx.Colour(44, 45, 49)
 COL_ROW_B = wx.Colour(40, 41, 45)
 COL_ROW_SELECTED = wx.Colour(56, 74, 104)
+COL_ROW_ALSO_SELECTED = wx.Colour(50, 63, 84)  # selected with the layer the inspector shows
 COL_HEADER = wx.Colour(30, 31, 34)
 COL_TEXT = wx.Colour(226, 226, 230)
 COL_TEXT_DIM = wx.Colour(140, 142, 150)
@@ -62,6 +63,7 @@ class TimelineWidget(wx.Panel):
         self.rows: List[Tuple[TimelineObject, int, bool]] = []
         self.frame = 0
         self.selected_object_id: Optional[str] = None
+        self.selected_object_ids: Set[str] = set()  # every selected layer
         self.selection: Selection = {}
         self.hidden_ids: Set[str] = set()
         self.locked_ids: Set[str] = set()
@@ -82,6 +84,7 @@ class TimelineWidget(wx.Panel):
         # Callbacks
         self.on_seek: Optional[Callable[[int], None]] = None
         self.on_select_object: Optional[Callable[[Optional[str]], None]] = None
+        self.on_select_objects: Optional[Callable[[List[str], Optional[str]], None]] = None  # (ids, the one shown)
         self.on_select_keys: Optional[Callable[[Selection, bool], None]] = None
         self.on_move_keys: Optional[Callable[[int, Dict[Tuple[str, str], int]], int]] = None
         self.on_move_keys_end: Optional[Callable[[], None]] = None
@@ -135,11 +138,13 @@ class TimelineWidget(wx.Panel):
         collapsed_ids: Set[str],
         anim_ticks: Dict[str, List[int]],
         source_labels: Dict[str, str],
+        selected_object_ids: Optional[Set[str]] = None,
     ) -> None:
         self.scene = scene
         self.rows = rows
         self.frame = frame
         self.selected_object_id = selected_object_id
+        self.selected_object_ids = set(selected_object_ids or ()) | ({selected_object_id} if selected_object_id else set())
         self.selection = {k: set(v) for k, v in selection.items()}
         self.hidden_ids = set(hidden_ids)
         self.locked_ids = set(locked_ids)
@@ -373,6 +378,9 @@ class TimelineWidget(wx.Panel):
                 if self.on_toggle_locked:
                     self.on_toggle_locked(obj.id)
                 return
+            if (event.ShiftDown() or event.CmdDown()) and self.on_select_objects:
+                self.on_select_objects(*self._extend_selection(obj.id, event.ShiftDown()))
+                return
             if self.on_select_object:
                 self.on_select_object(obj.id)
             self._mode = "layer-pending"
@@ -423,6 +431,20 @@ class TimelineWidget(wx.Panel):
         additive = event.ShiftDown() or event.CmdDown()
         self._marquee_base = {k: set(v) for k, v in self.selection.items()} if additive else {}
         self._capture()
+
+    def _extend_selection(self, object_id: str, extend_range: bool) -> Tuple[List[str], Optional[str]]:
+        """Shift+click: the rows from the shown layer to this one. Cmd+click: this one in or out of the selection."""
+        order = [obj.id for obj, _depth, _kids in self.rows]
+        chosen = [i for i in order if i in self.selected_object_ids]
+        if extend_range and self.selected_object_id in order:
+            a, b = sorted((order.index(self.selected_object_id), order.index(object_id)))
+            chosen = list(dict.fromkeys(chosen + order[a:b + 1]))
+            return chosen, object_id
+        if object_id in chosen:
+            chosen.remove(object_id)
+            primary = self.selected_object_id if self.selected_object_id in chosen else (chosen[-1] if chosen else None)
+            return chosen, primary
+        return chosen + [object_id], object_id
 
     def _on_motion(self, event: wx.MouseEvent) -> None:
         pos = event.GetPosition()
@@ -534,8 +556,8 @@ class TimelineWidget(wx.Panel):
         obj_id = self.rows[row][0].id if 0 <= row < len(self.rows) else None
         frame = self.frame_at(pos.x)
         if pos.x < self.left_w:
-            if obj_id and self.on_select_object:
-                self.on_select_object(obj_id)
+            if obj_id and obj_id not in self.selected_object_ids and self.on_select_object:
+                self.on_select_object(obj_id)  # (a selected layer keeps the group selected for its menu)
             if self.on_context_menu:
                 self.on_context_menu("layer", obj_id, None, frame, pos)
             return
@@ -660,9 +682,8 @@ class TimelineWidget(wx.Panel):
             y = self.row_y(row)
             if y + self.row_h < self.header_h or y > height:
                 continue
-            bg = COL_ROW_SELECTED if obj.id == self.selected_object_id else (COL_ROW_A if row % 2 == 0 else COL_ROW_B)
             dc.SetPen(wx.TRANSPARENT_PEN)
-            dc.SetBrush(wx.Brush(bg))
+            dc.SetBrush(wx.Brush(self._row_colour(obj.id, row)))
             dc.DrawRectangle(self.left_w, int(y), width - self.left_w, self.row_h)
         # frame grid
         if self.frame_w >= pxf(5.0):
@@ -765,11 +786,17 @@ class TimelineWidget(wx.Panel):
                 depth = self.rows[min(row, len(self.rows) - 1)][1] if self.rows and row < len(self.rows) else 0
                 dc.DrawLine(px(6) + depth * px(14), y, self.left_w - 4, y)
 
+    def _row_colour(self, object_id: str, row: int) -> wx.Colour:
+        if object_id == self.selected_object_id:
+            return COL_ROW_SELECTED
+        if object_id in self.selected_object_ids:
+            return COL_ROW_ALSO_SELECTED
+        return COL_ROW_A if row % 2 == 0 else COL_ROW_B
+
     def _paint_layer(self, dc: wx.DC, obj: TimelineObject, row: int, depth: int, kids: bool) -> None:
         y = int(self.row_y(row))
-        selected = obj.id == self.selected_object_id
         dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(COL_ROW_SELECTED if selected else (COL_ROW_A if row % 2 == 0 else COL_ROW_B)))
+        dc.SetBrush(wx.Brush(self._row_colour(obj.id, row)))
         dc.DrawRectangle(0, y, self.left_w, self.row_h)
         parts = self._layer_parts(row, depth)
         if kids:

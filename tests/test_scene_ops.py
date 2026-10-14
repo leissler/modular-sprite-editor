@@ -193,6 +193,37 @@ class TestLayers(unittest.TestCase):
         rows = [r[0] for r in ops.tree_rows(scene, set())]
         self.assertEqual(rows.index(copy), rows.index(b) + 1)
 
+    def test_several_layers_act_through_their_top_ones(self):
+        project, scene, a, b, c = self._three()
+        ops.move_layer(project, scene, b.id, a.id, None)
+        self.assertEqual(ops.top_objects(scene, [b.id, c.id, a.id, "gone"]), [c, a], "b follows its parent a")
+        self.assertEqual(ops.top_objects(scene, [b.id]), [b])
+
+    def test_copy_layers_into_another_scene(self):
+        project, scene, a, b, c = self._three()
+        ops.move_layer(project, scene, b.id, a.id, None)
+        a.mapping_id, c.palette_swap_id = "map", "swap"
+        ops.ensure_key(project, scene, c, 6)
+        data = ops.copy_objects(scene, [c.id, b.id, a.id])
+        self.assertEqual([d["id"] for d in data], [a.id, b.id, c.id], "parents first, in draw order")
+        other = project.create_timeline_scene("Other")
+        there = ops.add_object(project, other, "none", None, 0)
+        tops = ops.paste_objects(other, data)
+        self.assertEqual([o.name for o in tops], [a.name, c.name], "another scene: the names stay")
+        pasted_a, pasted_c = tops
+        kids = ops.children_of(other, pasted_a.id)
+        self.assertEqual([k.name for k in kids], [b.name], "the child came along, under its parent's copy")
+        self.assertEqual((pasted_a.mapping_id, pasted_c.palette_swap_id), ("map", "swap"))
+        self.assertEqual([k.time for k in pasted_c.keyframes], [k.time for k in c.keyframes])
+        ids = {o.id for o in scene.objects}
+        self.assertFalse({o.id for o in other.objects} & ids, "new ids")
+        keys = {k.id for o in scene.objects for k in o.keyframes}
+        self.assertFalse({k.id for o in other.objects for k in o.keyframes} & keys)
+        rows = [r[0] for r in ops.tree_rows(other, set())]
+        self.assertEqual(rows, [there, pasted_a, kids[0], pasted_c], "in front of what the scene had")
+        self.assertEqual([o.draw_order for o in rows], list(range(len(rows))))
+        again = ops.paste_objects(scene, ops.copy_objects(scene, [c.id]))
+        self.assertEqual(again[0].name, f"{c.name} copy", "next to the original: told apart")
 
 
 class TestRootMotion(unittest.TestCase):
