@@ -220,12 +220,13 @@ class FrameStage(FrameCanvas):
     def _drag_parts(self, world: Tuple[float, float]) -> None:
         curr_local = self.world_to_local(world)
         start_local = self.world_to_local(self._drag_start_world)
-        dx = curr_local[0] - start_local[0]
-        dy = curr_local[1] - start_local[1]
+        # Whole pixels, rounded (int() rounds toward zero: drags across the origin stepped unevenly).
+        dx = round(curr_local[0] - start_local[0])
+        dy = round(curr_local[1] - start_local[1])
         for fm in self.frame.fmodules:
             if fm.id in self._dragging_ids:
                 start = self._drag_start_positions.get(fm.id, (0, 0))
-                fm.position = (int(start[0] + dx), int(start[1] + dy))
+                fm.position = (int(start[0]) + dx, int(start[1]) + dy)
 
     def _part_click_up(self, event: wx.MouseEvent) -> None:
         """A click without a drag: on stacked selected parts, pick the next one down; on one part of a multiple
@@ -293,7 +294,7 @@ class FrameStage(FrameCanvas):
             return
         type_id = self._resolve_active_collision_type_id()
         if type_id:
-            x, y = int(world[0] - self.frame_offset[0]), int(world[1] - self.frame_offset[1])
+            x, y = self._pixel_at(world)
             box = CollisionRect(id=generate_id("crect"), type_id=type_id, rect=(x, y, 0, 0))
             self.frame.collision_rects.append(box)
             self.selected_collision_rects = [box.id]
@@ -321,26 +322,28 @@ class FrameStage(FrameCanvas):
             return
         ox, oy, ow, oh = self._col_drag_start_rect
         if self._col_drag_mode == "create":
-            x = int(world[0] - self.frame_offset[0])
-            y = int(world[1] - self.frame_offset[1])
+            x, y = self._pixel_at(world)
             cr.rect = (min(ox, x), min(oy, y), abs(x - ox), abs(y - oy))
             return
-        dx = int(world[0] - self._drag_start_world[0])
-        dy = int(world[1] - self._drag_start_world[1])
+        dx = round(world[0] - self._drag_start_world[0])
+        dy = round(world[1] - self._drag_start_world[1])
         if self._col_drag_mode == "move":
             cr.rect = (ox + dx, oy + dy, ow, oh)
         elif self._col_drag_mode == "resize":
-            nx, ny, nw, nh = ox, oy, ow, oh
+            # The dragged corner moves, the opposite one stays: past it the box turns around instead of jumping.
+            left, top, right, bottom = ox, oy, ox + ow, oy + oh
             handle = self._col_drag_handle
-            if handle == 0:
-                nx += dx; ny += dy; nw -= dx; nh -= dy
-            elif handle == 1:
-                ny += dy; nw += dx; nh -= dy
-            elif handle == 2:
-                nx += dx; nw -= dx; nh += dy
-            elif handle == 3:
-                nw += dx; nh += dy
-            cr.rect = (nx, ny, nw if nw >= 0 else 1, nh if nh >= 0 else 1)  # no turning inside out
+            if handle in (0, 2):
+                left += dx
+            else:
+                right += dx
+            if handle in (0, 1):
+                top += dy
+            else:
+                bottom += dy
+            x0, x1 = sorted((left, right))
+            y0, y1 = sorted((top, bottom))
+            cr.rect = (x0, y0, max(1, x1 - x0), max(1, y1 - y0))  # never smaller than a pixel
 
     def _hitbox_up(self) -> bool:
         """End a hitbox drag; whether it changed something."""
@@ -364,6 +367,10 @@ class FrameStage(FrameCanvas):
                 self.SetCursor(wx.Cursor(wx.CURSOR_SIZENWSE if handle in (0, 3) else wx.CURSOR_SIZENESW))
                 return
         self.SetCursor(wx.Cursor(wx.CURSOR_ARROW))
+
+    def _pixel_at(self, world: Tuple[float, float]) -> Tuple[int, int]:
+        """The frame pixel under a world point (floor: left of and above the origin too)."""
+        return int(math.floor(world[0] - self.frame_offset[0])), int(math.floor(world[1] - self.frame_offset[1]))
 
     def _hitbox(self, box_id: Optional[str]) -> Optional[CollisionRect]:
         return next((cr for cr in self.frame.collision_rects if cr.id == box_id), None)
@@ -399,9 +406,7 @@ class FrameStage(FrameCanvas):
         else:
             type_id = self._resolve_active_point_type_id()
             if type_id:
-                # floor: the pixel under the mouse, also left of / above the origin
-                x = int(math.floor(world[0] - self.frame_offset[0]))
-                y = int(math.floor(world[1] - self.frame_offset[1]))
+                x, y = self._pixel_at(world)
                 point = ControlPoint(id=generate_id("pt"), type_id=type_id, x=x, y=y)
                 self.frame.control_points.append(point)
                 self.selected_points = [point.id]
@@ -427,13 +432,13 @@ class FrameStage(FrameCanvas):
     def _drag_points(self, world: Tuple[float, float]) -> None:
         if self._pt_drag_mode != "move" or not self._drag_start_world:
             return
-        dx = world[0] - self._drag_start_world[0]
-        dy = world[1] - self._drag_start_world[1]
+        dx = round(world[0] - self._drag_start_world[0])
+        dy = round(world[1] - self._drag_start_world[1])
         for cp in self.frame.control_points:
             start = self._drag_start_positions.get(cp.id)
             if start and cp.id in self.selected_points:
-                cp.x = int(start[0] + dx)
-                cp.y = int(start[1] + dy)
+                cp.x = int(start[0]) + dx
+                cp.y = int(start[1]) + dy
 
     def _resolve_active_point_type_id(self) -> Optional[str]:
         if not self.project.point_types:

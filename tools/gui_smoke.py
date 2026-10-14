@@ -374,8 +374,13 @@ def run():
         drag(st, fnames, corner, (corner[0] + 2 * st.zoom, corner[1] + 2 * st.zoom))
         f = proj.get_frame(target.id)
         check(tuple(f.collision_rects[-1].rect) == (x, y, w + 2, h + 2), f"the corner handle resizes the hitbox {f.collision_rects[-1].rect}")
-        frame.on_undo(None)
-        frame.on_undo(None)
+        corner = st.world_to_screen((x + w + 2, y + h + 2))
+        drag(st, fnames, corner, (corner[0] - (w + 5) * st.zoom, corner[1] - (h + 5) * st.zoom))
+        f = proj.get_frame(target.id)
+        check(tuple(f.collision_rects[-1].rect) == (x - 3, y - 3, 3, 3),
+              f"a corner dragged past the opposite one turns the hitbox around {f.collision_rects[-1].rect}")
+        for _ in range(3):
+            frame.on_undo(None)
         pump()
         check(len(proj.get_frame(target.id).collision_rects) == boxes, "undo the hitbox")
 

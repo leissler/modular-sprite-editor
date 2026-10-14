@@ -224,6 +224,11 @@ shows".
 - Hitbox and point editing ignores the frame's flip and rotation. That's fine in the Frames tab, but it's a trap if
   editing ever moves to the stages.
 
+**Done:** the Frames stage rounds drags to whole pixels and takes "the pixel under the mouse" with floor (new hitboxes
+and points); a hitbox corner dragged past the opposite one turns the box around the corner that stays, never smaller
+than a pixel. The smoke test drags a part, a point and a hitbox corner past the opposite one (its point check had
+passed by the luck of float rounding before).
+
 ### C11 (Low) Importers fail quietly
 
 - AuroraGT: modules that don't parse are dropped by `except: pass` with no load note
