@@ -593,7 +593,32 @@ class SceneEditorPanel(wx.Panel):
         self.refresh_scenes()
         app_services.request_checkpoint()
 
+    def export_gif(self) -> None:
+        """The scene as an animated GIF, drawn like the stage on its background colour (thumbnails.export_scene_gif)."""
+        from ui.scene_editor.thumbnails import export_scene_gif
+
+        scene = self.scene()
+        if not scene:
+            app_services.show_status("Make or pick a scene to export a GIF")
+            return
+        self.stop_playback()
+        with wx.FileDialog(self, f"Export '{scene.name}' as GIF", defaultFile=f"{scene.name}.gif",
+                           wildcard="GIF files (*.gif)|*.gif", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+        try:
+            with wx.BusyCursor():
+                count = export_scene_gif(self.project, scene, path)
+        except OSError as exc:
+            wx.MessageBox(f"Could not write the GIF:\n{exc}", "Export GIF", wx.OK | wx.ICON_ERROR, self)
+            return
+        app_services.show_status(f"Exported {count} picture(s) of '{scene.name}' to {path}")
+
     def _on_scene_field(self, field: str, value: Any) -> None:
+        if field == "export_gif":
+            self.export_gif()
+            return
         scene = self.scene()
         if not scene:
             return

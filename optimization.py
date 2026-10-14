@@ -64,7 +64,7 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
         return False, ("These images use different palettes, and one sheet has one palette: optimize them one image "
                        "at a time (Local).")
 
-    packed = _pack(rects_to_pack, max_w, max_h, allow_rotation)
+    packed = pack_rects(rects_to_pack, max_w, max_h, allow_rotation)
     if packed is None:
         return False, "Could not pack modules. Sheet size limit reached or modules too large."
 
@@ -105,7 +105,7 @@ def optimize_modules(project: Project, module_ids: List[str], config: Dict, outp
     return True, "Optimization successful. Old images removed."
 
 
-def _pack(rects_to_pack: List[Tuple[int, int, Any, Any]], max_w: int, max_h: int, allow_rotation: bool) -> Optional[list]:
+def pack_rects(rects_to_pack: List[Tuple[int, int, Any, Any]], max_w: int, max_h: int, allow_rotation: bool) -> Optional[list]:
     """The smallest square-ish bin (growing in 32 px steps) any heuristic fits everything into: [(rect, entry)]."""
     rects_to_pack = sorted(rects_to_pack, key=lambda entry: max(entry[0], entry[1]), reverse=True)
     total_area = sum(w * h for w, h, _mod, _img in rects_to_pack)

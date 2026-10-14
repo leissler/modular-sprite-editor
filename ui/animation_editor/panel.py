@@ -586,6 +586,7 @@ class AnimationEditorPanel(wx.Panel):
             None,
             ("Change Animations…", self.change_animations),
             ("Export GIF…", self.export_gif),
+            ("Export PNG Sequence…", self.export_png_sequence),
         ]
         for entry in entries:
             if entry is None:
@@ -1200,6 +1201,33 @@ class AnimationEditorPanel(wx.Panel):
             wx.MessageBox(f"Could not write the GIF:\n{exc}", "Export GIF", wx.OK | wx.ICON_ERROR, self)
             return
         app_services.show_status(f"Exported {count} frame(s) to {path}")
+
+    def export_png_sequence(self) -> None:
+        """One PNG per step (or per tick) of the selected animation, all on one canvas (exporters/sheet.py)."""
+        from exporters.sheet import export_png_sequence
+
+        anim = self.animation()
+        if not anim or not anim.aframes:
+            app_services.show_status("Select an animation with steps to export a PNG sequence")
+            return
+        choices = ["One picture per step", "One picture per tick (a steady frame rate, for video tools)"]
+        with wx.SingleChoiceDialog(self, f"Export '{anim.name}' as PNG files: one pass, in the order it plays.",
+                                   "Export PNG Sequence", choices) as ask:
+            if ask.ShowModal() != wx.ID_OK:
+                return
+            per_tick = ask.GetSelection() == 1
+        with wx.DirDialog(self, f"Folder for the PNG files of '{anim.name}'") as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            folder = dlg.GetPath()
+        try:
+            with wx.BusyCursor():
+                paths = export_png_sequence(self.project, anim, folder, self.project.active_mapping,
+                                            self.project.active_palette_swap, per_tick)
+        except OSError as exc:
+            wx.MessageBox(f"Could not write the PNG files:\n{exc}", "Export PNG Sequence", wx.OK | wx.ICON_ERROR, self)
+            return
+        app_services.show_status(f"Exported {len(paths)} PNG file(s) to {folder}")
 
     # ================================================================== keyboard
     def _on_toggle_collision(self, checked: bool) -> None:

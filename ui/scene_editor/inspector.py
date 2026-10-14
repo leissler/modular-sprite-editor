@@ -181,6 +181,11 @@ class SceneInspector(wx.ScrolledWindow):
         row(g, p, "Length", length_row)
         row(g, p, "", self.scene_loop)
         row(g, p, "Background", self.scene_bg)
+        self.btn_scene_gif = wx.Button(p, label="Export GIF…", style=wx.BU_EXACTFIT)
+        self.btn_scene_gif.SetToolTip("Save one pass of the scene as an animated GIF, drawn like the stage on the "
+                                      "background colour (File ▸ Export too)")
+        self.btn_scene_gif.Bind(wx.EVT_BUTTON, lambda e: self._emit(self.on_scene_change, "export_gif", None))
+        row(g, p, "", self.btn_scene_gif)
 
         # --- Object
         self.object_panel, g, _ = section(self, root, "Object", "Timeline")

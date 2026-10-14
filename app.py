@@ -9,8 +9,10 @@ import hashlib
 import importlib
 import json
 import os
+import struct
 import sys
 import time
+import zlib
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -39,6 +41,7 @@ from ui.module_editor.panel import ModuleEditorPanel
 from ui.preferences_dialog import PreferencesDialog
 from ui.project_history import ProjectHistory
 from ui.refresh_rate import REFRESH
+from ui.sheet_export_dialog import SheetExportDialog
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
@@ -919,11 +922,20 @@ class MainFrame(wx.Frame):
         import_menu = wx.Menu()
         m_import_aurora = import_menu.Append(wx.ID_ANY, "AuroraGT Sprite (*.sprite)...")
         m_import_retro = import_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
+        m_import_aseprite = import_menu.Append(wx.ID_ANY, "Aseprite File (*.aseprite, *.ase)...",
+                                               "Frames and tags of an Aseprite file as frames and animations")
+        m_import_sheet = import_menu.Append(wx.ID_ANY, "Sprite Sheet with JSON (Aseprite, TexturePacker)...",
+                                            "A sprite sheet PNG and its JSON as modules, frames and animations")
         file_menu.AppendSubMenu(import_menu, "Import")
         export_menu = wx.Menu()
         m_export_sgdk = export_menu.Append(wx.ID_ANY, "Mega Drive (SGDK)...", "Bake the project into a Mega Drive game's SGDK folder")
         m_export_retro = export_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
+        m_export_sheet = export_menu.Append(wx.ID_ANY, "Sprite Sheet (JSON, Godot, Unity)...",
+                                            "The animations' steps packed into one PNG with the data an engine reads")
+        export_menu.AppendSeparator()
         m_export_gif = export_menu.Append(wx.ID_ANY, "Selected Animation as GIF...")
+        m_export_sequence = export_menu.Append(wx.ID_ANY, "Selected Animation as PNG Sequence...")
+        m_export_scene_gif = export_menu.Append(wx.ID_ANY, "Selected Scene as GIF...")
         file_menu.AppendSubMenu(export_menu, "Export")
         file_menu.AppendSeparator()
         m_exit = file_menu.Append(wx.ID_EXIT, "&Quit\tCtrl+Q")
@@ -934,9 +946,14 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_save_as, m_save_as)
         self.Bind(wx.EVT_MENU, self.on_import_aurora, m_import_aurora)
         self.Bind(wx.EVT_MENU, self.on_import_retro_animator, m_import_retro)
+        self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=False), m_import_aseprite)
+        self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=True), m_import_sheet)
         self.Bind(wx.EVT_MENU, self.on_export_sgdk, m_export_sgdk)
         self.Bind(wx.EVT_MENU, self.on_export_retro_animator, m_export_retro)
         self.Bind(wx.EVT_MENU, self.on_export_gif, m_export_gif)
+        self.Bind(wx.EVT_MENU, self.on_export_sheet, m_export_sheet)
+        self.Bind(wx.EVT_MENU, lambda e: (self.select_tab(2), self.animation_editor.export_png_sequence()), m_export_sequence)
+        self.Bind(wx.EVT_MENU, lambda e: (self.select_tab(3), self.timeline_editor.export_gif()), m_export_scene_gif)
         self.Bind(wx.EVT_MENU, lambda e: self.Close(), m_exit)
         menubar.Append(file_menu, "&File")
 
@@ -1204,6 +1221,29 @@ class MainFrame(wx.Frame):
             return
         self._set_imported(project, path)
 
+    def import_aseprite(self, sheet_json: bool) -> None:
+        """File ▸ Import ▸ Aseprite File / Sprite Sheet with JSON (importers/aseprite.py): a new, unsaved project."""
+        from importers import aseprite
+
+        if not self.confirm_discard_changes():
+            return
+        wildcard = ("Sprite sheet JSON (*.json)|*.json" if sheet_json
+                    else "Aseprite files (*.aseprite;*.ase)|*.aseprite;*.ase")
+        with wx.FileDialog(self, "Import Sprite Sheet with JSON" if sheet_json else "Import Aseprite File",
+                           wildcard=wildcard, style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+        try:
+            with wx.BusyCursor():
+                project = aseprite.parse_sheet_json(path) if sheet_json else aseprite.parse_aseprite(path)
+        except (OSError, ValueError, KeyError, TypeError, struct.error, zlib.error) as exc:
+            wx.MessageBox(f"Could not import {os.path.basename(path)}:\n{exc}", "Import", wx.OK | wx.ICON_ERROR, self)
+            return
+        project.imported_from = "sprite sheet" if sheet_json else "Aseprite file"
+        os.chdir(os.path.dirname(os.path.abspath(path)))
+        self._set_imported(project, path)
+
     def on_export_retro_animator(self, _: wx.CommandEvent) -> None:
         if not self.project.frames:
             wx.MessageBox("No frames available to export.", "Export RetroAnimator", wx.OK | wx.ICON_WARNING)
@@ -1388,6 +1428,42 @@ class MainFrame(wx.Frame):
         mapping, swap = self.project.active_mapping, self.project.active_palette_swap
         return (f"the mapping {mapping.name}" if mapping else "the original modules (no preview mapping)") + (
             f" and the palette swap {swap.name}" if swap else "")
+
+    def on_export_sheet(self, _event: Optional[wx.CommandEvent] = None) -> None:
+        """File ▸ Export ▸ Sprite Sheet: the steps packed into a PNG with JSON, a Godot .tres or a Unity .meta."""
+        from exporters import sheet
+
+        if not self.project.animations and not self.project.frames:
+            wx.MessageBox("There are no animations or frames to export.", "Export Sprite Sheet",
+                          wx.OK | wx.ICON_INFORMATION, self)
+            return
+        with SheetExportDialog(self, self.project, self.animation_editor.selected_animation_id,
+                               self._drawn_with()) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            options = dlg.options()
+        default = sheet.safe_name(os.path.splitext(os.path.basename(self.current_path or "sprites"))[0]) + ".png"
+        with wx.FileDialog(self, "Save the sprite sheet (its data file goes next to it)", defaultFile=default,
+                           wildcard="PNG images (*.png)|*.png", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fd:
+            if fd.ShowModal() != wx.ID_OK:
+                return
+            path = fd.GetPath()
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        try:
+            with wx.BusyCursor():
+                report = sheet.export_sheet(self.project, path, mapping=self.project.active_mapping,
+                                            swap=self.project.active_palette_swap, **options)
+        except (OSError, ValueError) as exc:
+            wx.MessageBox(f"Could not export the sprite sheet:\n{exc}", "Export Sprite Sheet", wx.OK | wx.ICON_ERROR, self)
+            return
+        width, height = report["size"]
+        notes = "" if not report["notes"] else "\n\n" + "\n".join(report["notes"])
+        wx.MessageBox(
+            f"{report['entries']} steps of {report['animations']} animation(s) as {report['cells']} pictures on a "
+            f"{width} × {height} sheet:\n\n{report['image']}\n{report['data']}{notes}",
+            "Export Sprite Sheet", wx.OK | wx.ICON_INFORMATION, self)
+        self.set_status(f"Exported the sprite sheet to {os.path.basename(report['image'])}")
 
     def on_export_gif(self, event: wx.CommandEvent) -> None:
         self.select_tab(2)

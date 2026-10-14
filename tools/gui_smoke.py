@@ -2044,6 +2044,88 @@ def run():
 
     step("view memory: reopening a project brings back the tab, selections and views", view_memory)
 
+    def interchange():
+        """Sprite sheet (JSON) and PNG sequence of the selected animation, the scene as GIF, then the sheet's JSON
+        imported back: every imported frame as drawn; the project opens again."""
+        from ui import sheet_export_dialog
+
+        class Answer:  # stands in for the file, folder and choice dialogs
+            path = ""
+            choice = 0
+
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def ShowModal(self):
+                return wx.ID_OK
+
+            def GetPath(self):
+                return Answer.path
+
+            def GetSelection(self):
+                return Answer.choice
+
+            def SetFilterIndex(self, index):
+                pass
+
+        saved_recent = list(frame.recent_files)
+        real = (wx.FileDialog, wx.DirDialog, wx.SingleChoiceDialog, sheet_export_dialog.SheetExportDialog.ShowModal)
+        wx.FileDialog = wx.DirDialog = wx.SingleChoiceDialog = Answer
+        sheet_export_dialog.SheetExportDialog.ShowModal = lambda dialog: (dialog.scope.SetSelection(1), wx.ID_OK)[1]
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                frame.select_tab(2)
+                pump()
+                anim = frame.animation_editor.animation()
+                if anim is None:  # a project without animations: one of its first frames
+                    from ui.animation_editor import ops as anim_ops
+
+                    anim = anim_ops.animation_from_frames(frame.project, [f.id for f in frame.project.frames[:3]])
+                    frame.animation_editor.refresh_animations()
+                    frame.animation_editor.select_animation(anim.id)
+                Answer.path = os.path.join(tmp, "sheet.png")
+                frame.on_export_sheet()
+                data = os.path.join(tmp, "sheet.json")
+                check(os.path.exists(Answer.path) and os.path.exists(data), "sprite sheet PNG and JSON written")
+                Answer.path, Answer.choice = os.path.join(tmp, "seq"), 1
+                frame.animation_editor.export_png_sequence()
+                files = sorted(os.listdir(Answer.path)) if os.path.isdir(Answer.path) else []
+                check(len(files) == sum(max(1, af.duration_frames) for af in anim.aframes) or
+                      anim.playback_type in ("ping_pong", "backward"), "PNG sequence: one picture per tick")
+                frame.select_tab(3)
+                pump()
+                te = frame.timeline_editor
+                if te.scene() is None:
+                    te.new_scene()
+                    art = next((f for f in frame.project.frames if f.fmodules), None)
+                    if art is not None:
+                        te.add_object("frame", art.id, (0, 0))
+                Answer.path = os.path.join(tmp, "scene.gif")
+                te.export_gif()
+                check(os.path.getsize(Answer.path) > 0, "the scene as GIF")
+                Answer.path = data
+                frame.import_aseprite(sheet_json=True)
+                pump()
+                imported = frame.project
+                check(imported.imported_from == "sprite sheet" and frame.current_path is None
+                      and len(imported.animations) == 1 and len(imported.frames) == len(anim.aframes),
+                      "the sheet's JSON comes back as an unsaved project with the animation")
+                frame.load_project(project_path)  # leaves the folder before it goes away
+        finally:
+            wx.FileDialog, wx.DirDialog, wx.SingleChoiceDialog, sheet_export_dialog.SheetExportDialog.ShowModal = real
+            frame.recent_files = saved_recent
+            frame._save_recent_files()
+        pump()
+        check(frame.current_path == project_path and not frame.history.is_dirty(), "the project opens again")
+
+    step("interchange: sprite sheet, PNG sequence, scene GIF, sheet JSON import", interchange)
+
     def open_foreign_file():
         """Opening another editor's file imports it: Save asks for a new file instead of writing over that one."""
         saved_recent = list(frame.recent_files)

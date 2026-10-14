@@ -1,9 +1,9 @@
 """Scene pictures: what a scene shows at a moment, drawn like the stage draws it (its objects in draw order, each
-with its mapping and palette swap) through the shared renderer, for the Scenes list."""
+with its mapping and palette swap) through the shared renderer, for the Scenes list and the scene GIF export."""
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import compositor
 import hardware_budget as hb
@@ -56,3 +56,49 @@ def scene_picture(project: Project, scene: TimelineScene, time: float = 0.0) -> 
     for image, x, y in pieces:
         canvas.alpha_composite(image.convert("RGBA"), (x - left, y - top))
     return canvas, left, top
+
+
+GIF_SHORTEST_MS = 20  # browsers play shorter GIF delays as 100 ms
+
+
+def export_scene_gif(project: Project, scene: TimelineScene, path: str, scale: int = 1) -> int:
+    """One pass of the scene as an animated GIF, drawn like the stage (each object's mapping and colours) on the
+    scene's background colour, at the scene's frame rate (50 pictures a second at most: GIF can't do faster). Pictures
+    that repeat merge into one longer one. Returns the GIF's frame count."""
+    from PIL import Image
+
+    fps = max(1, int(scene.fps))
+    frames = ops.scene_length_frames(scene) + 1  # frame 0 up to the last one, like the stage plays them
+    seconds = frames / float(fps)
+    step = max(1.0 / fps, GIF_SHORTEST_MS / 1000.0)
+    times = [i * step for i in range(max(1, int(round(seconds / step))))]
+    pictures = [scene_picture(project, scene, t) for t in times]
+    shown = [p for p in pictures if p is not None]
+    background = tuple(int(v) for v in (scene.background_color or (0, 0, 0))[:3])
+    if not shown:
+        left, top, width, height = 0, 0, 1, 1
+    else:
+        left = min(x for _i, x, _y in shown)
+        top = min(y for _i, _x, y in shown)
+        width = max(x + i.size[0] for i, x, _y in shown) - left
+        height = max(y + i.size[1] for i, _x, y in shown) - top
+    out: List[Any] = []
+    durations: List[int] = []
+    for index, picture in enumerate(pictures):
+        canvas = Image.new("RGBA", (width, height), background + (255,))
+        if picture is not None:
+            image, x, y = picture
+            canvas.alpha_composite(image, (x - left, y - top))
+        if scale > 1:
+            canvas = canvas.resize((width * scale, height * scale), Image.NEAREST)
+        # Whole tens of milliseconds (GIF counts hundredths of a second) that add up to the real time.
+        ms = int(round((index + 1) * step * 100)) * 10 - int(round(index * step * 100)) * 10
+        if out and canvas.tobytes() == out[-1].tobytes():
+            durations[-1] += ms
+        else:
+            out.append(canvas)
+            durations.append(ms)
+    rgb = [frame.convert("RGB") for frame in out]
+    options: Dict[str, Any] = {"loop": 0} if scene.loop else {}
+    rgb[0].save(path, save_all=True, append_images=rgb[1:], duration=durations, **options)
+    return len(rgb)
