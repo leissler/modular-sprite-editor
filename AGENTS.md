@@ -410,7 +410,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   in `header_text`, the C reference and `modsprite_draw.asm` (the size list in the host test follows `RECORDS`), and
   bump `DATA_VERSION` (now 2). The hot loops are 65816 assembly (`modsprite_draw.asm`: `ms_put_render_frame`,
   `ms_add_hw_sprite`, `ms_finish_oam`) with C versions under `MS_PUT_FRAME_C`, which `tests/test_snes_runtime_draw.py`
-  compiles for the host (`tools/snes_host.py`) and compares with the editor; `tools/check_snes_rom.py` builds the
+  compiles for the host (`tools/snes_host.py`) and compares with the editor; `tests/test_snes_runtime_player.py` plays
+  the Mega Drive player test's cases and every PoP animation against `playback.Player` video frame by video frame and
+  checks every frame's and step's hitboxes and points (the SNES player is the Mega Drive's C: keep both in step);
+  `tools/check_snes_rom.py` builds the
   assembly into a ROM and compares every OAM with the host build in Mesen 2 (run it after touching the runtime). 816-tcc:
   never step a far pointer in a loop (reach records by index), assembly reaches globals with long addressing
   (initialised ones live in bank $7F), a `u8` argument is pushed as one byte. CGRAM can only be written in vertical
@@ -478,9 +481,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   (`rounded-holds`). Spread presets (`ops.SPREADS`) and Change Animations (`ops.change_animations`, tick rate with or
   without keeping the timing) are wx-free. Playback preview goes through `playback.Player` (also `ops.Player`),
   which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts,
-  follow-up animation); `tests/test_runtime_player.py` compiles the C player and compares both tick by tick, and
-  `tests/test_playback.py` checks `playback.step_after` / `animation_at` (what scenes use) against the Player — keep
-  all three in sync.
+  follow-up animation); `tests/test_runtime_player.py` compiles the C player and compares both tick by tick (the SNES
+  runtime's copy: `tests/test_snes_runtime_player.py`), and `tests/test_playback.py` checks `playback.step_after` /
+  `animation_at` (what scenes use) against the Player — keep them all in sync.
   Step events reference `Project.event_types` by id (order = `MS_EVENT_*` number); `ops.Player.step_started` is the
   runtime's `step_started` (compared in the same test) and drives the preview's event chips on the stage; wrap structural step edits in
   `ops.keep_loop_start(anim)` so "loop from" stays on its step. Thumbnails and GIF export

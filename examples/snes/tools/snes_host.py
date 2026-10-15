@@ -1,6 +1,6 @@
 """The SNES runtime (snes_demo/src/modsprite.c) compiled for the host, and the SNES's sprite table decoded like the PPU
-draws it: tests/test_snes_runtime_draw.py checks the runtime against the editor with it, tools/check_snes_rom.py the
-ROM against it.
+draws it: tests/test_snes_runtime_draw.py and tests/test_snes_runtime_player.py check the runtime against the editor
+with it, tools/check_snes_rom.py the ROM against it.
 
 PVSnesLib is replaced by a small stub (the OAM buffer, VRAM and CGRAM as arrays); the harness loads the export's real
 data chunks and runs commands from stdin, printing the OAM buffer after each (as hex, 544 bytes):
@@ -10,6 +10,12 @@ data chunks and runs commands from stdin, printing the OAM buffer after each (as
     versus ANIM MAPPING SWAP TICKS X Y X2 Y2 an animation drawn as it is, then with ms_draw_anim_player_as
     sprite X Y TILE ATTRIBUTE LARGE          a game's own sprite (ms_add_hw_sprite)
     cycle                                    the sprite palettes in CGRAM (128 words), then one ms_palette_tick
+    player ANIM TICKS                        an animation player for TICKS video frames: per frame
+                                             "animation:step:finished:event type 0 started:event type 1's value:
+                                             hitboxes|points" (no OAM)
+    markers FRAME                            a frame's "hitboxes|points" (no OAM)
+
+Hitboxes print as "type,role,x,y,w,h" and points as "type,role,x,y", separated by ";".
 """
 
 from __future__ import annotations
@@ -70,6 +76,17 @@ static void load_chunks(const char *dir)
         fread(g_chunk_data[i], 1, 0x8000, f);
         fclose(f);
     }
+}
+
+static void print_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Point *points, u16 point_count)
+{
+    u16 i;
+    for (i = 0; i < box_count; i++)
+        printf("%s%u,%u,%d,%d,%d,%d", i ? ";" : "", boxes[i].type, boxes[i].role, boxes[i].x, boxes[i].y, boxes[i].w,
+               boxes[i].h);
+    printf("|");
+    for (i = 0; i < point_count; i++)
+        printf("%s%u,%u,%d,%d", i ? ";" : "", points[i].type, points[i].role, points[i].x, points[i].y);
 }
 
 static void dump(const char *what)
@@ -149,6 +166,39 @@ int main(int argc, char **argv)
             printf("added %u ", added);
             dump("sprite");
         }
+        else if (sscanf(line, "player %u %u", &index, &ticks) == 2)
+        {
+            MS_AnimPlayer player;
+            ms_set_mapping(0);
+            ms_anim_player_init(&player, index);
+            printf("player");
+            for (t = 0; t < ticks; t++)
+            {
+                const MS_Hitbox *boxes;
+                const MS_Point *points;
+                u16 box_count, point_count;
+                if (t > 0)
+                    ms_anim_player_tick(&player);
+                box_count = ms_anim_player_hitboxes(&player, &boxes);
+                point_count = ms_anim_player_points(&player, &points);
+                printf(" %u:%u:%u:%u:%d:", player.animation_index, player.step_index, player.finished ? 1 : 0,
+                       ms_anim_player_event_started(&player, 0) ? 1 : 0, ms_anim_player_event_value(&player, 1, 0));
+                print_markers(boxes, box_count, points, point_count);
+            }
+            printf("\n");
+        }
+        else if (sscanf(line, "markers %u", &index) == 1)
+        {
+            const MS_Hitbox *boxes;
+            const MS_Point *points;
+            u16 box_count, point_count;
+            ms_set_mapping(0);
+            box_count = ms_frame_hitboxes(index, &boxes);
+            point_count = ms_frame_points(index, &points);
+            printf("markers ");
+            print_markers(boxes, box_count, points, point_count);
+            printf("\n");
+        }
         else if (strncmp(line, "cycle", 5) == 0)
         {
             printf("cgram");
@@ -210,6 +260,13 @@ def vram_bytes(head: Dict[str, str]) -> bytes:
     """VRAM as the harness printed it (16-bit words) back in byte order."""
     words = bytes.fromhex(head["vram"])
     return bytes(words[i ^ 1] for i in range(len(words)))
+
+
+def parse_markers(text: str):
+    """("type,role,x,y,w,h;...|type,role,x,y;...") -> ([(type, role, x, y, w, h)], [(type, role, x, y)])."""
+    boxes, points = text.split("|")
+    as_tuples = lambda part: [tuple(int(v) for v in item.split(",")) for item in part.split(";") if item]  # noqa: E731
+    return as_tuples(boxes), as_tuples(points)
 
 
 def oam_of(line: str) -> str:

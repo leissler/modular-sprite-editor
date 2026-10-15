@@ -142,7 +142,8 @@ sprites, the tiles, sprites lost to the limits of a line).
 and plays it in Mesen 2's headless test runner: every frame at three positions, the scenes with every mapping, an
 animation drawn through another mapping and swap, a game's own sprites across the screen's edges, the colour cycles;
 each sprite table must equal the host build's byte for byte (which `tests/test_snes_runtime_draw.py` checks against
-the editor), video memory the export's tiles. It prints the slowest draw in scanlines and the lag frames of the first
+the editor; `tests/test_snes_runtime_player.py` checks the host build's animation player, hitboxes and points against
+the editor's), video memory the export's tiles. It prints the slowest draw in scanlines and the lag frames of the first
 scene. It needs Mesen 2 (`--mesen`, `$MESEN`) and PVSnesLib (`--pvsneslib`, `$PVSNESLIB_HOME`). The release workflow
 runs it on Linux with Mesen 2.1.1 after building the demo, whose committed data must be what the exporter writes:
 export it again and commit it whenever the exporter changes. On a machine where Mesen has never run, put a
