@@ -2,6 +2,26 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.10, October 2026
+
+**The project's console.** **Console**, above the tabs, says which console your project is made for, with its setup: the Mega Drive's screen mode, the SNES's two sprite sizes, the sprite size of the NES and the Game Boy. The palettes, **View ▸ Console Colours**, the budget overlay, the Timeline's screen outline, Auto Modularize and **Check Project** all follow it. See [The console](../start/tour.md#the-console).
+
+**SNES.** **File ▸ Export ▸ SNES (PVSnesLib)...** puts your project into a SNES game with everything the Mega Drive gets: every part cut into the SNES's square sprites, palettes and swaps, colour cycles, animations that play tick for tick as in the editor, scenes, hitboxes, points and events. The budget overlay and **Check Project** count the SNES's video memory the way the export stores it: the Prince of Persia example needs 300 of its 512 sprite tiles. A demo in the source code plays the *Swordfight* at 60 frames a second. See [SNES (PVSnesLib)](programmers.md#snes-pvsneslib).
+
+**More consoles.** The budget overlay also knows the NES, the Game Boy and the Game Boy Advance, and the palettes follow every console: 15 colours from 32,768 on the SNES and the Game Boy Advance, three picked from the console's fixed colours on the NES and the Game Boy. See [Consoles](consoles.md) and [Choose the console](../guide/palettes.md#choose-the-console).
+
+**Fewer tiles on the Mega Drive.** The export places each hardware sprite tightly around a part's pixels, where it used to cut parts on a 32-pixel grid: the Adventurer example needs 381 tiles instead of 800, Sonic 620 instead of 658, and no part needs more hardware sprites than before. The budget overlay counts the same. See [Video memory](../guide/hardware-budget.md#video-memory).
+
+**Auto Modularize for any console.** It cuts parts in the sprite sizes of the console you choose, keeps your mappings working, can put a shared part under parts drawn later (a head under a raised arm), and plans faster. See [Find shared parts automatically](../guide/auto-modularize.md).
+
+**The whole character in Godot and Unity.** The sprite sheet export brings the hitboxes, points and events along, and every animation plays as in the editor, with loops, repeats, ping-pong and follow-ups: in Godot 4 as a ready-made scene, in Unity 6 as a prefab. See [Work with other tools](../guide/other-tools.md#sprite-sheets-for-game-engines).
+
+**Dark or light.** The editor follows your system's appearance, or stays dark or light: **View ▸ Theme** or **Edit ▸ Preferences**. See [Preferences](../start/tour.md#preferences).
+
+**Smaller things.** **Highlight** in the **Palettes** tab keeps the selected colours and greys out everything else; click the selected swatch again, click empty space or press ++esc++ to select no slot. Hover the small marks along a Timeline track to see what they are: the frames where the layer's animation moves on to its next pose. The Mega Drive demo starts on the *Swordfight*, with one button per feature.
+
+Projects are saved in file format 8. Older projects are upgraded when you open them. Version 0.9 opens format 8 projects with a warning and forgets the console's setup when it saves. For programmers: the Mega Drive data has not changed (blob version 5), so games keep the runtime from 0.9.
+
 ## 0.9, October 2026
 
 **Palettes, palette swaps and colour cycles.** A new **Palettes** tab holds the project's palettes with their colours in fixed slots, palette swaps that recolour them without touching an image, and colour cycles that make colours move. Choose a swap for the preview, per scene object or, in the game, per character: the guard of the *Swordfight* example now fights in blue. A swap costs no video memory on the console. See [Colours, palettes and swaps](../guide/palettes.md).
