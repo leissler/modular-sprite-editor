@@ -29,6 +29,10 @@ Mega Drive code should not parse JSON or transform images per frame, so the expo
 - **Render frames**: the parts of each frame, animation step and scene sample, with their hitboxes and points,
   sprite count and bounds; animations, scenes, mappings, step events and all names.
 
+Only the first two are the Mega Drive's: what parts, render frames, animations and scenes hold is worked out by
+`console_bake.py` (repository root), the bake every console's exporter shares; `SGDKBakeContext` subclasses it and
+stores each part's picture as VDP tiles and hardware sprites (`_store_part`).
+
 At start `ms_init()` loads all tiles into VRAM (at `TILE_USER_INDEX`) and the palette entries into consecutive
 palette lines from `PAL1` (the palettes first, then the swaps' versions); a table maps every entry to its line, and
 drawing puts the line into each sprite's palette bits (entries a scene object fixed with a swap of its own keep it).

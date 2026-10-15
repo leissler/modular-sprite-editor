@@ -406,6 +406,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
     def test_scene_objects_keep_their_own_swap(self):
         """A scene object with a palette swap of its own has the swap's entry fixed in its pieces; one that inherits
         follows the swap the game draws the scene with."""
+        import console_bake
         import export_sgdk_example as sg
         from PIL import Image
 
@@ -433,7 +434,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
             for variant, *_rest in ctx.parts[sample.first_part:sample.first_part + sample.part_count]:
                 first, count = ctx._piece_list(variant, False, False)
                 entries.append(sorted({piece[4] for piece in ctx.pieces[first:first + count]}))
-            self.assertEqual(sorted(entries), [[0], [1 | sg.FIXED_ENTRY]], "the hero follows, the guard keeps Blue")
+            self.assertEqual(sorted(entries), [[0], [1 | console_bake.FIXED_ENTRY]], "the hero follows, the guard keeps Blue")
             self.assertEqual(len(ctx.tile_data) // 32, 1, "both draw the same tile: a swap costs no video memory")
             self.assertEqual(hero.palette_swap_id, None)
 

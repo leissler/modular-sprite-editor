@@ -2,14 +2,14 @@
 
 Mega Drive model, matching the SGDK exporter and runtime (examples/sgdk):
 - every visible part becomes one SGDK sprite whose image is padded to whole 8×8 tiles; axis-aligned parts use the
-  module image with hardware flips, rotated parts are baked (``SGDKBakeContext._render_leaf_part``);
+  module image with hardware flips, rotated parts are baked (``console_bake.ConsoleBake._render_leaf_part``);
 - the export cuts each part into VDP sprites of at most 4×4 tiles (32×32 px) with ``sprite_cut.export_cut``: the
   fewest sprites, and with that the fewest tiles, placed at any pixel of the part (or the part's 32 px grid when that
   is as good); this model counts exactly those;
 - the VDP shows a limited number of sprites per screen and per scanline, and a limited number of sprite pixels per
   scanline (the rest of the line's sprites disappear);
 - video memory: the export stores each part image once (flips are hardware bits) as 4 bpp tiles in palette indices,
-  and hardware sprites with the same pixels share their tiles (``SGDKBakeContext._ensure_variant``). The runtime
+  and hardware sprites with the same pixels share their tiles (``SGDKBakeContext._store_part``). The runtime
   keeps every tile in VRAM, so the project's total (``export_tiles``) is what has to fit.
 
 The other consoles have budgets but no exporter yet, so their cut is a model of what a game would do; parts are
@@ -299,7 +299,7 @@ class BudgetCalculator:
 
     def export_tiles(self, project: Project, mappings: Sequence[Optional[ModuleMapping]]) -> int:
         """Tiles of video memory the Mega Drive export of the whole project needs: every module, frame, animation
-        step and scene sample for each mapping, as ``SGDKBakeContext.bake`` stores them."""
+        step and scene sample for each mapping, as ``ConsoleBake.bake`` (the SGDK export's) stores them."""
         profile = MEGA_DRIVE_H40  # the stored blocks do not depend on the screen mode
         blocks: Dict[int, int] = {}
         seen: Dict[Any, Tuple[Tuple[int, int], ...]] = {}
@@ -354,7 +354,7 @@ class BudgetCalculator:
             self._block_ids.clear()
 
     def _palette_of(self, mod: Any) -> str:
-        """The module's palette: its image's (vector shapes use the first), as SGDKBakeContext._palette_of_module."""
+        """The module's palette: its image's (vector shapes use the first), as ConsoleBake._palette_of_module."""
         info = self._image_info.get(mod.image_id) if mod.type == "MD_IMAGE" else None
         return info[0] if info else self._first_palette
 
@@ -422,7 +422,7 @@ class BudgetCalculator:
             return None
         geom = _axis_flip(a_mat)
         if geom is not None:
-            # Uploaded as the plain module image; flips are hardware bits (SGDK _render_leaf_part).
+            # Uploaded as the plain module image; flips are hardware bits (ConsoleBake._render_leaf_part).
             hflip = geom[0] ^ bool(local_fx)
             vflip = geom[1] ^ bool(local_fy)
             px, py = int(mod.pivot[0]), int(mod.pivot[1])
@@ -490,7 +490,7 @@ def scene_uses(project: Project, scene: Any, mapping: Optional[ModuleMapping]) -
 
 
 def _decompose(matrix: Sequence[float]) -> Tuple[Tuple[float, float], float, bool, bool]:
-    """(offset, rotation, flip x, flip y) of an object's matrix, as SGDKBakeContext._decompose_matrix_to_frame_transform."""
+    """(offset, rotation, flip x, flip y) of an object's matrix, as ConsoleBake._decompose_matrix_to_frame_transform."""
     a, b, c, d, tx, ty = matrix
     sx, sy = math.hypot(a, b), math.hypot(c, d)
     if sx <= 1e-6 or sy <= 1e-6:
@@ -525,7 +525,7 @@ def _place(x: int, y: int, pad_w: int, pad_h: int, hflip: bool, vflip: bool,
 
 
 def _baked(base: Any, mod: Any, a: Matrix, b: Tuple[float, float], local_fx: bool, local_fy: bool) -> Tuple[Any, int, int]:
-    """Bake a rotated part like SGDKBakeContext._render_transformed_instance_with_local_flip."""
+    """Bake a rotated part like ConsoleBake._render_transformed_instance_with_local_flip."""
     from PIL import Image as PILImage
 
     if local_fx:

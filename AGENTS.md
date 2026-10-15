@@ -86,6 +86,11 @@ hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16
                            8×16, GBA): SGDK-exact part placement, the cuts of sprite_cut.py (Mega Drive: the export's),
                            per-screen / per-line limits, video memory (tiles stored like the export, the project's total;
                            Mega Drive only) — wx-free, tested against the SGDK exporter
+console_bake.py            The console-independent half of a console export (wx-free): ConsoleBake walks the project
+                           like the editor draws it (parts through nested frames with flips and turns, palette entries
+                           and swaps, hitboxes / points, animation steps with the game's timing and events, scene
+                           samples with each object's mapping and swap, one pass per mapping) and hands each part's
+                           picture to the console's exporter (_store_part); SGDKBakeContext subclasses it
 sprite_cut.py              How hardware sprites cover a part (wx-free, Pillow only), one implementation for the SGDK
                            exporter, the budget and Auto Modularize: export_cut (Mega Drive: fewest sprites, then fewest
                            tiles, at any pixel; the 32 px grid where that is as good), cut per console (cells, squares,
@@ -333,8 +338,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `hardware_budget.project_profile` (another one is for that run only).
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
-  `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part`; both cut parts with
-  `sprite_cut.export_cut` (`_ensure_variant`), never with a cut of their own. `tests/test_hardware_budget.py` compares
+  `hardware_budget.py` in step with `console_bake.ConsoleBake._render_leaf_part`; both cut parts with
+  `sprite_cut.export_cut` (`SGDKBakeContext._store_part`), never with a cut of their own. `tests/test_hardware_budget.py` compares
   them, `tests/test_sgdk_runtime_draw.py` draws the pieces with the compiled runtime. Video memory (Mega Drive
   profiles): each part carries the ids of the tile blocks the export stores for it (`HwPart.vram`, compared in palette
   indices, flips free), so `Budget.unique_tiles` / `vram_tiles` count what a view, an animation or `export_tiles` (the
@@ -366,6 +371,13 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   characters with different mappings share one set of animations (`ms_draw_anim_player_mapped`, as AuroraGT games
   set the mapping per draw); scenes are baked once per mapping, objects with their own mapping keep it. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
   counter, not `getSubTick()` (it only advances per scanline and jumps around vblank).
+- **Console exports:** `console_bake.ConsoleBake` is what every console's exporter shares: it bakes the project
+  (render frames of parts, hitboxes and points; module and frame render frames; animation steps and records; scene
+  samples and records; once per mapping) and calls `_store_part(image, palette, entry)` for each part's picture, which
+  the console's exporter implements (the Mega Drive's `SGDKBakeContext`: VDP tiles, the sprite cut, pieces per flip).
+  Put nothing console-specific into it (tile formats, sprite sizes, palette words, blob layout); a console's exporter
+  subclasses it. `tests/test_console_bake.py` checks that a minimal exporter gets exactly the Mega Drive exporter's
+  parts, frames, steps and samples.
 - **SGDK export:** `export_project()` in the exporter is the one entry point for the command line and File ▸ Export ▸
   Mega Drive (the editor builds carry the exporter: `pathex` + `hiddenimports` in the three editor specs). It writes
   the blob, the header and the parser and merges its `BIN MS_BLOB` line into the game's `res/resources.res`
@@ -535,7 +547,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 | RetroAnimator export | `exporters/retroanimator.py` (on `compositor`) | yes | any (affine) | yes | yes |
 | Sprite sheets, PNG sequences | `exporters/sheet.py` (on `compositor`) | yes | yes | yes | yes |
 | Scene pictures and GIF | `ui/scene_editor/thumbnails.py` (`FrameRenderer`, each object's mapping and swap) | yes | yes | yes | yes |
-| SGDK export | `examples/sgdk/tools/export_sgdk_example.py` | yes | baked | yes | yes |
+| SGDK export | `examples/sgdk/tools/export_sgdk_example.py` (on `console_bake.py`) | yes | baked | yes | yes |
 
 Previews share one compositor (`compositor.py`, cached by `ui/frame_render.py`); `tests/test_thumbnails.py` checks
 thumbnails against the canvas. The SGDK exporter still bakes on its own (it needs per-part hardware sprites, not a flat image);
