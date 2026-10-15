@@ -190,21 +190,24 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 
 ## Demo controls
 
-- `UP / DOWN`: switch unit type (`Module`, `Frame`, `Animation`, `Scene`)
-- `LEFT / RIGHT`: previous / next entry; `X / Y`: jump `-10 / +10`
-- `A`: pause/resume playback; `B`: reset the player
-- `START + B`: versus view (animations): the animation again on the right, drawn with the next mapping and the
-  first palette swap through `ms_draw_anim_player_as` (in the Prince of Persia example: the guard in blue)
-- `START` (press and release): cycle the active mapping (`<none>` / mapped variants)
-- `START + A`: show hitboxes (red corner marks) and points (green crosses)
-- `START + UP / DOWN`: background brightness
-- `C`: ID jump editor (`UP / DOWN` character, `LEFT / RIGHT` cursor, `A` apply, `B` cancel, `X` clear,
-  `Y` backspace)
-- `MODE` / `Z` / `START + C`: minimal HUD (FPS / CPU only) for performance measurement
+The demo starts on the project's first scene, playing: in the Prince of Persia example the *Swordfight*, where the
+Prince fights a guard drawn from the same animations with his own mapping and the *Blue guard* palette swap. Each
+button does one thing:
 
-The HUD shows FPS and CPU load, the time spent drawing and queueing the sprite table (measured with the V
-counter, so in steps of one scanline, about 64 µs), parts, hardware sprites and dropped sprites, and the hitbox, point and tile
-counts. It redraws one text line per frame at most, because drawing many lines in one frame drops it.
+| Button | |
+|---|---|
+| `UP / DOWN` | what to show: scenes, animations, frames, modules |
+| `LEFT / RIGHT` | previous / next; held, it repeats and then runs |
+| `A` | play / pause |
+| `B` | hitboxes (red corner marks) and points (green crosses), in animations and frames |
+| `C` | change the look: every mapping with every palette swap (`ms_set_mapping`, `ms_set_palette_swap`); with animations last *side by side*: the animation as it is and, on the right, re-skinned and recoloured for that draw only (`ms_draw_anim_player_as`: the guard in blue) |
+| `START` | the controls and what the frame costs |
+
+The screen shows what plays and its look; a step's events appear under it as they fire (`hit`, `footstep`).
+`START` adds the frame rate, the CPU load, the time drawing and queueing the sprite table take (measured with the
+V counter, so in steps of one scanline, about 64 µs), parts, hardware sprites (and dropped ones), tiles and, with
+`B`, the hitboxes and points shown. Text is redrawn one line per frame at most, because drawing many lines in one
+frame drops it; with the panel closed only the title, the look and the events are drawn.
 
 ## Tests
 

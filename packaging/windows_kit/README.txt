@@ -44,15 +44,13 @@ Mega Drive emulator, e.g. BlastEm (https://www.retrodev.com/blastem/). SGDK itse
   examples\sgdk\sgdk_demo, then run build_sgdk_demo.bat. The editor shows what the game gets
   (video memory, colours, anything Tools > Check Project finds).
 
-Demo controls (3- or 6-button pad):
-  UP / DOWN        unit: Module, Frame, Animation, Scene
-  LEFT / RIGHT     previous / next entry      X / Y   -10 / +10
-  A                pause / resume             B       restart
-  START            next mapping (re-skin)
-  START + A        show hitboxes and points
-  START + UP/DOWN  background brightness
-  C                jump to an id              MODE / Z   minimal HUD (FPS / CPU only)
-The HUD shows the time spent drawing, hardware sprites per frame and the CPU load.
+The demo starts on the Swordfight scene. Demo controls (any pad):
+  UP / DOWN        what to show: scenes, animations, frames, modules
+  LEFT / RIGHT     previous / next (hold to run through them)
+  A                play / pause
+  B                hitboxes and points
+  C                change the look: mappings and palette swaps, then side by side
+  START            the controls, frame rate, CPU load, sprites and tiles
 
 
 3. More
