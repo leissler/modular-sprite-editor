@@ -25,7 +25,7 @@
   <div class="ms-facts" aria-label="Product essentials">
     <span>Made for pixel art: whole-pixel zoom, no smoothing</span>
     <span>Every part, frame and animation stays editable</span>
-    <span>Exports for the Mega Drive, Godot, Unity and Aseprite's JSON, more consoles to come</span>
+    <span>Exports for the Mega Drive, the SNES, Godot, Unity and Aseprite's JSON, more consoles to come</span>
   </div>
 
   <section class="ms-section" aria-labelledby="workflow-title">
@@ -75,12 +75,12 @@
     <div class="ms-feature-copy">
       <p class="ms-eyebrow">Know what the console can show</p>
       <h2 id="budget-title">See the limits<br>before your programmer does.</h2>
-      <p>Retro consoles draw characters from hardware sprites, with a limit per screen and per line. Turn on the budget overlay and the editor outlines every hardware sprite a pose needs and marks the lines where sprites would vanish. It knows the Mega Drive, where it also counts the video memory your sprites take, and the Super Nintendo; more consoles will follow.</p>
+      <p>Retro consoles draw characters from hardware sprites, with a limit per screen and per line. Turn on the budget overlay and the editor outlines every hardware sprite a pose needs and marks the lines where sprites would vanish. It knows the Mega Drive, the Super Nintendo, the NES, the Game Boy and the Game Boy Advance, and on the Mega Drive and the Super Nintendo it also counts the video memory your sprites take.</p>
       <a class="ms-text-link" href="{{ 'guide/hardware-budget/' | url }}">Read the budget overlay</a>
     </div>
     <figure>
       <a href="{{ 'assets/images/screens/budget.png' | url }}" aria-label="Open the full-size budget screenshot"><img src="{{ 'assets/images/screens/budget.png' | url }}" alt="The Frames tab with the Mega Drive budget overlay: the slash pose outlined in hardware sprites, with a readout of sprites, tiles and the busiest line" width="2880" height="1800" loading="lazy"></a>
-      <figcaption>16 hardware sprites and 41 tiles for this pose. The busiest line uses 10 of 20 sprites.</figcaption>
+      <figcaption>16 hardware sprites and 35 tiles for this pose. The busiest line uses 10 of 20 sprites.</figcaption>
     </figure>
   </section>
 
@@ -89,7 +89,7 @@
       <p class="ms-eyebrow">Already have whole sprites?</p>
       <h2 id="automod-title">Let the editor find<br>the shared parts.</h2>
       <p>Auto Modularize cuts a sheet of finished sprites into the pieces they have in common, including mirrored ones, and rebuilds every frame from them, pixel for pixel. A slider trades less memory against fewer hardware sprites.</p>
-      <div class="ms-numbers"><div><strong>873 &rarr; 595</strong><span>video memory tiles for 38 Sonic sprites</span></div><div><strong>32 %</strong><span>less memory, same pixels</span></div></div>
+      <div class="ms-numbers"><div><strong>733 &rarr; 588</strong><span>video memory tiles for 38 Sonic sprites</span></div><div><strong>20 %</strong><span>less memory, same pixels</span></div></div>
       <a class="ms-text-link" href="{{ 'guide/auto-modularize/' | url }}">Find shared parts automatically</a>
     </div>
     <figure>

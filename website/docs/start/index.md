@@ -2,7 +2,7 @@
 
 Many classic console characters are not drawn as whole pictures. They are built from small parts: a head, a torso, an arm, a sword. Each pose reuses the same parts in new positions, which saves video memory and lets you change a character by changing a few pieces.
 
-Modular Sprite Editor is made for working this way. You cut a sprite sheet into parts, build poses from them, animate the poses and stage scenes with several characters. Along the way it shows what your sprites cost on the console, so there are no surprises when they get there. The Sega Mega Drive is the first console it supports, and more will follow.
+Modular Sprite Editor is made for working this way. You cut a sprite sheet into parts, build poses from them, animate the poses and stage scenes with several characters. Along the way it shows what your sprites cost on the console, so there are no surprises when they get there. It exports for the Sega Mega Drive and the Super Nintendo, also knows the limits of the NES, the Game Boy and the Game Boy Advance, and more consoles will follow.
 
 These guides are for artists and animators. You do not need to program to follow them. When it is time to hand your work to a programmer, [For your programmer](../reference/programmers.md) explains what to give them.
 
@@ -11,7 +11,7 @@ These guides are for artists and animators. You do not need to program to follow
 <div class="ms-paths">
   <a href="install/"><strong>Get the editor</strong><span>Download it for Windows, macOS or Linux and open the examples.</span></a>
   <a href="first-sprite/"><strong>Make your first animated sprite</strong><span>From a sprite sheet to an animation that plays.</span></a>
-  <a href="tour/"><strong>Find your way around</strong><span>The five tabs and how to move around the canvas.</span></a>
+  <a href="tour/"><strong>Find your way around</strong><span>The six tabs and how to move around the canvas.</span></a>
   <a href="../examples/"><strong>Learn from an example</strong><span>Open a finished project and take it apart.</span></a>
 </div>
 
