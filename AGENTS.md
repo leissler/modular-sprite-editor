@@ -346,7 +346,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   (`canvas_display_controls.project_console_changed`) and the panels' `on_console_changed()` (the Timeline's screen);
   loading and undo call it too. Menus that show a console offer the project's first and others to compare: the budget
   menu keeps "" / "project" / a profile key per tab, the Timeline's Screen "" / "project" / a screen label
-  (`SceneEditor/Screen`); a stored key that is the project's own counts as "project". Auto Modularize starts at
+  (`SceneEditor/Screen`; up to 0.9 one screen for every project, `ScreenGuide`, which `stored_screen` reads as "project"
+  when it showed one); a stored key that is the project's own counts as "project". Auto Modularize starts at
   `hardware_budget.project_profile` (another one is for that run only).
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep

@@ -1,4 +1,5 @@
-"""Copying the settings older versions kept in wx's default store into the editor's store, once (ui/preferences.py)."""
+"""Settings of older versions: copied from wx's default store into the editor's store, once (ui/preferences.py), and the
+Timeline's screen from before projects named their console (ui/scene_editor/panel.stored_screen)."""
 
 import os
 import sys
@@ -46,6 +47,46 @@ class AdoptOldStoreTest(unittest.TestCase):
         old.Write("/SceneEditor/Later", "1")
         self.assertEqual(preferences.adopt_old_store(new, old, "app"), 0, "only once")
         self.assertFalse(new.HasEntry("/SceneEditor/Later"))
+
+
+@unittest.skipIf(wx is None, "wxPython not available")
+class TimelineScreenTest(unittest.TestCase):
+    """The Timeline's Screen setting (ui/scene_editor/panel.stored_screen)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = wx.GetApp() or wx.App(False)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def screen(self, guide=None, screen=None):
+        from ui.scene_editor.panel import stored_screen
+
+        config = wx.FileConfig(localFilename=os.path.join(self.tmp.name, f"{guide}-{screen}"),
+                               style=wx.CONFIG_USE_LOCAL_FILE)
+        if guide is not None:
+            config.WriteInt("/SceneEditor/ScreenGuide", guide)
+        if screen is not None:
+            config.Write("/SceneEditor/Screen", screen)
+        return stored_screen(config)
+
+    def test_an_older_editors_screen_follows_the_project(self):
+        """Up to 0.9 the editor kept one screen for every project, a position in its list (6: the Game Boy's): a Mega
+        Drive project showed the Game Boy's screen as a comparison nobody asked for."""
+        self.assertEqual(self.screen(guide=6), "project")
+        self.assertEqual(self.screen(guide=1), "project")
+        self.assertEqual(self.screen(guide=0), "", "no outline stays no outline")
+        self.assertEqual(self.screen(guide=99), "")
+        self.assertEqual(self.screen(), "", "nothing stored: no outline")
+
+    def test_a_choice_since_0_10_stays(self):
+        self.assertEqual(self.screen(guide=6, screen=""), "")
+        self.assertEqual(self.screen(guide=6, screen="project"), "project")
+        self.assertEqual(self.screen(guide=1, screen="Game Boy 160×144"), "Game Boy 160×144", "a comparison")
 
 
 if __name__ == "__main__":

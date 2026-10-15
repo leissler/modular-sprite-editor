@@ -45,9 +45,20 @@ _PASTE_KIND = ["keys"]  # what Paste pastes: what was copied last ("keys" or "la
 # Inspector fields that change every selected layer when several are selected.
 GROUP_FIELDS = ("playback_mode", "playback_speed", "root_motion", "mapping", "palette_swap")
 
-CONFIG_SCREEN_GUIDE = "SceneEditor/ScreenGuide"  # up to format 7: a position in SCREEN_GUIDES
+CONFIG_SCREEN_GUIDE = "SceneEditor/ScreenGuide"  # up to 0.9: one screen for every project, a position in SCREEN_GUIDES
 CONFIG_SCREEN = "SceneEditor/Screen"  # "" (none), "project" (the project's console) or a screen's label to compare
 PROJECT_SCREEN = "project"
+
+
+def stored_screen(config: wx.ConfigBase) -> str:
+    """The Screen menu's setting: "" (none), PROJECT_SCREEN or a screen's label to compare with. Editors before 0.10
+    kept one screen for every project, from before projects named their console: an outline that was on follows the
+    project's console now (an old pick such as the Game Boy's is no comparison anyone asked for), one that was off stays
+    off."""
+    if config.HasEntry(CONFIG_SCREEN):
+        return config.Read(CONFIG_SCREEN, "")
+    guide = config.ReadInt(CONFIG_SCREEN_GUIDE, 0)
+    return PROJECT_SCREEN if 0 < guide < len(SCREEN_GUIDES) else ""
 
 
 class _StageDropTarget(wx.TextDropTarget):
@@ -194,13 +205,7 @@ class SceneEditorPanel(wx.Panel):
         root.Add(self.vsplit, 1, wx.EXPAND)
         self.SetSizer(root)
 
-        config = wx.Config.Get()
-        if config.HasEntry(CONFIG_SCREEN):
-            value = config.Read(CONFIG_SCREEN, "")
-        else:  # an older editor kept the position in the list
-            guide = config.ReadInt(CONFIG_SCREEN_GUIDE, 0)
-            value = SCREEN_GUIDES[guide][0] if 0 < guide < len(SCREEN_GUIDES) else ""
-        self._set_screen(value, persist=False)
+        self._set_screen(stored_screen(wx.Config.Get()), persist=False)
         self._update_autokey_button()
 
     def _bind(self) -> None:

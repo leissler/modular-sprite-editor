@@ -959,13 +959,19 @@ def run():
         te.inspector.show_context(proj, scene, te.obj(), te.frame)
         te.select_object(None)  # scene settings
         te._on_scene_field("fps", 30)
-        from ui.scene_editor.panel import CONFIG_SCREEN_GUIDE
+        from ui.scene_editor.panel import CONFIG_SCREEN
+        from ui.scene_editor.stage import project_screen
 
-        saved_guide = wx.Config.Get().ReadInt(CONFIG_SCREEN_GUIDE, 0)
+        config = wx.Config.Get()
+        saved_screen = config.Read(CONFIG_SCREEN, "") if config.HasEntry(CONFIG_SCREEN) else None
         te.screen_choice.SetSelection(1)
         te._on_screen_choice(None)
-        wx.Config.Get().WriteInt(CONFIG_SCREEN_GUIDE, saved_guide)  # the smoke test must not change preferences
-        wx.Config.Get().Flush()
+        check(te.stage.screen_guide == project_screen(proj)[1], "timeline: the screen of the project's console")
+        if saved_screen is None:  # the smoke test must not change preferences
+            config.DeleteEntry(CONFIG_SCREEN)
+        else:
+            config.Write(CONFIG_SCREEN, saved_screen)
+        config.Flush()
         te.stage.Refresh()
         te.stage.Update()
         te.timeline.Refresh()
