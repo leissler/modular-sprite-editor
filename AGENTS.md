@@ -45,7 +45,11 @@ builds and tests the editor and the SGDK exporter (`build_sgdk_exporter.spec`) o
 gets both, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: the example projects in the repo's
 `examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
 editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, `packaging/windows_kit/`), and builds its ROMs on
-Windows with the vendored SGDK. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
+Windows with the vendored SGDK. Its SNES job builds the SNES demo ROM on Linux with PVSnesLib 4.6.0 (run artifact
+`snes-demo`, not released): the demo's data exported again must be the committed data (re-export and commit it after
+changing the exporter), and `tools/check_snes_rom.py` runs in Mesen 2's test runner (a `settings.json` next to the
+executable: without one Mesen opens its first-run window instead; on Linux the tool sets
+`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`, without which Mesen 2.1 dies with std::bad_cast); publishing waits for it. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
 with; `tests/test_requirements.py` checks they agree, and `requirements.txt` says what moving to 4.3 needs. Set
 `APP_VERSION` in `app.py` to the release first: the About box and the macOS Info.plist show it, and the workflow stops if
 it releases another version.

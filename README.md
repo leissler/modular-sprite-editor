@@ -246,6 +246,10 @@ The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to 
 `build_sgdk_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI unpacks it and builds the
 PoP_WW and Sonic ROMs with those scripts.
 
+A **SNES** job builds the SNES demo ROM with PVSnesLib 4.6.0 (artifact `snes-demo`, not released): the demo's data
+exported again must be the committed data, and `tools/check_snes_rom.py` plays the ROM in Mesen 2's headless test runner
+against the host build of the runtime. A release waits for it too.
+
 ## Tests and tools
 
 ```bash

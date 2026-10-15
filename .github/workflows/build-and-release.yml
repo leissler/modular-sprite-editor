@@ -6,6 +6,8 @@ name: Build And Release
 # the example projects (ModularSpriteEditor-examples.zip, made by the Linux job).
 # On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
 # artifact): editor, exporter, examples and the SGDK demo, built into ROMs with the bundled SGDK.
+# The SNES job builds the SNES demo ROM with PVSnesLib and checks the runtime in it in Mesen 2 (a run artifact, not
+# released either).
 # With "publish" off it only builds and tests. The version has to be APP_VERSION in app.py (the About box shows it).
 
 on:
@@ -202,9 +204,97 @@ jobs:
           path: test-results
           if-no-files-found: ignore
 
+  snes:
+    # The SNES demo (examples/snes): its data exported again must be the committed data, the ROM is built with
+    # PVSnesLib and played in Mesen 2's headless test runner against the host build of the runtime
+    # (tools/check_snes_rom.py: every OAM byte for byte, video memory, palettes, lag frames). The runtime's host test
+    # (tests/test_snes_runtime_draw.py) runs with the unit tests of the build job.
+    name: SNES demo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PVSNESLIB_ZIP: https://github.com/alekmaul/pvsneslib/releases/download/4.6.0/pvsneslib_460_64b_linux_release.zip
+      MESEN_ZIP: https://github.com/SourMesen/Mesen2/releases/download/2.1.1/Mesen_2.1.1_Linux_x64.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-2.0-0
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+
+      - name: Cache PVSnesLib and Mesen
+        uses: actions/cache@v4
+        with:
+          path: snes-downloads
+          key: pvsneslib-4.6.0-mesen-2.1.1-linux-x64
+
+      - name: Unpack PVSnesLib and Mesen
+        run: |
+          mkdir -p snes-downloads
+          for url in "$PVSNESLIB_ZIP" "$MESEN_ZIP"; do
+            zip="snes-downloads/$(basename "$url")"
+            [ -f "$zip" ] || curl -fL --retry 6 --retry-delay 20 --retry-all-errors --max-time 600 -o "$zip" "$url"
+          done
+          # PVSnesLib where the demo's Makefile and tools/check_snes_rom.py look for it: third_party/pvsneslib
+          unzip -q "snes-downloads/$(basename "$PVSNESLIB_ZIP")" -d examples/snes/snes_demo/third_party
+          test -f examples/snes/snes_demo/third_party/pvsneslib/devkitsnes/snes_rules
+          unzip -q "snes-downloads/$(basename "$MESEN_ZIP")" -d snes-tools
+          chmod +x snes-tools/Mesen
+          # Settings next to the executable (portable mode, the defaults): without a settings file Mesen opens its
+          # first-run setup window instead of running the test runner.
+          echo '{}' > snes-tools/settings.json
+          echo "MESEN=$PWD/snes-tools/Mesen" >> "$GITHUB_ENV"
+
+      - name: Export the demo's data again (it must be what is committed)
+        run: |
+          python examples/snes/tools/export_snes.py --project-json examples/sgdk/PoP_WW.json \
+            --output-dir examples/snes/snes_demo
+          changed=$(git status --porcelain -- examples/snes/snes_demo)
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            echo "::error::The SNES demo's data is not what the exporter writes: export it again and commit it"
+            exit 1
+          fi
+
+      - name: Build the demo ROM
+        run: |
+          make -C examples/snes/snes_demo
+          mkdir -p dist/snes
+          cp examples/snes/snes_demo/modular_sprite_snes_demo.sfc dist/snes/
+
+      - name: Check the runtime in the ROM (Mesen 2)
+        run: |
+          set -o pipefail
+          mkdir -p test-results
+          python tools/check_snes_rom.py | tee test-results/snes-rom-check.txt
+
+      - name: Upload the demo ROM (not released)
+        uses: actions/upload-artifact@v4
+        with:
+          name: snes-demo
+          path: dist/snes/*.sfc
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-snes
+          path: test-results
+          if-no-files-found: ignore
+
   release:
     name: Publish Release
-    needs: build
+    needs: [build, snes]
     if: ${{ github.event.inputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:
