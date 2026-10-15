@@ -269,6 +269,7 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 | | Select several parts / add a part / add or remove one | Drag on empty space / `Shift + Click` / `Cmd + Click` |
 | | New point (Points mode) | Click on empty space |
 | **Mappings** | Original / hide the selected modules | `Delete` / `H` |
+| **Palettes** | Select no slot (the whole image again) | Click the selected slot again / `Esc` |
 | **Animations / Timeline** | Play/Pause | `Enter` |
 | | Previous/Next step (Animations) or frame (Timeline) | `,` / `.` (`←` / `→` in the sequence / timeline) |
 | **Animations** | Previous/Next tick, first/last step | `Shift+,` / `Shift+.`, `Home` / `End` |

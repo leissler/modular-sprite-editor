@@ -127,7 +127,7 @@ class PaletteEditorPanel(wx.Panel):
         self.chk_animate = self.canvas_controls.add_toggle("Cycles", True, self._set_animate,
                                                            "Let the colour cycles turn, at 60 video frames a second (50 with View ▸ Play at 50 Hz)")
         self.chk_highlight = self.canvas_controls.add_toggle("Highlight", True, self._set_highlight,
-                                                             "Dim every pixel but those of the selected slots")
+                                                             "Fade every pixel but those of the selected slots")
         self.hint = wx.StaticText(centre, label="")
         T.style(self.hint, fg="hint")
         csizer.Add(self.preview, 1, wx.EXPAND)
@@ -141,6 +141,7 @@ class PaletteEditorPanel(wx.Panel):
         self.inspector.on_cycle = self._cycle_changed
         self.inspector.grid.on_select = self._slots_selected
         self.inspector.grid.on_activate = self._edit_slot
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
         self.inspector.grid.on_move = self._move_slot
         self.inner_split.SplitVertically(centre, self.inspector, -px(310))
         self.inner_split.SetSashGravity(1.0)
@@ -291,7 +292,8 @@ class PaletteEditorPanel(wx.Panel):
         elif palette is not None and not images:
             self.hint.SetLabel("No image uses this palette: choose it as an image's Palette in the Modules tab.")
         else:
-            self.hint.SetLabel("Click a pixel to select its slot. Shift+click slots to select a run for a colour cycle.")
+            self.hint.SetLabel("Click a pixel to select its slot (Esc: none). Shift+click slots to select a run for a "
+                               "colour cycle.")
 
     def _update_preview(self) -> None:
         asset = self.project.get_image(self.image_id) if self.image_id else None
@@ -509,8 +511,15 @@ class PaletteEditorPanel(wx.Panel):
         self.inspector.show(self.project, self.palette(), self.swap(), self.slots, self.inspector.selected_cycle())
         self._update_preview()
 
-    def _picked(self, slot: int) -> None:
-        self._slots_selected([slot])
+    def _on_char_hook(self, event: wx.KeyEvent) -> None:
+        """Esc selects no slot (the preview shows the whole image again)."""
+        if event.GetKeyCode() == wx.WXK_ESCAPE and self.slots and not app_services.text_entry_has_focus():
+            self._slots_selected([])
+            return
+        event.Skip()
+
+    def _picked(self, slot: Optional[int]) -> None:
+        self._slots_selected([] if slot is None else [slot])
 
     def _pick_colour(self, initial) -> Optional[tuple]:
         console = consoles.console_by_key(self.project.console)

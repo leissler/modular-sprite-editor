@@ -1376,6 +1376,54 @@ def run():
         pe._picked(0)
         pump()
         check(pe.slots == [0] and pe.preview.highlight == [0], "a click on a pixel selects its slot")
+        preview = pe.preview
+        if preview._image is not None and preview.asset is not None and preview.backdrop != "colour":
+            from ui.frame_render import SHARED
+
+            keyed = SHARED.sheet(proj, preview.asset, keyed=True)
+            numbers = preview._slot_image(keyed, preview._base()).tobytes()
+            data = bytes(preview._image.GetData())
+            other = next((i for i, v in enumerate(numbers) if v and v != 1), None)
+            check(other is None or data[other * 3] == data[other * 3 + 1] == data[other * 3 + 2],
+                  "Highlight: the other slots' pixels fade to grey")
+        pe._picked(None)
+        pump()
+        check(pe.slots == [] and pe.preview.highlight == [], "a click on empty space selects no slot")
+
+        grid = pe.inspector.grid
+
+        def click_slot(slot, kinds=(wx.wxEVT_LEFT_DOWN, wx.wxEVT_LEFT_UP)):
+            rect = grid._cell_rect(slot + 1)
+            for kind in kinds:
+                event = wx.MouseEvent(kind)
+                event.SetPosition(wx.Point(rect.x + rect.width // 2, rect.y + rect.height // 2))
+                event.SetLeftDown(kind != wx.wxEVT_LEFT_UP)
+                event.SetEventObject(grid)
+                grid.GetEventHandler().ProcessEvent(event)
+            pump()
+
+        click_slot(2)
+        check(pe.slots == [2] and grid.selected == [2], "a click on a swatch selects its slot")
+        click_slot(2)
+        check(pe.slots == [] and grid.selected == [] and pe.preview.highlight == [],
+              "a click on the selected swatch selects none")
+        click_slot(2)
+        escape = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+        escape.SetKeyCode(wx.WXK_ESCAPE)
+        pe._on_char_hook(escape)
+        pump()
+        check(pe.slots == [] and grid.selected == [], "Esc selects no slot")
+        activated = []
+        original_activate, grid.on_activate = grid.on_activate, activated.append  # Change… would open a colour dialog
+        try:
+            click_slot(2)
+            click_slot(2)  # a double-click on the selected slot: its first click selects none for a moment
+            click_slot(2, (wx.wxEVT_LEFT_DCLICK, wx.wxEVT_LEFT_UP))
+        finally:
+            grid.on_activate = original_activate
+        check(activated == [2] and pe.slots == [2], "a double-click changes the slot and keeps it selected")
+        pe._picked(0)
+        pump()
 
         frame.on_preview_swap_selected(swap.id)
         pump()

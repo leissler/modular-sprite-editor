@@ -1,5 +1,6 @@
 """PalettePreview: one of a palette's images as a draw shows it (the selected palette swap, colour cycles turning), with
-the pixels of the selected slots picked out; a click selects the slot of the pixel under the mouse."""
+the pixels of the selected slots picked out (the others fade into the backdrop); a click selects the slot of the pixel
+under the mouse, a click on empty space none."""
 
 from __future__ import annotations
 
@@ -9,11 +10,13 @@ import wx
 
 import palettes
 from models import ImageAsset, PaletteSwap, Project
-from ui.base_canvas import BaseCanvas
+from ui.base_canvas import BACKDROP_COLOUR, BaseCanvas
 from ui.console_colours import CONSOLE
 from ui.frame_render import SHARED, to_wx_image
+from ui.theme import T
 
 RGB = Tuple[int, int, int]
+FADE = 0.75  # how far the pixels of other slots fade into the backdrop (greyed): the selected ones stand out
 
 
 class PalettePreview(BaseCanvas):
@@ -28,7 +31,7 @@ class PalettePreview(BaseCanvas):
         self.swap: Optional[PaletteSwap] = None
         self.frame: Optional[float] = None
         self.highlight: List[int] = []
-        self.on_pick: Optional[Callable[[int], None]] = None
+        self.on_pick: Optional[Callable[[Optional[int]], None]] = None  # a slot, or None for empty space
         self._image: Optional[wx.Image] = None
         self._image_key: Any = None
         self._scaled: Optional[Tuple[Any, wx.Bitmap]] = None
@@ -42,12 +45,19 @@ class PalettePreview(BaseCanvas):
              frame: Optional[float], highlight: Sequence[int]) -> None:
         self.project, self.asset, self.swap, self.frame = project, asset, swap, frame
         self.highlight = list(highlight)
+        self._update_image()
+        self.Refresh(False)
+
+    def set_backdrop(self, mode: str, colour: Optional[Tuple[int, int, int]] = None) -> None:
+        super().set_backdrop(mode, colour)
+        self._update_image()  # the other slots' pixels fade into the backdrop
+
+    def _update_image(self) -> None:
         key = self._key()
         if key != self._image_key:
             self._image_key = key
             self._image = self._build()
             self._scaled = None
-        self.Refresh(False)
 
     def forget(self) -> None:
         """Image files changed: build everything again."""
@@ -62,7 +72,14 @@ class PalettePreview(BaseCanvas):
         if self.project is None or self.asset is None:
             return None
         return (self.asset.id, CONSOLE.image_key(self.project, self.asset, self.swap, self.frame), tuple(self.highlight),
-                tuple(self._base()), CONSOLE.generation)
+                tuple(self._base()), CONSOLE.generation, self._fade_colour() if self.highlight else None)
+
+    def _fade_colour(self) -> RGB:
+        """What the other slots' pixels fade into: the backdrop's colour (the checkerboard's in between)."""
+        if self.backdrop == BACKDROP_COLOUR:
+            return self.backdrop_fill_colour()
+        a, b = T.palette.rgb("checker_a"), T.palette.rgb("checker_b")
+        return (a[0] + b[0]) // 2, (a[1] + b[1]) // 2, (a[2] + b[2]) // 2
 
     def _slot_image(self, rgba: Any, base: Sequence[RGB]) -> Any:
         """The slot number (1-based, 0 transparent) of every pixel, as palettes.nearest picks it."""
@@ -94,16 +111,18 @@ class PalettePreview(BaseCanvas):
             shown = SHARED.sheet(self.project, self.asset, keyed=True)
         if shown is None:
             return None
-        if self.highlight:  # the pixels of the selected slots stay, the rest dims
+        if self.highlight:  # the pixels of the selected slots keep their colour, the rest fade to a grey ghost
             from PIL import Image
 
             keyed = SHARED.sheet(self.project, self.asset, keyed=True)
             slots = self._slot_image(keyed, self._base())
             wanted = {s + 1 for s in self.highlight}
             mask = slots.point(lambda v: 255 if v in wanted else 0)
-            dim = Image.blend(shown.convert("RGBA"), Image.new("RGBA", shown.size, (24, 25, 28, 255)), 0.5)
-            dim.putalpha(shown.getchannel("A"))
-            shown = Image.composite(shown.convert("RGBA"), dim, mask)
+            shown = shown.convert("RGBA")
+            ghost = Image.blend(shown.convert("L").convert("RGBA"), Image.new("RGBA", shown.size, (*self._fade_colour(), 255)),
+                                FADE)
+            ghost.putalpha(shown.getchannel("A"))
+            shown = Image.composite(shown, ghost, mask)
         return to_wx_image(shown)
 
     def slot_at(self, pos: wx.Point) -> Optional[int]:
@@ -160,9 +179,8 @@ class PalettePreview(BaseCanvas):
         if self.begin_pan_if_requested(event):
             return
         self.SetFocus()
-        slot = self.slot_at(event.GetPosition())
-        if slot is not None and self.on_pick:
-            self.on_pick(slot)
+        if self.on_pick:
+            self.on_pick(self.slot_at(event.GetPosition()))  # None on empty space: no slot selected
 
     def _on_motion(self, event: wx.MouseEvent) -> None:
         if self.handle_pan_motion(event):

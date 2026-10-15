@@ -91,6 +91,7 @@ SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Mappings", "Select several modules", f"{MOD}+click / Shift+click"),
     ("Mappings", "Rename / reorder mappings", "Double-click or F2 / drag in the list"),
     ("Palettes", "Select a slot / a run / add or remove", f"Click / Shift+click / {MOD}+click (or click a pixel of the image)"),
+    ("Palettes", "Select no slot (the whole image again)", "Click the selected slot again / Esc / click empty space"),
     ("Palettes", "Change a slot's colour / move a slot", "Double-click it / drag it"),
     ("Palettes", "Rename / delete a palette or a palette swap", "Double-click or F2 / Delete in its list"),
 ]

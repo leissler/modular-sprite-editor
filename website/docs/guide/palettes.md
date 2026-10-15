@@ -20,7 +20,7 @@ A palette's colours sit in numbered **slots**, in the order you see in the inspe
   <figcaption>The slots of the palette, as the console shows them.</figcaption>
 </figure>
 
-- **Click a slot** to select it: the preview dims every pixel but the ones that use it (turn **Highlight** off in the view bar to see the image as it is). Or click a pixel of the preview to find its slot. ++shift++-click selects a run of slots.
+- **Click a slot** to select it: the preview keeps the colour of the pixels that use it and fades every other pixel to a grey ghost (turn **Highlight** off in the view bar to see the image as it is). Or click a pixel of the preview to find its slot. Click the selected slot again (or press ++esc++) to select none and see the whole image. ++shift++-click selects a run of slots.
 - **Change...** (or a double-click) gives a slot another colour. The editor snaps it to a colour the console can show. A slot your images use keeps its colour: recolour the art with a palette swap instead, so the original stays.
 - **Add missing** puts the colours the images use that the palette lacks into free slots. **Remove unused** removes slots no pixel uses, and **Sort** orders the slots dark to light, by hue or by how much they are used.
 - **Drag a slot** to move it. Swaps and cycles move along, and so do the pixels: nothing changes on screen.

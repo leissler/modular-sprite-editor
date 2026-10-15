@@ -37,7 +37,7 @@ class SwatchGrid(wx.Panel):
         self.selected: List[int] = []
         self.reorder = True
         self._anchor: Optional[int] = None
-        self._press: Optional[Tuple[int, wx.Point]] = None
+        self._press: Optional[Tuple[int, wx.Point, bool]] = None  # (slot, where, it was the selection already)
         self._drop: Optional[int] = None
         self.on_select: Optional[Callable[[List[int]], None]] = None
         self.on_activate: Optional[Callable[[int], None]] = None
@@ -182,6 +182,8 @@ class SwatchGrid(wx.Panel):
         self.SetFocus()
         slot = self._slot_at(event.GetPosition())
         if slot is None or slot >= len(self.colours):
+            if not (event.ShiftDown() or event.CmdDown()):  # empty space: no slot selected
+                self.select_none()
             return
         if event.ShiftDown() and self._anchor is not None:
             low, high = sorted((self._anchor, slot))
@@ -190,9 +192,10 @@ class SwatchGrid(wx.Panel):
             self.selected = [s for s in self.selected if s != slot] if slot in self.selected else self.selected + [slot]
             self._anchor = slot
         else:
+            # A click on the slot that is the selection already selects none, unless it becomes a drag (left up).
+            self._press = (slot, event.GetPosition(), self.selected == [slot])
             self.selected = [slot]
             self._anchor = slot
-            self._press = (slot, event.GetPosition())
             self.CaptureMouse()
         self.Refresh()
         if self.on_select:
@@ -218,6 +221,9 @@ class SwatchGrid(wx.Panel):
     def _on_left_up(self, event: wx.MouseEvent) -> None:
         press, drop = self._press, self._drop
         self._end_drag()
+        if press is not None and drop is None and press[2]:  # clicked the selected slot again
+            self.select_none()
+            return
         if press is None or drop is None or not self.on_move:
             return
         slot = press[0]
@@ -234,8 +240,25 @@ class SwatchGrid(wx.Panel):
 
     def _on_double(self, event: wx.MouseEvent) -> None:
         slot = self._slot_at(event.GetPosition())
-        if slot is not None and self.on_activate:
+        if slot is None or slot >= len(self.colours):
+            return
+        if self.selected != [slot]:  # the double-click's first click took the selection away again
+            self.selected = [slot]
+            self._anchor = slot
+            self.Refresh()
+            if self.on_select:
+                self.on_select([slot])
+        if self.on_activate:
             self.on_activate(slot)
+
+    def select_none(self) -> None:
+        """No slot selected (a click on empty space or on the selected slot, Esc): the preview shows the whole image."""
+        if not self.selected:
+            return
+        self.selected = []
+        self.Refresh()
+        if self.on_select:
+            self.on_select([])
 
     def _describe(self, slot: int) -> str:
         original = self.colours[slot]

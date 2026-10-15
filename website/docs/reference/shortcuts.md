@@ -129,5 +129,6 @@ Shortcuts only reach a canvas when you are not typing in a text field. Click the
 | Action | Shortcut |
 | --- | --- |
 | Select a slot / a run / add or remove | Click / Shift+click / Cmd+click (or click a pixel of the image) |
+| Select no slot (the whole image again) | Click the selected slot again / Esc / click empty space |
 | Change a slot's colour / move a slot | Double-click it / drag it |
 | Rename / delete a palette or a palette swap | Double-click or F2 / Delete in its list |
