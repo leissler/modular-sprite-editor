@@ -14,7 +14,6 @@ from typing import Dict, List, Optional, Tuple
 
 import wx
 
-import consoles
 import hardware_budget as hb
 import modularize as mz
 from models import ImageAsset, Module, Project
@@ -24,7 +23,6 @@ from ui.components.inspector_kit import dim_text, fit_choice, section
 from ui.components.thumb_list import Browser, Row
 from ui.frame_render import SHARED, fit_bitmap, to_wx_image
 from ui.dpi import px
-from ui.preferences import config
 from ui.theme import T
 
 # Goal slider stops: how many tiles one more hardware sprite (in one sprite) is worth.
@@ -39,17 +37,10 @@ GOALS: List[Tuple[float, str]] = [
 ]
 DEFAULT_GOAL = 3
 VIEW_PARTS, VIEW_ORIGINAL, VIEW_SHEET = "Parts", "Original", "Parts sheet"
-CONFIG_PROFILE = "AutoModularize/Profile"
-
-
 def default_profile(project: Project) -> hb.HardwareProfile:
-    """The console the parts are cut for: the one chosen last, else the project's console's first budget profile."""
-    cfg = config()
-    found = hb.profile_by_key(cfg.Read(CONFIG_PROFILE, "") if cfg else "")
-    if found is None:
-        setups = consoles.console_by_key(project.console).budgets
-        found = hb.profile_by_key(setups[0].key) if setups else None
-    return found or hb.MEGA_DRIVE_H40  # type: ignore[return-value]
+    """The console the parts are cut for: the project's (Console, above the tabs). Another can be chosen for one run,
+    to compare."""
+    return hb.project_profile(project)
 
 
 WRAP = px(280)  # width of the explanatory texts in the settings column
@@ -218,10 +209,12 @@ class ModularizeDialog(wx.Dialog):
 
         part, grid, _ = section(side, sizer, "Goal")
         panel = part.body  # the rows' parent
-        self.console_choice = wx.Choice(panel, choices=[profile.name for profile in hb.PROFILES])
+        self.console_choice = wx.Choice(panel, choices=[
+            f"{profile.name} (the project's)" if profile is self.profile else profile.name for profile in hb.PROFILES])
         self.console_choice.SetSelection(hb.PROFILES.index(self.profile))
         self.console_choice.SetToolTip("The console the parts are cut for: its hardware sprite sizes, and how it "
-                                       "counts tiles and sprites (as the budget overlay does)")
+                                       "counts tiles and sprites (as the budget overlay does). It starts at the "
+                                       "project's console (Console, above the tabs); another one compares.")
         self.console_choice.Bind(wx.EVT_CHOICE, self._on_console)
         grid.Add(wx.StaticText(panel, label="Console"), 0, wx.ALIGN_CENTER_VERTICAL)
         grid.Add(self.console_choice, 1, wx.EXPAND)
@@ -346,10 +339,6 @@ class ModularizeDialog(wx.Dialog):
         if not 0 <= index < len(hb.PROFILES) or hb.PROFILES[index] is self.profile:
             return
         self.profile = hb.PROFILES[index]
-        cfg = config()
-        if cfg:
-            cfg.Write(CONFIG_PROFILE, self.profile.key)
-            cfg.Flush()
         self.before = self._before_costs()
         self._describe_console()
         self._fill_before()

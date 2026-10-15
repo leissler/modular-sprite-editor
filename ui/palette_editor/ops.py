@@ -24,11 +24,14 @@ def longer_palettes(project: Project, console_key: str) -> List[Palette]:
     return [p for p in project.palettes if p.colours is not None and len(p.colours) > room]
 
 
-def set_console(project: Project, console_key: str, keep_most_used: bool = False) -> int:
-    """Make the project's palettes follow another console. ``keep_most_used`` fits palettes that store more colours
-    than it shows to its palette size (each keeps the colours its images use most); otherwise the console shows their
-    first colours and the others wait. Returns how many slots went."""
-    project.console = consoles.console_by_key(console_key).key
+def set_console(project: Project, console_key: str, keep_most_used: bool = False, setup_key: str = "") -> int:
+    """Make the project target another console (and setup: the console's first unless ``setup_key`` is one of its
+    setups); its palettes follow it. ``keep_most_used`` fits palettes that store more colours than it shows to its
+    palette size (each keeps the colours its images use most); otherwise the console shows their first colours and the
+    others wait. Returns how many slots went."""
+    console, setup = consoles.target(console_key, setup_key)
+    project.console = console.key
+    project.console_setup = setup.key
     if not keep_most_used:
         return 0
     return sum(palettes.keep_most_used(project, palette) for palette in palettes.over_capacity(project))

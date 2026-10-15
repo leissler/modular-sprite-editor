@@ -1496,15 +1496,19 @@ def run():
         palette = max(proj.palettes, key=lambda p: len(palettes.stored_colours(proj, p)))
         pe.select_palette(palette.id)
         stored = palettes.stored_colours(proj, palette)
-        check(pe.console_choice.GetStringSelection() == "Mega Drive", "the console the palettes follow")
+        bar = frame.context_bar
+        check(bar.console_choice.GetStringSelection() == "Mega Drive H40 (320 px)",
+              "Console, above the tabs: the project's console and setup")
         answers, asked = [False, True], []  # Keep All for the NES, then Keep the Most Used for the Game Boy
         original = pal_panel.ask_fit_palettes
         pal_panel.ask_fit_palettes = lambda parent, console, count: (asked.append(console.key), answers.pop(0))[1]
         try:
-            pe.set_console("nes")
+            bar.console_choice.SetStringSelection("NES, 8×8 sprites")
+            bar._on_console_choice(None)  # as a choice in the menu above the tabs
             pump()
-            check(proj.console == "nes" and palettes.capacity(proj) == 3, "the palettes follow the NES")
-            check(pe.console_choice.GetStringSelection() == "NES", "the choice shows the NES")
+            check((proj.console, proj.console_setup) == ("nes", "nes_8x8") and palettes.capacity(proj) == 3,
+                  "the project is made for the NES: its palettes follow it")
+            check("NES" in pe.inspector.console.GetLabel(), "the Palettes tab shows what a NES palette is")
             if len(stored) > 3:
                 check(asked == ["nes"], "asked how to fit the longer palettes")
                 check(palette.colours == stored, "Keep All keeps every colour")
@@ -1515,9 +1519,10 @@ def run():
             update = wx.UpdateUIEvent(frame.m_play_50hz.GetId())
             frame.on_update_play_50hz_ui(update)
             check(update.GetEnabled(), "the NES has a 50 Hz version")
-            pe.set_console("gameboy")
+            frame.set_project_console("gb_8x8")
             pump()
-            check(proj.console == "gameboy", "the palettes follow the Game Boy")
+            check(proj.console == "gameboy" and bar.console_choice.GetStringSelection() == "Game Boy, 8×8 sprites",
+                  "the palettes follow the Game Boy")
             if len(stored) > 3:
                 check(asked == ["nes", "gameboy"] and len(palette.colours) == 3, "Keep the Most Used fits the palette")
             update = wx.UpdateUIEvent(frame.m_play_50hz.GetId())
@@ -1549,11 +1554,41 @@ def run():
             check(fe.canvas.budget_hud_rect is not None, f"frames: {profile.key} readout drawn")
         fe.canvas_controls._set_budget("", persist=False)
 
+        # What follows the project's console: a budget set to the project's, the Timeline's screen, Auto Modularize.
+        from ui.module_editor.modularize_dialog import default_profile
+
+        fe.canvas_controls._set_budget("project", persist=False)
+        te._set_screen("project", persist=False)
+        fe.canvas_controls._set_budget("md_h40", persist=False)
+        check(fe.canvas_controls.budget_value == "md_h40"
+              and fe.canvas_controls.budget_choice.GetStringSelection() == "Compare: MD H40",
+              "on a Game Boy project, a Mega Drive budget is a comparison")
+        fe.canvas_controls._set_budget("project", persist=False)
+        frame.set_project_console("snes_16_32")
+        pump()
+        check(fe.canvas.budget_profile is hb.profile_by_key("snes_16_32")
+              and fe.canvas_controls.budget_choice.GetStringSelection() == "SNES 16/32",
+              "the budget overlay follows the project's console")
+        check(fe.canvas_controls.budget_choice.GetString(2).startswith("Compare: "), "the others compare")
+        check(te.stage.screen_guide == (256, 224) and te.screen_choice.GetStringSelection() == "SNES 256×224",
+              "the Timeline's screen follows it")
+        check(default_profile(proj) is hb.profile_by_key("snes_16_32"), "Auto Modularize cuts for it")
+        frame.set_project_console("snes_32_64")
+        check(proj.console_setup == "snes_32_64" and fe.canvas.budget_profile.shapes == ((32, 32), (64, 64)),
+              "another SNES setup: the two sprite sizes")
+
+        frame.on_undo(None)
+        frame.on_undo(None)
         frame.on_undo(None)
         frame.on_undo(None)
         pump()
-        check(proj.console == "megadrive" and proj.get_palette(palette.id).colours == stored,
-              "undo: the Mega Drive and every colour again")
+        check(proj.console == "megadrive" and proj.console_setup == "md_h40"
+              and proj.get_palette(palette.id).colours == stored, "undo: the Mega Drive and every colour again")
+        check(bar.console_choice.GetStringSelection() == "Mega Drive H40 (320 px)"
+              and fe.canvas.budget_profile is hb.MEGA_DRIVE_H40 and te.stage.screen_guide == (320, 224),
+              "undo: the menu, the budget and the screen follow")
+        fe.canvas_controls._set_budget("", persist=False)
+        te._set_screen("", persist=False)
         frame.select_tab(0)
 
     step("other consoles: palettes for the NES and the Game Boy, every budget profile", other_consoles)

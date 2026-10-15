@@ -21,8 +21,9 @@ with the code behind them.
 
 ## The project's console
 
-A project has a target console (`Project.console`, `"megadrive"` by default), chosen in the Palettes tab's *Console*
-section (`ui/palette_editor/ops.set_console`, one undo step). Every console here has palettes; only the Mega Drive
+A project has a target console (`Project.console`, `"megadrive"` by default) and a setup of it
+(`Project.console_setup`: screen mode, sprite sizes), chosen with *Console* above the tabs (`MainFrame.set_project_console`
+→ `ui/palette_editor/ops.set_console`, one undo step). Every console here has palettes; only the Mega Drive
 has an exporter. The palette code reads every limit from the console's entry, never a constant:
 
 | Console | A palette holds | Colours | Palettes for sprites |

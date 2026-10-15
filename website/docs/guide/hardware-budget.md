@@ -11,20 +11,18 @@ The editor knows the limits of the Sega Mega Drive, the Super Nintendo (SNES), t
 
 ## Turn it on
 
-In the view bar of the **Frames**, **Animations** or **Timeline** tab, change **No budget** to a console mode:
+In the view bar of the **Frames**, **Animations** or **Timeline** tab, change **No budget** to the first entry: the console your project is made for, as **Console** above the tabs sets it. It follows when you change the console. The entries marked **Compare:** show what the same art would cost on another console:
 
 - **MD H40** is the Mega Drive's wide mode, 320 pixels across, used by most games.
 - **MD H32** is the narrower mode, 256 pixels across.
-- **SNES 8/16** and **SNES 16/32** are the Super Nintendo. Its sprites are squares in two sizes, and a game picks one pair for all of them: 8 and 16 pixels, or 16 and 32.
+- **SNES 8/16** to **SNES 32/64** are the Super Nintendo. Its sprites are squares in two sizes, and a game picks one pair for all of them: 8 and 16 pixels, 8 and 32, 8 and 64, 16 and 32, 16 and 64, or 32 and 64.
 - **NES 8×8** and **NES 8×16** are the NES. All its sprites have one size, which the game picks: 8 by 8 pixels, or 8 by 16.
 - **GBA** is the Game Boy Advance. Its sprites come in twelve shapes from 8 by 8 to 64 by 64 pixels: squares, and rectangles twice or four times as wide as high or the other way round.
 - **GB 8×8** and **GB 8×16** are the Game Boy, with one sprite size per game like the NES.
 
 On the Mega Drive, a hardware sprite is 8 to 32 pixels wide and high, in steps of 8. The editor covers each part with as few of them as it can and, with that, as few tiles: a sprite can start at any pixel, so the empty space around a sprite's pixels costs no tiles. On the SNES, the editor covers each part with the large squares, and uses small ones where the part's pixels only fill an edge or a corner of a large square. On the NES and the Game Boy, every 8 by 8 (or 8 by 16) piece of a part that holds a pixel is a sprite of its own. On the GBA, the editor covers each part with the shapes that cost least, weighing a sprite as much as 8 tiles: a 24 by 24 part becomes one 32 by 32 sprite, a 40 by 8 strip a 32 by 8 and an 8 by 8 sprite.
 
-The budget menu offers every console, whichever one your project's palettes follow.
-
-The editor remembers the choice for each tab.
+The editor remembers the choice for each tab: your project's console, whichever it is, or the one you compare with.
 
 ## Read it
 

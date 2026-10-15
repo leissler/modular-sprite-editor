@@ -15,14 +15,20 @@ ignored on load (and dropped when the editor saves).
 | `4` | Timeline objects carry a module mapping (`mapping_id`); an animation swapped in at a later key plays from that key; root motion turns with the object. Added 2026-10-12. |
 | `5` | Timeline objects play animations "as animated" (`playback_mode: "as_animated"`, the default for new objects; `"backward"` joins the overrides); flips and visibility switch at a key. Added 2026-10-13. |
 | `6` | Every image belongs to one of four Mega Drive palettes (`images[].palette`, 0–3). Added 2026-10-13. |
-| `7` | Current. The target console (`console`); palettes are project data with their colours in slot order and colour cycles (`palettes`, `images[].palette_id`); palette swaps (`palette_swaps`, `objects[].palette_swap_id`); scene objects that follow a point of their parent's frames (`attach_point_role`, `attach_point_type`); groups for frames and animations (`group`). Added 2026-10-14. |
+| `7` | The target console (`console`); palettes are project data with their colours in slot order and colour cycles (`palettes`, `images[].palette_id`); palette swaps (`palette_swaps`, `objects[].palette_swap_id`); scene objects that follow a point of their parent's frames (`attach_point_role`, `attach_point_type`); groups for frames and animations (`group`). Added 2026-10-14. |
+| `8` | Current. The target console's setup (`console_setup`: the screen mode and, where games pick them, the sprite sizes). Added 2026-10-15. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
 warning. v3, v4 and v6 are additive: older builds open them with a warning and drop the new keys on save. A v5 object
 set to "as_animated" or "backward" plays as Loop in an older build; an older build exports every image with one
 merged palette. A v7 file opened by a v6 build puts every image into the first palette (the `palette` key is gone)
-and drops swaps, cycles, attachments and groups.
+and drops swaps, cycles, attachments and groups. v8 is additive: an older build drops `console_setup` and works with the
+console's usual setup.
+
+v7 → v8 adds `console_setup`, the console's first setup (`md_h40`, `snes_8_16`, `nes_8x8`, `gba`, `gb_8x8`; see
+`consoles.py`, one `BudgetSetup` each). The editor keeps the key as it is and reads it through `consoles.target`, which
+takes the console's first setup for an unknown key or another console's.
 
 v6 → v7 makes palettes project data. The format 6 palettes the images use (and the first, which vector shapes use)
 become `{"id": "pal_N", "name": "Palette N", "colours": null}`; `images[].palette` becomes `palette_id`. A palette
@@ -105,13 +111,14 @@ in `~/Downloads/ModularSpriteEditor_format_v6_backup_2026-10-14.zip`); each was 
 without the added keys (with `palette_id` read back as the old number) and to load to the same project.
 `~/Downloads/PoP_WW.json` then got the example's palette and swap, so it equals the repo's copy again.
 
-## Schema (v7)
+## Schema (v8)
 
 ```jsonc
 {
-  "format_version": 7,
+  "format_version": 8,
   "name": "New Project",
-  "console": "megadrive",                                // the target console (consoles.py): palette rules
+  "console": "megadrive",                                // the target console (consoles.py): palette rules, limits
+  "console_setup": "md_h40",                             // its setup: screen mode, sprite sizes (SNES "snes_16_32")
   "images": [
     {"id": "img_…", "file_path": "modules_POP.bmp",      // relative to the project file
      "width": 778, "height": 635,

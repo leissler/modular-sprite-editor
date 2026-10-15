@@ -11,8 +11,10 @@ into **frames** (positioned, flipped, 90°-rotated parts, optionally nested fram
 (keyframed objects), re-skinned with **mappings** (module → module / hidden substitutions) and recoloured with
 **palette swaps** (per palette slot, chosen per draw like a mapping; colour cycles turn slots). Frames also carry
 **collision boxes** and **control points** with semantic *roles* for game logic. `consoles.py` describes the target
-consoles (screens, sprite hardware, palettes, limits): each has budget profiles, a project's palettes follow the one it
-targets (`Project.console`, chosen in the Palettes tab), and the Mega Drive is the one the export supports.
+consoles (screens, sprite hardware, palettes, limits): each has setups (budget profiles), a project targets one console
+and setup (`Project.console`, `Project.console_setup`, chosen with Console above the tabs) that its palettes, the budget
+overlay, the Timeline's screen, Auto Modularize and Check Project follow, and the Mega Drive is the one the export
+supports.
 
 Primary testbeds (keep them working):
 
@@ -52,7 +54,8 @@ All tests live in `tests/`; `python3 -m pytest -q` from the repository root runs
 ## Layout
 
 ```
-app.py                     MainFrame: menus, tabs, context bar (preview mapping and palette swap), status bar,
+app.py                     MainFrame: menus, tabs, context bar (project console, preview mapping and palette swap),
+                           status bar,
                            project lifecycle (new/open/save/import/export), unsaved-change prompt,
                            project-wide undo/redo dispatch, autosave timer + crash recovery prompt,
                            images changed on disk (checked when the window becomes active), Preferences,
@@ -242,7 +245,10 @@ docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding
 - Palettes: `Project.palettes` (each `Palette` has its colours in slot order, `None` = automatic until the editor
   stores them, and `cycles`), `ImageAsset.palette_id`, `Project.palette_swaps` (`PaletteSwap.palettes`: palette id →
   `PaletteChange`, per slot a colour or `None` = its own, and optionally cycles of its own). `Project.console` keys
-  the console (`consoles.console_by_key`): palette size and colour model. A palette may store more colours than the
+  the console and `Project.console_setup` its setup (a `consoles.BudgetSetup` key: screen mode, sprite sizes); read
+  them through `consoles.target(project.console, project.console_setup)` (`hardware_budget.project_profile` for the
+  profile), which falls back to the console's first setup: the setup is stored as it is, never corrected on load,
+  so undo restores exactly. They decide palette size and colour model, and every tool's default console. A palette may store more colours than the
   console shows (kept from a console with bigger palettes; crossed out in the Palettes tab, `palette-too-long` in Check
   Project). Read a palette's colours with `palettes.colours_of(project, palette)` (what the console shows), never
   `palette.colours` directly; `palettes.stored_colours` for editing every stored slot.
@@ -256,7 +262,7 @@ docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding
 
 ## File format
 
-Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **7**, constant
+Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **8**, constant
 `PROJECT_FORMAT_VERSION` in `models/migration.py`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
@@ -316,6 +322,15 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `apply_key_colour` (hide the sheet's transparent colour). Composition canvases always key; only the Modules
   tab offers "Show key colour". `FrameCanvas.show_part_bounds` outlines every module part. Create thumbnail
   `wx.ImageList`s with `mask=False` (a masked list costs ~6 ms per `Add` on macOS).
+- **The project's console:** Console above the tabs (`ContextBar.console_choice`, every setup of every console) calls
+  `MainFrame.set_project_console`: it asks how to fit longer palettes (`palette_editor.panel.ask_fit_palettes`),
+  applies `palette_editor.ops.set_console(project, console, keep_most_used, setup)`, checkpoints, and
+  `show_project_console()` updates the menu, every view bar's budget menu
+  (`canvas_display_controls.project_console_changed`) and the panels' `on_console_changed()` (the Timeline's screen);
+  loading and undo call it too. Menus that show a console offer the project's first and others to compare: the budget
+  menu keeps "" / "project" / a profile key per tab, the Timeline's Screen "" / "project" / a screen label
+  (`SceneEditor/Screen`); a stored key that is the project's own counts as "project". Auto Modularize starts at
+  `hardware_budget.project_profile` (another one is for that run only).
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
   `hardware_budget.py` in step with `SGDKBakeContext._render_leaf_part`; both cut parts with
@@ -329,8 +344,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Palettes:** a palette's slot order is fixed once stored (swaps and cycles refer to slots); `palettes.py` maps a
   colour to its slot (exact, else nearest) the way the exporter does; the exporter, Check Project (per palette:
   `too-many-colours`, `colours-not-in-palette`, `palette-too-long`, `duplicate-palette-colour`; dead swap entries), the
-  Palettes tab (its Console section switches `Project.console`: `ops.set_console`; on the NES and the Game Boy a slot
-  takes one of the console's fixed colours, `fixed_colours.py`), the
+  Palettes tab (on the NES and the Game Boy a slot takes one of the console's fixed colours, `fixed_colours.py`), the
   Modules inspector and every canvas (`ui/console_colours.py` `CONSOLE`: View ▸ Console Colours, the draw's palette
   swap, turning cycles; canvases put `CONSOLE.image_key(...)` in their cache keys) all use it. A recoloured image
   comes with the key colour cut out as alpha: never also set the key colour as a wx mask (on macOS the mask wins and

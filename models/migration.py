@@ -21,7 +21,9 @@ from typing import Any, Dict, List, Tuple
 #     console (console), scene objects that follow a parent's point (attach_point_role / attach_point_type), groups for
 #     frames and animations (group). Additive: format 6's palettes keep their numbers, and their colours are built
 #     from the images when the project opens, with that format's rules (palettes.build_missing).
-PROJECT_FORMAT_VERSION = 7
+# 8 = the target console's setup (console_setup: a consoles.BudgetSetup key such as "md_h40" or "snes_16_32", the
+#     screen mode and, where games pick them, the sprite sizes). Additive: the console's first setup.
+PROJECT_FORMAT_VERSION = 8
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -174,6 +176,14 @@ def _migrate_v6_to_v7(data: Dict[str, Any], notes: List[str]) -> None:
         item.setdefault("group", "")
 
 
+def _migrate_v7_to_v8(data: Dict[str, Any], notes: List[str]) -> None:
+    """The target console gets its setup: the console's first (Mega Drive H40, SNES 8x8 and 16x16 sprites, ...)."""
+    import consoles  # wx-free, imports nothing of the model
+
+    if not data.get("console_setup"):
+        data["console_setup"] = consoles.target(data.get("console"))[1].key
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -207,6 +217,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
         _migrate_v5_to_v6(migrated, notes)
     if version < 7:
         _migrate_v6_to_v7(migrated, notes)
+    if version < 8:
+        _migrate_v7_to_v8(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes

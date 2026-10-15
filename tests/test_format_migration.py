@@ -213,6 +213,19 @@ class TestFormatMigration(unittest.TestCase):
         anim.aframes = [AFrame(frame_id=f"f{i}", duration_frames=1) for i in range(3)]
         self.assertEqual(playback.steps_shown(anim, 9), [0, 1, 2, 1, 2, 1, 2, 1, 2])
 
+    def test_v7_to_v8_the_console_gets_its_first_setup(self):
+        for console, setup in (("megadrive", "md_h40"), ("snes", "snes_8_16"), ("nes", "nes_8x8"), ("gba", "gba"),
+                               ("gameboy", "gb_8x8"), ("no such console", "md_h40")):
+            with self.subTest(console=console):
+                migrated, notes = migrate_project_dict({"format_version": 7, "console": console, "frames": []})
+                self.assertEqual((migrated["format_version"], migrated["console_setup"]), (8, setup))
+                self.assertEqual(notes, [])
+        kept, _ = migrate_project_dict({"format_version": 7, "console": "snes", "console_setup": "snes_16_32"})
+        self.assertEqual(kept["console_setup"], "snes_16_32")
+        project = Project.from_dict({"format_version": 8, "console": "snes", "console_setup": "snes_32_64"})
+        self.assertEqual((project.console, project.console_setup), ("snes", "snes_32_64"))
+        self.assertEqual(Project.from_dict(project.to_dict()).console_setup, "snes_32_64", "saved as it is")
+
     def test_current_version_is_idempotent(self):
         migrated, _ = migrate_project_dict(_legacy_project_dict())
         again, notes = migrate_project_dict(migrated)

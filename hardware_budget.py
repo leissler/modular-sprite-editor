@@ -103,6 +103,12 @@ def profile_by_key(key: Optional[str]) -> Optional[HardwareProfile]:
     return next((p for p in PROFILES if p.key == key), None)
 
 
+def project_profile(project: Project) -> HardwareProfile:
+    """The profile of the project's target console and setup (``Project.console`` / ``console_setup``)."""
+    _console, setup = consoles.target(project.console, project.console_setup)
+    return profile_by_key(setup.key) or PROFILES[0]
+
+
 MEGA_DRIVE_H40, MEGA_DRIVE_H32 = profile_by_key("md_h40"), profile_by_key("md_h32")
 SNES_8_16, SNES_16_32 = profile_by_key("snes_8_16"), profile_by_key("snes_16_32")
 NES_8X8, NES_8X16 = profile_by_key("nes_8x8"), profile_by_key("nes_8x16")

@@ -39,6 +39,9 @@ class Project:
     point_types: List[PointType] = field(default_factory=list)
     event_types: List[EventType] = field(default_factory=list)
     console: str = "megadrive"  # the target console (consoles.py): its palettes' size, colours and limits
+    # The console's setup (consoles.BudgetSetup: screen mode, sprite sizes). Read it through consoles.target, which
+    # takes the console's first for a key that is unknown or another console's.
+    console_setup: str = "md_h40"
     palettes: List[Palette] = field(default_factory=list)
     palette_swaps: List[PaletteSwap] = field(default_factory=list)
 
@@ -333,6 +336,7 @@ class Project:
             "point_types": [pt.to_dict() for pt in self.point_types],
             "event_types": [et.to_dict() for et in self.event_types],
             "console": self.console,
+            "console_setup": self.console_setup,
             "palettes": [palette.to_dict() for palette in self.palettes],
             "palette_swaps": [swap.to_dict() for swap in self.palette_swaps],
         }
@@ -385,6 +389,7 @@ class Project:
             point_types=point_types,
             event_types=event_types,
             console=str(data.get("console") or "megadrive"),
+            console_setup=str(data.get("console_setup") or ""),
             palettes=palette_list,
             palette_swaps=palette_swaps,
         )

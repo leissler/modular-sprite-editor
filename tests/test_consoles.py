@@ -41,6 +41,24 @@ class DatabaseTest(unittest.TestCase):
         self.assertIs(consoles.console_by_key(None), consoles.DEFAULT)
         self.assertEqual(consoles.palette_consoles(), list(consoles.CONSOLES), "every console has palettes")
 
+    def test_a_projects_target(self) -> None:
+        """A project names its console and one of that console's setups; anything else falls back to the console's
+        first setup (the Mega Drive's H40 without a console)."""
+        from models import Project
+
+        self.assertEqual(consoles.target("snes", "snes_16_32"), (consoles.SNES, consoles.SNES.budgets[3]))
+        self.assertEqual(consoles.target("snes", "md_h40"), (consoles.SNES, consoles.SNES.budgets[0]),
+                         "another console's setup")
+        self.assertEqual(consoles.target(None, None), (consoles.MEGA_DRIVE, consoles.MEGA_DRIVE.budgets[0]))
+        self.assertEqual([b.sizes for b in consoles.SNES.budgets], list(consoles.SNES.sprites.size_sets),
+                         "every SNES size pair is a setup")
+        self.assertEqual(consoles.setup_by_key("nes_8x16"), (consoles.NES, consoles.NES.budgets[1]))
+        self.assertIsNone(consoles.setup_by_key("nope"))
+        self.assertEqual(consoles.target_screen(*consoles.target("megadrive", "md_h32")), (256, 224))
+        self.assertIs(hb.project_profile(Project(console="snes", console_setup="snes_32_64")),
+                      hb.profile_by_key("snes_32_64"))
+        self.assertIs(hb.project_profile(Project()), hb.MEGA_DRIVE_H40)
+
     def test_the_mega_drive(self) -> None:
         md = consoles.MEGA_DRIVE
         self.assertEqual((md.palette.colours, md.palette.palettes, md.palette.visible), (16, 4, 15))
@@ -57,7 +75,11 @@ class ProvidedListsTest(unittest.TestCase):
             ("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320, hb.GRID, 1424),
             ("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256, hb.GRID, 1424),
             ("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("snes_8_32", "SNES, 8×8 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("snes_8_64", "SNES, 8×8 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 0),
             ("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("snes_16_64", "SNES, 16×16 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("snes_32_64", "SNES, 32×32 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 0),
             ("nes_8x8", "NES, 8×8 sprites", 64, 8, 0, hb.CELLS, 0),
             ("nes_8x16", "NES, 8×16 sprites", 64, 8, 0, hb.CELLS, 0),
             ("gba", "Game Boy Advance", 128, 128, 1210, hb.SHAPES, 0),

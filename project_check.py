@@ -611,9 +611,9 @@ def console_issue(project: Project) -> Optional[Issue]:
     if console is consoles.MEGA_DRIVE:
         return None
     return Issue(WARNING, "other-console",
-                 f"The project's palettes follow the {console.name} (Palettes tab, Console): the Mega Drive export "
-                 f"makes Mega Drive palettes of them, {console.palette.visible} colours each, in the colours the Mega "
-                 "Drive shows.")
+                 f"The project is made for the {console.name} (Console, above the tabs): the Mega Drive export makes "
+                 f"Mega Drive palettes of its palettes, {console.palette.visible} colours each, in the colours the "
+                 "Mega Drive shows.")
 
 
 def palette_issue(lines: int) -> Optional[Issue]:

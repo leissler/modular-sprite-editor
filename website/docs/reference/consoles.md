@@ -55,7 +55,7 @@ Drive is the one the editor exports for so far.
 | Colours | 5 bits a channel: 32,768 colours |
 | Background tiles | flip horizontally and vertically; one layer turns and scales (Mode 7) |
 | Video memory | 64 KB for tiles and maps |
-| Budget overlay | SNES, 8×8 and 16×16 sprites; SNES, 16×16 and 32×32 sprites |
+| Budget overlay | SNES, 8×8 and 16×16 sprites; SNES, 8×8 and 32×32 sprites; SNES, 8×8 and 64×64 sprites; SNES, 16×16 and 32×32 sprites; SNES, 16×16 and 64×64 sprites; SNES, 32×32 and 64×64 sprites |
 | In the editor | palettes, budget overlay, screen guide |
 
 ## NES

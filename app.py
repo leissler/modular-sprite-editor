@@ -26,6 +26,7 @@ from ui import app_services, autosave, preferences, theme, view_memory
 from ui.animation_editor import ops as anim_ops
 from ui.animation_editor.panel import AnimationEditorPanel
 from ui.base_canvas import SCROLL
+from ui.components import canvas_display_controls
 from ui.components.canvas_display_controls import set_shared_backdrop_colour, shared_backdrop_colour
 from ui.canvas import BUDGET
 import project_check
@@ -36,6 +37,8 @@ from ui.frame_render import SHARED
 from ui.image_watch import Stamp, changed_images, image_stamp, image_stamps, update_image_sizes
 from ui.frame_editor.panel import FrameEditorPanel
 from ui.mapping_editor.panel import MappingEditorPanel
+from ui.palette_editor import ops as palette_ops
+from ui.palette_editor import panel as palette_panel
 from ui.palette_editor.panel import PaletteEditorPanel
 from ui.module_editor.panel import ModuleEditorPanel
 from ui.preferences_dialog import PreferencesDialog
@@ -174,15 +177,26 @@ class ContextBar(wx.Panel):
     """Slim bar above the editor tabs showing state that affects every tab."""
 
     def __init__(self, parent: wx.Window, on_mapping_selected: Callable[[Optional[str]], None],
-                 on_swap_selected: Callable[[Optional[str]], None]):
+                 on_swap_selected: Callable[[Optional[str]], None], on_console_selected: Callable[[str], None]):
         super().__init__(parent)
         self._on_mapping_selected = on_mapping_selected
         self._on_swap_selected = on_swap_selected
+        self._on_console_selected = on_console_selected
         self._mapping_ids: List[Optional[str]] = [None]
         self._swap_ids: List[Optional[str]] = [None]
+        self._setup_keys = [setup.key for _console, setup in consoles.budget_setups()]
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.AddStretchSpacer(1)
+        console_label = wx.StaticText(self, label="Console:")
+        console_tip = ("The console the project is made for, and its setup (screen mode, the SNES's two sprite sizes, "
+                       "the NES and Game Boy's sprite size): palettes, Console Colours, the budget overlay, the "
+                       "Timeline's screen outline, Auto Modularize and Check Project follow it")
+        console_label.SetToolTip(console_tip)
+        self.console_choice = wx.Choice(self, choices=[setup.name for _console, setup in consoles.budget_setups()])
+        self.console_choice.SetToolTip(console_tip)
+        sizer.Add(console_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        sizer.Add(self.console_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14)
         label = wx.StaticText(self, label="Preview mapping:")
         label.SetToolTip("Module mapping applied to every preview and used by exports. Edit mappings in the Mappings tab.")
         self.mapping_choice = wx.Choice(self, choices=["<none>"])
@@ -201,6 +215,16 @@ class ContextBar(wx.Panel):
         self.SetSizer(sizer)
         self.mapping_choice.Bind(wx.EVT_CHOICE, self._on_choice)
         self.swap_choice.Bind(wx.EVT_CHOICE, self._on_swap_choice)
+        self.console_choice.Bind(wx.EVT_CHOICE, self._on_console_choice)
+
+    def set_console(self, project: Project) -> None:
+        _console, setup = consoles.target(project.console, project.console_setup)
+        self.console_choice.SetSelection(self._setup_keys.index(setup.key))
+
+    def _on_console_choice(self, _event: wx.CommandEvent) -> None:
+        idx = self.console_choice.GetSelection()
+        if 0 <= idx < len(self._setup_keys):
+            self._on_console_selected(self._setup_keys[idx])
 
     def set_mappings(self, project: Project) -> None:
         self._mapping_ids = [None] + [m.id for m in project.mappings]
@@ -250,7 +274,8 @@ class MainFrame(wx.Frame):
         self.status_bar.SetStatusWidths([-1, 120])
 
         root = wx.Panel(self)
-        self.context_bar = ContextBar(root, self.on_preview_mapping_selected, self.on_preview_swap_selected)
+        self.context_bar = ContextBar(root, self.on_preview_mapping_selected, self.on_preview_swap_selected,
+                                      self.set_project_console)
 
         if sys.platform == "win32":
             # Windows: Use FlatNotebook (VC8 style) but DEFAULT colors
@@ -330,6 +355,7 @@ class MainFrame(wx.Frame):
         self.history.reset(self.project)
         self.context_bar.set_mappings(self.project)
         self.context_bar.set_swaps(self.project)
+        self.show_project_console()
         # Serialising the project for a checkpoint costs milliseconds (tens in big projects), so the timer only
         # looks after user input (note_input), and now and then in case something else changed it.
         self._input_seen = False
@@ -732,6 +758,7 @@ class MainFrame(wx.Frame):
             panel.refresh_after_history()
         self.context_bar.set_mappings(self.project)
         self.context_bar.set_swaps(self.project)
+        self.show_project_console()
         self._update_title()
 
     def on_undo(self, _event: wx.CommandEvent) -> None:
@@ -825,6 +852,49 @@ class MainFrame(wx.Frame):
         self.context_bar.set_swaps(self.project)
         for panel in self.panels:
             handler = getattr(panel, "on_active_mapping_changed", None)
+            if handler:
+                handler()
+
+    # ------------------------------------------------------------------ the project's console
+    def set_project_console(self, setup_key: str) -> None:
+        """Console, above the tabs: the project targets another console or setup (one undo step). Palettes longer
+        than the new console shows keep their most used colours or all of them (asked), or the console stays."""
+        found = consoles.setup_by_key(setup_key)
+        if found is None:
+            return
+        console, setup = found
+        old_console, old_setup = consoles.target(self.project.console, self.project.console_setup)
+        if (console.key, setup.key) == (old_console.key, old_setup.key):
+            return
+        longer = palette_ops.longer_palettes(self.project, console.key) if console.key != old_console.key else []
+        keep_most_used = False
+        if longer:
+            answer = palette_panel.ask_fit_palettes(self, console, len(longer))
+            if answer is None:
+                self.context_bar.set_console(self.project)  # the menu shows the console as it was
+                return
+            keep_most_used = answer
+        removed = palette_ops.set_console(self.project, console.key, keep_most_used, setup.key)
+        self.history_checkpoint()
+        if console.key != old_console.key:
+            self.images_changed()  # every picture shows the art through the new console's palettes
+        self.show_project_console()
+        message = f"Made for the {setup.name}"
+        if console.key != old_console.key:
+            message += f": {console.palette.visible} colours a palette"
+            if removed:
+                message += f", {removed} colour(s) went from {len(longer)} palette(s)"
+            elif longer:
+                message += f", {len(longer)} palette(s) keep colours it doesn't show (crossed out)"
+        self.set_status(message)
+
+    def show_project_console(self) -> None:
+        """Everything that follows the project's console shows the current one: the menu above the tabs, the budget
+        overlays, and the tabs' own (the Timeline's screen outline, the Palettes tab)."""
+        self.context_bar.set_console(self.project)
+        canvas_display_controls.project_console_changed()
+        for panel in self.panels:
+            handler = getattr(panel, "on_console_changed", None)
             if handler:
                 handler()
 
@@ -1143,6 +1213,7 @@ class MainFrame(wx.Frame):
         self._restore_view()
         self.context_bar.set_mappings(self.project)
         self.context_bar.set_swaps(self.project)
+        self.show_project_console()
         self._update_title()
         if project.load_notes:
             wx.MessageBox("\n".join(project.load_notes), notes_title, wx.OK | wx.ICON_INFORMATION)

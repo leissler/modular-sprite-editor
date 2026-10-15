@@ -18,9 +18,17 @@ from ui.canvas import BUDGET, FrameCanvas
 from ui.scene_editor import ops
 from ui.dpi import px
 
-# Retro screen guides from the console database: label -> (width, height), "None" first (the preferences keep the
-# position). The scene origin lies where the SGDK demo draws scenes (ops.screen_origin: centred, three quarters down).
+# Retro screen guides from the console database: label -> (width, height), "None" first (format 7's preferences kept
+# the position; the Timeline now keeps the label). The scene origin lies where the SGDK demo draws scenes
+# (ops.screen_origin: centred, three quarters down).
 SCREEN_GUIDES: List[Tuple[str, Optional[Tuple[int, int]]]] = [("None", None)] + list(consoles.screen_guides())
+
+
+def project_screen(project: Any) -> Tuple[str, Tuple[int, int]]:
+    """The screen of the project's console and setup, labelled like SCREEN_GUIDES ("SNES 256×224")."""
+    console, setup = consoles.target(project.console, project.console_setup)
+    width, height = consoles.target_screen(console, setup)
+    return f"{console.short} {width}×{height}", (width, height)
 
 
 class StageCanvas(FrameCanvas):

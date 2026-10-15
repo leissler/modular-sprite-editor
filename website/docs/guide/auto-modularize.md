@@ -38,7 +38,7 @@ The canvas shows the selected sprite. **Show** chooses what you see:
 
 ## Choose what matters
 
-**Console** chooses the console the parts are cut for: the sizes its hardware sprites come in, and how it counts tiles and sprites, the same way as the [budget overlay](hardware-budget.md). It starts at your project's console. On the Mega Drive a part is up to 32 by 32 pixels, on the NES one 8 by 8 or 8 by 16 sprite, on the Game Boy Advance one of its twelve shapes.
+**Console** chooses the console the parts are cut for: the sizes its hardware sprites come in, and how it counts tiles and sprites, the same way as the [budget overlay](hardware-budget.md). It starts at your project's console (**Console**, above the tabs); another one is for that run only, to compare. On the Mega Drive a part is up to 32 by 32 pixels, on the NES one 8 by 8 or 8 by 16 sprite, on the Game Boy Advance one of its twelve shapes.
 
 The **Goal** slider trades **Fewer tiles** against **Fewer sprites**. Tiles are video memory, a limited resource for all graphics on screen. Hardware sprites are limited per screen and per line, see [Stay within the console's limits](hardware-budget.md). Many small shared parts save memory but need more sprites. A few bigger parts need fewer sprites but share less.
 

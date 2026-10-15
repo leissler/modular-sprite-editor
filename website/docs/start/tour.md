@@ -35,9 +35,13 @@ When it starts without a project, the editor shows its welcome screen: start a n
 
 Switch tabs with the tab bar or with ++cmd+1++ to ++cmd+6++ (++ctrl++ on Windows and Linux).
 
+## The console
+
+At the top right, **Console** chooses the console your project is made for, with its setup: the Mega Drive's wide or narrow screen mode (**H40**, **H32**), the SNES's two sprite sizes, the NES's and the Game Boy's sprite size. The palettes, **View ▸ Console Colours**, the [hardware budget](../guide/hardware-budget.md), the Timeline's screen outline, [Auto Modularize](../guide/auto-modularize.md) and **Check Project** follow it. Changing it is one step you can undo; when the new console's palettes are smaller, the editor asks what to keep (see [Choose the console](../guide/palettes.md#choose-the-console)).
+
 ## The preview mapping and palette swap
 
-At the top right, **Preview mapping** chooses the mapping every tab shows. Leave it at **<none>** to see the original modules. Choose a mapping to see every frame, animation and scene with its replacements, without changing anything. **Palette swap** next to it does the same for colours: every tab shows the art recoloured, and the exports draw with it.
+Next to it, **Preview mapping** chooses the mapping every tab shows. Leave it at **<none>** to see the original modules. Choose a mapping to see every frame, animation and scene with its replacements, without changing anything. **Palette swap** next to it does the same for colours: every tab shows the art recoloured, and the exports draw with it.
 
 ## Moving around the canvas
 
@@ -48,7 +52,7 @@ Every canvas works the same way:
 - Rather scroll to move around, as most Mac apps do? Turn on **View ▸ Scroll Moves the View**: then scrolling moves the view, and a pinch or ++cmd++ + scroll zooms. The Animations step sequence and the Timeline follow the same choice.
 - **Fit** everything into view with ++cmd+0++. ++cmd+shift+0++ shows actual pixels.
 
-The view bar under each canvas holds the view options: **Grid** and its size, the backdrop behind the artwork (**Checker** or a **Colour**), **Bounds**, which outlines every module in a pose, and the [hardware budget overlay](../guide/hardware-budget.md) (**No budget** until you choose a console mode). These only change what you see, never your project. On a narrow window the bar wraps into a second row.
+The view bar under each canvas holds the view options: **Grid** and its size, the backdrop behind the artwork (**Checker** or a **Colour**), **Bounds**, which outlines every module in a pose, and the [hardware budget overlay](../guide/hardware-budget.md) (**No budget** until you choose your console or one to compare). These only change what you see, never your project. On a narrow window the bar wraps into a second row.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
   [![The view bar of the Frames tab: Grid and its size, the backdrop, Bounds, the budget menu, Hitboxes and Points](../assets/images/screens/tour-viewbar.png){ width="841" height="36" loading="lazy" }](../assets/images/screens/tour-viewbar.png)

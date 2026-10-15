@@ -17,7 +17,7 @@ from ui.frame_render import fit_bitmap, mapping_key, swap_key
 from ui.scene_editor import ops
 from ui.scene_editor.inspector import SceneInspector
 from ui.scene_editor.library import SceneLibrary
-from ui.scene_editor.stage import SCREEN_GUIDES, StageCanvas
+from ui.scene_editor.stage import SCREEN_GUIDES, StageCanvas, project_screen
 from ui.scene_editor.thumbnails import scene_image
 from ui.scene_editor.timeline import TimelineView
 from ui.dpi import px
@@ -45,7 +45,9 @@ _PASTE_KIND = ["keys"]  # what Paste pastes: what was copied last ("keys" or "la
 # Inspector fields that change every selected layer when several are selected.
 GROUP_FIELDS = ("playback_mode", "playback_speed", "root_motion", "mapping", "palette_swap")
 
-CONFIG_SCREEN_GUIDE = "SceneEditor/ScreenGuide"
+CONFIG_SCREEN_GUIDE = "SceneEditor/ScreenGuide"  # up to format 7: a position in SCREEN_GUIDES
+CONFIG_SCREEN = "SceneEditor/Screen"  # "" (none), "project" (the project's console) or a screen's label to compare
+PROJECT_SCREEN = "project"
 
 
 class _StageDropTarget(wx.TextDropTarget):
@@ -121,11 +123,13 @@ class SceneEditorPanel(wx.Panel):
             stage_panel, self.stage, view_key="timeline", default_backdrop=BACKDROP_COLOUR,
             scene_backdrop=True, part_bounds=True, budget=True,
         )
-        self.screen_choice = wx.Choice(self.canvas_controls, choices=[label for label, _ in SCREEN_GUIDES])
+        self.screen_choice = wx.Choice(self.canvas_controls, choices=[f"Compare: {label}" for label, _ in SCREEN_GUIDES])
         self.screen_choice.SetToolTip(
-            "Outline of a console screen, placed like the SGDK demo shows scenes: the scene origin centred, three quarters down"
+            "Outline of a console screen, placed like the SGDK demo shows scenes: the scene origin centred, three "
+            "quarters down. The first is the project's console (Console, above the tabs); Compare shows another one."
         )
-        fit_choice(self.screen_choice)  # macOS sizes a Choice for its current item ("None")
+        fit_choice(self.screen_choice)  # macOS sizes a Choice for its current item: room for the longest label
+        self.screen_value = ""
         self.canvas_controls.add_control(self.screen_choice, "Screen")
         stage_sizer.Add(self.stage, 1, wx.EXPAND | wx.ALL, 2)
         stage_sizer.Add(self.canvas_controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
@@ -190,10 +194,13 @@ class SceneEditorPanel(wx.Panel):
         root.Add(self.vsplit, 1, wx.EXPAND)
         self.SetSizer(root)
 
-        guide = wx.Config.Get().ReadInt(CONFIG_SCREEN_GUIDE, 0)
-        guide = guide if 0 <= guide < len(SCREEN_GUIDES) else 0
-        self.screen_choice.SetSelection(guide)
-        self.stage.screen_guide = SCREEN_GUIDES[guide][1]
+        config = wx.Config.Get()
+        if config.HasEntry(CONFIG_SCREEN):
+            value = config.Read(CONFIG_SCREEN, "")
+        else:  # an older editor kept the position in the list
+            guide = config.ReadInt(CONFIG_SCREEN_GUIDE, 0)
+            value = SCREEN_GUIDES[guide][0] if 0 < guide < len(SCREEN_GUIDES) else ""
+        self._set_screen(value, persist=False)
         self._update_autokey_button()
 
     def _bind(self) -> None:
@@ -635,13 +642,37 @@ class SceneEditorPanel(wx.Panel):
             scene.background_color = tuple(int(v) for v in value)[:3]  # type: ignore[assignment]
         self._commit()
 
+    def _set_screen(self, value: str, persist: bool = True) -> None:
+        """"" (none), PROJECT_SCREEN (the project's console, whichever it is) or a screen's label to compare with
+        (the project's own counts as following the project)."""
+        own_label, own_size = project_screen(self.project)
+        if value == own_label:
+            value = PROJECT_SCREEN
+        guides = {label: size for label, size in SCREEN_GUIDES if size}
+        if value not in guides and value != PROJECT_SCREEN:
+            value = ""
+        options = [("", "None"), (PROJECT_SCREEN, own_label)]
+        options += [(label, f"Compare: {label}") for label in guides if label != own_label]
+        self._screen_values = [v for v, _label in options]
+        labels = [label for _v, label in options]
+        if self.screen_choice.GetItems() != labels:
+            self.screen_choice.SetItems(labels)
+        self.screen_choice.SetSelection(self._screen_values.index(value))
+        self.screen_value = value
+        self.stage.screen_guide = own_size if value == PROJECT_SCREEN else guides.get(value)
+        if persist:
+            config = wx.Config.Get()
+            config.Write(CONFIG_SCREEN, value)
+            config.Flush()
+        self.stage.Refresh(False)
+
+    def on_console_changed(self) -> None:
+        """The project's console changed: the first screen is its screen, and an outline that follows it moves."""
+        self._set_screen(self.screen_value, persist=False)
+
     def _on_screen_choice(self, _event: wx.CommandEvent) -> None:
         idx = self.screen_choice.GetSelection()
-        self.stage.screen_guide = SCREEN_GUIDES[idx][1]
-        config = wx.Config.Get()
-        config.WriteInt(CONFIG_SCREEN_GUIDE, idx)
-        config.Flush()
-        self.stage.Refresh(False)
+        self._set_screen(self._screen_values[idx] if 0 <= idx < len(self._screen_values) else "")
 
     def _on_loop(self, event: wx.CommandEvent) -> None:
         scene = self.scene()

@@ -1,5 +1,5 @@
 {
-  "format_version": 7,
+  "format_version": 8,
   "name": "Adventurer",
   "images": [
     {
@@ -1908,5 +1908,6 @@
       "cycles": []
     }
   ],
-  "palette_swaps": []
+  "palette_swaps": [],
+  "console_setup": "md_h40"
 }

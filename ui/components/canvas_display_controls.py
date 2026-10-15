@@ -4,22 +4,40 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import wx
 
-from hardware_budget import PROFILES, profile_by_key
+from hardware_budget import PROFILES, HardwareProfile, profile_by_key, project_profile
 from ui.base_canvas import BACKDROP_CHECKER, BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR, BaseCanvas
 from ui.preferences import config as _config
 from ui.dpi import px
 
 CONFIG_BACKDROP = "View/Backdrop/{}"  # per tab: "checker" | "colour"
 CONFIG_BACKDROP_COLOUR = "View/BackdropColour"  # "r,g,b", one preview colour shared by all tabs
-CONFIG_BUDGET = "View/Budget/{}"  # per tab: "" (off) or a hardware profile key
-BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32", "snes_8_16": "SNES 8/16", "snes_16_32": "SNES 16/32",
-                 "nes_8x8": "NES 8×8", "nes_8x16": "NES 8×16", "gba": "GBA", "gb_8x8": "GB 8×8", "gb_8x16": "GB 8×16"}
+CONFIG_BUDGET = "View/Budget/{}"  # per tab: "" (off), "project" (the project's console) or a profile key to compare
+PROJECT_BUDGET = "project"
+BUDGET_LABELS = {"md_h40": "MD H40", "md_h32": "MD H32", "snes_8_16": "SNES 8/16", "snes_8_32": "SNES 8/32",
+                 "snes_8_64": "SNES 8/64", "snes_16_32": "SNES 16/32", "snes_16_64": "SNES 16/64",
+                 "snes_32_64": "SNES 32/64", "nes_8x8": "NES 8×8", "nes_8x16": "NES 8×16", "gba": "GBA",
+                 "gb_8x8": "GB 8×8", "gb_8x16": "GB 8×16"}
 GAP = px(8)  # between the bar's groups
 
 # Live view bars, so a new backdrop colour shows in every tab at once. Destroyed wx windows are falsy.
 _LIVE_BARS: List["CanvasDisplayControls"] = []
 _shared_colour: Optional[Tuple[int, int, int]] = None
 
+
+
+def budget_label(profile: HardwareProfile) -> str:
+    return BUDGET_LABELS.get(profile.key, profile.name)
+
+
+def compare_label(profile: HardwareProfile) -> str:
+    return "Compare: " + budget_label(profile)
+
+
+def project_console_changed() -> None:
+    """Every view bar's budget menu follows the project's console (MainFrame.show_project_console)."""
+    _LIVE_BARS[:] = [bar for bar in _LIVE_BARS if bar]
+    for bar in _LIVE_BARS:
+        bar.project_console_changed()
 
 
 def shared_backdrop_colour() -> Tuple[int, int, int]:
@@ -123,16 +141,19 @@ class CanvasDisplayControls(wx.Panel):
             self.chk_part_bounds.Bind(wx.EVT_CHECKBOX, self._on_toggle_part_bounds)
 
         self.budget_choice: Optional[wx.Choice] = None
+        self.budget_value = ""  # "", PROJECT_BUDGET or the key of a profile to compare with
+        self._budget_values: List[str] = [""]
         if budget:
-            labels = ["No budget"] + [BUDGET_LABELS.get(p.key, p.name) for p in PROFILES]
-            self.budget_choice = wx.Choice(self, choices=labels)
-            longest = max(self.GetTextExtent(label)[0] for label in labels)
+            self.budget_choice = wx.Choice(self, choices=["No budget"])
+            every_label = ["No budget"] + [budget_label(p) for p in PROFILES] + [compare_label(p) for p in PROFILES]
+            longest = max(self.GetTextExtent(label)[0] for label in every_label)
             self.budget_choice.SetMinSize((longest + px(44), -1))
             self.budget_choice.SetToolTip(
                 "Hardware budget: outline the console's hardware sprites, mark scanlines where sprites would "
-                "drop out (red) and show sprite counts and video memory. MD H40 = 320 px wide mode, H32 = 256 px; "
-                "SNES 8/16 and 16/32 = the game's two sprite sizes; NES and GB (Game Boy) 8×8 or 8×16 = the size of "
-                "all its sprites; GBA = Game Boy Advance."
+                "drop out (red) and show sprite counts and video memory. The first is the project's console "
+                "(Console, above the tabs); Compare shows what the art would cost on another one. MD H40 = 320 px "
+                "wide mode, H32 = 256 px; SNES 8/16, 16/32 ... = the game's two sprite sizes; NES and GB (Game Boy) "
+                "8×8 or 8×16 = the size of all its sprites; GBA = Game Boy Advance."
             )
             controls.Add(self.budget_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, GAP)
             self.budget_choice.Bind(wx.EVT_CHOICE, self._on_budget_choice)
@@ -275,20 +296,44 @@ class CanvasDisplayControls(wx.Panel):
         self.canvas.set_backdrop(self.canvas.backdrop, colour)
 
     # --- hardware budget (FrameCanvas and subclasses)
-    def _set_budget(self, key: str, persist: bool = True) -> None:
-        profile = profile_by_key(key)
+    def _project_profile(self) -> HardwareProfile:
+        project = getattr(self.canvas, "project", None)
+        return project_profile(project) if project is not None else PROFILES[0]
+
+    def _set_budget(self, value: str, persist: bool = True) -> None:
+        """"" (off), PROJECT_BUDGET (the project's console, whichever it is) or a profile key (a comparison; the
+        project's own key counts as following the project, as an older preference does)."""
+        own = self._project_profile()
+        if value == own.key:
+            value = PROJECT_BUDGET
+        profile = own if value == PROJECT_BUDGET else profile_by_key(value)
+        if profile is None:
+            value = ""
+        self.budget_value = value
         if self.budget_choice is not None:
-            self.budget_choice.SetSelection(PROFILES.index(profile) + 1 if profile else 0)
+            options = [("", "No budget"), (PROJECT_BUDGET, budget_label(own))]
+            options += [(p.key, compare_label(p)) for p in PROFILES if p is not own]
+            self._budget_values = [v for v, _label in options]
+            labels = [label for _v, label in options]
+            if self.budget_choice.GetItems() != labels:
+                self.budget_choice.SetItems(labels)
+            self.budget_choice.SetSelection(self._budget_values.index(value))
         self.canvas.set_budget_profile(profile)  # type: ignore[attr-defined]
         if persist:
             cfg = _config()
             if cfg:
-                cfg.Write(CONFIG_BUDGET.format(self.view_key), profile.key if profile else "")
+                cfg.Write(CONFIG_BUDGET.format(self.view_key), value)
                 cfg.Flush()
+
+    def project_console_changed(self) -> None:
+        """The project's console changed (or another project opened): the first entry shows it, and a budget that
+        follows the project counts with it."""
+        if self.budget_choice is not None:
+            self._set_budget(self.budget_value, persist=False)
 
     def _on_budget_choice(self, _event: wx.CommandEvent) -> None:
         index = self.budget_choice.GetSelection() if self.budget_choice else 0
-        self._set_budget(PROFILES[index - 1].key if index > 0 else "")
+        self._set_budget(self._budget_values[index] if 0 <= index < len(self._budget_values) else "")
         if self.on_budget_changed:
             self.on_budget_changed()
 

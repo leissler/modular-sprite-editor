@@ -1,7 +1,8 @@
 """The consoles the editor knows: screens, sprite hardware, palettes and limits (wx-free).
 
 One entry per console, the single source for the budget overlay's profiles, the Timeline's screen guides and the
-palette rules of a project's target console (``Project.console``). Adding a console is adding an entry; the editor
+rules of a project's target console (``Project.console`` with its setup, ``Project.console_setup``: one of the
+console's budget setups, e.g. the SNES's two sprite sizes; ``target`` resolves the pair). Adding a console is adding an entry; the editor
 supports it where the entry says so (budget profiles, palettes, an exporter) and the code behind that exists.
 
 Numbers are for sprites (objects) unless they say otherwise. Sources: the consoles' documentation as collected by
@@ -64,8 +65,8 @@ class PaletteHardware:
 
 @dataclass(frozen=True)
 class BudgetSetup:
-    """A budget overlay profile: one screen mode, and for consoles whose games pick their sprite sizes (SNES, NES,
-    Game Boy), the size set."""
+    """A console setup: one screen mode, and for consoles whose games pick their sprite sizes (SNES, NES, Game Boy),
+    the size set. A project targets one (``Project.console_setup``); the budget overlay offers each as a profile."""
     key: str
     name: str
     mode: str
@@ -91,6 +92,10 @@ class Console:
 
     def mode(self, key: str) -> Optional[ScreenMode]:
         return next((m for m in self.modes if m.key == key), None)
+
+    def setup(self, key: Optional[str]) -> BudgetSetup:
+        """The setup with this key, else the console's first (its usual one)."""
+        return next((b for b in self.budgets if b.key == key), self.budgets[0])
 
 
 def _grid(step: int, largest: int) -> Tuple[Size, ...]:
@@ -154,9 +159,13 @@ SNES = Console(
     ),
     backgrounds=TileHardware(flips=True, rotation="mode7"),
     palette=PaletteHardware(colours=16, palettes=8, colour_model="bgr555", shared_with_backgrounds=False),
-    budgets=(
+    budgets=(  # the six size pairs a game can choose (OBSEL)
         BudgetSetup("snes_8_16", "SNES, 8×8 and 16×16 sprites", "256x224", ((8, 8), (16, 16))),
+        BudgetSetup("snes_8_32", "SNES, 8×8 and 32×32 sprites", "256x224", ((8, 8), (32, 32))),
+        BudgetSetup("snes_8_64", "SNES, 8×8 and 64×64 sprites", "256x224", ((8, 8), (64, 64))),
         BudgetSetup("snes_16_32", "SNES, 16×16 and 32×32 sprites", "256x224", ((16, 16), (32, 32))),
+        BudgetSetup("snes_16_64", "SNES, 16×16 and 64×64 sprites", "256x224", ((16, 16), (64, 64))),
+        BudgetSetup("snes_32_64", "SNES, 32×32 and 64×64 sprites", "256x224", ((32, 32), (64, 64))),
     ),
     palettes_supported=True,
     vram_note="64 KB for tiles and maps",
@@ -259,3 +268,21 @@ def screen_guides() -> List[Tuple[str, Tuple[int, int]]]:
 
 def budget_setups() -> List[Tuple[Console, BudgetSetup]]:
     return [(c, b) for c in CONSOLES for b in c.budgets]
+
+
+def setup_by_key(key: Optional[str]) -> Optional[Tuple[Console, BudgetSetup]]:
+    """The console and setup of a setup key ("snes_16_32"), or None."""
+    return next(((c, b) for c, b in budget_setups() if b.key == key), None)
+
+
+def target(console_key: Optional[str], setup_key: Optional[str] = None) -> Tuple[Console, BudgetSetup]:
+    """A project's target: its console (``Project.console``) and that console's setup (``Project.console_setup``;
+    the console's first when the key is unknown or another console's)."""
+    console = console_by_key(console_key)
+    return console, console.setup(setup_key)
+
+
+def target_screen(console: Console, setup: BudgetSetup) -> Tuple[int, int]:
+    """The width and height of the setup's screen."""
+    mode = console.mode(setup.mode) or console.modes[0]
+    return mode.width, mode.height

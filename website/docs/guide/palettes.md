@@ -56,7 +56,7 @@ Cycles turn in the Palettes tab (turn **Cycles** off in the view bar to stop the
 
 ## Choose the console
 
-The palettes follow the console your project is for. Choose it in **Console**, above the list of palettes: Mega Drive, SNES, NES, Game Boy Advance or Game Boy. It decides how many colours a palette holds and which colours a slot can take:
+The palettes follow the console your project is made for. Choose it in **Console**, above the tabs: Mega Drive, SNES, NES, Game Boy Advance or Game Boy, each with its setup (screen mode or sprite sizes). It decides how many colours a palette holds and which colours a slot can take:
 
 | | A palette holds | A slot's colour |
 | --- | --- | --- |

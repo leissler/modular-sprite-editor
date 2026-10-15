@@ -38,6 +38,7 @@ CHANGES = {
     "point_types": lambda p: p.point_types.append(PointType(id="pt_new", name="new", color=(1, 2, 3))),
     "event_types": lambda p: p.event_types.append(EventType(id="evt_new", name="new", color=(1, 2, 3))),
     "console": lambda p: setattr(p, "console", "snes"),
+    "console_setup": lambda p: setattr(p, "console_setup", "md_h32"),
     "palettes": lambda p: p.palettes.append(Palette(id="pal_new", name="new", colours=[(1, 2, 3)])),
     "palette_swaps": lambda p: p.palette_swaps.append(PaletteSwap(id="swap_new", name="new")),
 }

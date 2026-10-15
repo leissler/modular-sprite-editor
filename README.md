@@ -28,7 +28,7 @@ right-click › Open the first time.
   parent's frames, and animations can be choreographed with keys; the UX may still change.
 - **Palettes** (the newest tab): palettes in slot order, palette swaps and colour cycles, for the console the project
   targets (Mega Drive, SNES, NES, Game Boy Advance or Game Boy); only the Mega Drive has an exporter so far.
-- Project files carry a `format_version` (currently 7); older files are upgraded when opened. See
+- Project files carry a `format_version` (currently 8); older files are upgraded when opened. See
   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 - The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md).
 
@@ -140,7 +140,10 @@ right-click › Open the first time.
   stage) to move, flip, delete, duplicate or copy; paste layers into another scene; **scene GIF export**.
 
 ### Palettes
-- **The project's console** (Palettes tab): how many colours a palette holds and which it can show: the Mega Drive's
+- **The project's console** (**Console**, above the tabs, with its setup: the Mega Drive's H40 or H32, the SNES's two
+  sprite sizes, the NES's and Game Boy's sprite size). The palettes, Console Colours, the budget overlay, the Timeline's
+  screen outline, Auto Modularize and Check Project follow it. It decides how many colours a palette holds and which it
+  can show: the Mega Drive's
   15 in 3 bits a channel, the SNES's and GBA's 15 in 5 bits, the NES's 3 picked from its 64 fixed colours, the Game
   Boy's 3 of its 4 shades. Colours a smaller console can't show are kept (crossed out) or reduced to the most used.
 - **Palettes in slot order**: the colours stay where the artist put them; add an image's missing colours, remove unused
