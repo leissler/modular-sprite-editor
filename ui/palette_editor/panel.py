@@ -26,6 +26,7 @@ from ui.palette_editor import fixed_colours, ops
 from ui.palette_editor.inspector import PaletteInspector
 from ui.palette_editor.preview import PalettePreview
 from ui.refresh_rate import REFRESH
+from ui.theme import T
 
 ORIGINAL = "__original__"  # the swap list's first row: the palettes as they are
 FRAME_MS = 33  # the cycle preview's timer
@@ -107,7 +108,7 @@ class PaletteEditorPanel(wx.Panel):
         self.swap_browser.list.on_move = self._move_swap
         info = wx.StaticText(self.swap_browser, label="A swap recolours without touching an image. Choose it for "
                                                       "every preview above the tabs, or per object on the Timeline.")
-        info.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(info, fg="hint")
         info.Wrap(px(220))
         self.swap_browser.sizer.Add(info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         lsizer.Add(self.swap_browser, 2, wx.EXPAND)
@@ -128,7 +129,7 @@ class PaletteEditorPanel(wx.Panel):
         self.chk_highlight = self.canvas_controls.add_toggle("Highlight", True, self._set_highlight,
                                                              "Dim every pixel but those of the selected slots")
         self.hint = wx.StaticText(centre, label="")
-        self.hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.hint, fg="hint")
         csizer.Add(self.preview, 1, wx.EXPAND)
         csizer.Add(self.hint, 0, wx.ALL, 6)
         csizer.Add(self.canvas_controls, 0, wx.EXPAND)
@@ -337,7 +338,7 @@ class PaletteEditorPanel(wx.Panel):
         palette = self.project.get_palette(palette_id)
         if palette is None:
             return None
-        key = (palette_id, size, tuple(palettes.colours_of(self.project, palette)))
+        key = (palette_id, size, tuple(palettes.colours_of(self.project, palette)), T.dark)
         found = self._thumbs.get(key)
         if found is not None:
             return found
@@ -348,7 +349,7 @@ class PaletteEditorPanel(wx.Panel):
         cell = max(2, size // side)
         bmp = wx.Bitmap(size, size)
         dc = wx.MemoryDC(bmp)
-        dc.SetBackground(wx.Brush(wx.Colour(36, 37, 40)))
+        dc.SetBackground(wx.Brush(T.thumb))
         dc.Clear()
         spec = palettes.hardware(self.project)
         colours = palettes.colours_of(self.project, palette)

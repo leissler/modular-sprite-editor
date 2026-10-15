@@ -661,7 +661,7 @@ class FrameStage(FrameCanvas):
         p0 = self.world_to_screen(self.local_to_world((x0, y0)))
         p1 = self.world_to_screen(self.local_to_world((x1, y1)))
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=1, style=wx.PENSTYLE_SHORT_DASH))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_line"), width=1, style=wx.PENSTYLE_SHORT_DASH))
         gc.DrawRectangle(min(p0[0], p1[0]), min(p0[1], p1[1]), abs(p1[0] - p0[0]), abs(p1[1] - p0[1]))
 
     def _draw_resize_handles(self, gc: wx.GraphicsContext, x: float, y: float, w: float, h: float) -> None:
@@ -671,12 +671,12 @@ class FrameStage(FrameCanvas):
             gc.DrawRectangle(cx - px(3), cy - px(3), px(6), px(6))
 
     def _draw_role(self, gc: wx.GraphicsContext, role: str, x: float, y: float) -> None:
-        gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(255, 255, 255))
+        gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), self.overlay_colour("canvas_line"))
         gc.DrawText(role, x, y)
 
     def _draw_origin(self, gc: wx.GraphicsContext) -> None:
         sx, sy = self.world_to_screen((0, 0))
-        gc.SetPen(wx.Pen(wx.Colour(200, 200, 210, 150), 1))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_faint", 150), 1))
         arm = px(10)
         gc.StrokeLine(sx - arm, sy, sx + arm, sy)
         gc.StrokeLine(sx, sy - arm, sx, sy + arm)

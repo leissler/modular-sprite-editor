@@ -22,7 +22,7 @@ import wx.lib.agw.flatnotebook as fnb
 import consoles
 import palettes
 from models import FModule, Project, generate_id
-from ui import app_services, autosave, preferences, view_memory
+from ui import app_services, autosave, preferences, theme, view_memory
 from ui.animation_editor import ops as anim_ops
 from ui.animation_editor.panel import AnimationEditorPanel
 from ui.base_canvas import SCROLL
@@ -45,6 +45,7 @@ from ui.sheet_export_dialog import SheetExportDialog
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
+from ui.theme import T
 from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
 from ui.dpi import px
 
@@ -350,6 +351,10 @@ class MainFrame(wx.Frame):
         self._autosave_timer.Start(self._autosave_ms())
         self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
 
+        # The theme (View ▸ Theme): a change redraws everything; Like the system follows the system's appearance.
+        T.on_change(self.theme_changed)
+        self.Bind(wx.EVT_SYS_COLOUR_CHANGED, self._on_system_colours)
+
         self._update_title()
         self._show_tab_hint()
         self._restore_geometry()
@@ -486,6 +491,7 @@ class MainFrame(wx.Frame):
     def preference_values(self) -> Dict[str, Any]:
         """What the Preferences window shows, read from where each setting lives."""
         return {
+            "theme": T.mode,
             "scroll_moves": SCROLL.moves,
             "play_50hz": REFRESH.pal,
             "backdrop_colour": shared_backdrop_colour(),
@@ -496,6 +502,8 @@ class MainFrame(wx.Frame):
         }
 
     def apply_preferences(self, values: Dict[str, Any]) -> None:
+        if values["theme"] != T.mode:
+            self.set_theme(values["theme"])
         if bool(values["scroll_moves"]) != SCROLL.moves:
             self.set_scroll_moves(bool(values["scroll_moves"]))
         if bool(values["play_50hz"]) != REFRESH.pal:
@@ -533,6 +541,37 @@ class MainFrame(wx.Frame):
         hz = REFRESH.hz(self.project)
         self.set_status(f"Previews play at {hz} Hz" + (" (PAL): 5/6 of the speed, as a 50 Hz console shows the game"
                                                       if hz == 50 else ""))
+
+    def set_theme(self, mode: str) -> None:
+        """View ▸ Theme: Like the system, Dark or Light (kept in the preferences)."""
+        T.set_mode(mode)  # redraws through theme_changed when the colours change
+        self._check_theme_menu()
+        self.set_status(f"Theme: {theme.LABELS[T.mode]}"
+                        + (f" ({'dark' if T.dark else 'light'} now)" if T.mode == theme.SYSTEM else ""))
+
+    def theme_changed(self) -> None:
+        """The theme's colours changed: every picture drawn on them again, every window redrawn."""
+        if not self:
+            return  # a closed window (tests make several)
+        self._check_theme_menu()
+        self.images_changed()  # thumbnails are drawn on the theme's colours
+        if self.welcome.IsShown():
+            self.show_welcome()  # rebuilt with the new colours
+
+        def refresh(window: wx.Window) -> None:
+            window.Refresh()
+            for child in window.GetChildren():
+                refresh(child)
+
+        refresh(self)
+
+    def _on_system_colours(self, event: wx.SysColourChangedEvent) -> None:
+        event.Skip()
+        T.system_changed()
+
+    def _check_theme_menu(self) -> None:
+        for mode, item in self.m_theme.items():
+            item.Check(mode == T.mode)
 
     def set_console_colours(self, shown: bool) -> None:
         """View ▸ Console Colours: every canvas shows the art through the export's palettes, as the console shows it."""
@@ -1002,6 +1041,13 @@ class MainFrame(wx.Frame):
             wx.ID_ANY, "Play at 50 Hz (PAL)",
             "Previews play as a 50 Hz console shows the game: animations, scenes and colour cycles at 5/6 of the speed")
         self.m_play_50hz.Check(REFRESH.pal)
+        theme_menu = wx.Menu()
+        self.m_theme: Dict[str, wx.MenuItem] = {}
+        for mode in theme.MODES:
+            self.m_theme[mode] = theme_menu.AppendRadioItem(wx.ID_ANY, theme.LABELS[mode])
+            self.Bind(wx.EVT_MENU, functools.partial(lambda e, m: self.set_theme(m), m=mode), self.m_theme[mode])
+        view_menu.AppendSubMenu(theme_menu, "Theme", "The editor's colours: like the system, dark or light")
+        self._check_theme_menu()
         view_menu.AppendSeparator()
         for idx, name in enumerate(TAB_NAMES):
             item = view_menu.Append(wx.ID_ANY, f"{name}\tCtrl+{idx + 1}")
@@ -1617,6 +1663,7 @@ class SpriteEditorApp(wx.App):
             wx.Config.Set(config)
         self.SetVendorName(APP_NAME)
         self.SetVendorDisplayName(APP_NAME)
+        T.load()  # the theme before the first window
         frame = self._main = MainFrame()
 
         # Set Icon (Windows needs explicit setting for Taskbar/Window)

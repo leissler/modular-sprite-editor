@@ -14,16 +14,10 @@ import wx
 
 from models import Module, Project
 from ui.dpi import px
+from ui.theme import T
 
 SHAPES_KEY = "@shapes"  # sheet filter value for vector shape modules
 
-COL_BG = wx.Colour(40, 41, 45)
-COL_TILE = wx.Colour(52, 53, 58)
-COL_TEXT = wx.Colour(226, 226, 230)
-COL_TEXT_DIM = wx.Colour(140, 142, 150)
-COL_SELECTED = wx.Colour(100, 200, 255)
-COL_HOVER = wx.Colour(120, 124, 136)
-TILE_RGB = (52, 53, 58)
 
 
 def sheet_of(module: Module) -> str:
@@ -41,9 +35,11 @@ class ModuleThumbnails:
     def clear(self) -> None:
         self._cache.clear()
 
-    def bitmap(self, project: Project, module: Module, width: int, height: int, background=TILE_RGB, max_scale: int = 4) -> wx.Bitmap:
+    def bitmap(self, project: Project, module: Module, width: int, height: int, background=None, max_scale: int = 4) -> wx.Bitmap:
+        """The module fitted into a box on ``background`` (the theme's tile colour unless given)."""
         from ui.frame_render import SHARED, fit_bitmap, module_signature
 
+        background = background or T.palette.rgb("tile")
         key = (module_signature(project, module.id), width, height, tuple(background), max_scale)
         bmp = self._cache.get(key)
         if bmp is not None:
@@ -82,7 +78,7 @@ class ModulePalette(wx.ScrolledWindow):
         self.on_module_click: Optional[Callable[[str], None]] = None
         self.on_module_double_click: Optional[Callable[[str], None]] = None
 
-        self.SetBackgroundColour(COL_BG)
+        T.style(self, bg="row")
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetScrollRate(0, px(20))
         self.Bind(wx.EVT_PAINT, self._on_paint)
@@ -163,10 +159,10 @@ class ModulePalette(wx.ScrolledWindow):
     def _on_paint(self, _event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
         self.DoPrepareDC(dc)
-        dc.SetBackground(wx.Brush(COL_BG))
+        dc.SetBackground(wx.Brush(T.row))
         dc.Clear()
         if not self.module_ids:
-            dc.SetTextForeground(COL_TEXT_DIM)
+            dc.SetTextForeground(T.text_dim)
             dc.SetFont(self.GetFont())
             dc.DrawText("No modules" if not self.filter_text else "No match", 10, 10)
             return
@@ -187,15 +183,15 @@ class ModulePalette(wx.ScrolledWindow):
             selected = module_id == self.selected_module_id
             if selected or index == self._hover or module_id in self.marked:
                 dc.SetBrush(wx.TRANSPARENT_BRUSH)
-                colour = COL_SELECTED if selected else (wx.Colour(255, 176, 64) if module_id in self.marked else COL_HOVER)
+                colour = T.focus if selected else (T.accent if module_id in self.marked else T.hover)
                 dc.SetPen(wx.Pen(colour, 2))
                 dc.DrawRectangle(tile.x - 1, tile.y - 1, tile.width + 2, tile.height + 2)
             dc.SetFont(small)
-            dc.SetTextForeground(COL_TEXT)
+            dc.SetTextForeground(T.text)
             name = _fit(dc, mod.name, rect.width)
             tw = dc.GetTextExtent(name)[0]
             dc.DrawText(name, rect.x + (rect.width - tw) // 2, tile.bottom + px(3))
-            dc.SetTextForeground(COL_TEXT_DIM)
+            dc.SetTextForeground(T.text_dim)
             size = f"{mod.rect[2]}×{mod.rect[3]}"
             tw = dc.GetTextExtent(size)[0]
             dc.DrawText(size, rect.x + (rect.width - tw) // 2, tile.bottom + px(15))

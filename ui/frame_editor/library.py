@@ -13,6 +13,7 @@ from ui.components.inspector_kit import fit_choice
 from ui.components.thumb_list import title_label
 from ui.module_editor import ops as module_ops
 from ui.dpi import px
+from ui.theme import T
 
 
 class PartLibrary(wx.Panel):
@@ -39,7 +40,7 @@ class PartLibrary(wx.Panel):
         self.book.AddPage(modules_page, "Modules")
         self.book.AddPage(self.frames, "Frames")
         hint = wx.StaticText(self, label="Drag onto the stage, or double-click to add at the origin.")
-        hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(hint, fg="hint")
         hint.Wrap(px(240))
 
         sizer = wx.BoxSizer(wx.VERTICAL)

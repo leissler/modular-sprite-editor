@@ -56,8 +56,9 @@ right-click › Open the first time.
 - **Filters** on all long lists (modules, frames, animations, scenes, palettes); frames and animations also have
   **groups** and sort by list order, name (numbers count as numbers) or group.
 - **Each project opens where you left it**: the tab, each tab's selection, zoom, pan and grid.
-- **Preferences** (`Cmd+,`): scrolling, 50 Hz previews, the backdrop colour, the tick rate of new animations, how
-  often unsaved changes are kept, the welcome screen.
+- **Preferences** (`Cmd+,`): the theme (like the system, dark or light; also View ▸ Theme), scrolling, 50 Hz
+  previews, the backdrop colour, the tick rate of new animations, how often unsaved changes are kept, the welcome
+  screen.
 
 ### Modules
 - **Cut directly on the sheet**: drag over a sprite to make a module; move, resize (8 handles, optional grid snap) and

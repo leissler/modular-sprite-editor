@@ -14,7 +14,6 @@ import test_export_canvas_parity as parity  # noqa: E402  (builds the synthetic 
 
 from models import Project  # noqa: E402
 
-BACKGROUND = (50, 50, 50)
 SIZE = 640  # wider than the widest synthetic frame, so nothing is clipped at scale 1
 
 
@@ -22,7 +21,10 @@ SIZE = 640  # wider than the widest synthetic frame, so nothing is clipped at sc
 class TestFrameThumbnails(unittest.TestCase):
     def test_thumbnails_match_the_canvas(self):
         from ui.animation_editor.stage import AnimationStage
+        from ui.theme import T
         from ui.utils import ThumbnailGenerator
+
+        background = T.palette.rgb("thumb")  # thumbnails are drawn on the theme's colour
 
         with tempfile.TemporaryDirectory() as tmpdir:
             sheet = os.path.join(tmpdir, "sheet.png")
@@ -43,7 +45,7 @@ class TestFrameThumbnails(unittest.TestCase):
                     (x, y)
                     for y in range(SIZE)
                     for x in range(SIZE)
-                    if tuple(data[(y * SIZE + x) * 3:(y * SIZE + x) * 3 + 3]) != BACKGROUND
+                    if tuple(data[(y * SIZE + x) * 3:(y * SIZE + x) * 3 + 3]) != background
                 }
                 ex = min(x for x, _y in expected), min(y for _x, y in expected)
                 ax = min(x for x, _y in actual), min(y for _x, y in actual)

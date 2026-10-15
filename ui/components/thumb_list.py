@@ -12,15 +12,8 @@ from typing import Callable, List, Optional, Sequence
 import wx
 from ui.components.group_bar import GroupBar
 from ui.dpi import px
+from ui.theme import T
 
-COL_ROW = wx.Colour(40, 41, 45)
-COL_ROW_ALT = wx.Colour(44, 45, 49)
-COL_ROW_SELECTED = wx.Colour(56, 74, 104)
-COL_TEXT = wx.Colour(226, 226, 230)
-COL_TEXT_DIM = wx.Colour(140, 142, 150)
-COL_WARN = wx.Colour(255, 140, 120)
-COL_ACCENT = wx.Colour(255, 176, 64)
-COL_DROP = wx.Colour(140, 210, 255)
 
 
 @dataclass
@@ -39,7 +32,7 @@ def title_label(parent: wx.Window, text: str) -> wx.StaticText:
     font.SetWeight(wx.FONTWEIGHT_BOLD)
     font.SetPointSize(max(8, font.GetPointSize() - 1))
     label.SetFont(font)
-    label.SetForegroundColour(wx.Colour(150, 156, 170))
+    T.style(label, fg="hint")
     return label
 
 
@@ -72,7 +65,7 @@ class ThumbList(wx.VListBox):
         self.on_rename: Optional[Callable[[str, str], None]] = None
         self.drag_out_text: Optional[Callable[[str], Optional[str]]] = None   # text for an OS drag (e.g. onto a canvas)
 
-        self.SetBackgroundColour(COL_ROW)
+        T.style(self, bg="row")
         self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
         self.Bind(wx.EVT_MOTION, self._on_motion)
         self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
@@ -83,7 +76,7 @@ class ThumbList(wx.VListBox):
         return self.row_h
 
     def OnDrawBackground(self, dc: wx.DC, rect: wx.Rect, n: int) -> None:
-        colour = COL_ROW_SELECTED if self.IsSelected(n) else (COL_ROW_ALT if n % 2 else COL_ROW)
+        colour = T.selected if self.IsSelected(n) else (T.row_alt if n % 2 else T.row)
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(colour))
         dc.DrawRectangle(rect)
@@ -99,8 +92,8 @@ class ThumbList(wx.VListBox):
             if bmp is not None and bmp.IsOk():
                 dc.DrawBitmap(bmp, x, y)
             else:
-                dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
-                dc.SetBrush(wx.Brush(wx.Colour(36, 37, 40)))
+                dc.SetPen(wx.Pen(T.border))
+                dc.SetBrush(wx.Brush(T.thumb))
                 dc.DrawRectangle(x, y, self.thumb, self.thumb)
             x += self.thumb + px(8)
         right = rect.x + rect.width - px(6)
@@ -109,7 +102,7 @@ class ThumbList(wx.VListBox):
         small.SetPointSize(max(7, font.GetPointSize() - 2))
         if row.badge:
             dc.SetFont(small)
-            dc.SetTextForeground(COL_ACCENT)
+            dc.SetTextForeground(T.accent)
             bw = dc.GetTextExtent(row.badge)[0]
             dc.DrawText(row.badge, right - bw, rect.y + px(6))
             right -= bw + px(6)
@@ -119,15 +112,15 @@ class ThumbList(wx.VListBox):
         meta_h = dc.GetTextExtent("Ag")[1] if row.meta else 0
         top = rect.y + (self.row_h - (title_h + (meta_h + 1 if row.meta else 0))) // 2
         dc.SetFont(font)
-        dc.SetTextForeground(COL_TEXT_DIM if row.dim else COL_TEXT)
+        dc.SetTextForeground(T.text_dim if row.dim else T.text)
         dc.DrawText(fit_text(dc, row.title, right - x), x, top)
         if row.meta:
             dc.SetFont(small)
-            dc.SetTextForeground(COL_WARN if row.warn else COL_TEXT_DIM)
+            dc.SetTextForeground(T.warn if row.warn else T.text_dim)
             dc.DrawText(fit_text(dc, row.meta, rect.x + rect.width - px(6) - x), x, top + title_h + 1)
         if self.drop_index == n or (self.drop_index == len(self.rows) and n == len(self.rows) - 1):
             line_y = rect.y if self.drop_index == n else rect.y + rect.height - 2
-            dc.SetPen(wx.Pen(COL_DROP, 2))
+            dc.SetPen(wx.Pen(T.drop, 2))
             dc.DrawLine(rect.x, line_y, rect.x + rect.width, line_y)
 
     # ------------------------------------------------------------------ data

@@ -26,9 +26,9 @@ from ui.module_editor.canvas import SheetCanvas
 from ui.module_editor.dialogs import DetectDialog, FolderImportDialog, GridSliceDialog
 from ui.module_editor.inspector import ModuleInspector
 from ui.dpi import px
+from ui.theme import T
 
 IMAGE_WILDCARD = "Images (*.png;*.bmp;*.gif;*.jpg;*.jpeg)|*.png;*.bmp;*.gif;*.jpg;*.jpeg|All files|*.*"
-TILE_BG = (52, 53, 58)
 
 # Copied modules (as dicts), shared between sheets for the session: paste repeats the same cuts elsewhere.
 _MODULE_CLIPBOARD: List[Dict[str, Any]] = []
@@ -271,13 +271,13 @@ class ModuleEditorPanel(wx.Panel):
         asset = self.project.get_image(key)
         if asset is None:
             return None
-        cache_key = (asset.file_path, tuple(asset.transparent_color or ()), size)
+        cache_key = (asset.file_path, tuple(asset.transparent_color or ()), size, T.dark)
         bmp = self._sheet_thumbs.get(cache_key)
         if bmp is None:
             image = SHARED.sheet(self.project, asset, keyed=True)
             if image is None:
                 return None
-            bmp = fit_bitmap(image, size, size, TILE_BG, max_scale=4)
+            bmp = fit_bitmap(image, size, size, T.palette.rgb("tile"), max_scale=4)
             self._sheet_thumbs[cache_key] = bmp
         return bmp
 

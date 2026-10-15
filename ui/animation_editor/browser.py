@@ -12,15 +12,10 @@ from ui.animation_editor.render import StepRenderer
 from ui.components.frame_palette import FramePalette
 from ui.components.group_bar import GroupBar
 from ui.dpi import px
+from ui.theme import T
 
 ROW_H = px(46)
 THUMB = px(38)
-COL_ROW = wx.Colour(40, 41, 45)
-COL_ROW_ALT = wx.Colour(44, 45, 49)
-COL_ROW_SELECTED = wx.Colour(56, 74, 104)
-COL_TEXT = wx.Colour(226, 226, 230)
-COL_TEXT_DIM = wx.Colour(140, 142, 150)
-COL_DROP = wx.Colour(140, 210, 255)
 
 
 def _title(parent: wx.Window, text: str) -> wx.StaticText:
@@ -29,7 +24,7 @@ def _title(parent: wx.Window, text: str) -> wx.StaticText:
     font.SetWeight(wx.FONTWEIGHT_BOLD)
     font.SetPointSize(max(8, font.GetPointSize() - 1))
     label.SetFont(font)
-    label.SetForegroundColour(wx.Colour(150, 156, 170))
+    T.style(label, fg="hint")
     return label
 
 
@@ -48,7 +43,7 @@ class AnimationList(wx.VListBox):
         self._editor: Optional[wx.TextCtrl] = None
         self.on_move: Optional[Callable[[str, int], None]] = None  # (animation id, index in the full list)
         self.on_rename: Optional[Callable[[str, str], None]] = None
-        self.SetBackgroundColour(COL_ROW)
+        T.style(self, bg="row")
         self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
         self.Bind(wx.EVT_MOTION, self._on_motion)
         self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
@@ -59,7 +54,7 @@ class AnimationList(wx.VListBox):
         return ROW_H
 
     def OnDrawBackground(self, dc: wx.DC, rect: wx.Rect, n: int) -> None:
-        colour = COL_ROW_SELECTED if self.IsSelected(n) else (COL_ROW_ALT if n % 2 else COL_ROW)
+        colour = T.selected if self.IsSelected(n) else (T.row_alt if n % 2 else T.row)
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(colour))
         dc.DrawRectangle(rect)
@@ -74,18 +69,18 @@ class AnimationList(wx.VListBox):
                                           swap=self.project.active_palette_swap)
             dc.DrawBitmap(bmp, rect.x + px(6), y)
         else:
-            dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
-            dc.SetBrush(wx.Brush(wx.Colour(36, 37, 40)))
+            dc.SetPen(wx.Pen(T.border))
+            dc.SetBrush(wx.Brush(T.thumb))
             dc.DrawRectangle(rect.x + px(6), y, THUMB, THUMB)
         x = rect.x + THUMB + px(14)
         font = self.GetFont()
         dc.SetFont(font)
-        dc.SetTextForeground(COL_TEXT)
+        dc.SetTextForeground(T.text)
         dc.DrawText(_fit(dc, anim.name, rect.width - (x - rect.x) - px(6)), x, rect.y + px(6))
         small = wx.Font(font)
         small.SetPointSize(max(7, font.GetPointSize() - 2))
         dc.SetFont(small)
-        dc.SetTextForeground(COL_TEXT_DIM)
+        dc.SetTextForeground(T.text_dim)
         meta = f"{ops.describe_length(anim)} · {ops.playback_label(anim.playback_type)}"
         follow = self.project.get_animation(anim.next_animation_id) if anim.next_animation_id else None
         if follow is not None:
@@ -95,7 +90,7 @@ class AnimationList(wx.VListBox):
         dc.DrawText(_fit(dc, meta, rect.width - (x - rect.x) - px(6)), x, rect.y + ROW_H - px(19))
         if self.drop_index == n or (self.drop_index == len(self.view) and n == len(self.view) - 1):
             line_y = rect.y if self.drop_index == n else rect.y + rect.height - 2
-            dc.SetPen(wx.Pen(COL_DROP, 2))
+            dc.SetPen(wx.Pen(T.drop, 2))
             dc.DrawLine(rect.x, line_y, rect.x + rect.width, line_y)
 
     # ------------------------------------------------------------------ data
@@ -253,7 +248,7 @@ class FrameLibrary(wx.Panel):
         self.palette.item_size = (px(96), px(96))  # two columns in the default column width
         hint = wx.StaticText(self, label="Drag into the sequence, or double-click to insert after the current step. "
                                          "Shift+click picks a run of frames; right-click makes them an animation.")
-        hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(hint, fg="hint")
         hint.Wrap(px(230))
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(_title(self, "FRAMES"), 0, wx.LEFT | wx.TOP, 8)

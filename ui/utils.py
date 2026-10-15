@@ -2,6 +2,7 @@ import math
 import wx
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 from PIL import Image as PILImage
+from ui.theme import T
 
 if TYPE_CHECKING:
     from models import ModuleMapping, Project
@@ -371,7 +372,7 @@ class ThumbnailGenerator:
     def render_thumbnail(self, project: 'Project', item, width: int, height: int, custom_scale: float = 0.0, flip_x: bool = False, flip_y: bool = False, rotation: float = 0.0, mapping: Optional['ModuleMapping'] = None, swap: Any = None) -> wx.Bitmap:
         bmp = wx.Bitmap(width, height)
         dc = wx.MemoryDC(bmp)
-        dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
+        dc.SetBackground(wx.Brush(T.thumb))
         dc.Clear()
         
         self.draw_thumbnail_direct(dc, project, item, wx.Rect(0, 0, width, height), custom_scale, flip_x, flip_y, rotation, mapping, swap)

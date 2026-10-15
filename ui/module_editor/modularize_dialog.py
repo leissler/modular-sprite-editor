@@ -25,6 +25,7 @@ from ui.components.thumb_list import Browser, Row
 from ui.frame_render import SHARED, fit_bitmap, to_wx_image
 from ui.dpi import px
 from ui.preferences import config
+from ui.theme import T
 
 # Goal slider stops: how many tiles one more hardware sprite (in one sprite) is worth.
 GOALS: List[Tuple[float, str]] = [
@@ -49,7 +50,8 @@ def default_profile(project: Project) -> hb.HardwareProfile:
         setups = consoles.console_by_key(project.console).budgets
         found = hb.profile_by_key(setups[0].key) if setups else None
     return found or hb.MEGA_DRIVE_H40  # type: ignore[return-value]
-THUMB_BG = (30, 31, 34)
+
+
 WRAP = px(280)  # width of the explanatory texts in the settings column
 
 
@@ -529,7 +531,7 @@ class ModularizeDialog(wx.Dialog):
             image = self.sprites.get(module_id)
             if image is None:
                 return None
-            bmp = fit_bitmap(image, size, size, THUMB_BG)
+            bmp = fit_bitmap(image, size, size, T.palette.rgb("thumb"))
             self._thumbs[key] = bmp
         return bmp
 

@@ -13,6 +13,7 @@ from ui.animation_editor import ops
 from ui.components.inspector_kit import hbox, relayout, row, section
 from ui.dpi import px
 from ui.refresh_rate import REFRESH
+from ui.theme import T
 
 
 class AnimationInspector(wx.ScrolledWindow):
@@ -42,7 +43,7 @@ class AnimationInspector(wx.ScrolledWindow):
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.hint = wx.StaticText(self, label="")
-        self.hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.hint, fg="hint")
         root.Add(self.hint, 0, wx.ALL, 8)
 
         # --- Animation
@@ -77,7 +78,7 @@ class AnimationInspector(wx.ScrolledWindow):
             "Only animations that end can continue: Play once, or a repeat count above 0."
         )
         self.next_info = wx.StaticText(p, label="")
-        self.next_info.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.next_info, fg="hint")
         row(grid, p, "Then play", self.next_anim)
         grid.Add((0, 0))
         grid.Add(self.next_info, 0)
@@ -89,14 +90,14 @@ class AnimationInspector(wx.ScrolledWindow):
         )
         self.fps_info = wx.StaticText(p, label="ticks / s")
         self.tick_ms = wx.StaticText(p, label="")
-        self.tick_ms.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.tick_ms, fg="hint")
         row(grid, p, "Tick rate", hbox(self.fps, self.fps_info))
         grid.Add((0, 0))
         grid.Add(self.tick_ms, 0)
         self.length = wx.StaticText(p, label="")
         row(grid, p, "Length", self.length)
         self.usage = wx.StaticText(p, label="")
-        self.usage.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.usage, fg="hint")
         row(grid, p, "Used in", self.usage)
         self.budget_info = wx.StaticText(p, label="")
         self.budget_info.SetToolTip(
@@ -154,7 +155,7 @@ class AnimationInspector(wx.ScrolledWindow):
         row(grid, p, "Mirror", hbox(self.flip_h, self.flip_v, gap=2))
         self.events_box = wx.BoxSizer(wx.VERTICAL)
         self.events_empty = wx.StaticText(p, label="none")
-        self.events_empty.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.events_empty, fg="hint")
         self.events_box.Add(self.events_empty, 0, wx.BOTTOM, 2)
         self.events_rows = wx.BoxSizer(wx.VERTICAL)
         self.events_box.Add(self.events_rows, 0, wx.EXPAND)
@@ -175,7 +176,7 @@ class AnimationInspector(wx.ScrolledWindow):
             "(hit windows, sounds, spawns, footsteps). The value is up to the game (e.g. which sound)."
         )
         self.step_hint = wx.StaticText(p, label="")
-        self.step_hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.step_hint, fg="hint")
         grid.Add((0, 0))
         grid.Add(self.step_hint, 0)
 
@@ -327,7 +328,7 @@ class AnimationInspector(wx.ScrolledWindow):
         self.usage.SetLabel(f"{uses} timeline object{'s' if uses != 1 else ''}" if uses else "no timeline scenes")
         text, over = self.budget if self.budget else ("", False)
         self.budget_info.SetLabel(text)
-        self.budget_info.SetForegroundColour(wx.Colour(255, 120, 110) if over else self.length.GetForegroundColour())
+        self.budget_info.SetForegroundColour(T.error if over else self.length.GetForegroundColour())
         self.budget_info.Wrap(px(200))
         self.budget_info.Show(bool(text))
         self.budget_label.Show(bool(text))

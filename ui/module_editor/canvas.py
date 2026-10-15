@@ -14,10 +14,8 @@ from ui.dpi import px
 
 Rect = Tuple[int, int, int, int]
 
-COL_OUTLINE = wx.Colour(215, 218, 226, 150)
 COL_SELECTED = wx.Colour(64, 200, 255)
 COL_PIVOT = wx.Colour(255, 90, 80)
-COL_DRAFT = wx.Colour(255, 255, 255)
 COL_MARQUEE = wx.Colour(90, 170, 255)
 HANDLE_PX = px(7)
 HANDLES = ("nw", "n", "ne", "e", "se", "s", "sw", "w")
@@ -372,7 +370,7 @@ class SheetCanvas(BaseCanvas):
             return
         x, y, w, h = self._screen_rect((0, 0, self.image_size[0], self.image_size[1]))
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        gc.SetPen(wx.Pen(wx.Colour(190, 190, 196, 160), 1))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_faint", 160), 1))
         gc.DrawRectangle(x - 0.5, y - 0.5, w + 1, h + 1)
 
     def _draw_shapes(self, gc: wx.GraphicsContext) -> None:
@@ -399,7 +397,7 @@ class SheetCanvas(BaseCanvas):
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
         font.SetPointSize(max(7, font.GetPointSize() - 2))
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        gc.SetPen(wx.Pen(COL_OUTLINE, 1))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_faint", 150), 1))
         for module in self.modules:
             if module.id in selected:
                 continue
@@ -457,8 +455,8 @@ class SheetCanvas(BaseCanvas):
             gc.SetPen(wx.Pen(COL_MARQUEE, 1))
             gc.DrawRectangle(x, y, w, h)
             return
-        gc.SetBrush(wx.Brush(wx.Colour(255, 255, 255, 30)))
-        gc.SetPen(wx.Pen(COL_DRAFT, 1, wx.PENSTYLE_SHORT_DASH))
+        gc.SetBrush(wx.Brush(self.overlay_colour("canvas_line", 30)))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_line"), 1, wx.PENSTYLE_SHORT_DASH))
         gc.DrawRectangle(x + 0.5, y + 0.5, max(0, w - 1), max(0, h - 1))
         label = f"{self._draft[2]}×{self._draft[3]}"  # type: ignore[index]
         self._label(gc, label, x + w + px(6), y + h + px(4))

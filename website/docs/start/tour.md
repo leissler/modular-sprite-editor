@@ -80,4 +80,4 @@ The status bar at the bottom shows hints for the canvas under your mouse and the
 
 ## Preferences
 
-**Edit ▸ Preferences** (++cmd+comma++; on a Mac in the application menu) holds the settings that apply everywhere: whether scrolling moves the view, previews at 50 Hz, the backdrop colour, the tick rate of new animations, how often unsaved changes are kept for recovery, and the welcome screen at the start. **Clear Recent Projects** empties the recent list.
+**Edit ▸ Preferences** (++cmd+comma++; on a Mac in the application menu) holds the settings that apply everywhere: the **Theme** (**Like the system**, **Dark** or **Light**; also under **View ▸ Theme**), whether scrolling moves the view, previews at 50 Hz, the backdrop colour, the tick rate of new animations, how often unsaved changes are kept for recovery, and the welcome screen at the start. **Clear Recent Projects** empties the recent list. On Windows and Linux the theme colours the editor's lists, views and canvases, while buttons and fields keep the system's look.

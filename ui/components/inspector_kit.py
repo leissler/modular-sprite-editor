@@ -8,10 +8,8 @@ import wx
 
 from ui.preferences import config as _config
 from ui.dpi import px
+from ui.theme import T
 
-COL_SECTION = wx.Colour(150, 156, 170)
-COL_DIM = wx.Colour(150, 156, 170)
-COL_WARN = wx.Colour(255, 140, 120)
 CONFIG_FOLDED = "View/Folded/{}/{}"  # (inspector, section title): "1" while the section is folded away
 
 
@@ -31,14 +29,14 @@ class Section(wx.Panel):
         self.arrow: Optional[wx.StaticText] = None
         if self.key:
             self.arrow = wx.StaticText(self, label="", size=(px(12), -1))
-            self.arrow.SetForegroundColour(COL_SECTION)
+            T.style(self.arrow, fg="hint")
             header.Add(self.arrow, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         self.title = wx.StaticText(self, label=title.upper())
         font = self.title.GetFont()
         font.SetWeight(wx.FONTWEIGHT_BOLD)
         font.SetPointSize(max(8, font.GetPointSize() - 1))
         self.title.SetFont(font)
-        self.title.SetForegroundColour(COL_SECTION)
+        T.style(self.title, fg="hint")
         header.Add(self.title, 1, wx.ALIGN_CENTER_VERTICAL)
         outer.Add(header, 0, wx.EXPAND | wx.LEFT | wx.TOP, 2)
         outer.Add(wx.StaticLine(self), 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 4)
@@ -118,7 +116,7 @@ def hbox(*items: Any, gap: int = 4) -> wx.BoxSizer:
 
 def dim_text(parent: wx.Window, label: str = "") -> wx.StaticText:
     text = wx.StaticText(parent, label=label)
-    text.SetForegroundColour(COL_DIM)
+    T.style(text, fg="hint")
     return text
 
 

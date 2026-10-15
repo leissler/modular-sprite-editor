@@ -6,10 +6,12 @@ _values``) and applies the result (``MainFrame.apply_preferences``), so the View
 
 from __future__ import annotations
 
+import sys
 from typing import Any, Callable, Dict, List, Tuple
 
 import wx
 
+from ui import theme
 from ui.components.inspector_kit import dim_text
 from ui.dpi import px
 
@@ -43,6 +45,17 @@ class PreferencesDialog(wx.Dialog):
             root.Add(row, 0)
 
         heading("Views")
+        theme_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.theme = wx.Choice(self, choices=[theme.LABELS[mode] for mode in theme.MODES])
+        self.theme.SetSelection(theme.MODES.index(values["theme"]) if values["theme"] in theme.MODES else 0)
+        longest = max(self.GetTextExtent(label)[0] for label in theme.LABELS.values())
+        self.theme.SetMinSize((longest + px(44), -1))  # macOS sizes a choice for its current item
+        theme_row.Add(wx.StaticText(self, label="Theme"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        theme_row.Add(self.theme, 0, wx.ALIGN_CENTER_VERTICAL)
+        if sys.platform != "darwin":  # wx 3.2 draws Windows' and GTK's controls in the system's look
+            theme_row.Add(dim_text(self, "lists, views and canvases; buttons and fields keep the system's look"), 0,
+                          wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 8)
+        add(theme_row)
         self.scroll_moves = wx.CheckBox(self, label="Scrolling moves the view (pinch or ⌘ / Ctrl + scroll zooms)")
         self.scroll_moves.SetValue(bool(values["scroll_moves"]))
         self.play_50hz = wx.CheckBox(self, label="Play previews at 50 Hz, as a PAL console shows the game")
@@ -105,6 +118,7 @@ class PreferencesDialog(wx.Dialog):
     def values(self) -> Dict[str, Any]:
         colour = self.backdrop.GetColour()
         return {
+            "theme": theme.MODES[max(0, self.theme.GetSelection())],
             "scroll_moves": self.scroll_moves.GetValue(),
             "play_50hz": self.play_50hz.GetValue(),
             "backdrop_colour": (colour.Red(), colour.Green(), colour.Blue()),

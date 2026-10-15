@@ -9,6 +9,7 @@ import wx
 from models import AFrame, Animation, ModuleMapping, PaletteSwap, Project
 from ui.animation_editor import ops
 from ui.frame_render import SHARED, FrameRenderer, fit_bitmap, frame_signature, mapping_key, swap_key, transform
+from ui.theme import T
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 
@@ -56,10 +57,12 @@ class StepRenderer:
         af: AFrame,
         mapping: Optional[ModuleMapping],
         size: int,
-        background: Tuple[int, int, int] = (50, 50, 50),
+        background: Optional[Tuple[int, int, int]] = None,
         swap: Optional[PaletteSwap] = None,
     ) -> wx.Bitmap:
-        """Square thumbnail of a step's frame with its flip/rotation (no offset), pixel-art scaled."""
+        """Square thumbnail of a step's frame with its flip/rotation (no offset), pixel-art scaled, on ``background``
+        (the theme's thumbnail colour unless given)."""
+        background = tuple(background) if background else T.palette.rgb("thumb")
         key = (frame_signature(project, af.frame_id, mapping), bool(af.flip_x), bool(af.flip_y),
                int(round(af.rotation_degrees)) % 360, mapping_key(mapping), swap_key(project, swap), int(size), background)
         bmp = self._bitmaps.get(key)
@@ -116,7 +119,7 @@ class StepRenderer:
         index: int,
         mapping: Optional[ModuleMapping],
         size: int,
-        background: Tuple[int, int, int] = (50, 50, 50),
+        background: Optional[Tuple[int, int, int]] = None,
         layout: Optional[Tuple[int, int, float, int, int]] = None,
         swap: Optional[PaletteSwap] = None,
     ) -> wx.Bitmap:
@@ -127,6 +130,7 @@ class StepRenderer:
         from PIL import Image as PILImage
 
         af = anim.aframes[index]
+        background = tuple(background) if background else T.palette.rgb("thumb")
         if layout is None:
             layout = self.strip_layout(project, anim, mapping, size, swap)
         key = ("strip",) + self._step_key(project, af, mapping) + (mapping_key(mapping), swap_key(project, swap), int(size),

@@ -13,6 +13,7 @@ from ui.components.palette_swatches import PaletteStrip
 from ui.components.inspector_kit import bind_spin, dim_text, hbox, relayout, row, section, set_spin, small_button, spin
 from ui.module_editor import ops
 from ui.dpi import px
+from ui.theme import T
 
 PRESET_GLYPHS = ("◤", "▲", "◥", "◀", "●", "▶", "◣", "▼", "◢")
 class ModuleInspector(wx.ScrolledWindow):
@@ -248,11 +249,11 @@ class ModuleInspector(wx.ScrolledWindow):
         self.file_name.SetToolTip(asset.file_path)
         count = len(ops.modules_of_sheet(project, asset.id))
         self.file_info.SetLabel("File not found" if missing else f"{asset.width} × {asset.height} px · {count} module{'s' if count != 1 else ''}")
-        self.file_info.SetForegroundColour(wx.Colour(255, 140, 120) if missing else wx.Colour(150, 156, 170))
+        self.file_info.SetForegroundColour(T.warn if missing else T.hint)
         self.btn_locate.Show(missing)
         self.btn_reload.Show(not missing)
         key = asset.transparent_color
-        self.key_swatch.SetBackgroundColour(wx.Colour(*key) if key else wx.Colour(60, 60, 64))
+        self.key_swatch.SetBackgroundColour(wx.Colour(*key) if key else T.empty_slot)
         self.key_swatch.Refresh()
         self.key_info.SetLabel(f"#{key[0]:02X}{key[1]:02X}{key[2]:02X}" if key else "none")
         self.btn_clear_key.Enable(bool(key))
@@ -280,7 +281,7 @@ class ModuleInspector(wx.ScrolledWindow):
                     f"; {lacking} colours of this image are not in it and show as the nearest one. Add them in the "
                     "Palettes tab, or let Check Project add them." if lacking else "."))
         warn = lacking or stored > spec.visible
-        self.palette_info.SetForegroundColour(wx.Colour(255, 140, 120) if warn else wx.Colour(150, 156, 170))
+        self.palette_info.SetForegroundColour(T.warn if warn else T.hint)
         self.palette_strip.set_palette(colours, spec, palette.name)
 
     def _fill_modules(self, project: Project, modules: List[Module]) -> None:

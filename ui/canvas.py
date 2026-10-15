@@ -339,7 +339,7 @@ class FrameCanvas(BaseCanvas):
         return [cp for cp in self.frame.control_points if not cp.type_id or cp.type_id in self.point_type_colors]
 
     def _draw_message(self, gc: wx.GraphicsContext, text: str) -> None:
-        gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(80, 80, 80))
+        gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), self.overlay_colour("canvas_faint"))
         tw, th = gc.GetTextExtent(text)
         cx, cy = self.GetClientSize().width / 2, self.GetClientSize().height / 2
         gc.DrawText(text, cx - tw / 2, cy - th / 2)
@@ -551,7 +551,7 @@ class FrameCanvas(BaseCanvas):
             r, g, b = 200, 60, 60
         gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 80)))  # semi-transparent fill
         if selected:
-            gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 2, style=wx.PENSTYLE_SOLID))
+            gc.SetPen(wx.Pen(self.overlay_colour("canvas_line"), 2, style=wx.PENSTYLE_SOLID))
         else:
             gc.SetPen(wx.Pen(wx.Colour(r, g, b), 1, style=wx.PENSTYLE_SOLID))
         gc.DrawRectangle(sx0, sy0, w, h)
@@ -573,7 +573,7 @@ class FrameCanvas(BaseCanvas):
         dsize = round(max(1, self.zoom))
         gc.SetBrush(wx.Brush(wx.Colour(r, g, b, 80)))  # slight tint
         if selected:
-            gc.SetPen(wx.Pen(wx.Colour(255, 255, 255), width=2))
+            gc.SetPen(wx.Pen(self.overlay_colour("canvas_line"), width=2))
         else:
             gc.SetPen(wx.Pen(wx.Colour(r, g, b), width=1))
         gc.DrawRectangle(dsx, dsy, dsize, dsize)
@@ -582,7 +582,7 @@ class FrameCanvas(BaseCanvas):
         cx = dsx + dsize / 2
         cy = dsy + dsize / 2
         half_len = (dsize / 2) + px(6)
-        gc.SetPen(wx.Pen(wx.Colour(255, 255, 255) if selected else wx.Colour(r, g, b), width=2))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_line") if selected else wx.Colour(r, g, b), width=2))
         gc.StrokeLine(cx - half_len, cy, cx + half_len, cy)
         gc.StrokeLine(cx, cy - half_len, cx, cy + half_len)
         return dsx, dsy, dsize

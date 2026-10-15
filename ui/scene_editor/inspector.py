@@ -17,6 +17,7 @@ from ui import first_steps
 from ui.components.inspector_kit import relayout, row, section
 from ui.scene_editor import ops
 from ui.dpi import px
+from ui.theme import T
 
 SOURCE_TYPE_LABELS = {"none": "Group", "module": "Module", "frame": "Frame", "animation": "Animation"}
 
@@ -37,12 +38,12 @@ class EasingPreview(wx.Panel):
 
     def _on_paint(self, _event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
-        dc.SetBackground(wx.Brush(wx.Colour(30, 31, 34)))
+        dc.SetBackground(wx.Brush(T.well))
         dc.Clear()
         w, h = self.GetClientSize()
         pad_x, pad_y = px(6), px(12)
         gw, gh = w - 2 * pad_x, h - 2 * pad_y
-        dc.SetPen(wx.Pen(wx.Colour(64, 66, 74)))
+        dc.SetPen(wx.Pen(T.well_line))
         dc.DrawLine(pad_x, pad_y + gh, pad_x + gw, pad_y + gh)
         dc.DrawLine(pad_x, pad_y, pad_x + gw, pad_y)
         if not self.easing:
@@ -52,7 +53,7 @@ class EasingPreview(wx.Panel):
             t = i / 40.0
             v = apply_timeline_easing(self.easing, t)
             points.append(wx.Point(int(pad_x + t * gw), int(pad_y + gh - v * gh)))
-        dc.SetPen(wx.Pen(wx.Colour(255, 176, 64), 2))
+        dc.SetPen(wx.Pen(T.accent, 2))
         dc.DrawLines(points)
 
 
@@ -161,7 +162,7 @@ class SceneInspector(wx.ScrolledWindow):
         root = wx.BoxSizer(wx.VERTICAL)
         self._root = root
         self.hint = wx.StaticText(self, label="")
-        self.hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.hint, fg="hint")
         root.Add(self.hint, 0, wx.ALL, 8)
 
         # --- Scene

@@ -9,6 +9,7 @@ import wx
 from models import Project
 from ui.components.frame_palette import FramePalette
 from ui.components.module_palette import ModulePalette
+from ui.theme import T
 from ui.utils import ThumbnailGenerator
 from ui.dpi import px
 
@@ -50,9 +51,9 @@ class AnimationPalette(wx.ListCtrl):
             else:
                 bmp = wx.Bitmap(THUMB, THUMB)
                 dc = wx.MemoryDC(bmp)
-                dc.SetBackground(wx.Brush(wx.Colour(50, 50, 50)))
+                dc.SetBackground(wx.Brush(T.thumb))
                 dc.Clear()
-                dc.SetTextForeground(wx.Colour(180, 180, 180))
+                dc.SetTextForeground(T.text_dim)
                 dc.DrawLabel("Empty", wx.Rect(0, 0, THUMB, THUMB), alignment=wx.ALIGN_CENTER)
                 dc.SelectObject(wx.NullBitmap)
             index = self.InsertItem(self.GetItemCount(), anim.name, self.image_list.Add(bmp))
@@ -84,7 +85,7 @@ class SceneLibrary(wx.Panel):
         font.SetWeight(wx.FONTWEIGHT_BOLD)
         font.SetPointSize(max(8, font.GetPointSize() - 1))
         title.SetFont(font)
-        title.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(title, fg="hint")
         self.search = wx.SearchCtrl(self, style=wx.TE_PROCESS_ENTER)
         self.search.SetDescriptiveText("Filter")
         self.search.ShowCancelButton(True)
@@ -96,7 +97,7 @@ class SceneLibrary(wx.Panel):
         self.book.AddPage(self.frames, "Frames")
         self.book.AddPage(self.modules, "Modules")
         hint = wx.StaticText(self, label="Drag onto the stage, or double-click to add it in the middle of the view.")
-        hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(hint, fg="hint")
         hint.Wrap(px(220))
         sizer.Add(title, 0, wx.LEFT | wx.TOP, 8)
         sizer.Add(self.search, 0, wx.EXPAND | wx.ALL, 6)

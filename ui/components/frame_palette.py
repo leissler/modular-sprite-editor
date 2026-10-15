@@ -2,6 +2,7 @@ import wx
 from typing import Optional, Callable, List
 from models import Project, Frame
 from ui.components.thumb_list import fit_text
+from ui.theme import T
 from ui.utils import ThumbnailGenerator
 from ui.dpi import px
 
@@ -38,7 +39,7 @@ class FramePalette(wx.ScrolledWindow):
         self.filter_text = ""
         self._cached_scale = 0.0
         
-        self.SetBackgroundColour(wx.Colour(40, 40, 40))
+        T.style(self, bg="row")
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetScrollRate(px(20), px(20))
         
@@ -130,7 +131,7 @@ class FramePalette(wx.ScrolledWindow):
     def on_paint(self, event) -> None:
         dc = wx.PaintDC(self)
         self.DoPrepareDC(dc)
-        dc.SetBackground(wx.Brush(wx.Colour(40, 40, 40)))
+        dc.SetBackground(wx.Brush(T.row))
         dc.Clear()
         
         frames = self.visible_frames()
@@ -178,7 +179,7 @@ class FramePalette(wx.ScrolledWindow):
             if frame.id == self.selected_frame_id or frame.id in self.selected_ids:
                 # Outer Glow Look
                 dc.SetBrush(wx.Brush(wx.TRANSPARENT_BRUSH))
-                dc.SetPen(wx.Pen(wx.Colour(100, 200, 255), 3))
+                dc.SetPen(wx.Pen(T.focus, 3))
                 dc.DrawRectangle(r.x - 2, r.y - 2, r.width + 4, r.height + 4)
 
     def _calculate_uniform_scale(self) -> float:

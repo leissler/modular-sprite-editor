@@ -15,11 +15,10 @@ import wx
 from models import ColourCycle
 from ui.components.palette_swatches import draw_empty_slot, hex_colour
 from ui.dpi import px
+from ui.theme import T
 
 RGB = Tuple[int, int, int]
 CYCLE_COLOURS = (wx.Colour(255, 176, 64), wx.Colour(120, 210, 255), wx.Colour(170, 230, 120), wx.Colour(240, 130, 220))
-COL_SELECTED = wx.Colour(255, 255, 255)
-COL_DROP = wx.Colour(140, 210, 255)
 COL_WAITING = wx.Colour(235, 70, 70)  # the cross over a colour the console does not show
 
 
@@ -123,7 +122,7 @@ class SwatchGrid(wx.Panel):
             original = self.colours[slot]
             swapped = self.replacements[slot] if self.replacements and slot < len(self.replacements) else None
             shown = swapped if swapped is not None else original
-            dc.SetPen(wx.Pen(wx.Colour(30, 30, 34)))
+            dc.SetPen(wx.Pen(T.swatch_border))
             dc.SetBrush(wx.Brush(wx.Colour(*shown)))
             dc.DrawRectangle(rect)
             if swapped is not None:  # the original in a corner
@@ -137,25 +136,25 @@ class SwatchGrid(wx.Panel):
                 dc.DrawLine(rect.x + 2, rect.y + 2, rect.x + rect.width - 2, rect.y + rect.height - 2)
                 dc.DrawLine(rect.x + rect.width - 2, rect.y + 2, rect.x + 2, rect.y + rect.height - 2)
             elif self.usage and slot < len(self.usage) and self.usage[slot] == 0:  # nothing uses it
-                dc.SetPen(wx.Pen(wx.Colour(150, 156, 170)))
+                dc.SetPen(wx.Pen(T.hint))
                 dc.DrawLine(rect.x + 2, rect.y + 2, rect.x + px(6), rect.y + 2)
             if slot in self.selected:
                 dc.SetBrush(wx.TRANSPARENT_BRUSH)
-                dc.SetPen(wx.Pen(COL_SELECTED, 2))
+                dc.SetPen(wx.Pen(T.swatch_selected, 2))
                 dc.DrawRectangle(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4)
         for index, cycle in enumerate(self.cycles):
             self._draw_cycle(dc, cycle, CYCLE_COLOURS[index % len(CYCLE_COLOURS)], index)
         if self._drop is not None:
             rect = self._cell_rect(self._drop + 1) if self._drop < self._slots() else self._cell_rect(self._slots())
             x = rect.x - self.gap // 2 - 1 if self._drop < len(self.colours) else rect.x + rect.width + 1
-            dc.SetPen(wx.Pen(COL_DROP, 2))
+            dc.SetPen(wx.Pen(T.drop, 2))
             dc.DrawLine(x, rect.y - 2, x, rect.y + rect.height + 2)
 
     def _draw_transparent(self, dc: wx.DC, rect: wx.Rect) -> None:
         half = rect.width // 2
         for i, (dx, dy) in enumerate(((0, 0), (half, 0), (0, half), (half, half))):
             dc.SetPen(wx.TRANSPARENT_PEN)
-            dc.SetBrush(wx.Brush(wx.Colour(120, 120, 124) if i in (0, 3) else wx.Colour(80, 80, 84)))
+            dc.SetBrush(wx.Brush(T.checker_b if i in (0, 3) else T.checker_a))
             dc.DrawRectangle(rect.x + dx, rect.y + dy, half, half)
 
     def _draw_cycle(self, dc: wx.DC, cycle: ColourCycle, colour: wx.Colour, index: int) -> None:

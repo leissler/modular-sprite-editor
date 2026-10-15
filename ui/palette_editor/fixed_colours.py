@@ -10,6 +10,7 @@ import wx
 import palettes
 from ui.components.palette_swatches import hex_colour
 from ui.dpi import px
+from ui.theme import T
 
 RGB = Tuple[int, int, int]
 
@@ -47,13 +48,13 @@ class FixedColourGrid(wx.Panel):
         dc.Clear()
         for index, rgb in enumerate(self.colours):
             rect = self._rect(index)
-            dc.SetPen(wx.Pen(wx.Colour(30, 30, 34)))
+            dc.SetPen(wx.Pen(T.swatch_border))
             dc.SetBrush(wx.Brush(wx.Colour(*rgb)))
             dc.DrawRectangle(rect)
         if 0 <= self.selected < len(self.colours):
             rect = self._rect(self.selected)
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
-            dc.SetPen(wx.Pen(wx.Colour(255, 255, 255), 2))
+            dc.SetPen(wx.Pen(T.swatch_selected, 2))
             dc.DrawRectangle(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4)
 
     def describe(self, index: int) -> str:

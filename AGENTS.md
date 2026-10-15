@@ -117,6 +117,8 @@ ui/
   refresh_rate.py          REFRESH: View ▸ Play at 50 Hz (PAL), the video frame rate every preview plays at
   grouping.py              Groups and sort orders for long lists (wx-free): natural name sort, shown()
   preferences_dialog.py    Edit ▸ Preferences (Cmd+,): the editor-wide settings in one window
+  theme.py                 T: the editor's colours (View ▸ Theme: like the system, dark or light), a dark and a light
+                           version of each named colour; T.style for controls, on_change for redraws
   sheet_export_dialog.py   File ▸ Export ▸ Sprite Sheet: format, animations, padding, scale
   project_history.py       ProjectHistory: compressed Project.to_dict() snapshots, undo/redo, dirty flag
   autosave.py              Crash recovery copies (wx-free): recovery folder, write / find stale / load / remove
@@ -476,6 +478,15 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   groups too; drag to reorder only in list order).
 - **Preferences:** editor-wide settings belong in the Preferences window (`ui/preferences_dialog.py`,
   `MainFrame.preference_values` / `apply_preferences`) and, when they are views, in the View menu too.
+- **Theme** (`ui/theme.py`, View ▸ Theme and Preferences: like the system, dark or light): whatever the editor draws
+  itself takes its colours from `T` (`T.row`, `T.hint`, ... read when painting, never kept), labels and backgrounds
+  set once go through `T.style(window, fg=, bg=)`; add a colour to `theme.COLOURS` (a dark and a light version)
+  rather than writing `wx.Colour(...)` into a panel. Lines over the art (outlines, selections, drafts, the grid) use
+  `BaseCanvas.overlay_colour`, which follows the backdrop actually behind them (a solid backdrop colour can be light
+  in the dark theme); handles, hitbox / point colours and readouts in their dark boxes keep fixed colours. Pictures
+  drawn on a theme colour (thumbnails) put `T.dark` or the colour in their cache key. A change calls
+  `MainFrame.theme_changed`: the picture caches are cleared (`images_changed`) and every window redrawn. On macOS a
+  chosen Dark or Light also sets the application's appearance; wx 3.2 cannot darken Windows' or GTK's own controls.
 - wx label gotcha: `&` in `StaticBox`/menu labels is a mnemonic — write `&&` for a literal ampersand.
 - Pixel art: scale images with `wx.IMAGE_QUALITY_NEAREST` on the image (GraphicsContext would smooth),
   keep zoom integral, and draw bitmaps at exactly their size.

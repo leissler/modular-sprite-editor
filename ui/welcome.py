@@ -9,15 +9,14 @@ from typing import Callable, List, Optional, Tuple
 import wx
 import wx.adv
 
-from ui.components.inspector_kit import COL_DIM, COL_SECTION
 from ui.dpi import px
+from ui.theme import T
 
 GUIDE_URL = "https://modularsprites.bionic-productions.com/"
 FIRST_SPRITE_URL = GUIDE_URL + "start/first-sprite/"
 EXAMPLES_GUIDE_URL = GUIDE_URL + "examples/"
 DOWNLOAD_URL = "https://github.com/leissler/modular-sprite-editor/releases/latest"
 CONFIG_SHOW = "Welcome/ShowAtStart"
-LINK_COLOUR = wx.Colour(120, 175, 255)
 
 # (name, what it shows, path in the examples folder)
 EXAMPLES: List[Tuple[str, str, Tuple[str, ...]]] = [
@@ -55,7 +54,7 @@ def _heading(parent: wx.Window, text: str) -> wx.StaticText:
     font.SetWeight(wx.FONTWEIGHT_BOLD)
     font.SetPointSize(max(8, font.GetPointSize() - 1))
     label.SetFont(font)
-    label.SetForegroundColour(COL_SECTION)
+    T.style(label, fg="hint")
     return label
 
 
@@ -89,7 +88,7 @@ class WelcomePanel(wx.ScrolledWindow):
     def _link(self, parent: wx.Window, label: str, action: Callable[[], None], tip: str = "") -> wx.adv.HyperlinkCtrl:
         link = wx.adv.HyperlinkCtrl(parent, label=label, url="", style=wx.adv.HL_ALIGN_LEFT | wx.BORDER_NONE)
         for colour in (link.SetNormalColour, link.SetHoverColour, link.SetVisitedColour):
-            colour(LINK_COLOUR)
+            colour(T.link)
         if tip:
             link.SetToolTip(tip)
         link.Bind(wx.adv.EVT_HYPERLINK, lambda e: action())  # no Skip: nothing else opens
@@ -121,7 +120,7 @@ class WelcomePanel(wx.ScrolledWindow):
         title.SetFont(font)
         titles.Add(title, 0, wx.BOTTOM, 4)
         subtitle = wx.StaticText(self, label=f"Version {self._version}  ·  modular pixel-art sprites for retro consoles")
-        subtitle.SetForegroundColour(COL_DIM)
+        T.style(subtitle, fg="hint")
         titles.Add(subtitle, 0)
         head.Add(titles, 0, wx.ALIGN_CENTER_VERTICAL)
         self.column.Add(head, 0, wx.BOTTOM, px(28))
@@ -145,7 +144,7 @@ class WelcomePanel(wx.ScrolledWindow):
         recent = [path for path in recent_files if path][:8]
         if not recent:
             none = wx.StaticText(self, label="Projects you open show up here.")
-            none.SetForegroundColour(COL_DIM)
+            T.style(none, fg="hint")
             left.Add(none, 0)
         for path in recent:
             entry = wx.BoxSizer(wx.HORIZONTAL)
@@ -155,11 +154,11 @@ class WelcomePanel(wx.ScrolledWindow):
                 entry.Add(link, 0, wx.RIGHT, 8)
             else:
                 gone = wx.StaticText(self, label=os.path.basename(path))
-                gone.SetForegroundColour(COL_DIM)
+                T.style(gone, fg="hint")
                 gone.SetToolTip(f"Not found: {path}")
                 entry.Add(gone, 0, wx.RIGHT, 8)
             where = wx.StaticText(self, label=_short_folder(path) if exists else "(not found)")
-            where.SetForegroundColour(COL_DIM)
+            T.style(where, fg="hint")
             entry.Add(where, 0)
             left.Add(entry, 0, wx.BOTTOM, 6)
         columns.Add(left, 1, wx.RIGHT, px(48))
@@ -171,7 +170,7 @@ class WelcomePanel(wx.ScrolledWindow):
             entry = wx.BoxSizer(wx.VERTICAL)
             entry.Add(self._link(self, name, lambda p=path: self.on_open_path(p), path), 0)
             about = wx.StaticText(self, label=text)
-            about.SetForegroundColour(COL_DIM)
+            T.style(about, fg="hint")
             entry.Add(about, 0)
             right.Add(entry, 0, wx.BOTTOM, 8)
         if not examples:

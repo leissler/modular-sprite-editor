@@ -20,6 +20,7 @@ from ui.mapping_editor import ops
 from ui.mapping_editor.table import MapTable
 from ui.module_editor import ops as module_ops
 from ui.dpi import px
+from ui.theme import T
 
 
 class UsagePreview(FramePalette):
@@ -70,7 +71,7 @@ class MappingEditorPanel(wx.Panel):
         self.btn_dup = self.browser.add_button("Duplicate", "Duplicate the selected mapping", self.duplicate_mapping)
         self.btn_del = self.browser.add_button("Delete", "Delete the selected mapping", self.delete_mapping)
         info = wx.StaticText(self.browser, label="The selected mapping previews in every tab and is used by the exports (see the bar above the tabs).")
-        info.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(info, fg="hint")
         info.Wrap(px(230))
         self.browser.sizer.Add(info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
@@ -107,12 +108,12 @@ class MappingEditorPanel(wx.Panel):
         tools.Add(self.btn_reset_all, 0)
         csizer.Add(tools, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
         self.empty_hint = wx.StaticText(centre, label="")
-        self.empty_hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.empty_hint, fg="hint")
         csizer.Add(self.empty_hint, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.table = MapTable(centre)
         csizer.Add(self.table, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
         hint = wx.StaticText(centre, label="Select rows, then click a module on the right (or drag one onto a row). Delete = original, H = hide.")
-        hint.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(hint, fg="hint")
         csizer.Add(hint, 0, wx.ALL, 6)
         centre.SetSizer(csizer)
 
@@ -137,7 +138,7 @@ class MappingEditorPanel(wx.Panel):
         self.preview_title = title_label(preview, "PREVIEW")
         vsizer.Add(self.preview_title, 0, wx.LEFT | wx.TOP, 8)
         self.preview_info = wx.StaticText(preview, label="")
-        self.preview_info.SetForegroundColour(wx.Colour(150, 156, 170))
+        T.style(self.preview_info, fg="hint")
         vsizer.Add(self.preview_info, 0, wx.LEFT | wx.TOP, 8)
         self.preview = UsagePreview(preview, self.project)
         vsizer.Add(self.preview, 1, wx.EXPAND | wx.ALL, 6)
@@ -551,7 +552,7 @@ class MappingEditorPanel(wx.Panel):
             find = wx.TextCtrl(dlg, size=(px(160), -1))
             replace = wx.TextCtrl(dlg, size=(px(160), -1))
             preview = wx.StaticText(dlg, label="")
-            preview.SetForegroundColour(wx.Colour(150, 156, 170))
+            T.style(preview, fg="hint")
             grid.Add(wx.StaticText(dlg, label="Name part"), 0, wx.ALIGN_CENTER_VERTICAL)
             grid.Add(find, 0)
             grid.Add(wx.StaticText(dlg, label="replaced by"), 0, wx.ALIGN_CENTER_VERTICAL)

@@ -2102,6 +2102,51 @@ def run():
 
     step("preferences window (tick rate, autosave, 50 Hz)", preferences_window)
 
+    def theme_choice():
+        """Theme (Preferences, View ▸ Theme): the other theme redraws every tab in its colours (lists, thumbnails,
+        hints, the canvas checkerboard) and is kept in the preferences; then it goes back to what it was."""
+        from ui import preferences_dialog, theme
+        from ui.components.module_palette import THUMBNAILS
+        from ui.theme import T
+
+        before_mode, before_dark = T.mode, T.dark
+        other = theme.LIGHT if T.dark else theme.DARK
+
+        def answer(dialog):
+            dialog.theme.SetSelection(theme.MODES.index(other))
+            return wx.ID_OK
+
+        original = preferences_dialog.PreferencesDialog.ShowModal
+        preferences_dialog.PreferencesDialog.ShowModal = answer
+        try:
+            frame.on_preferences()
+        finally:
+            preferences_dialog.PreferencesDialog.ShowModal = original
+        try:
+            check(T.mode == other and T.dark != before_dark, "Preferences switch the theme")
+            check(frame.m_theme[other].IsChecked() and not frame.m_theme[before_mode].IsChecked(),
+                  "the View menu shows the theme")
+            check(frame.config.Read(theme.CONFIG_KEY, "") == other, "the theme is kept in the preferences")
+            listbox = frame.frame_editor.browser.list
+            check(listbox.GetBackgroundColour() == T.row, "lists take the theme's colours")
+            module = frame.project.modules[0]
+            image = THUMBNAILS.bitmap(frame.project, module, 400, 40).ConvertToImage()
+            check((image.GetRed(0, 0), image.GetGreen(0, 0), image.GetBlue(0, 0)) == T.palette.rgb("tile"),
+                  "module tiles on the theme's colour")
+            current = frame.book.GetSelection()
+            for index in range(len(frame.panels)):  # every tab draws in the new colours
+                frame.select_tab(index)
+                pump()
+                shot(f"theme_{other}_{index}")
+            frame.select_tab(current)
+            frame.set_theme(before_mode)  # View ▸ Theme
+            check(T.dark == before_dark and frame.m_theme[before_mode].IsChecked(), "View ▸ Theme switches back")
+            check(listbox.GetBackgroundColour() == T.row, "the lists follow back")
+        finally:
+            frame.set_theme(before_mode)
+
+    step("theme (Preferences and View menu)", theme_choice)
+
     def view_memory():
         """Reopening a project brings back where it was left: the tab, the preview mapping, each tab's selection, the
         canvas' zoom and pan and the grid (kept per project file in the preferences)."""

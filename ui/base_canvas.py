@@ -7,6 +7,8 @@ import wx
 from ui import app_services
 from ui.dpi import px
 from ui.preferences import config
+from ui import theme
+from ui.theme import T
 
 # Integer levels keep every source pixel the same size on screen (nearest-neighbour scaling).
 ZOOM_LEVELS = (0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 32.0)
@@ -152,17 +154,17 @@ DEFAULT_BACKDROP_COLOUR: Tuple[int, int, int] = (32, 32, 32)
 
 
 CHECKER_STEP = px(8)  # checkerboard tile size in screen pixels (8 at 100 %)
-CHECKER_COLOURS = ((60, 60, 60), (80, 80, 80))
 
 
 def _checker_bitmap(width: int, height: int, scale: float = 1.0) -> wx.Bitmap:
-    """A checkerboard of CHECKER_STEP tiles (logical pixels), starting with a CHECKER_COLOURS[0] tile at the
+    """A checkerboard of CHECKER_STEP tiles (logical pixels) in the theme's two greys, starting with the first at the
     top-left, made at the display's scale factor so its edges stay sharp on HiDPI screens."""
     tile = max(1, int(round(CHECKER_STEP * scale)))
     columns = -(-width // CHECKER_STEP)
     bands = -(-height // CHECKER_STEP)
+    colours = (T.palette.rgb("checker_a"), T.palette.rgb("checker_b"))
     band = [
-        b"".join(bytes(CHECKER_COLOURS[(column + parity) % 2]) * tile for column in range(columns)) * tile
+        b"".join(bytes(colours[(column + parity) % 2]) * tile for column in range(columns)) * tile
         for parity in (0, 1)
     ]
     data = b"".join(band[index % 2] for index in range(bands))
@@ -202,7 +204,7 @@ class BaseCanvas(wx.Panel):
         self._zoom_snap_call: Optional[wx.CallLater] = None
         self._zoom_snap_anchor: Optional[wx.Point] = None
         self._zoom_gesture_start: Optional[float] = None
-        self._checker: Optional[Tuple[float, wx.Bitmap]] = None  # (scale, bitmap): the backdrop in one call
+        self._checker: Optional[Tuple[Tuple[float, bool], wx.Bitmap]] = None  # ((scale, dark), bitmap): the backdrop in one call
         self._panning = False
         self._start = wx.Point()
         self._fit_pending = False
@@ -272,6 +274,18 @@ class BaseCanvas(wx.Panel):
     def backdrop_fill_colour(self) -> Tuple[int, int, int]:
         """The solid backdrop colour (the scene stage uses its scene's background instead)."""
         return self.backdrop_colour
+
+    def backdrop_is_dark(self) -> bool:
+        """Whether the backdrop behind the art is dark: the theme's checkerboard, or the solid colour."""
+        if self.backdrop == BACKDROP_COLOUR:
+            r, g, b = self.backdrop_fill_colour()
+            return 0.299 * r + 0.587 * g + 0.114 * b < 140
+        return T.dark
+
+    def overlay_colour(self, name: str, alpha: int = 255) -> wx.Colour:
+        """A theme colour (canvas_line, canvas_faint, canvas_grid, axis) for lines drawn over the art, in the version
+        that shows on this canvas' backdrop."""
+        return wx.Colour(*theme.on(name, self.backdrop_is_dark()), alpha)
 
     def draw_backdrop(self, dc: wx.DC) -> None:
         if self.backdrop == BACKDROP_COLOUR:
@@ -353,8 +367,9 @@ class BaseCanvas(wx.Panel):
         width, height = size.width + period, size.height + period
         scale = self.GetContentScaleFactor()
         cached = self._checker
-        if cached is None or cached[0] != scale or cached[1].GetScaledWidth() < width or cached[1].GetScaledHeight() < height:
-            cached = self._checker = (scale, _checker_bitmap(width, height, scale))
+        key = (scale, T.dark)  # a new theme draws it again
+        if cached is None or cached[0] != key or cached[1].GetScaledWidth() < width or cached[1].GetScaledHeight() < height:
+            cached = self._checker = (key, _checker_bitmap(width, height, scale))
         bitmap = cached[1]
         ox, oy = self.world_to_screen((0, 0))
         # Shift the pattern so its first tile lies at the world origin (tiles stay anchored while panning).
@@ -377,7 +392,7 @@ class BaseCanvas(wx.Panel):
         spacing_x = grid_step(self.grid_spacing[0], self.zoom, px(4))
         spacing_y = grid_step(self.grid_spacing[1], self.zoom, px(4))
 
-        grid_pen = wx.Pen(wx.Colour(100, 100, 100), width=1, style=wx.PENSTYLE_SOLID)
+        grid_pen = wx.Pen(self.overlay_colour("canvas_grid"), width=1, style=wx.PENSTYLE_SOLID)
         gc.SetPen(grid_pen)
 
         # Vertical lines
@@ -399,7 +414,7 @@ class BaseCanvas(wx.Panel):
             current_y += spacing_y
 
         # Origin axes
-        axis_pen = wx.Pen(wx.Colour(200, 200, 200, 100), width=2)
+        axis_pen = wx.Pen(self.overlay_colour("axis", 100), width=2)
         gc.SetPen(axis_pen)
         cx, cy = self.world_to_screen((0, 0))
         gc.StrokeLine(0, round(cy), w, round(cy))

@@ -9,9 +9,10 @@ F2, F5–F7 and H1–H5 are fixed (each finding says how).
 
 **Status (release 0.9, 2026-10-14):** everything else is done too, except F3's GBA and NES budget profiles and further
 consoles' exporters (left for later on purpose): K3, K5, K6, U6's per-project view state, F1's palette swaps and
-cycling (file format 7, blob version 5, see `docs/PALETTES.md`), F4 and F8–F12. F11 has no theme setting (see F11).
+cycling (file format 7, blob version 5, see `docs/PALETTES.md`), F4 and F8–F12. F11's theme came after 0.9.
 The console database (`consoles.py`) prepares the other consoles. **After 0.9:** F3's budgets (NES, Game Boy, GBA)
-and palettes for every console are done; exporters for consoles other than the Mega Drive remain.
+and palettes for every console are done, and so is F11's theme; exporters for consoles other than the Mega Drive
+remain.
 
 How it was checked:
 
@@ -487,7 +488,7 @@ to the most used (`palette-too-long` in Check Project). Open on purpose: exporte
 | F8 | **Attachment points**: a scene object follows a parent's point role frame by frame (weapons, effects, riders) | Medium | Listed in ANIMATION.md. **Done:** Timeline inspector ▸ Follows (format 7: `attach_point_role` / `attach_point_type`): the object sits on the point of its parent's current frame, mirrors and turns with it, hides where the frame has none; the stage, the budget and the SGDK bake place it alike (`tests/test_sgdk_scenes.py`, mirrored too); Check Project warns about points no frame has. |
 | F9 | **Timing tools**: 50 / 60 Hz preview, spread presets (1-1-2-2…), batch edits across animations (tick rate, playback) | Low-medium | **Done:** the preview plays the game's timing (each step in whole video frames, `playback.console_frames`, shared with the exporter), View ▸ Play at 50 Hz slows every preview to PAL speed, Check Project notes rates that round; Spread (1-1-2-2, 1-2, 2-1, slow start / end / both); Tools ▸ Change Animations (tick rate with or without keeping the timing, playback, repeats, group). |
 | F10 | **Organising large projects**: folders or tags for animations and frames (Sonic has 171 animations), sort options | Low-medium | **Done:** groups for frames and animations (format 7), set in the inspectors, the lists' menus and Change Animations; the lists show one group and sort by list order, name (numbers as numbers) or group; filters find groups too. |
-| F11 | **Preferences window** (scroll behaviour, default tick rate, autosave, theme) | Low | Settings are spread over view bars. **Done** without a theme: Edit ▸ Preferences (Cmd+,) has scrolling, 50 Hz previews, the backdrop colour, the tick rate of new animations, the autosave interval, the welcome screen and Clear Recent Projects. A light theme would need every custom-drawn list, canvas and timeline to take its colours from one place; not started. |
+| F11 | **Preferences window** (scroll behaviour, default tick rate, autosave, theme) | Low | Settings are spread over view bars. **Done**: Edit ▸ Preferences (Cmd+,) has the theme, scrolling, 50 Hz previews, the backdrop colour, the tick rate of new animations, the autosave interval, the welcome screen and Clear Recent Projects. The theme (after 0.9; also View ▸ Theme) is Like the system, Dark or Light: every custom-drawn list, strip, timeline, swatch and the canvas checkerboard take their colours from `ui/theme.py`, lines over the art follow the backdrop behind them, and on macOS the native controls follow too (wx 3.2 cannot darken Windows' or GTK's own controls). |
 | F12 | **Timeline**: several selected objects at once, copying objects between scenes | Low | Known limit since the redesign. **Done:** Shift / Cmd+click in the layers and on the stage, a marquee on empty stage space; drags, arrows, flips, Delete, Duplicate and Copy act on all of them, the inspector's Mapping, Colours and playback settings too; layers paste into any scene. |
 
 ---

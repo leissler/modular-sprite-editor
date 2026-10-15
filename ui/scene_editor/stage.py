@@ -185,7 +185,7 @@ class StageCanvas(FrameCanvas):
         self._budget_hud = None
         self._draw_grid(gc)
         if not self.scene:
-            gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), wx.Colour(190, 190, 190))
+            gc.SetFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT), self.overlay_colour("canvas_faint"))
             gc.DrawText(first_steps.scenes(self.project) or "No scene yet: click + New in the Scenes list to make one.", px(20), px(20))
             return
 
@@ -220,7 +220,7 @@ class StageCanvas(FrameCanvas):
             if item:
                 r = item["screen_rect"]
                 # The layer the inspector shows in white, the others selected with it in blue.
-                colour = wx.Colour(255, 255, 255) if object_id == self.selected_object_id else wx.Colour(130, 190, 255)
+                colour = self.overlay_colour("canvas_line") if object_id == self.selected_object_id else wx.Colour(130, 190, 255)
                 gc.SetPen(wx.Pen(colour, 1, wx.PENSTYLE_SHORT_DASH))
                 gc.DrawRectangle(r.x, r.y, r.width, r.height)
         if self._marquee is not None:

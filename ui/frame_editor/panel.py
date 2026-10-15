@@ -25,10 +25,10 @@ from ui.frame_editor.library import PartLibrary
 from ui.frame_editor.stage import FrameStage
 from ui.frame_render import SHARED, fit_bitmap, frame_signature, mapping_key, swap_key
 from ui.dpi import px
+from ui.theme import T
 
 ONION_MODES: List[Tuple[str, str]] = [("Off", "off"), ("Previous", "previous"), ("Next", "next"), ("Both", "both")]
 NUDGE_LARGE = 8  # one hardware tile
-TILE_BG = (52, 53, 58)
 UNKNOWN_TYPE_COLOUR = (150, 150, 150)
 MODE_HINTS = {
     "parts": "Drag from the library onto the stage  •  Click: select (again: the part below)  •  Drag empty space: select several  •  Arrows: nudge (Shift = 8 px)  •  H/V flip  •  R rotate",
@@ -50,7 +50,7 @@ class FrameEditorPanel(wx.Panel):
         self.mode = "parts"
         self._view: List[Frame] = []
         self._thumbs: Dict[Any, wx.Bitmap] = {}
-        self._swatches: Dict[Tuple[int, int, int], wx.Bitmap] = {}
+        self._swatches: Dict[Tuple[Tuple[int, int, int], bool], wx.Bitmap] = {}  # (colour, dark theme)
         self._active_type: Dict[str, Optional[str]] = {"hitboxes": None, "points": None}
         self._fitted_id: Optional[str] = None
         self._remembered_view: Optional[Tuple[str, view_memory.View]] = None  # shown instead of the frame's first fit
@@ -457,11 +457,12 @@ class FrameEditorPanel(wx.Panel):
         if frame is None or not frame.fmodules:
             return None
         mapping, swap = self.project.active_mapping, self.project.active_palette_swap
-        key = (frame_signature(self.project, frame_id, mapping), mapping_key(mapping), swap_key(self.project, swap), size)
+        key = (frame_signature(self.project, frame_id, mapping), mapping_key(mapping), swap_key(self.project, swap), size,
+               T.dark)
         bmp = self._thumbs.get(key)
         if bmp is None:
             image, _x, _y = SHARED.render(self.project, frame, mapping, swap=swap)
-            bmp = fit_bitmap(image, size, size, TILE_BG, max_scale=4)
+            bmp = fit_bitmap(image, size, size, T.palette.rgb("tile"), max_scale=4)
             if len(self._thumbs) > 2000:
                 self._thumbs.clear()
             self._thumbs[key] = bmp
@@ -484,11 +485,11 @@ class FrameEditorPanel(wx.Panel):
             return self._part_thumbnail(item, size)
         kind = next((t for t in ops.types(self.project, self.mode) if t.id == item.type_id), None)
         colour = tuple(kind.color) if kind else UNKNOWN_TYPE_COLOUR
-        bmp = self._swatches.get(colour)  # type: ignore[arg-type]
+        bmp = self._swatches.get((colour, T.dark))  # type: ignore[arg-type]
         if bmp is None:
             bmp = wx.Bitmap(size, size)
             dc = wx.MemoryDC(bmp)
-            dc.SetBackground(wx.Brush(wx.Colour(*TILE_BG)))
+            dc.SetBackground(wx.Brush(T.tile))
             dc.Clear()
             dc.SetPen(wx.Pen(wx.Colour(*colour), 2))
             dc.SetBrush(wx.Brush(wx.Colour(colour[0], colour[1], colour[2], 90)))
@@ -499,7 +500,7 @@ class FrameEditorPanel(wx.Panel):
                 dc.DrawLine(c - px(7), c, c + px(8), c)
                 dc.DrawLine(c, c - px(7), c, c + px(8))
             dc.SelectObject(wx.NullBitmap)
-            self._swatches[colour] = bmp  # type: ignore[index]
+            self._swatches[(colour, T.dark)] = bmp  # type: ignore[index]
         return bmp
 
     # ================================================================== frame commands

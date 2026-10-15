@@ -152,7 +152,7 @@ class PalettePreview(BaseCanvas):
         gc.DrawBitmap(self._scaled[1], round(sx), round(sy), tw, th)
         x0, y0 = self.world_to_screen((0, 0))
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        gc.SetPen(wx.Pen(wx.Colour(190, 190, 196, 160), 1))
+        gc.SetPen(wx.Pen(self.overlay_colour("canvas_faint", 160), 1))
         gc.DrawRectangle(x0 - 0.5, y0 - 0.5, iw * self.zoom + 1, ih * self.zoom + 1)
 
     # ------------------------------------------------------------------ mouse

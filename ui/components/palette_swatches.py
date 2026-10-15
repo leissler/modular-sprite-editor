@@ -12,9 +12,9 @@ import wx
 import consoles
 import palettes
 from ui.dpi import px
+from ui.theme import T
 
 RGB = Tuple[int, int, int]
-EMPTY_SLOT = wx.Colour(96, 100, 112)
 
 
 def hex_colour(rgb: Sequence[int]) -> str:
@@ -24,7 +24,7 @@ def hex_colour(rgb: Sequence[int]) -> str:
 def draw_empty_slot(dc: wx.DC, x: int, y: int, size: int) -> None:
     """An empty slot: an outline with a diagonal, so it reads as free, not black."""
     dc.SetBrush(wx.TRANSPARENT_BRUSH)
-    dc.SetPen(wx.Pen(EMPTY_SLOT))
+    dc.SetPen(wx.Pen(T.empty_slot))
     dc.DrawRectangle(x, y, size, size)
     dc.DrawLine(x + 1, y + size - 2, x + size - 1, y)
 
@@ -69,7 +69,7 @@ class PaletteStrip(wx.Panel):
         for index in range(self.slots):
             x = index * (self.swatch + 1)
             if index < len(self.colours):
-                dc.SetPen(wx.Pen(wx.Colour(30, 30, 34)))
+                dc.SetPen(wx.Pen(T.swatch_border))
                 dc.SetBrush(wx.Brush(wx.Colour(*self.colours[index])))
                 dc.DrawRectangle(x, 0, self.swatch + 1, self.swatch + 1)
             else:

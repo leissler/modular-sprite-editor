@@ -8,16 +8,13 @@ import wx
 
 from models import ModuleMapping, Project
 from ui.components.module_palette import THUMBNAILS
-from ui.components.thumb_list import COL_ROW, COL_ROW_ALT, COL_ROW_SELECTED, COL_TEXT, COL_TEXT_DIM, fit_text
+from ui.components.thumb_list import fit_text
 from ui.mapping_editor import ops
 from ui.dpi import px
+from ui.theme import T
 
 ROW_H = px(44)
 THUMB = px(34)
-COL_REPLACED = wx.Colour(120, 210, 255)
-COL_HIDDEN = wx.Colour(255, 176, 64)
-COL_MISSING = wx.Colour(255, 120, 110)
-COL_DROP = wx.Colour(140, 210, 255)
 
 
 class _ModuleDrop(wx.TextDropTarget):
@@ -56,7 +53,7 @@ class MapTable(wx.VListBox):
         self.module_ids: List[str] = []
         self.drop_row = -1
         self.on_drop: Optional[Callable[[str, str], None]] = None  # (source module id, dropped module id)
-        self.SetBackgroundColour(COL_ROW)
+        T.style(self, bg="row")
         self.SetDropTarget(_ModuleDrop(self))
 
     def set_rows(self, project: Project, mapping: Optional[ModuleMapping], module_ids: List[str], selected: List[str]) -> None:
@@ -90,13 +87,13 @@ class MapTable(wx.VListBox):
         return ROW_H
 
     def OnDrawBackground(self, dc: wx.DC, rect: wx.Rect, n: int) -> None:
-        colour = COL_ROW_SELECTED if self.IsSelected(n) else (COL_ROW_ALT if n % 2 else COL_ROW)
+        colour = T.selected if self.IsSelected(n) else (T.row_alt if n % 2 else T.row)
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.SetBrush(wx.Brush(colour))
         dc.DrawRectangle(rect)
         if n == self.drop_row:
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
-            dc.SetPen(wx.Pen(COL_DROP, 2))
+            dc.SetPen(wx.Pen(T.drop, 2))
             dc.DrawRectangle(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
 
     def OnDrawItem(self, dc: wx.DC, rect: wx.Rect, n: int) -> None:
@@ -111,29 +108,29 @@ class MapTable(wx.VListBox):
         small = wx.Font(font)
         small.SetPointSize(max(7, font.GetPointSize() - 2))
         dc.DrawBitmap(THUMBNAILS.bitmap(self.project, source, THUMB, THUMB), rect.x + px(6), y)
-        self._texts(dc, font, small, rect.x + THUMB + px(14), rect.y, half - THUMB - px(34), source.name, f"{source.rect[2]}×{source.rect[3]}", COL_TEXT_DIM)
+        self._texts(dc, font, small, rect.x + THUMB + px(14), rect.y, half - THUMB - px(34), source.name, f"{source.rect[2]}×{source.rect[3]}", T.text_dim)
 
         state = ops.state(self.project, self.mapping, source.id) if self.mapping else ops.ORIGINAL
         arrow_x = rect.x + half - px(18)
         dc.SetFont(font)
-        dc.SetTextForeground(COL_TEXT_DIM if state == ops.ORIGINAL else COL_REPLACED)
+        dc.SetTextForeground(T.text_dim if state == ops.ORIGINAL else T.replaced)
         dc.DrawText("→", arrow_x, rect.y + (ROW_H - dc.GetTextExtent("→")[1]) // 2)
         x = rect.x + half + px(6)
         if state == ops.REPLACED:
             target = self.project.get_module(self.mapping.map[source.id])  # type: ignore[union-attr]
             dc.DrawBitmap(THUMBNAILS.bitmap(self.project, target, THUMB, THUMB), x, y)
-            self._texts(dc, font, small, x + THUMB + px(8), rect.y, rect.right - x - THUMB - px(14), target.name, "replaced", COL_REPLACED)
+            self._texts(dc, font, small, x + THUMB + px(8), rect.y, rect.right - x - THUMB - px(14), target.name, "replaced", T.replaced)
         else:
-            dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
-            dc.SetBrush(wx.Brush(wx.Colour(36, 37, 40)))
+            dc.SetPen(wx.Pen(T.border))
+            dc.SetBrush(wx.Brush(T.thumb))
             dc.DrawRectangle(x, y, THUMB, THUMB)
             title, detail, colour = {
-                ops.ORIGINAL: ("= original", "", COL_TEXT_DIM),
-                ops.HIDDEN: ("Hidden", "not drawn", COL_HIDDEN),
-                ops.MISSING: ("Missing", "the replacement was deleted", COL_MISSING),
+                ops.ORIGINAL: ("= original", "", T.text_dim),
+                ops.HIDDEN: ("Hidden", "not drawn", T.accent),
+                ops.MISSING: ("Missing", "the replacement was deleted", T.error),
             }[state]
             if state == ops.HIDDEN:
-                dc.SetPen(wx.Pen(COL_HIDDEN, 2))
+                dc.SetPen(wx.Pen(T.accent, 2))
                 dc.DrawLine(x + px(4), y + px(4), x + THUMB - px(4), y + THUMB - px(4))
             self._texts(dc, font, small, x + THUMB + px(8), rect.y, rect.right - x - THUMB - px(14), title, detail, colour, title_colour=colour)
 
@@ -145,7 +142,7 @@ class MapTable(wx.VListBox):
         dh = dc.GetTextExtent("Ag")[1] if detail else 0
         y = top + (ROW_H - th - (dh + 1 if detail else 0)) // 2
         dc.SetFont(font)
-        dc.SetTextForeground(title_colour or COL_TEXT)
+        dc.SetTextForeground(title_colour or T.text)
         dc.DrawText(fit_text(dc, title, max(10, width)), x, y)
         if detail:
             dc.SetFont(small)

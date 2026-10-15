@@ -11,29 +11,10 @@ from models import TimelineObject, TimelineScene
 from ui.base_canvas import SCROLL, WheelGestureFilter
 from ui.scene_editor import ops
 from ui.dpi import px, pxf
+from ui.theme import T
 
 Selection = Dict[str, Set[str]]  # object id -> selected key ids
 
-COL_BG = wx.Colour(34, 35, 38)
-COL_ROW_A = wx.Colour(44, 45, 49)
-COL_ROW_B = wx.Colour(40, 41, 45)
-COL_ROW_SELECTED = wx.Colour(56, 74, 104)
-COL_ROW_ALSO_SELECTED = wx.Colour(50, 63, 84)  # selected with the layer the inspector shows
-COL_HEADER = wx.Colour(30, 31, 34)
-COL_TEXT = wx.Colour(226, 226, 230)
-COL_TEXT_DIM = wx.Colour(140, 142, 150)
-COL_GRID = wx.Colour(52, 53, 58)
-COL_GRID_SECOND = wx.Colour(78, 80, 88)
-COL_OUTSIDE = wx.Colour(28, 28, 30)
-COL_PLAYHEAD = wx.Colour(255, 92, 92)
-COL_KEY = wx.Colour(196, 204, 220)
-COL_KEY_SELECTED = wx.Colour(255, 176, 64)
-COL_KEY_STACK = wx.Colour(255, 120, 90)
-COL_TWEEN = wx.Colour(88, 120, 186)
-COL_TWEEN_EASED = wx.Colour(132, 96, 186)
-COL_HOLD = wx.Colour(110, 110, 118)
-COL_ANIM_TICK = wx.Colour(120, 200, 140)
-COL_DROP = wx.Colour(140, 210, 255)
 
 TYPE_COLOURS = {
     "module": wx.Colour(96, 156, 230),
@@ -694,7 +675,7 @@ class TimelineWidget(wx.Panel):
     # ------------------------------------------------------------------ paint
     def _on_paint(self, _event: wx.PaintEvent) -> None:
         dc = wx.AutoBufferedPaintDC(self)
-        dc.SetBackground(wx.Brush(COL_BG))
+        dc.SetBackground(wx.Brush(T.track))
         dc.Clear()
         width, height = self.GetClientSize()
         font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
@@ -703,7 +684,7 @@ class TimelineWidget(wx.Panel):
         dc.SetFont(font)
 
         if not self.scene:
-            dc.SetTextForeground(COL_TEXT_DIM)
+            dc.SetTextForeground(T.text_dim)
             dc.DrawText("No scene selected", 16, 16)
             return
 
@@ -726,18 +707,18 @@ class TimelineWidget(wx.Panel):
         if self.frame_w >= pxf(5.0):
             for frame in range(first_frame, last_frame + 2):
                 x = int(self.frame_x(frame))
-                dc.SetPen(wx.Pen(COL_GRID_SECOND if frame % fps == 0 else COL_GRID))
+                dc.SetPen(wx.Pen(T.grid_strong if frame % fps == 0 else T.grid))
                 dc.DrawLine(x, self.header_h, x, height)
         # outside the scene
         if end_x < width:
             dc.SetPen(wx.TRANSPARENT_PEN)
-            dc.SetBrush(wx.Brush(COL_OUTSIDE))
+            dc.SetBrush(wx.Brush(T.outside))
             dc.DrawRectangle(int(end_x), self.header_h, int(width - end_x) + 1, height - self.header_h)
 
         # playhead column
         cur_x = self.frame_x(self.frame)
         dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(wx.Colour(255, 92, 92, 40)))
+        dc.SetBrush(wx.Brush(wx.Colour(*T.palette.rgb("playhead"), 40)))
         dc.DrawRectangle(int(cur_x), self.header_h, max(1, int(math.ceil(self.frame_w))), height - self.header_h)
 
         for row, (obj, _depth, _kids) in enumerate(self.rows):
@@ -749,7 +730,7 @@ class TimelineWidget(wx.Panel):
 
         # ---- ruler
         dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(COL_HEADER))
+        dc.SetBrush(wx.Brush(T.ruler))
         dc.DrawRectangle(0, 0, width, self.header_h)
         dc.SetClippingRegion(self.left_w, 0, max(1, width - self.left_w), self.header_h)
         step = next((s for s in LABEL_STEPS if s * self.frame_w >= px(44)), LABEL_STEPS[-1])
@@ -758,20 +739,20 @@ class TimelineWidget(wx.Panel):
             x = int(self.frame_x(frame))
             is_second = frame % fps == 0
             if frame % step == 0:
-                dc.SetPen(wx.Pen(COL_TEXT_DIM))
+                dc.SetPen(wx.Pen(T.text_dim))
                 dc.DrawLine(x, self.header_h - px(10), x, self.header_h)
-                dc.SetTextForeground(COL_TEXT if is_second else COL_TEXT_DIM)
+                dc.SetTextForeground(T.text if is_second else T.text_dim)
                 label = str(frame)
                 if is_second and frame:
                     label += f"  {frame // fps}s"
                 dc.DrawText(label, x + 3, 3)
             elif self.frame_w >= pxf(5.0):
-                dc.SetPen(wx.Pen(COL_GRID_SECOND))
+                dc.SetPen(wx.Pen(T.grid_strong))
                 dc.DrawLine(x, self.header_h - px(4), x, self.header_h)
         # playhead marker + line
         cx = int(self.frame_center_x(self.frame))
-        dc.SetPen(wx.Pen(COL_PLAYHEAD))
-        dc.SetBrush(wx.Brush(COL_PLAYHEAD))
+        dc.SetPen(wx.Pen(T.playhead))
+        dc.SetBrush(wx.Brush(T.playhead))
         label = str(self.frame)
         tw, th = dc.GetTextExtent(label)
         dc.DrawRoundedRectangle(cx - tw // 2 - 4, self.header_h - th - 6, tw + 8, th + 4, 3)
@@ -779,7 +760,7 @@ class TimelineWidget(wx.Panel):
         dc.DrawText(label, cx - tw // 2, self.header_h - th - 4)
         dc.DestroyClippingRegion()
         dc.SetClippingRegion(self.left_w, self.header_h, max(1, width - self.left_w), max(1, height - self.header_h))
-        dc.SetPen(wx.Pen(COL_PLAYHEAD, 1))
+        dc.SetPen(wx.Pen(T.playhead, 1))
         dc.DrawLine(cx, self.header_h, cx, height)
         dc.DestroyClippingRegion()
         dc.SetFont(font)
@@ -792,28 +773,28 @@ class TimelineWidget(wx.Panel):
                 continue
             self._paint_layer(dc, obj, row, depth, kids)
         if not self.rows:
-            dc.SetTextForeground(COL_TEXT_DIM)
+            dc.SetTextForeground(T.text_dim)
             dc.DrawText("Drag modules, frames or", px(12), self.header_h + px(10))
             dc.DrawText("animations onto the stage", px(12), self.header_h + px(28))
         dc.DestroyClippingRegion()
-        dc.SetTextForeground(COL_TEXT_DIM)
+        dc.SetTextForeground(T.text_dim)
         dc.DrawText("Layers", px(10), px(6))
         dc.SetFont(small)
         dc.DrawText("lower rows draw on top", px(64), px(8))
         dc.SetFont(font)
-        dc.SetPen(wx.Pen(wx.Colour(70, 72, 80)))
+        dc.SetPen(wx.Pen(T.tick))
         dc.DrawLine(self.left_w, 0, self.left_w, height)
         dc.DrawLine(0, self.header_h - 1, width, self.header_h - 1)
 
         # ---- overlays
         if self._marquee_rect:
-            dc.SetPen(wx.Pen(COL_DROP, 1, wx.PENSTYLE_SHORT_DASH))
-            dc.SetBrush(wx.Brush(wx.Colour(140, 210, 255, 30)))
+            dc.SetPen(wx.Pen(T.drop, 1, wx.PENSTYLE_SHORT_DASH))
+            dc.SetBrush(wx.Brush(wx.Colour(*T.palette.rgb("drop"), 30)))
             r = self._marquee_rect
             dc.DrawRectangle(r.x, r.y, r.width, r.height)
         if self._drop_target:
             mode, _parent, _before, row = self._drop_target
-            dc.SetPen(wx.Pen(COL_DROP, 2))
+            dc.SetPen(wx.Pen(T.drop, 2))
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
             if mode == "into":
                 y = int(self.row_y(row))
@@ -825,10 +806,10 @@ class TimelineWidget(wx.Panel):
 
     def _row_colour(self, object_id: str, row: int) -> wx.Colour:
         if object_id == self.selected_object_id:
-            return COL_ROW_SELECTED
+            return T.selected
         if object_id in self.selected_object_ids:
-            return COL_ROW_ALSO_SELECTED
-        return COL_ROW_A if row % 2 == 0 else COL_ROW_B
+            return T.also_selected
+        return T.row_alt if row % 2 == 0 else T.row
 
     def _paint_layer(self, dc: wx.DC, obj: TimelineObject, row: int, depth: int, kids: bool) -> None:
         y = int(self.row_y(row))
@@ -839,7 +820,7 @@ class TimelineWidget(wx.Panel):
         if kids:
             r = parts["disclosure"]
             dc.SetPen(wx.TRANSPARENT_PEN)
-            dc.SetBrush(wx.Brush(COL_TEXT_DIM))
+            dc.SetBrush(wx.Brush(T.text_dim))
             if obj.id in self.collapsed_ids:
                 dc.DrawPolygon([wx.Point(r.x + px(3), r.y + px(2)), wx.Point(r.x + px(9), r.y + px(6)),
                                 wx.Point(r.x + px(3), r.y + px(10))])
@@ -859,25 +840,25 @@ class TimelineWidget(wx.Panel):
             dc.DrawRectangle(g.x, g.y, g.width, g.height)
         hidden = obj.id in self.hidden_ids
         locked = obj.id in self.locked_ids
-        dc.SetTextForeground(COL_TEXT_DIM if hidden else COL_TEXT)
+        dc.SetTextForeground(T.text_dim if hidden else T.text)
         name_rect = parts["name"]
         text = _fit_text(dc, obj.name, name_rect.width)
         dc.DrawText(text, name_rect.x, y + (self.row_h - dc.GetTextExtent("Ag")[1]) // 2)
 
         # eye
         e = parts["eye"]
-        dc.SetPen(wx.Pen(COL_TEXT_DIM if hidden else COL_TEXT, 1))
+        dc.SetPen(wx.Pen(T.text_dim if hidden else T.text, 1))
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         if hidden:
             dc.DrawLine(e.x + 3, e.y + e.height // 2, e.x + e.width - 3, e.y + e.height // 2)
         else:
             dc.DrawEllipse(e.x + 1, e.y + px(4), e.width - 2, e.height - px(8))
-            dc.SetBrush(wx.Brush(COL_TEXT))
+            dc.SetBrush(wx.Brush(T.text))
             dc.DrawCircle(e.x + e.width // 2, e.y + e.height // 2, px(2))
         # lock
         lk = parts["lock"]
-        dc.SetPen(wx.Pen(COL_KEY_SELECTED if locked else wx.Colour(80, 82, 90), 1))
-        dc.SetBrush(wx.Brush(COL_KEY_SELECTED) if locked else wx.TRANSPARENT_BRUSH)
+        dc.SetPen(wx.Pen(T.accent if locked else T.cell_border, 1))
+        dc.SetBrush(wx.Brush(T.accent) if locked else wx.TRANSPARENT_BRUSH)
         dc.DrawRectangle(lk.x + px(4), lk.y + px(7), px(10), px(7))
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.DrawArc(lk.x + px(12), lk.y + px(7), lk.x + px(6), lk.y + px(7), lk.x + px(9), lk.y + px(7))
@@ -891,7 +872,7 @@ class TimelineWidget(wx.Panel):
         # animation frame changes (timing reference; hovering one explains it: pose_mark_at)
         ticks = self.anim_ticks.get(obj.id, [])
         if ticks and self._pose_marks_shown():
-            dc.SetPen(wx.Pen(COL_ANIM_TICK, 1))
+            dc.SetPen(wx.Pen(T.ok, 1))
             for frame in ticks:
                 x = int(self.frame_x(frame))
                 dc.DrawLine(x, y + self.row_h - px(6), x, y + self.row_h - 1)
@@ -905,10 +886,10 @@ class TimelineWidget(wx.Panel):
                 continue
             easing = b.easing
             if easing == "step":
-                dc.SetPen(wx.Pen(COL_HOLD, 1, wx.PENSTYLE_SHORT_DASH))
+                dc.SetPen(wx.Pen(T.hold, 1, wx.PENSTYLE_SHORT_DASH))
                 dc.DrawLine(int(x0), mid, int(x1), mid)
                 continue
-            colour = COL_TWEEN if easing == "linear" else COL_TWEEN_EASED
+            colour = T.tween if easing == "linear" else T.tween_eased
             dc.SetPen(wx.TRANSPARENT_PEN)
             dc.SetBrush(wx.Brush(colour))
             dc.DrawRectangle(int(x0), mid - px(4), int(x1 - x0), px(8))
@@ -916,7 +897,7 @@ class TimelineWidget(wx.Panel):
                 label = ops.easing_label(easing)
                 tw, th = dc.GetTextExtent(label)
                 if tw < x1 - x0 - px(16):
-                    dc.SetTextForeground(wx.Colour(230, 230, 240))
+                    dc.SetTextForeground(T.tween_text)
                     dc.DrawText(label, int((x0 + x1 - tw) / 2), mid - th // 2)
 
         # keys (selected last so they stay visible when keys share a frame)
@@ -930,8 +911,8 @@ class TimelineWidget(wx.Panel):
             frame = ops.frame_of(key.time, fps)
             cx = self.frame_center_x(frame)
             selected = key.id in selected_keys
-            fill = COL_KEY_SELECTED if selected else COL_KEY
-            dc.SetPen(wx.Pen(wx.Colour(255, 255, 255) if selected else wx.Colour(20, 20, 24), 1))
+            fill = T.accent if selected else T.key
+            dc.SetPen(wx.Pen(T.swatch_selected if selected else T.outline, 1))
             dc.SetBrush(wx.Brush(fill))
             r = px(6) if selected else px(5)
             if key.source_type is not None:
@@ -941,7 +922,7 @@ class TimelineWidget(wx.Panel):
                 if label and next_x is not None:
                     label = _fit_text(dc, label, next_x - 9 - (cx + r + 3))
                 if label:
-                    dc.SetTextForeground(COL_TEXT)
+                    dc.SetTextForeground(T.text)
                     dc.DrawText(label, int(cx + r + 3), y + 1)
             else:
                 dc.DrawPolygon([
@@ -949,7 +930,7 @@ class TimelineWidget(wx.Panel):
                     wx.Point(int(cx), mid + r), wx.Point(int(cx - r), mid),
                 ])
         # Several keys on one frame (old files): flag them so they are not mistaken for one key.
-        dc.SetTextForeground(COL_KEY_STACK)
+        dc.SetTextForeground(T.key_stack)
         for frame, count in stack_sizes.items():
             if count > 1:
                 dc.DrawText(f"×{count}", int(self.frame_center_x(frame) + px(6)), y)
