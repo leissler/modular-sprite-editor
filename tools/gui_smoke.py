@@ -1319,6 +1319,10 @@ def run():
             pump()
             b = fe.canvas.compute_budget()
             check(b is not None and b.profile is hb.SNES_16_32 and b.sprite_count > 0, "frames: SNES budget")
+            check(b is not None and 0 < b.unique_tiles
+                  and EXPORT_TILES.get(proj, hb.SNES_16_32) == BUDGET.export_tiles(proj, [None] + proj.mappings,
+                                                                                hb.SNES_16_32),
+                  "frames: video memory as the SNES export stores it")
             fe.canvas.Refresh()
             fe.canvas.Update()
             fe.canvas_controls._set_budget("md_h40", persist=False)
@@ -1344,7 +1348,7 @@ def run():
             ae.refresh()
             pump()
             label = " ".join(ae.inspector.budget_info.GetLabel().split())
-            check("worst step" in label and "video memory" not in label, "animations: SNES budget, no video memory")
+            check("worst step" in label and "video memory" in label, "animations: the SNES budget's video memory")
             ae.stage.Refresh()
             ae.stage.Update()
             ae.canvas_controls._set_budget("", persist=False)
@@ -1898,6 +1902,40 @@ def run():
             shutil.rmtree(folder, ignore_errors=True)
 
     step("check project and the Mega Drive export: find, fix, go to, export into a game folder", check_and_export)
+
+    def snes_export():
+        import consoles
+        from ui import snes_export_dialog
+        from ui.sgdk_export_dialog import ExportReportDialog
+
+        tiles = frame.snes_setup_tiles()
+        check(set(tiles) == {setup.key for setup in consoles.SNES.budgets} and all(t > 0 for t in tiles.values()),
+              "every pair of SNES sprite sizes with the tiles the project needs with it")
+        folder = tempfile.mkdtemp(prefix="mse_snes_")
+        try:
+            for path in snes_export_dialog.RUNTIME_FILES:
+                os.makedirs(os.path.dirname(os.path.join(folder, path)), exist_ok=True)
+                with open(os.path.join(folder, path), "w", encoding="utf-8") as handle:
+                    handle.write("/* runtime */")
+            check(snes_export_dialog.has_runtime(folder), "a game folder with the SNES runtime")
+            dlg = snes_export_dialog.SnesExportDialog(frame, frame.project, folder, "all", "snes_8_32", tiles)
+            check(dlg.values() == (folder, "all", "snes_8_32"),
+                  "the SNES export dialog offers the folder, all mappings and the sprite sizes")
+            dlg.Destroy()
+            fits = min(tiles, key=lambda key: tiles[key])
+            if tiles[fits] <= snes_export_dialog.SPRITE_TILES:
+                result = frame.export_snes(folder, "all", fits)
+                check(result is not None and result.summary["tiles"] == tiles[fits],
+                      "the SNES export stores the tiles the budget counted")
+                check(result is not None and all(os.path.exists(path) for path in result.files),
+                      "every data file is there")
+                if result is not None:
+                    ExportReportDialog(frame, folder, result, "SNES Export",
+                                       snes_export_dialog.summary_lines(folder, result.summary)).Destroy()
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    step("the SNES export: the sprite sizes with their tiles, export into a game folder", snes_export)
 
     def doubled_ids():
         import copy

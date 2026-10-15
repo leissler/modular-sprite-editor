@@ -2,11 +2,12 @@
 
 # Modular Sprite Editor
 
-A desktop editor for modular pixel-art sprites on retro consoles, with the Mega Drive (SGDK) as the main target.
+A desktop editor for modular pixel-art sprites on retro consoles, with exporters for the Mega Drive (SGDK) and the
+SNES (PVSnesLib).
 
 Artwork is cut into reusable **modules**, assembled into **frames** (positioned, flipped and rotated parts, nested
 frames, hitboxes and points), sequenced into **animations**, composed in **timeline scenes**, re-skinned with
-**mappings** and recoloured with **palette swaps**. The SGDK exporter bakes it all into one blob that a small C runtime
+**mappings** and recoloured with **palette swaps**. The console exporters bake it all into data that a small runtime
 draws on the console exactly as the editor shows it; sprite sheets for other engines (Godot, Unity, any engine that
 reads Aseprite's JSON) and Aseprite files go both ways.
 
@@ -27,10 +28,11 @@ right-click › Open the first time.
 - **Timeline** (scenes) is newer: objects can carry their own mapping and palette swap, follow a point of their
   parent's frames, and animations can be choreographed with keys; the UX may still change.
 - **Palettes** (the newest tab): palettes in slot order, palette swaps and colour cycles, for the console the project
-  targets (Mega Drive, SNES, NES, Game Boy Advance or Game Boy); only the Mega Drive has an exporter so far.
+  targets (Mega Drive, SNES, NES, Game Boy Advance or Game Boy); the Mega Drive and the SNES have exporters.
 - Project files carry a `format_version` (currently 8); older files are upgraded when opened. See
   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
-- The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md).
+- The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md); the
+  SNES exporter, runtime and demo ROM in [`examples/snes`](examples/snes/README.md).
 
 ## Features
 
@@ -166,8 +168,8 @@ right-click › Open the first time.
   16/32 sprites, NES and Game Boy with 8×8 or 8×16 sprites, and the Game Boy Advance with its twelve sprite shapes):
   the hardware sprites each part becomes (on the Mega Drive the fewest, then the fewest tiles, placed tightly around
   the pixels, as the export cuts them), scanlines where sprites would drop out, sprite counts and, for the Mega
-  Drive, the video memory: tiles of what is shown, of the animation and of the whole project against the ~1424 SGDK
-  leaves free. The Mega Drive's numbers follow the exporter exactly.
+  Drive and the SNES, the video memory: tiles of what is shown, of the animation and of the whole project against
+  the ~1424 SGDK leaves free (the SNES: its two sprite tables of 512). Both follow their exporter exactly.
 - **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palettes,
   frames, animations, scenes, hitboxes, points, events and every mapping in one binary blob, written into the game's
   SGDK project (its own resources stay). It reports what the game gets: the video memory the sprites need, merged
@@ -179,6 +181,16 @@ right-click › Open the first time.
   by pixel.
 - **Demo ROM**: browse every module, frame, animation and scene with live profiling.
 
+### SNES / PVSnesLib
+- **Export from the editor** (File ▸ Export ▸ SNES) or the command line (`examples/snes/tools/export_snes.py`):
+  the same data as for the Mega Drive in chunks of a ROM bank, with the C files the runtime reads, for one of the
+  SNES's six pairs of sprite sizes (the dialog shows the tiles each needs; every tile stays in video memory).
+- **Runtime** (`examples/snes/snes_demo`): the Mega Drive runtime's API on PVSnesLib, its hot loops in 65816
+  assembly (the Swordfight scene in 12 % of a frame, measured in Mesen 2); colour cycles turn in vertical blank.
+  Tests compile it for the host and compare what it draws with the editor pixel by pixel, and
+  `tools/check_snes_rom.py` compares the ROM with that host build byte by byte in Mesen.
+- **Demo ROM**: the Mega Drive demo's browser, at 60 frames a second.
+
 ### Import and export
 - Import Aseprite files (read the way Aseprite flattens them, tags as animations), sprite sheets with Aseprite or
   TexturePacker JSON, AuroraGT `.sprite` files and RetroAnimator JSON: whatever an import leaves out or can't find is
@@ -189,7 +201,7 @@ right-click › Open the first time.
   their pivots, a clip per animation (hitboxes as trigger colliders, points, events), an Animator Controller and a
   prefab; animations play as in the editor (loops, ping-pong, repeats, loop from, follow-ups), checked inside Godot
   4.6 and Unity 6 (`tools/check_engine_exports.py`); PNG sequences;
-  RetroAnimator JSON (the report lists what RetroAnimator has no place for); SGDK data; animated GIFs of animations
+  RetroAnimator JSON (the report lists what RetroAnimator has no place for); SGDK and PVSnesLib data; animated GIFs of animations
   and scenes. Exports draw with the preview mapping and palette swap.
 
 ## Examples
@@ -241,6 +253,7 @@ python3 -m pytest -q                               # unit tests (no display need
 python3 tools/gui_smoke.py [project.json]          # drives the real UI against a project (needs a display)
 python3 tools/check_export_parity.py PROJECT...    # RetroAnimator export vs. the editor canvas, pixel by pixel
 python3 tools/check_engine_exports.py              # the Godot and Unity exports played inside the engines
+python3 tools/check_snes_rom.py [PROJECT...]       # the SNES runtime in a ROM vs. its host build, in Mesen 2
 python3 tools/migrate_projects.py --dry-run DIR    # upgrade project files to the current format
 python3 tools/automod_bench.py PROJECT.json        # Auto Modularize benchmark: exactness, tiles, hardware sprites
 python3 tools/make_readme_banner.py                # this README's banner, rendered from the PoP example
@@ -294,6 +307,7 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 - [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items
 - [`docs/ANIMATION.md`](docs/ANIMATION.md): animation capabilities and roadmap
 - [`examples/sgdk/README.md`](examples/sgdk/README.md): SGDK export and the Mega Drive runtime
+- [`examples/snes/README.md`](examples/snes/README.md): PVSnesLib export and the SNES runtime
 
 ## License
 

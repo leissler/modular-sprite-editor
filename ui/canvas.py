@@ -57,18 +57,19 @@ BUDGET = BudgetCalculator()
 
 
 class ExportTiles:
-    """The whole project's tiles in the Mega Drive export (with every mapping, the export's default) for the budget
-    readouts: worked out again only after the project changed (a new undo checkpoint) or its images did."""
+    """The whole project's tiles in the export for a profile's console (with every mapping, the export's default) for
+    the budget readouts: worked out again only after the project changed (a new undo checkpoint) or its images did."""
 
     def __init__(self) -> None:
         self._key: Any = None
         self._tiles = 0
 
-    def get(self, project: Project) -> int:
+    def get(self, project: Project, profile: Any = None) -> int:
         revision = app_services.project_revision()
-        key = (id(project), revision, BUDGET.generation)
+        model = (profile.vram_model, profile.shapes) if profile is not None and profile.vram_model == "snes" else None
+        key = (id(project), revision, BUDGET.generation, model)
         if revision is None or key != self._key:
-            self._tiles = BUDGET.export_tiles(project, [None] + list(project.mappings))
+            self._tiles = BUDGET.export_tiles(project, [None] + list(project.mappings), profile)
             self._key = key
         return self._tiles
 
@@ -76,10 +77,10 @@ class ExportTiles:
 EXPORT_TILES = ExportTiles()
 
 
-def memory_text(here: int, total: int, capacity: int) -> str:
-    """The budget readout's video memory line."""
+def memory_text(here: int, total: int, capacity: int, about: bool = True) -> str:
+    """The budget readout's video memory line (``about``: the capacity depends on the game's layout)."""
     left = f"{capacity - total} left" if total <= capacity else f"{total - capacity} too many"
-    return f"Video memory: {here} tiles here · the whole project {total} of ~{capacity} ({left})"
+    return f"Video memory: {here} tiles here · the whole project {total} of {'~' if about else ''}{capacity} ({left})"
 
 
 class FrameCanvas(BaseCanvas):
@@ -505,8 +506,8 @@ class FrameCanvas(BaseCanvas):
         lines = [budget.profile.name, budget.summary()]
         capacity = budget.profile.vram_tiles
         if capacity:
-            total = EXPORT_TILES.get(self.project)
-            lines.append(memory_text(budget.unique_tiles, total, capacity))
+            total = EXPORT_TILES.get(self.project, budget.profile)
+            lines.append(memory_text(budget.unique_tiles, total, capacity, budget.profile.vram_model != "snes"))
             if total > capacity:
                 over = True
                 lines.append("Too many tiles: the game could not load the sprites (Check Project)")

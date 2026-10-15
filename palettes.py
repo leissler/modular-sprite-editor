@@ -58,6 +58,12 @@ def md_word(rgb: Sequence[int]) -> int:
     return ((int(rgb[2]) >> 5) << 9) | ((int(rgb[1]) >> 5) << 5) | ((int(rgb[0]) >> 5) << 1)
 
 
+def snes_word(rgb: Sequence[int]) -> int:
+    """The colour as a SNES palette (CGRAM) word: 0BBBBBGG GGGRRRRR, 5 bits a channel (truncated, as shown by
+    ``console_colour``)."""
+    return ((int(rgb[2]) >> 3) << 10) | ((int(rgb[1]) >> 3) << 5) | (int(rgb[0]) >> 3)
+
+
 def console_colour(spec: consoles.PaletteHardware, rgb: Sequence[int]) -> RGB:
     """A colour as the console shows it: 3 or 5 bits a channel, or the nearest of its fixed colours."""
     if spec.colour_model == "rgb333":

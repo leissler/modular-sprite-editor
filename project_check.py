@@ -23,6 +23,7 @@ LEVEL_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
 # Mega Drive with SGDK's default video memory layout: the plane maps start at 0xC000 (1536 tiles); SGDK keeps the
 # first 16 tiles and the font's 96 tiles below the maps, so 1424 tiles are left for sprites and backgrounds together.
 MD_TILE_CAPACITY = consoles.MEGA_DRIVE.sprites.tiles
+SNES_TILE_CAPACITY = consoles.SNES.sprites.tiles
 
 Target = Tuple[str, str]  # (kind, id), kind: image / module / frame / animation / mapping / scene / palette / palette_swap
 
@@ -603,6 +604,20 @@ def tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
     level = WARNING if tiles > capacity * 3 // 4 else INFO
     return Issue(level, "tiles", f"The sprites need {tiles} of about {capacity} tiles of video memory, leaving "
                                  f"{capacity - tiles} for backgrounds and everything else.")
+
+
+def snes_tile_issue(tiles: int, capacity: int = SNES_TILE_CAPACITY) -> Issue:
+    """How the exported tiles fit the SNES's two sprite tables (the SNES export keeps every one in video memory)."""
+    if tiles > capacity:
+        return Issue(
+            ERROR, "too-many-tiles",
+            f"The sprites need {tiles} tiles, but the SNES's two sprite tables hold {capacity}: the SNES export cannot "
+            "keep them in video memory. Share more parts (Auto Modularize), try other sprite sizes (Console, above "
+            "the tabs) or split the project.",
+        )
+    level = WARNING if tiles > capacity * 3 // 4 else INFO
+    return Issue(level, "tiles", f"The sprites need {tiles} of the {capacity} sprite tiles, leaving {capacity - tiles} "
+                                 "for the game's own sprites.")
 
 
 def console_issue(project: Project) -> Optional[Issue]:

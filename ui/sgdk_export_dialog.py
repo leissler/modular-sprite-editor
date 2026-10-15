@@ -96,16 +96,18 @@ def summary_lines(folder: str, summary: dict) -> List[str]:
 
 
 class ExportReportDialog(wx.Dialog):
-    """What the export wrote and every issue the game would notice; Check Project ends it with ID_CHECK_PROJECT."""
+    """What an export wrote and every issue the game would notice; Check Project ends it with ID_CHECK_PROJECT. The
+    Mega Drive's by default; the SNES export passes its title and summary lines."""
 
-    def __init__(self, parent: Optional[wx.Window], folder: str, result: Any):
-        super().__init__(parent, title="Mega Drive Export", size=(px(820), px(460)), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    def __init__(self, parent: Optional[wx.Window], folder: str, result: Any, title: str = "Mega Drive Export",
+                 lines: Optional[List[str]] = None):
+        super().__init__(parent, title=title, size=(px(820), px(460)), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.folder = folder
         problems = [issue for issue in result.issues if issue.level != pc.INFO]
         headline = "Exported." if not problems else f"Exported, with {describe_counts(problems).split('.')[0]}."
         head = wx.StaticText(self, label=headline)
         head.SetFont(head.GetFont().Bold())
-        self.lines = wx.StaticText(self, label="\n".join(summary_lines(folder, result.summary)))
+        self.lines = wx.StaticText(self, label="\n".join(lines if lines is not None else summary_lines(folder, result.summary)))
         self.list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL)
         self._icons = level_icons()
         self.list.SetImageList(self._icons, wx.IMAGE_LIST_SMALL)

@@ -168,6 +168,7 @@ SNES = Console(
         BudgetSetup("snes_32_64", "SNES, 32×32 and 64×64 sprites", "256x224", ((32, 32), (64, 64))),
     ),
     palettes_supported=True,
+    exporter="PVSnesLib",
     vram_note="64 KB for tiles and maps",
 )
 

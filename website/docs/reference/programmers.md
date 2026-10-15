@@ -23,7 +23,7 @@ Select an issue and choose **Go to** to see the item, or **Fix** where the edito
 
 ## Mega Drive (SGDK)
 
-The Mega Drive is the first console with an exporter and a runtime. More consoles will follow.
+The Mega Drive was the first console with an exporter and a runtime; the [SNES](#snes-pvsneslib) is the second.
 
 `export_sgdk`, on the [release page](https://github.com/leissler/modular-sprite-editor/releases/latest) next to the editor, turns a project into data for a Mega Drive game made with [SGDK](https://github.com/Stephane-D/SGDK). The source code includes a small runtime that draws it.
 
@@ -50,6 +50,24 @@ export_sgdk --project-json my_project.json --output-demo-dir path/to/sgdk_demo
 ```
 
 The [SGDK guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/sgdk/README.md) covers the runtime, its functions and its limits.
+
+## SNES (PVSnesLib)
+
+The source code includes an exporter and a runtime for SNES games made with [PVSnesLib](https://github.com/alekmaul/pvsneslib). The runtime has the same functions as the Mega Drive's, so a game draws, plays and re-skins its characters the same way, with everything listed for the Mega Drive above: palettes and swaps, colour cycles, animations tick for tick, scenes, hitboxes, points and events.
+
+- The SNES draws sprites as squares in two sizes a game chooses for the whole screen: 8 and 16 pixels, 8 and 32, up to 32 and 64. The export cuts every part into those squares, the way the budget overlay shows them for that pair.
+- Every tile stays in video memory, in the SNES's two sprite tables of 256 tiles. The budget overlay and **Check Project** count them for the project's sizes when the project is made for the SNES (**Console**, above the tabs).
+- Each palette gets one of the eight sprite palettes, in the order of the **Palettes** tab, followed by the palette swaps' versions of the palettes they change.
+
+**File ▸ Export ▸ SNES (PVSnesLib)...** writes the data into the game's PVSnesLib project folder. Choose the folder, which mappings to include and the sprite sizes: the list shows how many of the 512 tiles each pair needs, so you can see which ones fit. The editor remembers your choices for the project, and the report afterwards shows what the game gets.
+
+The game's folder needs the runtime from the source code. The demo project in `examples/snes/snes_demo` has it: it starts on the *Swordfight* and shows every module, frame, animation and scene at 60 frames a second. The exporter also runs from the command line:
+
+```text
+python3 examples/snes/tools/export_snes.py --project-json my_project.json --output-dir path/to/snes_game
+```
+
+The [SNES guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/snes/README.md) covers the runtime, its functions, its limits and how to build the demo.
 
 ## Other exports
 

@@ -254,6 +254,9 @@ class ImagesTest(unittest.TestCase):
         self.assertEqual(pc.tile_issue(309).level, pc.INFO)
         self.assertEqual(pc.tile_issue(1200).level, pc.WARNING)
         self.assertEqual(pc.tile_issue(2000).level, pc.ERROR)
+        self.assertEqual(pc.snes_tile_issue(300).level, pc.INFO)
+        self.assertEqual(pc.snes_tile_issue(400).level, pc.WARNING, "three quarters of the two sprite tables")
+        self.assertEqual(pc.snes_tile_issue(pc.SNES_TILE_CAPACITY + 1).level, pc.ERROR, "the export cannot hold them")
 
 
 if __name__ == "__main__":

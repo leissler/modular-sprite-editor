@@ -48,6 +48,7 @@ from ui.sheet_export_dialog import SheetExportDialog
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
 from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
+from ui import snes_export_dialog
 from ui.theme import T
 from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
 from ui.dpi import px
@@ -1041,6 +1042,7 @@ class MainFrame(wx.Frame):
         file_menu.AppendSubMenu(import_menu, "Import")
         export_menu = wx.Menu()
         m_export_sgdk = export_menu.Append(wx.ID_ANY, "Mega Drive (SGDK)...", "Bake the project into a Mega Drive game's SGDK folder")
+        m_export_snes = export_menu.Append(wx.ID_ANY, "SNES (PVSnesLib)...", "Bake the project into a SNES game's PVSnesLib folder")
         m_export_retro = export_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         m_export_sheet = export_menu.Append(wx.ID_ANY, "Sprite Sheet (JSON, Godot, Unity)...",
                                             "The animations' steps packed into one PNG with the data an engine reads")
@@ -1061,6 +1063,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=False), m_import_aseprite)
         self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=True), m_import_sheet)
         self.Bind(wx.EVT_MENU, self.on_export_sgdk, m_export_sgdk)
+        self.Bind(wx.EVT_MENU, self.on_export_snes, m_export_snes)
         self.Bind(wx.EVT_MENU, self.on_export_retro_animator, m_export_retro)
         self.Bind(wx.EVT_MENU, self.on_export_gif, m_export_gif)
         self.Bind(wx.EVT_MENU, self.on_export_sheet, m_export_sheet)
@@ -1498,10 +1501,10 @@ class MainFrame(wx.Frame):
         if isinstance(tab, int) and 0 <= tab < self.book.GetPageCount():
             self.select_tab(tab)
 
-    def _export_preference(self) -> str:
-        """Preferences key for this project's Mega Drive export folder."""
+    def _export_preference(self, kind: str = "SGDKExport") -> str:
+        """Preferences key for this project's export folder (the Mega Drive's, or ``kind``'s: "SNESExport")."""
         path = os.path.abspath(self.current_path) if self.current_path else "untitled"
-        return "SGDKExport/" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
+        return kind + "/" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
 
     def export_sgdk(self, folder: str, selector: str):
         """Bake the project into an SGDK project folder; the exporter's result, or None when it failed."""
@@ -1540,6 +1543,61 @@ class MainFrame(wx.Frame):
         if result is None:
             return
         with ExportReportDialog(self, folder, result) as report:
+            answer = report.ShowModal()
+        if answer == ID_CHECK_PROJECT:
+            self.on_check_project()
+
+    def export_snes(self, folder: str, selector: str, setup_key: str):
+        """Bake the project into a PVSnesLib project folder; the exporter's result, or None when it failed."""
+        try:
+            exporter = snes_export_dialog.load_exporter()
+            with wx.BusyCursor():
+                result = exporter.export_project(self.project, Path(folder), selector, setup_key)
+        except Exception as exc:  # the exporter reports what does not fit as exceptions; keep the editor running
+            wx.MessageBox(f"The export failed: {exc}", "Export for the SNES", wx.OK | wx.ICON_ERROR, self)
+            return None
+        self.set_status(f"Exported for the SNES to {folder}")
+        return result
+
+    def snes_setup_tiles(self) -> Dict[str, int]:
+        """The tiles each pair of SNES sprite sizes needs for the whole project with every mapping (the budget model
+        counts them as the SNES export stores them)."""
+        import hardware_budget
+        from ui.canvas import BUDGET
+
+        mappings = [None] + list(self.project.mappings)
+        with wx.BusyCursor():
+            return {setup.key: BUDGET.export_tiles(self.project, mappings, hardware_budget.profile_by_key(setup.key))
+                    for setup in consoles.SNES.budgets}
+
+    def on_export_snes(self, _event: Optional[wx.CommandEvent] = None) -> None:
+        key = self._export_preference("SNESExport")
+        default = os.path.dirname(os.path.abspath(self.current_path)) if self.current_path else os.path.expanduser("~")
+        folder, selector = self.config.Read(key, default), self.config.Read(key + "Mapping", "all")
+        setup_key = snes_export_dialog.default_setup(self.project, self.config.Read(key + "Setup", ""))
+        with snes_export_dialog.SnesExportDialog(self, self.project, folder, selector, setup_key,
+                                                 self.snes_setup_tiles()) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            folder, selector, setup_key = dlg.values()
+        if not folder or not os.path.isdir(folder):
+            wx.MessageBox("Choose a folder that exists.", "Export for the SNES", wx.OK | wx.ICON_WARNING, self)
+            return
+        if not snes_export_dialog.has_runtime(folder) and wx.MessageBox(
+            "This folder has no SNES runtime (src/modsprite.c, src/modsprite_draw.asm and inc/modsprite.h), so it does "
+            "not look like the game's PVSnesLib project. Export into it anyway?",
+            "Export for the SNES", wx.YES_NO | wx.ICON_QUESTION, self,
+        ) != wx.YES:
+            return
+        self.config.Write(key, folder)
+        self.config.Write(key + "Mapping", selector)
+        self.config.Write(key + "Setup", setup_key)
+        self.config.Flush()
+        result = self.export_snes(folder, selector, setup_key)
+        if result is None:
+            return
+        with ExportReportDialog(self, folder, result, "SNES Export",
+                                snes_export_dialog.summary_lines(folder, result.summary)) as report:
             answer = report.ShowModal()
         if answer == ID_CHECK_PROJECT:
             self.on_check_project()

@@ -55,11 +55,12 @@ In the **Animations** tab, the inspector names the animation's worst step. In th
 
 ## Video memory
 
-Every tile a sprite shows is stored in the console's video memory, which the sprites share with the backgrounds. On the Mega Drive, the last line of the readout counts the tiles of what you see and of the whole project, against the about 1424 tiles a game made with SGDK has free:
+Every tile a sprite shows is stored in the console's video memory. On the Mega Drive and the SNES, the last line of the readout counts the tiles of what you see and of the whole project: on the Mega Drive against the about 1424 tiles a game made with SGDK has free (the sprites share them with the backgrounds), on the SNES against the 512 tiles of its two sprite tables:
 
 - The same part used twice, or flipped, needs its tiles only once: the console flips sprites for free.
 - A part turned by 90° needs tiles of its own, because the console cannot turn sprites. So does every turned position of an object that rotates in a scene.
 - Parts with the same pixels share their tiles, even when they come from different modules.
+- On the SNES, a sprite's tiles come as a whole square: a 16 by 16 sprite takes 4 tiles even where it is mostly empty. Which pair of sizes suits a project best shows in **File ▸ Export ▸ SNES**, which lists the tiles each pair needs.
 
 In the **Animations** tab, the inspector also counts the tiles of all the animation's steps together.
 
@@ -68,7 +69,7 @@ In the **Animations** tab, the inspector also counts the tiles of all the animat
   <figcaption><strong>Budget</strong> in the inspector of the <strong>Animations</strong> tab, for a whole attack.</figcaption>
 </figure>
 
-**Tools ▸ Check Project** warns when the project needs more than three quarters of the free tiles, and reports an error when they do not fit: the game could not load the sprites. The other consoles have no exporter yet, so their readouts count sprites only.
+**Tools ▸ Check Project** warns, for the project's console, when the project needs more than three quarters of the free tiles, and reports an error when they do not fit: the game could not load the sprites. The other consoles have no exporter yet, so their readouts count sprites only.
 
 ## Tips for artists
 
@@ -78,4 +79,4 @@ In the **Animations** tab, the inspector also counts the tiles of all the animat
 - Wide poses are expensive on a single line: a sword swing stretched across the screen can use many sprites on the same lines.
 - Reuse parts flipped instead of drawing mirrored copies. The console flips hardware sprites for free, so they share tiles.
 - A part turned by 90° costs its tiles a second time. Turned by 180° it is only flipped both ways, which is free.
-- The Mega Drive numbers follow its exporter exactly, so they are what the game will use.
+- The Mega Drive and SNES numbers follow their exporters exactly, so they are what the game will use.

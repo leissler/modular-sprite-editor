@@ -264,7 +264,24 @@ class TestSnes(unittest.TestCase):
         wide = [hb.HwPart(0, 0, 32, 32, False, False, [hb.HwSprite(i * 32, 0, 32, 32)]) for i in range(9)]
         self.assertEqual(hb.Budget(hb.SNES_16_32, wide).worst_line(), (9, 288))
         self.assertTrue(hb.Budget(hb.SNES_16_32, wide).over_budget(), "288 px > 34 tiles on a line")
-        self.assertEqual(hb.SNES_16_32.vram_tiles, 0, "no SNES export yet: video memory is not counted")
+
+    def test_video_memory_like_the_snes_export(self):
+        """The SNES export keeps every sprite tile in video memory (two tables of 512): the budget counts the squares
+        it stores, for any pair of sizes, and so the project's total is the exporter's."""
+        sys.path.insert(0, os.path.join(REPO_ROOT, "examples", "snes", "tools"))
+        import export_snes
+        from console_bake import ConsoleBake
+
+        self.assertEqual((hb.SNES_16_32.vram_tiles, hb.SNES_16_32.vram_model), (512, "snes"))
+        for path in ("examples/sgdk/PoP_WW.json", "examples/adventurer/adventurer.json"):
+            project = Project.from_json(os.path.join(REPO_ROOT, path))
+            mappings = [None] + project.mappings
+            for key in ("snes_8_16", "snes_8_32", "snes_16_32"):
+                with self.subTest(project=path, setup=key):
+                    bake = export_snes.SNESBakeContext(project, mappings, key)
+                    ConsoleBake.bake(bake)  # the parts' squares, before they are packed (16x16 / 32x32 do not fit)
+                    self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings, hb.profile_by_key(key)),
+                                     bake.tiles_used())
 
 
 

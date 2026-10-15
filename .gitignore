@@ -71,3 +71,18 @@ website/site/
 
 # Backups the editor keeps next to saved projects (name.json.bak)
 *.json.bak
+
+# PVSnesLib (the SNES toolchain, downloaded per platform; see examples/snes/README.md) and the demo's build output
+# (the generated data, res/ms_chunk_NN.bin, modsprite_chunks.asm, modsprite_rom.mk and the C files, is kept)
+examples/snes/snes_demo/third_party/
+examples/snes/snes_demo/*.sfc
+examples/snes/snes_demo/*.sym
+examples/snes/snes_demo/*.symfull
+examples/snes/snes_demo/hdr.asm
+examples/snes/snes_demo/linkfile
+examples/snes/snes_demo/build.log
+examples/snes/snes_demo/src/main.asm
+examples/snes/snes_demo/src/modsprite.asm
+examples/snes/snes_demo/src/modsprite_data.asm
+examples/snes/snes_demo/**/*.obj
+examples/snes/snes_demo/**/*.ps

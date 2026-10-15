@@ -65,6 +65,7 @@ class DatabaseTest(unittest.TestCase):
         self.assertEqual(md.sprites.tiles, 1424)
         self.assertEqual(len(md.sprites.sizes), 16, "1 to 4 tiles wide and high")
         self.assertEqual(md.exporter, "SGDK")
+        self.assertEqual(consoles.SNES.exporter, "PVSnesLib")
 
 
 class ProvidedListsTest(unittest.TestCase):
@@ -74,12 +75,12 @@ class ProvidedListsTest(unittest.TestCase):
         self.assertEqual(found, [
             ("md_h40", "Mega Drive H40 (320 px)", 80, 20, 320, hb.GRID, 1424),
             ("md_h32", "Mega Drive H32 (256 px)", 64, 16, 256, hb.GRID, 1424),
-            ("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, hb.SQUARES, 0),
-            ("snes_8_32", "SNES, 8×8 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 0),
-            ("snes_8_64", "SNES, 8×8 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 0),
-            ("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 0),
-            ("snes_16_64", "SNES, 16×16 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 0),
-            ("snes_32_64", "SNES, 32×32 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 0),
+            ("snes_8_16", "SNES, 8×8 and 16×16 sprites", 128, 32, 272, hb.SQUARES, 512),
+            ("snes_8_32", "SNES, 8×8 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 512),
+            ("snes_8_64", "SNES, 8×8 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 512),
+            ("snes_16_32", "SNES, 16×16 and 32×32 sprites", 128, 32, 272, hb.SQUARES, 512),
+            ("snes_16_64", "SNES, 16×16 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 512),
+            ("snes_32_64", "SNES, 32×32 and 64×64 sprites", 128, 32, 272, hb.SQUARES, 512),
             ("nes_8x8", "NES, 8×8 sprites", 64, 8, 0, hb.CELLS, 0),
             ("nes_8x16", "NES, 8×16 sprites", 64, 8, 0, hb.CELLS, 0),
             ("gba", "Game Boy Advance", 128, 128, 1210, hb.SHAPES, 0),

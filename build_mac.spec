@@ -11,13 +11,13 @@ with open(os.path.join(SPECPATH, 'app.py'), encoding='utf-8') as source:
 
 a = Analysis(
     ['app.py'],
-    pathex=['tools', 'examples/sgdk/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive exporter
+    pathex=['tools', 'examples/sgdk/tools', 'examples/snes/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive and SNES exporters
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['PIL._tkinter_finder', 'app', 'gui_smoke', 'export_sgdk_example'],
+    hiddenimports=['PIL._tkinter_finder', 'app', 'gui_smoke', 'export_sgdk_example', 'export_snes'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

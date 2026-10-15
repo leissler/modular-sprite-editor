@@ -31,11 +31,16 @@ def level_icons() -> wx.ImageList:
 
 
 def memory_issues(project: Project) -> List[pc.Issue]:
-    """Video memory as the Mega Drive export with every mapping fills it, once it gets tight (the export report and
-    the budget readout always show it)."""
+    """Video memory as the export for the project's console (with every mapping) fills it, once it gets tight (the
+    export report and the budget readout always show it); nothing for a console without an export."""
+    import hardware_budget
     from ui.canvas import BUDGET
 
-    issue = pc.tile_issue(BUDGET.export_tiles(project, [None] + list(project.mappings)))
+    profile = hardware_budget.project_profile(project)
+    if not profile.vram_tiles:
+        return []
+    tiles = BUDGET.export_tiles(project, [None] + list(project.mappings), profile)
+    issue = pc.snes_tile_issue(tiles) if profile.vram_model == "snes" else pc.tile_issue(tiles)
     return [issue] if issue.level != pc.INFO else []
 
 

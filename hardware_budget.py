@@ -12,13 +12,18 @@ Mega Drive model, matching the SGDK exporter and runtime (examples/sgdk):
   and hardware sprites with the same pixels share their tiles (``SGDKBakeContext._store_part``). The runtime
   keeps every tile in VRAM, so the project's total (``export_tiles``) is what has to fit.
 
+The SNES has an exporter too (examples/snes, PVSnesLib), which cuts and stores parts the way this model counts them:
+
+- SNES: a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16). Every part is padded to the large size and
+  cut on that grid; a cell whose pixels sit in at most half of its small squares takes small sprites, otherwise one
+  large sprite. The PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line. Video memory: the export
+  stores each of those squares once in palette slots (flips are hardware bits), squares with the same pixels share
+  their tiles (``SNESBakeContext._store_part``), and every one stays in the two sprite tables (512 tiles).
+
 The other consoles have budgets but no exporter yet, so their cut is a model of what a game would do; parts are
 placed and flipped as on the Mega Drive (every console here flips sprites both ways), turned parts are baked, and video
 memory is not counted:
 
-- SNES: a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16). Every part is padded to the large size and
-  cut on that grid; a cell whose pixels sit in at most half of its small squares takes small sprites, otherwise one
-  large sprite. The PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line.
 - NES and Game Boy: every sprite has the one size the game chose (8×8, or 8×16 where the hardware stacks two tiles).
   Parts are padded to that size and every cell that holds a pixel is a sprite. The NES shows 64, 8 per line; the Game
   Boy 40, 10 per line.
@@ -60,7 +65,8 @@ class HardwareProfile:
     pixels_per_line: int = 0  # sprite pixels a line can show (0: only the number of sprites per line limits it)
     cut: str = GRID
     shapes: Tuple[Size, ...] = ((32, 32),)  # the sprite sizes the cut uses, px (GRID: the largest one)
-    vram_tiles: int = 0  # tiles the Mega Drive export can keep in video memory (0: not counted for this console)
+    vram_tiles: int = 0  # tiles the console's export can keep in video memory (0: not counted for this console)
+    vram_model: str = ""  # how that export stores a part's tiles: the console's key ("megadrive", "snes"), "" none
 
     @property
     def max_sprite_tiles(self) -> int:
@@ -75,7 +81,7 @@ class HardwareProfile:
 
 def _profile(console: consoles.Console, setup: consoles.BudgetSetup) -> HardwareProfile:
     """A budget profile from the console database: the setup's screen mode, how its sprites cut a part, and video
-    memory where an export keeps the tiles (the Mega Drive's SGDK export)."""
+    memory where an export keeps the tiles (the Mega Drive's SGDK export, the SNES's PVSnesLib export)."""
     mode = console.mode(setup.mode)
     assert mode is not None, setup.key
     sizes = tuple(setup.sizes or console.sprites.sizes)
@@ -93,6 +99,7 @@ def _profile(console: consoles.Console, setup: consoles.BudgetSetup) -> Hardware
     return HardwareProfile(
         setup.key, setup.name, mode.sprites_per_screen, mode.sprites_per_line, mode.sprite_pixels_per_line,
         cut=cut, shapes=shapes, vram_tiles=console.sprites.tiles if console.exporter else 0,
+        vram_model=console.key if console.exporter else "",
     )
 
 
@@ -297,10 +304,13 @@ class BudgetCalculator:
         part = self._leaf_part(project, mod, a, b, False, False, profile)
         return [part] if part else []
 
-    def export_tiles(self, project: Project, mappings: Sequence[Optional[ModuleMapping]]) -> int:
-        """Tiles of video memory the Mega Drive export of the whole project needs: every module, frame, animation
-        step and scene sample for each mapping, as ``ConsoleBake.bake`` (the SGDK export's) stores them."""
-        profile = MEGA_DRIVE_H40  # the stored blocks do not depend on the screen mode
+    def export_tiles(self, project: Project, mappings: Sequence[Optional[ModuleMapping]],
+                     profile: Optional[HardwareProfile] = None) -> int:
+        """Tiles of video memory the export for the profile's console (the Mega Drive's by default) needs for the whole
+        project: every module, frame, animation step and scene sample for each mapping, as ``ConsoleBake.bake``
+        stores them."""
+        if profile is None or not profile.vram_model:
+            profile = MEGA_DRIVE_H40  # the stored blocks do not depend on the screen mode
         blocks: Dict[int, int] = {}
         seen: Dict[Any, Tuple[Tuple[int, int], ...]] = {}
 
@@ -358,10 +368,14 @@ class BudgetCalculator:
         info = self._image_info.get(mod.image_id) if mod.type == "MD_IMAGE" else None
         return info[0] if info else self._first_palette
 
-    def _stored_blocks(self, key: Any, image: Any, palette: str) -> Tuple[Tuple[int, int], ...]:
-        """(block id, tiles) of each hardware sprite the export stores for this image: padded to whole tiles, cut by
-        ``sprite_cut.export_cut``; sprites with the same tiles (in palette indices) share an id."""
-        found = self._vram.get((key, palette))
+    def _stored_blocks(self, key: Any, image: Any, palette: str,
+                       profile: HardwareProfile) -> Tuple[Tuple[int, int], ...]:
+        """(block id, tiles) of each block of tiles the profile's export stores for this image, in palette slots
+        (blocks with the same slots share an id): the Mega Drive's hardware sprites of ``sprite_cut.export_cut`` (the
+        image padded to whole tiles), the SNES's squares of the setup's two sizes (padded to the large one)."""
+        snes = profile.vram_model == "snes"
+        cache_key = (key, palette, profile.shapes if snes else None)
+        found = self._vram.get(cache_key)
         if found is not None:
             return found
         from PIL import Image as PILImage
@@ -379,19 +393,30 @@ class BudgetCalculator:
                 value = 0 if pixel[3] == 0 else palettes.nearest((pixel[0], pixel[1], pixel[2]), colours, lookup) + 1
                 table[pixel] = value
             indices[i >> 2] = value
-        pad_w, pad_h = _pad(rgba.width), _pad(rgba.height)
-        padded = PILImage.new("L", (pad_w, pad_h), 0)
-        padded.paste(PILImage.frombytes("L", rgba.size, bytes(indices)), (0, 0))
         stored = []
-        for bx, by, bw, bh in sprite_cut.export_cut(rgba):
-            tiles_w, tiles_h = bw // TILE, bh // TILE
-            # Tiles in VDP sprite order: down each column, then the next column.
-            tiles = b"".join(
-                padded.crop((bx + tx * TILE, by + ty * TILE, bx + (tx + 1) * TILE, by + (ty + 1) * TILE)).tobytes()
-                for tx in range(tiles_w) for ty in range(tiles_h)
-            )
-            stored.append((self._block_ids.setdefault(tiles, len(self._block_ids)), tiles_w * tiles_h))
-        found = self._vram[(key, palette)] = tuple(stored)
+        if snes:
+            # As SNESBakeContext._store_part: a square's slots row by row, its size in tiles.
+            pad_w, pad_h = _pad(rgba.width, profile), _pad(rgba.height, profile, 1)
+            padded = PILImage.new("L", (pad_w, pad_h), 0)
+            padded.paste(PILImage.frombytes("L", rgba.size, bytes(indices)), (0, 0))
+            slots = padded.tobytes()
+            for bx, by, bw, bh in sprite_cut.cut(rgba, profile.hardware):
+                pixels = b"".join(slots[(by + row) * pad_w + bx:(by + row) * pad_w + bx + bw] for row in range(bh))
+                side = bw // TILE
+                stored.append((self._block_ids.setdefault((side, pixels), len(self._block_ids)), side * side))
+        else:
+            pad_w, pad_h = _pad(rgba.width), _pad(rgba.height)
+            padded = PILImage.new("L", (pad_w, pad_h), 0)
+            padded.paste(PILImage.frombytes("L", rgba.size, bytes(indices)), (0, 0))
+            for bx, by, bw, bh in sprite_cut.export_cut(rgba):
+                tiles_w, tiles_h = bw // TILE, bh // TILE
+                # Tiles in VDP sprite order: down each column, then the next column.
+                tiles = b"".join(
+                    padded.crop((bx + tx * TILE, by + ty * TILE, bx + (tx + 1) * TILE, by + (ty + 1) * TILE)).tobytes()
+                    for tx in range(tiles_w) for ty in range(tiles_h)
+                )
+                stored.append((self._block_ids.setdefault(tiles, len(self._block_ids)), tiles_w * tiles_h))
+        found = self._vram[cache_key] = tuple(stored)
         return found
 
     def _module_image(self, project: Project, mod: Any) -> Any:
@@ -434,7 +459,8 @@ class BudgetCalculator:
             y = by + py_eff - pad_h if vflip else by - py_eff
             key = ("module", mod.id, self._module_keys.get(mod.id))
             part = _place(x, y, pad_w, pad_h, hflip, vflip, self._image_blocks(key, base, profile))
-            part.vram = self._stored_blocks(key, base, self._palette_of(mod))
+            if profile.vram_model:
+                part.vram = self._stored_blocks(key, base, self._palette_of(mod), profile)
             return part
         # Rotated (non axis-aligned) parts are baked into a new image, padded right / down.
         image, x, y = _baked(base, mod, a_mat, b_vec, local_fx, local_fy)
@@ -443,7 +469,8 @@ class BudgetCalculator:
         key = ("baked", mod.id, self._module_keys.get(mod.id), a_mat, bool(local_fx), bool(local_fy))
         part = _place(x, y, _pad(image.size[0], profile), _pad(image.size[1], profile, 1), False, False,
                       self._image_blocks(key, image, profile))
-        part.vram = self._stored_blocks(key, image, self._palette_of(mod))
+        if profile.vram_model:
+            part.vram = self._stored_blocks(key, image, self._palette_of(mod), profile)
         return part
 
     def _image_blocks(self, key: Any, image: Any, profile: HardwareProfile) -> List[Tuple[int, int, int, int]]:
