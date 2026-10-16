@@ -59,4 +59,4 @@ The import opens as a new project, so **Save** asks for a new file. Anything it 
 
 ## Other formats
 
-**File ▸ Import** also opens AuroraGT `.sprite` files and RetroAnimator projects, and **File ▸ Export ▸ RetroAnimator Project (\*.json)...** writes one. The Mega Drive export is described in [For your programmer](../reference/programmers.md).
+**File ▸ Import** also opens AuroraGT `.sprite` files and RetroAnimator projects, and **File ▸ Export ▸ RetroAnimator Project (\*.json)...** writes one. The Mega Drive and SNES exports are described in [For your programmer](../reference/programmers.md).

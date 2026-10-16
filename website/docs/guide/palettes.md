@@ -74,4 +74,4 @@ When you switch to a console with smaller palettes, palettes with more colours t
   <figcaption>The Prince of Persia palette in a project for the NES: the console shows the first three colours.</figcaption>
 </figure>
 
-The editor exports for the Mega Drive so far. Its export of a project for another console still makes Mega Drive palettes, and the export's report says so. [Consoles](../reference/consoles.md) lists what the editor knows about each console.
+The editor exports for the Mega Drive and the SNES so far, and each export makes palettes for its own console: the Mega Drive export of a project made for the NES makes Mega Drive palettes, in the colours the Mega Drive shows, and its report says so. [Consoles](../reference/consoles.md) lists what the editor knows about each console.
