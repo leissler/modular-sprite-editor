@@ -255,7 +255,8 @@ the About box shows it, and the workflow stops if the two differ.
 The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
 `export_megadrive.exe` and `export_snes.exe`, the example projects, the SGDK demo with the SGDK it builds with and the SNES demo
 with the part of PVSnesLib's Windows release it builds with, plus `export_to_megadrive.bat` / `build_megadrive_demo.bat`,
-`export_to_snes.bat` / `build_snes_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI
+`export_to_snes.bat` / `build_snes_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`; it takes
+the exporters and demos `console_exports.py` lists). CI
 unpacks it and builds the PoP_WW and Sonic Mega Drive ROMs and the PoP_WW and Adventurer SNES ROMs with those scripts.
 
 A **SNES** job builds the SNES demo ROM with PVSnesLib 4.6.0: the demo's data exported again must be the committed data,

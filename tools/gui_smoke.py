@@ -1853,11 +1853,8 @@ def run():
 
     step("images: Reload and files changed on disk refresh every cache", images_on_disk)
 
-    def check_and_export():
-        import tempfile
-
+    def check_project():
         from ui.check_dialog import CheckProjectDialog
-        from ui.megadrive_export_dialog import ExportReportDialog, MegaDriveExportDialog, has_runtime
 
         project = frame.project
         anim = next(a for a in project.animations if a.aframes)
@@ -1885,63 +1882,101 @@ def run():
         pump()
         check(frame.project.get_frame(doomed) is not None, "undo brings the frame and its steps back")
 
-        folder = tempfile.mkdtemp(prefix="mse_megadrive_")
+    step("check project: find, fix, go to", check_project)
+
+    def console_export(export):
+        """File ▸ Export ▸ the console (console_exports: one step per console with an export): the dialog (with the
+        setups and the tiles each needs, where the export has setups), the export into a game folder with the runtime,
+        the report, and the choices remembered for the next export."""
+        import consoles
+        import hardware_budget as hb
+        from ui.canvas import BUDGET
+        from ui.console_export_dialog import ConsoleExportDialog, ExportReportDialog
+
+        project = frame.project
+        bar = frame.GetMenuBar()
+        file_menu = bar.GetMenu(bar.FindMenu("File"))
+        export_menu = next(i.GetSubMenu() for i in file_menu.GetMenuItems() if i.GetItemLabelText() == "Export")
+        item = next((i for i in export_menu.GetMenuItems() if i.GetItemLabelText() == f"{export.title}..."), None)
+        check(item is not None, f"File ▸ Export offers {export.title}")
+        if item is None:
+            return
+        tiles = None
+        if export.setups:
+            tiles = frame.setup_tiles(export)
+            check(set(tiles) == {setup.key for setup in export.console.budgets} and all(t > 0 for t in tiles.values()),
+                  f"every {export.name} setup with the tiles the project needs with it")
+            setup = min(tiles, key=lambda key: tiles[key])  # the one that fits best
+            need = tiles[setup]
+        else:
+            setup = ""
+            need = BUDGET.export_tiles(project, [None] + list(project.mappings),
+                                       hb.profile_by_key(export.console.budgets[0].key))
+        fits = need <= export.console.sprites.tiles
+        folder = tempfile.mkdtemp(prefix=f"mse_{export.key}_")
+        seen = {}
+        results = []
+
+        def answer_dialog(dialog):
+            seen["title"] = dialog.GetTitle()
+            seen["offered"] = dialog.values()
+            dialog.folder.SetPath(folder)
+            if dialog.setup is not None:
+                dialog.setup.SetSelection([s.key for s in export.console.budgets].index(setup))
+                seen["setup"] = dialog.setup.GetStringSelection()
+            return wx.ID_OK if fits else wx.ID_CANCEL
+
+        def read_report(dialog):
+            seen["report"] = (dialog.GetTitle(), dialog.lines.GetLabel())
+            return wx.ID_OK
+
+        def export_console(*args, **kwargs):
+            results.append(real_export(*args, **kwargs))
+            return results[-1]
+
+        real = (ConsoleExportDialog.ShowModal, ExportReportDialog.ShowModal)
+        real_export = frame.export_console
+        ConsoleExportDialog.ShowModal, ExportReportDialog.ShowModal = answer_dialog, read_report
+        frame.export_console = export_console
         try:
-            for path, text in (("src/modsprite.c", "/* runtime */"), ("inc/modsprite.h", "/* runtime */"),
-                               ("res/resources.res", 'IMAGE TITLE "title.png" BEST\n')):
+            for path, text in [(path, "/* runtime */") for path in export.runtime] + [
+                    ("res/resources.res", 'IMAGE TITLE "title.png" BEST\n')]:  # one of the game's own files
                 os.makedirs(os.path.dirname(os.path.join(folder, path)), exist_ok=True)
                 with open(os.path.join(folder, path), "w", encoding="utf-8") as handle:
                     handle.write(text)
-            check(has_runtime(folder), "a game folder with the runtime")
-            dlg = MegaDriveExportDialog(frame, frame.project, folder, "all")
-            check(dlg.values() == (folder, "all"), "the export dialog offers the folder and all mappings")
-            dlg.Destroy()
-            result = frame.export_megadrive(folder, "all")
-            check(result is not None and result.summary["tiles"] > 0, "the Mega Drive export writes the data")
+            check(export.has_runtime(folder), f"a game folder with the {export.name} runtime")
+            frame.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.wxEVT_MENU, item.GetId()))
+            check(seen.get("title") == f"Export for the {export.title}", f"the menu item opens the {export.name} dialog")
+            if export.setups:
+                check(str(need) in seen.get("setup", ""), f"the {export.setups.lower()} show the tiles each needs")
+            if not fits:
+                print(f"     ({export.name}: {need} tiles do not fit, not exported)")
+                return
+            result = results[0] if results else None
+            check(result is not None and result.summary["tiles"] == need,
+                  f"the {export.name} export stores the tiles the budget counted")
             check(result is not None and all(os.path.exists(path) for path in result.files), "every data file is there")
             with open(os.path.join(folder, "res", "resources.res"), encoding="utf-8") as handle:
-                resources = handle.read()
-            check("IMAGE TITLE" in resources and "MS_BLOB" in resources, "the game's own resources stay")
-            if result is not None:
-                ExportReportDialog(frame, folder, result).Destroy()
+                check("IMAGE TITLE" in handle.read(), "the game's own resources stay")
+            title, lines = seen.get("report", ("", ""))
+            check(title == f"{export.name} Export" and result is not None
+                  and lines.endswith(export.report_line(result.summary)), "the report says what the game gets")
+            console, project_setup = consoles.target(project.console, project.console_setup)
+            expected = (project_setup.key if console is export.console else setup) if export.setups else ""
+            ConsoleExportDialog.ShowModal = lambda dialog: (seen.__setitem__("offered", dialog.values()), wx.ID_CANCEL)[1]
+            frame.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.wxEVT_MENU, item.GetId()))
+            check(seen.get("offered") == (folder, "all", expected), "the next export offers the same choices")
         finally:
+            ConsoleExportDialog.ShowModal, ExportReportDialog.ShowModal = real
+            del frame.export_console
             shutil.rmtree(folder, ignore_errors=True)
 
-    step("check project and the Mega Drive export: find, fix, go to, export into a game folder", check_and_export)
+    import console_exports
 
-    def snes_export():
-        import consoles
-        from ui import snes_export_dialog
-        from ui.megadrive_export_dialog import ExportReportDialog
-
-        tiles = frame.snes_setup_tiles()
-        check(set(tiles) == {setup.key for setup in consoles.SNES.budgets} and all(t > 0 for t in tiles.values()),
-              "every pair of SNES sprite sizes with the tiles the project needs with it")
-        folder = tempfile.mkdtemp(prefix="mse_snes_")
-        try:
-            for path in snes_export_dialog.RUNTIME_FILES:
-                os.makedirs(os.path.dirname(os.path.join(folder, path)), exist_ok=True)
-                with open(os.path.join(folder, path), "w", encoding="utf-8") as handle:
-                    handle.write("/* runtime */")
-            check(snes_export_dialog.has_runtime(folder), "a game folder with the SNES runtime")
-            dlg = snes_export_dialog.SnesExportDialog(frame, frame.project, folder, "all", "snes_8_32", tiles)
-            check(dlg.values() == (folder, "all", "snes_8_32"),
-                  "the SNES export dialog offers the folder, all mappings and the sprite sizes")
-            dlg.Destroy()
-            fits = min(tiles, key=lambda key: tiles[key])
-            if tiles[fits] <= snes_export_dialog.SPRITE_TILES:
-                result = frame.export_snes(folder, "all", fits)
-                check(result is not None and result.summary["tiles"] == tiles[fits],
-                      "the SNES export stores the tiles the budget counted")
-                check(result is not None and all(os.path.exists(path) for path in result.files),
-                      "every data file is there")
-                if result is not None:
-                    ExportReportDialog(frame, folder, result, "SNES Export",
-                                       snes_export_dialog.summary_lines(folder, result.summary)).Destroy()
-        finally:
-            shutil.rmtree(folder, ignore_errors=True)
-
-    step("the SNES export: the sprite sizes with their tiles, export into a game folder", snes_export)
+    for export in console_exports.EXPORTS:
+        sizes = f"the {export.setups.lower()} with their tiles, " if export.setups else ""
+        step(f"the {export.name} export: {sizes}export into a game folder, the report, the choices remembered",
+             lambda export=export: console_export(export))
 
     def doubled_ids():
         import copy

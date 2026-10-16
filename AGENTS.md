@@ -49,8 +49,9 @@ three, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: th
 `examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`) and
 `ModularSpriteEditor-snes-demo.zip` (`tools/make_snes_demo_zip.py`: the SNES demo ROM the SNES job built and checked,
 `packaging/snes_demo/README.txt` and the demo's PVSnesLib project in the same layout). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
-editor, `export_megadrive.exe`, `export_snes.exe` (`--snes-exporter`), examples, SGDK demo + vendored SGDK, the SNES demo +
-the part of PVSnesLib's Windows release it builds with (downloaded by the job, `--pvsneslib`), `packaging/windows_kit/`:
+editor, every exporter `console_exports.py` lists (`export_megadrive.exe`, `export_snes.exe`: `--exporters dist/exporter`),
+examples, each console's demo with its SDK: SGDK vendored, the part of PVSnesLib's Windows release the SNES demo builds
+with (downloaded by the job, `--sdk snes=DIR`), `packaging/windows_kit/`:
 `export_to_megadrive.bat` / `build_megadrive_demo.bat`, `export_to_snes.bat` / `build_snes_demo.bat`), and builds its ROMs on Windows with the
 vendored SGDK and, through `build_snes_demo.bat`, `examples/snes/snes_demo/build_windows.ps1` (PVSnesLib's build steps
 in Windows PowerShell: no make or MSYS2). Its SNES job builds the SNES demo ROM on Linux with PVSnesLib 4.6.0 (run artifact
@@ -105,6 +106,10 @@ hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16
                            sprite_cut.py (Mega Drive and SNES: the exports'),
                            per-screen / per-line limits, video memory (tiles stored like the console's export, the
                            project's total; Mega Drive and SNES) — wx-free, tested against both exporters
+console_exports.py         The consoles the editor exports for (wx-free): one ConsoleExport per console (SDK, runtime
+                           files, the dialog's text, remembered-choice key, setups row, the kit's SDK lists; the rest
+                           named after the console's key), which File ▸ Export, its dialog, Check Project, the smoke
+                           test, the editor specs and the Windows kit loop over; load() / export() run the exporter
 console_bake.py            The console-independent half of a console export (wx-free): ConsoleBake walks the project
                            like the editor draws it (parts through nested frames with flips and turns, palette entries
                            and swaps, hitboxes / points, animation steps with the game's timing and events, scene
@@ -223,9 +228,9 @@ ui/
   welcome.py               The welcome screen (recent projects, the examples, the guide) shown before a project is open
   first_steps.py           Empty-state hints: what a tab needs first (frames need modules, animations need frames...)
   check_dialog.py          Tools ▸ Check Project: the issue list, Go to, Fix / Fix All
-  megadrive_export_dialog.py    File ▸ Export ▸ Mega Drive (SGDK): folder + mappings, the report (runs the SGDK exporter)
-  snes_export_dialog.py    File ▸ Export ▸ SNES (PVSnesLib): folder + mappings + sprite sizes (with each pair's tiles),
-                           the report (the SGDK dialog's, its own lines)
+  console_export_dialog.py File ▸ Export ▸ Mega Drive (SGDK), SNES (PVSnesLib), ...: one dialog for every console in
+                           console_exports (folder + mappings, + the setups with each one's tiles where the export has
+                           setups: the SNES's sprite sizes), the report (the exporter's report_line)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
                            to frame_render)
   frame_render.py          FrameRenderer: pixel-exact frame images via the parity-checked RetroAnimator renderer,
@@ -418,9 +423,17 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   a console adds its own, like the SNES's `--setup`) and `print_result`. `tests/test_console_bake.py` checks that a
   minimal exporter gets exactly the Mega Drive exporter's parts, frames, steps and samples. Name console-specific
   things after the console's key in consoles.py (`megadrive`, `snes`: folders, scripts, specs, release files, tests);
-  `docs/CONSOLES.md` is the checklist a fully supported console meets.
+  `docs/CONSOLES.md` is the checklist a fully supported console meets. `console_exports.py` is the one table of the
+  consoles with an export, and nothing else names an exporter: File ▸ Export, `ui/console_export_dialog.py` (one
+  dialog; a setups row where `ConsoleExport.setups` says so), the remembered choices (`ConsoleExport.preference`:
+  keep the key when renaming), Check Project's video memory (`check_dialog.memory_issues`: the entry's
+  `tile_issue`, `project_check.<key>_tile_issue`), the readout's "~" (`tiles_about`), the smoke test's export steps,
+  the editor specs (`pathex` / `hiddenimports`) and the Windows kit loop over it; `tests/test_console_exports.py`
+  checks every entry has what full support needs (exporter with `export_project` / `report_line` / `main`, spec, demo
+  with the runtime, README, kit scripts, checks).
 - **Mega Drive export (SGDK):** `export_project()` in the exporter is the one entry point for the command line and File ▸ Export ▸
-  Mega Drive (the editor builds carry both console exporters: `pathex` + `hiddenimports` in the three editor specs). It writes
+  Mega Drive (the editor builds carry every console's exporter: the three editor specs take `pathex` and `hiddenimports`
+  from `console_exports`). It writes
   the blob, the header and the parser and merges its `BIN MS_BLOB` line into the game's `res/resources.res`
   (`merged_resources`; never overwrite the game's file, and delete nothing in its folder but older exporters'
   `var_NNNN.png` sheets). Its issues are `project_check`'s plus the tile count (`megadrive_tile_issue`) and the palette lines

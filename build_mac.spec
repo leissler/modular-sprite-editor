@@ -2,8 +2,13 @@
 
 import os
 import re
+import sys
 
 block_cipher = None
+
+# The editor runs every console's exporter itself (File ▸ Export): console_exports lists them.
+sys.path.insert(0, SPECPATH)
+import console_exports  # noqa: E402
 
 # The version from app.py, also for the app's Info.plist (Finder ▸ Get Info).
 with open(os.path.join(SPECPATH, 'app.py'), encoding='utf-8') as source:
@@ -11,13 +16,13 @@ with open(os.path.join(SPECPATH, 'app.py'), encoding='utf-8') as source:
 
 a = Analysis(
     ['app.py'],
-    pathex=['tools', 'examples/megadrive/tools', 'examples/snes/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive and SNES exporters
+    pathex=['tools'] + console_exports.tools_folders(),  # gui_smoke: the --smoke-test self-test; every console's exporter
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['PIL._tkinter_finder', 'app', 'gui_smoke', 'export_megadrive', 'export_snes'],
+    hiddenimports=['PIL._tkinter_finder', 'app', 'gui_smoke'] + console_exports.modules(),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

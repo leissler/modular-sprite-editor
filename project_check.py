@@ -1,8 +1,12 @@
 """Check Project: what exports would drop, show differently or get wrong (wx-free).
 
-Tools ▸ Check Project lists the issues, the Mega Drive export shows them in its report and export_megadrive prints them.
-Each issue says in plain words what happens and points at the item it is about; many have a fix that repairs them
+Tools ▸ Check Project lists the issues, every console's export shows them in its report and its command line prints
+them. Each issue says in plain words what happens and points at the item it is about; many have a fix that repairs them
 in one go (``fix``), which the editor runs as one undoable step.
+
+A console with an export (console_exports.py) adds its own checks, named after its key: ``<key>_tile_issue(tiles)``
+(how the export's tiles fit; Check Project shows it for the project's console) and ``<key>_palette_issue(entries)``
+(how its palette entries fit), which its exporter reports too.
 """
 
 from __future__ import annotations

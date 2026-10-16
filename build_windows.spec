@@ -1,16 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+
 block_cipher = None
+
+# The editor runs every console's exporter itself (File ▸ Export): console_exports lists them.
+sys.path.insert(0, SPECPATH)
+import console_exports  # noqa: E402
 
 a = Analysis(
     ['app.py'],
-    pathex=['tools', 'examples/megadrive/tools', 'examples/snes/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive and SNES exporters
+    pathex=['tools'] + console_exports.tools_folders(),  # gui_smoke: the --smoke-test self-test; every console's exporter
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['wx.lib.agw.flatnotebook', 'app', 'gui_smoke', 'export_megadrive', 'export_snes'],
+    hiddenimports=['wx.lib.agw.flatnotebook', 'app', 'gui_smoke'] + console_exports.modules(),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

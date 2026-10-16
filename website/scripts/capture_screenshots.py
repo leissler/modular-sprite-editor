@@ -735,17 +735,18 @@ def run_check() -> None:
         return
     from collections import Counter
 
+    import console_exports
     from models import Animation
     from ui.check_dialog import CheckProjectDialog
-    from ui.megadrive_export_dialog import ExportReportDialog, short_path
+    from ui.console_export_dialog import ExportReportDialog, short_path
 
     load(POP)
     proj = frame.project
     if wanted("export-report", group):
         folder = os.path.join(prefs_dir, "swordfight")
         os.makedirs(folder)
-        result = frame.export_megadrive(folder, "all")
-        dialog = ExportReportDialog(frame, folder, result)
+        result = frame.export_console(console_exports.MEGA_DRIVE, folder, "all")
+        dialog = ExportReportDialog(frame, console_exports.MEGA_DRIVE, folder, result)
         # a neutral example path instead of the temporary folder
         dialog.lines.SetLabel(dialog.lines.GetLabel().replace(short_path(folder), "~/Games/swordfight"))
         dialog.SetSize((760, 260))

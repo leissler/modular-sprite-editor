@@ -1210,6 +1210,12 @@ def export_project(
     return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
 
 
+def report_line(summary: Dict[str, Any]) -> str:
+    """The editor's export report: what the game gets in video memory and data."""
+    return (f"{summary.get('tiles', 0)} tiles of video memory, {summary.get('hardware_sprite_pieces', 0)} hardware "
+            f"sprite pieces, {summary.get('blob_size_bytes', 0) / 1024:.0f} KB of data")
+
+
 def main() -> int:
     parser = export_arguments("Mega Drive", REPO_ROOT / "examples" / "pop" / "PoP_WW.json",
                               REPO_ROOT / "examples" / "megadrive" / "megadrive_demo")

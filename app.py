@@ -19,8 +19,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import wx
 import wx.lib.agw.flatnotebook as fnb
 
+import console_exports
 import consoles
 import palettes
+from console_exports import ConsoleExport
 from models import FModule, Project, generate_id
 from ui import app_services, autosave, preferences, theme, view_memory
 from ui.animation_editor import ops as anim_ops
@@ -47,8 +49,7 @@ from ui.refresh_rate import REFRESH
 from ui.sheet_export_dialog import SheetExportDialog
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
-from ui.megadrive_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
-from ui import snes_export_dialog
+from ui.console_export_dialog import ID_CHECK_PROJECT, ConsoleExportDialog, ExportReportDialog, default_setup
 from ui.theme import T
 from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
 from ui.dpi import px
@@ -1041,8 +1042,10 @@ class MainFrame(wx.Frame):
                                             "A sprite sheet PNG and its JSON as modules, frames and animations")
         file_menu.AppendSubMenu(import_menu, "Import")
         export_menu = wx.Menu()
-        m_export_megadrive = export_menu.Append(wx.ID_ANY, "Mega Drive (SGDK)...", "Bake the project into a Mega Drive game's SGDK folder")
-        m_export_snes = export_menu.Append(wx.ID_ANY, "SNES (PVSnesLib)...", "Bake the project into a SNES game's PVSnesLib folder")
+        for export in console_exports.EXPORTS:  # one item per console with an export: "Mega Drive (SGDK)..."
+            item = export_menu.Append(wx.ID_ANY, f"{export.title}...",
+                                      f"Bake the project into a {export.name} game's {export.sdk} folder")
+            self.Bind(wx.EVT_MENU, lambda _event, export=export: self.on_export_console(export), item)
         m_export_retro = export_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         m_export_sheet = export_menu.Append(wx.ID_ANY, "Sprite Sheet (JSON, Godot, Unity)...",
                                             "The animations' steps packed into one PNG with the data an engine reads")
@@ -1062,8 +1065,6 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_import_retro_animator, m_import_retro)
         self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=False), m_import_aseprite)
         self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=True), m_import_sheet)
-        self.Bind(wx.EVT_MENU, self.on_export_megadrive, m_export_megadrive)
-        self.Bind(wx.EVT_MENU, self.on_export_snes, m_export_snes)
         self.Bind(wx.EVT_MENU, self.on_export_retro_animator, m_export_retro)
         self.Bind(wx.EVT_MENU, self.on_export_gif, m_export_gif)
         self.Bind(wx.EVT_MENU, self.on_export_sheet, m_export_sheet)
@@ -1501,109 +1502,75 @@ class MainFrame(wx.Frame):
         if isinstance(tab, int) and 0 <= tab < self.book.GetPageCount():
             self.select_tab(tab)
 
-    def _export_preference(self, kind: str = "MegaDriveExport") -> str:
-        """Preferences key for this project's export folder (the Mega Drive's, or ``kind``'s: "SNESExport")."""
+    def _export_preference(self, export: ConsoleExport) -> str:
+        """Preferences key for this project's export folder for a console ("MegaDriveExport/<project>"); its mappings
+        and setup are kept under the same key with "Mapping" and "Setup"."""
         path = os.path.abspath(self.current_path) if self.current_path else "untitled"
-        return kind + "/" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
+        return export.preference + "/" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
 
-    def _read_export_preference(self, key: str, default: str) -> str:
-        """A remembered export setting; up to 0.10.2 the Mega Drive's were kept under "SGDKExport/"."""
-        old = key.replace("MegaDriveExport/", "SGDKExport/", 1)
-        return self.config.Read(key, self.config.Read(old, default) if old != key else default)
+    def _read_export_preference(self, export: ConsoleExport, key: str, default: str) -> str:
+        """A remembered export setting; where it has nothing, the one kept under the export's earlier name (up to
+        0.10.2 the Mega Drive's were kept under "SGDKExport/")."""
+        if not export.old_preference:
+            return self.config.Read(key, default)
+        old = export.old_preference + key[len(export.preference):]
+        return self.config.Read(key, self.config.Read(old, default))
 
-    def export_megadrive(self, folder: str, selector: str):
-        """Bake the project into an SGDK project folder; the exporter's result, or None when it failed."""
+    def export_console(self, export: ConsoleExport, folder: str, selector: str, setup_key: str = ""):
+        """Bake the project into a game's project folder for the console; the exporter's result, or None when it
+        failed."""
         try:
-            exporter = load_exporter()
             with wx.BusyCursor():
-                result = exporter.export_project(self.project, Path(folder), selector,
-                                                 Path(self.current_path) if self.current_path else None)
-        except Exception as exc:  # the exporter reports bad data as exceptions; keep the editor running
-            wx.MessageBox(f"The export failed: {exc}", "Export for the Mega Drive", wx.OK | wx.ICON_ERROR, self)
+                result = export.export(self.project, folder, selector, setup_key)
+        except Exception as exc:  # the exporters report bad data and what does not fit as exceptions; keep running
+            wx.MessageBox(f"The export failed: {exc}", f"Export for the {export.name}", wx.OK | wx.ICON_ERROR, self)
             return None
-        self.set_status(f"Exported for the Mega Drive to {folder}")
+        self.set_status(f"Exported for the {export.name} to {folder}")
         return result
 
-    def on_export_megadrive(self, _event: Optional[wx.CommandEvent] = None) -> None:
-        key = self._export_preference()
-        default = os.path.dirname(os.path.abspath(self.current_path)) if self.current_path else os.path.expanduser("~")
-        folder = self._read_export_preference(key, default)
-        selector = self._read_export_preference(key + "Mapping", "all")
-        with MegaDriveExportDialog(self, self.project, folder, selector) as dlg:
-            if dlg.ShowModal() != wx.ID_OK:
-                return
-            folder, selector = dlg.values()
-        if not folder or not os.path.isdir(folder):
-            wx.MessageBox("Choose a folder that exists.", "Export for the Mega Drive", wx.OK | wx.ICON_WARNING, self)
-            return
-        if not has_runtime(folder) and wx.MessageBox(
-            "This folder has no Mega Drive runtime (src/modsprite.c and inc/modsprite.h), so it does not look like "
-            "the game's SGDK project. Export into it anyway?",
-            "Export for the Mega Drive", wx.YES_NO | wx.ICON_QUESTION, self,
-        ) != wx.YES:
-            return
-        self.config.Write(key, folder)
-        self.config.Write(key + "Mapping", selector)
-        self.config.Flush()
-        result = self.export_megadrive(folder, selector)
-        if result is None:
-            return
-        with ExportReportDialog(self, folder, result) as report:
-            answer = report.ShowModal()
-        if answer == ID_CHECK_PROJECT:
-            self.on_check_project()
-
-    def export_snes(self, folder: str, selector: str, setup_key: str):
-        """Bake the project into a PVSnesLib project folder; the exporter's result, or None when it failed."""
-        try:
-            exporter = snes_export_dialog.load_exporter()
-            with wx.BusyCursor():
-                result = exporter.export_project(self.project, Path(folder), selector, setup_key)
-        except Exception as exc:  # the exporter reports what does not fit as exceptions; keep the editor running
-            wx.MessageBox(f"The export failed: {exc}", "Export for the SNES", wx.OK | wx.ICON_ERROR, self)
-            return None
-        self.set_status(f"Exported for the SNES to {folder}")
-        return result
-
-    def snes_setup_tiles(self) -> Dict[str, int]:
-        """The tiles each pair of SNES sprite sizes needs for the whole project with every mapping (the budget model
-        counts them as the SNES export stores them)."""
+    def setup_tiles(self, export: ConsoleExport) -> Dict[str, int]:
+        """The tiles each of the console's setups (the SNES's pairs of sprite sizes) needs for the whole project with
+        every mapping (the budget model counts them as the console's export stores them)."""
         import hardware_budget
-        from ui.canvas import BUDGET
 
         mappings = [None] + list(self.project.mappings)
         with wx.BusyCursor():
             return {setup.key: BUDGET.export_tiles(self.project, mappings, hardware_budget.profile_by_key(setup.key))
-                    for setup in consoles.SNES.budgets}
+                    for setup in export.console.budgets}
 
-    def on_export_snes(self, _event: Optional[wx.CommandEvent] = None) -> None:
-        key = self._export_preference("SNESExport")
+    def on_export_console(self, export: ConsoleExport) -> None:
+        """File ▸ Export ▸ Mega Drive (SGDK), SNES (PVSnesLib), ...: the dialog, the export, its report."""
+        title = f"Export for the {export.name}"
+        key = self._export_preference(export)
         default = os.path.dirname(os.path.abspath(self.current_path)) if self.current_path else os.path.expanduser("~")
-        folder, selector = self.config.Read(key, default), self.config.Read(key + "Mapping", "all")
-        setup_key = snes_export_dialog.default_setup(self.project, self.config.Read(key + "Setup", ""))
-        with snes_export_dialog.SnesExportDialog(self, self.project, folder, selector, setup_key,
-                                                 self.snes_setup_tiles()) as dlg:
+        folder = self._read_export_preference(export, key, default)
+        selector = self._read_export_preference(export, key + "Mapping", "all")
+        setup_key, tiles = "", None
+        if export.setups:
+            setup_key = default_setup(export, self.project, self.config.Read(key + "Setup", ""))
+            tiles = self.setup_tiles(export)
+        with ConsoleExportDialog(self, export, self.project, folder, selector, setup_key, tiles) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
                 return
             folder, selector, setup_key = dlg.values()
         if not folder or not os.path.isdir(folder):
-            wx.MessageBox("Choose a folder that exists.", "Export for the SNES", wx.OK | wx.ICON_WARNING, self)
+            wx.MessageBox("Choose a folder that exists.", title, wx.OK | wx.ICON_WARNING, self)
             return
-        if not snes_export_dialog.has_runtime(folder) and wx.MessageBox(
-            "This folder has no SNES runtime (src/modsprite.c, src/modsprite_draw.asm and inc/modsprite.h), so it does "
-            "not look like the game's PVSnesLib project. Export into it anyway?",
-            "Export for the SNES", wx.YES_NO | wx.ICON_QUESTION, self,
+        if not export.has_runtime(folder) and wx.MessageBox(
+            f"This folder has no {export.name} runtime ({export.runtime_names()}), so it does not look like the "
+            f"game's {export.sdk} project. Export into it anyway?",
+            title, wx.YES_NO | wx.ICON_QUESTION, self,
         ) != wx.YES:
             return
         self.config.Write(key, folder)
         self.config.Write(key + "Mapping", selector)
-        self.config.Write(key + "Setup", setup_key)
+        if export.setups:
+            self.config.Write(key + "Setup", setup_key)
         self.config.Flush()
-        result = self.export_snes(folder, selector, setup_key)
+        result = self.export_console(export, folder, selector, setup_key)
         if result is None:
             return
-        with ExportReportDialog(self, folder, result, "SNES Export",
-                                snes_export_dialog.summary_lines(folder, result.summary)) as report:
+        with ExportReportDialog(self, export, folder, result) as report:
             answer = report.ShowModal()
         if answer == ID_CHECK_PROJECT:
             self.on_check_project()

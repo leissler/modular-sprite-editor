@@ -201,9 +201,10 @@ jobs:
         run: |
           python -m PyInstaller --clean --noconfirm --distpath dist/windows --workpath build/windows build_windows.spec
           Compress-Archive -Path dist/windows/ModularSpriteEditor.exe -DestinationPath dist/release/ModularSpriteEditor-windows.zip
-          python tools/make_windows_kit.py dist/windows/ModularSpriteEditor.exe dist/exporter/export_megadrive.exe `
+          # Every console's exporter (console_exports.py) from dist/exporter, and the SDKs that are not in git.
+          python tools/make_windows_kit.py dist/windows/ModularSpriteEditor.exe `
             "dist/kit/ModularSpriteEditor-${{ github.event.inputs.version }}-windows-kit.zip" `
-            --snes-exporter dist/exporter/export_snes.exe --pvsneslib snes-tools/pvsneslib `
+            --exporters dist/exporter --sdk snes=snes-tools/pvsneslib `
             --version "${{ github.event.inputs.version }}"
 
       - name: Setup Java (SGDK's resource compiler)

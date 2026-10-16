@@ -3,7 +3,8 @@
 One entry per console, the single source for the budget overlay's profiles, the Timeline's screen guides and the
 rules of a project's target console (``Project.console`` with its setup, ``Project.console_setup``: one of the
 console's budget setups, e.g. the SNES's two sprite sizes; ``target`` resolves the pair). Adding a console is adding an entry; the editor
-supports it where the entry says so (budget profiles, palettes, an exporter) and the code behind that exists.
+supports it where the entry says so (budget profiles, palettes) and the code behind that exists. The consoles the
+editor exports for have an entry in console_exports.py as well (``Console.exporter`` names their SDK).
 
 Numbers are for sprites (objects) unless they say otherwise. Sources: the consoles' documentation as collected by
 SGDK, fullsnes, nesdev, GBATEK and Pan Docs.
@@ -87,8 +88,15 @@ class Console:
     palette: PaletteHardware
     budgets: Tuple[BudgetSetup, ...] = ()  # profiles the budget overlay offers
     palettes_supported: bool = False  # the editor's palettes follow this console (a project can target it)
-    exporter: str = ""  # the export the editor has for it
     vram_note: str = ""
+
+    @property
+    def exporter(self) -> str:
+        """The SDK of the editor's export for this console ("SGDK"), "" without one (console_exports.py)."""
+        import console_exports  # it imports this module
+
+        export = console_exports.for_console(self.key)
+        return export.sdk if export else ""
 
     def mode(self, key: str) -> Optional[ScreenMode]:
         return next((m for m in self.modes if m.key == key), None)
@@ -136,7 +144,6 @@ MEGA_DRIVE = Console(
         BudgetSetup("md_h32", "Mega Drive H32 (256 px)", "h32"),
     ),
     palettes_supported=True,
-    exporter="SGDK",
     vram_note="64 KB (2048 tiles) for tiles, plane maps, the sprite table and scroll tables together",
 )
 
@@ -168,7 +175,6 @@ SNES = Console(
         BudgetSetup("snes_32_64", "SNES, 32×32 and 64×64 sprites", "256x224", ((32, 32), (64, 64))),
     ),
     palettes_supported=True,
-    exporter="PVSnesLib",
     vram_note="64 KB for tiles and maps",
 )
 

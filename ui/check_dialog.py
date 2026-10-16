@@ -6,6 +6,7 @@ from typing import Callable, List, Optional
 
 import wx
 
+import console_exports
 import project_check as pc
 from models import Project
 from ui.dpi import px
@@ -32,15 +33,16 @@ def level_icons() -> wx.ImageList:
 
 def memory_issues(project: Project) -> List[pc.Issue]:
     """Video memory as the export for the project's console (with every mapping) fills it, once it gets tight (the
-    export report and the budget readout always show it); nothing for a console without an export."""
+    export report and the budget readout always show it): the console's tile check (console_exports); nothing for a
+    console without an export."""
     import hardware_budget
     from ui.canvas import BUDGET
 
+    export = console_exports.for_console(project.console)
     profile = hardware_budget.project_profile(project)
-    if not profile.vram_tiles:
+    if export is None or not profile.vram_tiles:
         return []
-    tiles = BUDGET.export_tiles(project, [None] + list(project.mappings), profile)
-    issue = pc.snes_tile_issue(tiles) if profile.vram_model == "snes" else pc.megadrive_tile_issue(tiles)
+    issue = export.tile_issue(BUDGET.export_tiles(project, [None] + list(project.mappings), profile))
     return [issue] if issue.level != pc.INFO else []
 
 

@@ -626,6 +626,13 @@ def export_project(project: Project, project_dir: Path, mapping_selector: str = 
     return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
 
 
+def report_line(summary: Dict[str, Any]) -> str:
+    """The editor's export report: the sprite sizes, the tiles they need and the data in the ROM."""
+    return (f"{summary.get('setup', '')}: {summary.get('tiles', 0)} of {SPRITE_TILES} sprite tiles, "
+            f"{summary.get('data_bytes', 0) / 1024:.0f} KB of data in {summary.get('chunks', 0)} ROM banks "
+            f"(a {summary.get('rom_kb', 0)} KB ROM)")
+
+
 def main() -> int:
     parser = export_arguments("SNES", REPO_ROOT / "examples" / "pop" / "PoP_WW.json",
                               REPO_ROOT / "examples" / "snes" / "snes_demo")

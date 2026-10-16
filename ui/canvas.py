@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import wx
 
+import console_exports
 from hardware_budget import Budget, BudgetCalculator, HardwareProfile
 from ui import app_services
 from models import CollisionRect, ControlPoint, FModule, Frame, Module, ModuleMapping, PaletteSwap, Project
@@ -66,7 +67,7 @@ class ExportTiles:
 
     def get(self, project: Project, profile: Any = None) -> int:
         revision = app_services.project_revision()
-        model = (profile.vram_model, profile.shapes) if profile is not None and profile.vram_model == "snes" else None
+        model = (profile.vram_model, profile.shapes) if profile is not None and profile.vram_model else None
         key = (id(project), revision, BUDGET.generation, model)
         if revision is None or key != self._key:
             self._tiles = BUDGET.export_tiles(project, [None] + list(project.mappings), profile)
@@ -507,7 +508,8 @@ class FrameCanvas(BaseCanvas):
         capacity = budget.profile.vram_tiles
         if capacity:
             total = EXPORT_TILES.get(self.project, budget.profile)
-            lines.append(memory_text(budget.unique_tiles, total, capacity, budget.profile.vram_model != "snes"))
+            export = console_exports.for_console(budget.profile.vram_model)
+            lines.append(memory_text(budget.unique_tiles, total, capacity, bool(export and export.tiles_about)))
             if total > capacity:
                 over = True
                 lines.append("Too many tiles: the game could not load the sprites (Check Project)")
