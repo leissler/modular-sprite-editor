@@ -184,7 +184,10 @@ both show the same sprite table on every video frame, the same palettes whenever
 at the end. Each build plays twice, with work RAM filled with zeros and with 0xFF at power-on, and all four runs must
 be the same: a program that reads memory it never wrote is caught (Mesen's own random fill would catch it only now and
 then; video memory, the sprite table and the palettes start as zeros). It lists the reads of unwritten memory Mesen
-reports. The release workflow compares the Windows kit's build with the Linux one this way.
+reports. The presses need a SNES controller on port 1 in Mesen's settings, which Mesen's defaults do not have: next to
+the executable, a `settings.json` holding `{"Snes": {"Port1": {"Type": "SnesController"}}}` connects one (the check
+fails when the sprite table moves while the demo should be paused). The release workflow compares the Windows kit's
+build with the Linux one this way.
 
 ```bash
 python3 tools/compare_snes_roms.py REFERENCE.sfc OTHER.sfc

@@ -58,7 +58,8 @@ executable: without one Mesen opens its first-run window instead; on Linux the t
 systems are not byte for byte the same (wlalink leaves sections of the same size in the order the system's qsort
 does): the snes-kit job plays the Windows kit's ROM next to the Linux one with `tools/compare_snes_roms.py` (each with
 work RAM all zeros and all 0xFF at power-on: PVSnesLib clears no RAM, so a read of memory never written shows), which
-must draw the same on every frame. Publishing waits for both. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
+must draw the same on every frame; its Mesen needs a SNES controller on port 1 (`settings.json`: Mesen's defaults have
+none, and the presses would not reach the demo; the tool fails then). Publishing waits for both. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
 with; `tests/test_requirements.py` checks they agree, and `requirements.txt` says what moving to 4.3 needs. Set
 `APP_VERSION` in `app.py` to the release first: the About box and the macOS Info.plist show it, and the workflow stops if
 it releases another version.

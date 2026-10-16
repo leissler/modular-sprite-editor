@@ -14,6 +14,10 @@ work RAM filled with zeros and with 0xFF before it starts, and all four must dra
 would catch that only now and then). Video memory, the sprite table and the palettes start as zeros in every run.
 Mesen's own notes of reads from memory nothing had written ("Uninitialized memory read") are listed, not compared.
 
+The presses need a SNES controller on port 1 in Mesen's settings: its defaults have none (a settings.json holding
+{"Snes": {"Port1": {"Type": "SnesController"}}} next to the executable connects one). Without it the demo would only
+play its first scene; the check fails then (the sprite table must stand still while the demo is paused).
+
 Usage (from the repository root):
     python3 tools/compare_snes_roms.py REFERENCE.sfc OTHER.sfc [--mesen PATH]
 """
@@ -95,6 +99,7 @@ def lag_counter(rom: Path) -> int:
 
 
 FILLS = (0x00, 0xFF)  # work RAM at power-on
+PAUSED = (1260 + PRESS + 2, 1320)  # between the two presses of A: the demo pauses, its sprite table stands still
 TRACE = ("oam", "cgram", "lag", "vram")  # what the script prints; Mesen adds notes of its own
 
 
@@ -152,6 +157,11 @@ def main() -> int:
         if notes:
             print(f"Mesen's notes on {rom.name}: " + "; ".join(notes[:8]) + (" ..." if len(notes) > 8 else ""))
     reference = traces[0]
+    moved = [line for line in reference if line.startswith("oam ") and PAUSED[0] <= int(line.split()[1]) < PAUSED[1]]
+    if moved:
+        print(f"The presses did not reach the demo (its sprite table changed while it should be paused, from video frame "
+              f"{moved[0].split()[1]}): connect a SNES controller to port 1 in Mesen's settings")
+        return 1
     for (rom, fill), trace in zip(runs[1:], traces[1:]):
         name = f"{rom.name} with work RAM {fill:#04x} at power-on"
         for a, b in zip(reference, trace):
