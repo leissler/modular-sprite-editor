@@ -122,6 +122,6 @@ the images once the project is open, with the format 6 rules, so a migrated proj
 ## Where it is tested
 
 `tests/test_palettes.py` (colours, slots, swaps, cycles, maintenance, other consoles), `tests/test_consoles.py` (the
-database gives the budget profiles and screen guides), `tests/test_sgdk_runtime_draw.py` (the compiled
+database gives the budget profiles and screen guides), `tests/test_megadrive_runtime_draw.py` (the compiled
 runtime draws a guard in a swap, scene objects with swaps of their own, and turns cycles like the preview),
 `tests/test_project_check.py` (the palette checks), and the smoke test's palette steps.

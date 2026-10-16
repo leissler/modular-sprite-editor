@@ -1,7 +1,7 @@
 # SNES Example (PVSnesLib)
 
 A complete SNES pipeline for modular sprites from your editor project, the counterpart of the Mega Drive's
-(`examples/sgdk`):
+(`examples/megadrive`):
 
 - **Bake step**: a Python exporter turns the project into binary chunks, one per ROM bank, and the C files that find
   them
@@ -113,7 +113,7 @@ sizes. The editor remembers them per project and shows what the game gets.
 From the command line (the same exporter; run from the repo root):
 
 ```bash
-python3 examples/snes/tools/export_snes.py --project-json examples/sgdk/PoP_WW.json --output-dir examples/snes/snes_demo
+python3 examples/snes/tools/export_snes.py --project-json examples/pop/PoP_WW.json --output-dir examples/snes/snes_demo
 ```
 
 The release page has it built for Windows, macOS and Linux, without Python: `export_snes` (`export_snes.exe`) takes the

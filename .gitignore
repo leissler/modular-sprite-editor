@@ -59,12 +59,12 @@ test_output_dbg*/
 safe_debug.txt
 
 # SGDK example build artifacts
-examples/sgdk/sgdk_demo/out/
-examples/sgdk/sgdk_demo/third_party/sgdk/.git/
-examples/sgdk/sgdk_demo/third_party/sgdk/out/
+examples/megadrive/megadrive_demo/out/
+examples/megadrive/megadrive_demo/third_party/sgdk/.git/
+examples/megadrive/megadrive_demo/third_party/sgdk/out/
 # SGDK's prebuilt libraries (libgcc.a, libmd.a, libmd_debug.a): Windows builds link them
-!examples/sgdk/sgdk_demo/third_party/sgdk/lib/
-examples/sgdk/sgdk_demo/third_party/sgdk/sample/**/out/
+!examples/megadrive/megadrive_demo/third_party/sgdk/lib/
+examples/megadrive/megadrive_demo/third_party/sgdk/sample/**/out/
 
 # Built website
 website/site/

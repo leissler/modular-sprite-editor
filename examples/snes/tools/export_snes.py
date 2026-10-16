@@ -19,7 +19,6 @@ adds the position and the palette.
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import struct
 import sys
@@ -41,7 +40,9 @@ import hardware_budget  # noqa: E402
 import palettes  # noqa: E402
 import project_check  # noqa: E402
 import sprite_cut  # noqa: E402
-from console_bake import FIXED_ENTRY, ConsoleBake, RenderFrameSpan  # noqa: E402
+from console_bake import (  # noqa: E402
+    FIXED_ENTRY, ConsoleBake, RenderFrameSpan, copy_sources, export_arguments, print_result, resolve_mappings,
+)
 from models import ModuleMapping, Project  # noqa: E402
 from project_check import Issue  # noqa: E402
 
@@ -585,18 +586,6 @@ def _write(path: Path, text: str) -> Path:
     return path
 
 
-def _resolve_mappings(project: Project, selector: str) -> List[Optional[ModuleMapping]]:
-    lower = str(selector or "all").strip().lower()
-    if lower in ("none", "off", "null"):
-        return [None]
-    if lower in ("auto", "all", "*"):
-        return [None] + list(project.mappings)
-    for item in project.mappings:
-        if item.id == selector or item.name.strip().lower() == lower:
-            return [None, item]
-    raise ValueError(f"Mapping '{selector}' was not found. Available: {[m.name for m in project.mappings]}")
-
-
 @dataclass
 class ExportResult:
     summary: Dict[str, Any]
@@ -604,27 +593,26 @@ class ExportResult:
     files: List[Path]
 
 
-def export_project(project: Project, project_dir: Path, mapping_selector: str = "all",
-                   setup_key: str = "") -> ExportResult:
+def export_project(project: Project, project_dir: Path, mapping_selector: str = "all", setup_key: str = "",
+                   project_path: Optional[Path] = None, copy_assets: bool = False) -> ExportResult:
     """Bake a project into a PVSnesLib project folder and report what the game will see (Check Project's errors and
     warnings, how the tiles and palettes fit)."""
-    mappings = _resolve_mappings(project, mapping_selector)
+    mappings = resolve_mappings(project, mapping_selector)
     issues = [issue for issue in project_check.check_project(project) if issue.level != project_check.INFO]
     bake = SNESBakeContext(project, mappings, setup_key)
     bake.bake()
     files = bake.write(Path(project_dir))
-    console = consoles.console_by_key(project.console)
-    if console is not consoles.SNES:
-        issues.append(Issue(project_check.WARNING, "other-console",
-                            f"The project is made for the {console.name} (Console, above the tabs): the SNES export "
-                            f"uses {bake.setup.name.split(', ', 1)[-1]} and makes SNES palettes of its palettes, "
-                            f"{consoles.SNES.palette.visible} colours each."))
+    if copy_assets:
+        copy_sources(project, project_path, Path(project_dir))
+    console = project_check.console_issue(project, consoles.SNES,
+                                          f", with {bake.setup.name.split(', ', 1)[-1]}")
+    if console:
+        issues.append(console)
     tiles = bake.tiles_used()
     issues.append(project_check.snes_tile_issue(tiles, SPRITE_TILES))
-    if len(bake.palette_entries) > SPRITE_PALETTES:
-        issues.append(Issue(project_check.WARNING, "snes-palettes",
-                            f"The palettes and swaps make {len(bake.palette_entries)} palette entries; the SNES has "
-                            f"{SPRITE_PALETTES} sprite palettes, so ms_load_palette has to load the others."))
+    palette_entries = project_check.snes_palette_issue(len(bake.palette_entries), SPRITE_PALETTES)
+    if palette_entries:
+        issues.append(palette_entries)
     summary = {
         "setup": bake.setup.name, "mapping_count": len(mappings), "mappings": ", ".join(bake.mapping_names),
         "animations": len(project.animations), "frames": len(project.frames), "scenes": len(project.timeline_scenes),
@@ -639,28 +627,20 @@ def export_project(project: Project, project_dir: Path, mapping_selector: str = 
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bake a modular sprite project into a PVSnesLib (SNES) project.")
-    parser.add_argument("--project-json", default=str(REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json"))
-    parser.add_argument("--output-dir", default=str(REPO_ROOT / "examples" / "snes" / "snes_demo"),
-                        help="The PVSnesLib project folder (it gets res/, inc/, src/ files and modsprite_chunks.asm).")
-    parser.add_argument("--mapping", default="all", help="Mapping name/id, 'all' (default) or 'none'.")
+    parser = export_arguments("SNES", REPO_ROOT / "examples" / "pop" / "PoP_WW.json",
+                              REPO_ROOT / "examples" / "snes" / "snes_demo")
     parser.add_argument("--setup", default="", help="The two sprite sizes (snes_8_16 ... snes_32_64); default: the "
                         "project's when it is made for the SNES, else snes_8_16.")
-    parser.add_argument("--strict", action="store_true", help="Exit with 1 when the project has errors.")
     args = parser.parse_args()
-    project = Project.from_json(str(Path(args.project_json).resolve()))
+    project_json_path = Path(args.project_json).resolve()
+    project = Project.from_json(str(project_json_path))
     try:
-        result = export_project(project, Path(args.output_dir), args.mapping, args.setup)
+        result = export_project(project, Path(args.output_dir), args.mapping, args.setup, project_json_path,
+                                args.copy_assets)
     except ExportError as error:
         print(f"error: {error}")
         return 1
-    for key, value in result.summary.items():
-        print(f"{key}: {value}")
-    for issue in result.issues:
-        print(f"{'note' if issue.level == project_check.INFO else issue.level}: {issue.text}")
-    if args.strict and any(issue.level == project_check.ERROR for issue in result.issues):
-        return 1
-    return 0
+    return print_result(result, args.strict)
 
 
 if __name__ == "__main__":

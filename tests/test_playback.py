@@ -1,5 +1,5 @@
 """playback.py: the shortcut Timeline objects use (step_after, animation_at) leaves exactly what the tick-by-tick
-Player (= the Mega Drive runtime, see test_runtime_player.py) shows, follow-up animations included."""
+Player (= the Mega Drive runtime, see test_megadrive_runtime_player.py) shows, follow-up animations included."""
 
 import copy
 import itertools
@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 import playback  # noqa: E402
 from models import AFrame, Animation, Project  # noqa: E402
 
-TESTBEDS = [ROOT / "examples" / "sgdk" / "PoP_WW.json", ROOT / "examples" / "sonic" / "sonic.json",
+TESTBEDS = [ROOT / "examples" / "pop" / "PoP_WW.json", ROOT / "examples" / "sonic" / "sonic.json",
             ROOT / "examples" / "adventurer" / "adventurer.json"]
 
 
@@ -183,8 +183,8 @@ class ConsoleTimingTest(unittest.TestCase):
     def test_the_export_holds_the_same_frames(self):
         import tempfile
 
-        sys.path.insert(0, str(ROOT / "examples" / "sgdk" / "tools"))
-        import export_sgdk_example as sg
+        sys.path.insert(0, str(ROOT / "examples" / "megadrive" / "tools"))
+        import export_megadrive as sg
         from models import Frame
 
         project = Project()
@@ -194,7 +194,7 @@ class ConsoleTimingTest(unittest.TestCase):
             af.frame_id = "f"
         project.animations.append(anim)
         with tempfile.TemporaryDirectory() as tmp:
-            ctx = sg.SGDKBakeContext(project, [None], Path(tmp))
+            ctx = sg.MegaDriveBakeContext(project, [None], Path(tmp))
             ctx.bake()
         self.assertEqual([step[1] for step in ctx.anim_steps], [8, 22, 15])
 

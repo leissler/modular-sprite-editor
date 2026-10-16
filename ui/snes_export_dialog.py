@@ -18,7 +18,7 @@ import wx
 import consoles
 from models import Project
 from ui.dpi import px
-from ui.sgdk_export_dialog import mapping_choices, short_path
+from ui.megadrive_export_dialog import mapping_choices, short_path
 
 RUNTIME_FILES = (os.path.join("src", "modsprite.c"), os.path.join("src", "modsprite_draw.asm"),
                  os.path.join("inc", "modsprite.h"))

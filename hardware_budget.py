@@ -1,28 +1,32 @@
 """Hardware sprite budget: how a frame (or a whole scene) maps onto console sprite hardware.
 
-Mega Drive model, matching the SGDK exporter and runtime (examples/sgdk):
-- every visible part becomes one SGDK sprite whose image is padded to whole 8×8 tiles; axis-aligned parts use the
-  module image with hardware flips, rotated parts are baked (``console_bake.ConsoleBake._render_leaf_part``);
+For a console with an exporter (docs/CONSOLES.md) the model is what its export and runtime do. Both bake parts the same
+way (``console_bake``): axis-aligned parts use the module image with hardware flips, turned parts are baked
+(``console_bake.ConsoleBake._render_leaf_part``).
+
+Mega Drive (examples/megadrive, SGDK):
+- every visible part becomes one sprite of the runtime whose image is padded to whole 8×8 tiles;
 - the export cuts each part into VDP sprites of at most 4×4 tiles (32×32 px) with ``sprite_cut.export_cut``: the
   fewest sprites, and with that the fewest tiles, placed at any pixel of the part (or the part's 32 px grid when that
   is as good); this model counts exactly those;
 - the VDP shows a limited number of sprites per screen and per scanline, and a limited number of sprite pixels per
   scanline (the rest of the line's sprites disappear);
 - video memory: the export stores each part image once (flips are hardware bits) as 4 bpp tiles in palette indices,
-  and hardware sprites with the same pixels share their tiles (``SGDKBakeContext._store_part``). The runtime
+  and hardware sprites with the same pixels share their tiles (``MegaDriveBakeContext._store_part``). The runtime
   keeps every tile in VRAM, so the project's total (``export_tiles``) is what has to fit.
 
-The SNES has an exporter too (examples/snes, PVSnesLib), which cuts and stores parts the way this model counts them:
-
-- SNES: a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16). Every part is padded to the large size and
-  cut on that grid; a cell whose pixels sit in at most half of its small squares takes small sprites, otherwise one
-  large sprite. The PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line. Video memory: the export
-  stores each of those squares once in palette slots (flips are hardware bits), squares with the same pixels share
-  their tiles (``SNESBakeContext._store_part``), and every one stays in the two sprite tables (512 tiles).
+SNES (examples/snes, PVSnesLib):
+- a game uses two square sprite sizes (OBSEL, e.g. 8×8 and 16×16); every part is padded to the large size and cut on
+  that grid: a cell whose pixels sit in at most half of its small squares takes small sprites, otherwise one large
+  sprite;
+- the PPU shows 128 sprites, 32 per scanline and 34 tiles (272 px) per line;
+- video memory: the export stores each of those squares once in palette slots (flips are hardware bits), squares with
+  the same pixels share their tiles (``SNESBakeContext._store_part``), and every one stays in the two sprite tables
+  (512 tiles).
 
 The other consoles have budgets but no exporter yet, so their cut is a model of what a game would do; parts are
-placed and flipped as on the Mega Drive (every console here flips sprites both ways), turned parts are baked, and video
-memory is not counted:
+placed and flipped as for the consoles with an exporter (every console here flips sprites both ways), turned parts are
+baked, and video memory is not counted:
 
 - NES and Game Boy: every sprite has the one size the game chose (8×8, or 8×16 where the hardware stacks two tiles).
   Parts are padded to that size and every cell that holds a pixel is a sprite. The NES shows 64, 8 per line; the Game
@@ -32,7 +36,7 @@ memory is not counted:
   sprite tiles for 128 sprites): guillotine cuts of the cell, every piece one shape (which may stick out past the
   pixels) or two smaller pieces. A line has 1210 drawing cycles, one per pixel of an ordinary sprite.
 
-The cuts themselves live in ``sprite_cut`` (shared with the SGDK exporter and Auto Modularize).
+The cuts themselves live in ``sprite_cut`` (shared with the console exporters and Auto Modularize).
 
 No wx here: the editor draws the result, tests check it.
 """
@@ -142,7 +146,7 @@ class HwSprite:
 
 @dataclass
 class HwPart:
-    """One exported part (one SGDK sprite): its padded area on screen and the VDP sprites it needs."""
+    """One exported part (one sprite of the runtime): its padded area on screen and the hardware sprites it needs."""
 
     x: int
     y: int
@@ -440,7 +444,7 @@ class BudgetCalculator:
         profile: HardwareProfile,
     ) -> Optional[HwPart]:
         if int(mod.rect[2]) <= 0 or int(mod.rect[3]) <= 0:
-            return None  # hidden, like the SGDK exporter
+            return None  # hidden, like the console exports
         base = self._module_image(project, mod)
         w, h = base.size
         if w <= 0 or h <= 0:
@@ -532,7 +536,7 @@ def _pad(size: int, profile: Optional[HardwareProfile] = None, axis: int = 0) ->
 
 
 def _axis_flip(a: Matrix) -> Optional[Tuple[bool, bool]]:
-    """Hardware can only flip: identity / mirror / 180° (SGDK _extract_geom_axis_flip)."""
+    """Hardware can only flip: identity / mirror / 180° (``ConsoleBake._extract_geom_axis_flip``)."""
     eps = 1e-5
     if abs(a[0][1]) > eps or abs(a[1][0]) > eps:
         return None

@@ -2,15 +2,13 @@
 """Bake editor JSON into an SGDK example project (resources + binary data blob).
 
 The console-independent bake (parts through nested frames, animations, scenes, mappings, hitboxes and points) is
-console_bake.ConsoleBake; SGDKBakeContext adds what the Mega Drive needs: VDP tiles, the hardware sprite cut, CRAM
+console_bake.ConsoleBake; MegaDriveBakeContext adds what the Mega Drive needs: VDP tiles, the hardware sprite cut, CRAM
 palettes, the blob and its C side."""
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import re
-import shutil
 import struct
 import sys
 from dataclasses import dataclass
@@ -19,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PIL import Image
 
-# The repo root; for the packaged exporter (export_sgdk.exe) the folder it sits in, which holds the same
+# The repo root; for the packaged exporter (export_megadrive.exe) the folder it sits in, which holds the same
 # examples/ layout, so the defaults below work there too.
 if getattr(sys, "frozen", False):
     REPO_ROOT = Path(sys.executable).resolve().parent
@@ -29,7 +27,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import consoles  # noqa: E402
-from console_bake import ConsoleBake, RenderFrameSpan  # noqa: E402
+from console_bake import (  # noqa: E402
+    ConsoleBake, RenderFrameSpan, copy_sources, export_arguments, print_result, resolve_mappings,
+)
 import sprite_cut  # noqa: E402
 from models import ModuleMapping, Project  # noqa: E402
 import palettes  # noqa: E402
@@ -90,15 +90,15 @@ def merged_resources(existing: Optional[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-class SGDKBakeContext(ConsoleBake):
+class MegaDriveBakeContext(ConsoleBake):
     """The Mega Drive (SGDK) half of the export: ConsoleBake's parts as VDP tiles and hardware sprites (variants and
     their pieces, one list per flip), the palettes as CRAM words, and all of it in one blob with its C record types and
     parser."""
 
-    def __init__(self, project: Project, mappings: List[Optional[ModuleMapping]], output_demo_dir: Path) -> None:
+    def __init__(self, project: Project, mappings: List[Optional[ModuleMapping]], output_dir: Path) -> None:
         super().__init__(project, mappings)
-        self.output_demo_dir = output_demo_dir
-        self.output_gen_dir = output_demo_dir / "res" / "gen"
+        self.output_dir = output_dir
+        self.output_gen_dir = output_dir / "res" / "gen"
 
         self.variant_lookup: Dict[Tuple[int, int, str], int] = {}
         self.variants: List[VariantMeta] = []
@@ -1145,33 +1145,6 @@ const char *ms_palette_entry_name_data(u16 index) {{ return ms_lookup_string(g_p
         path.write_text(text, encoding="utf-8")
 
 
-def _resolve_mappings(project: Project, mapping_selector: str) -> List[Optional[ModuleMapping]]:
-    selector = str(mapping_selector or "auto").strip()
-    lower = selector.lower()
-
-    if lower in ("none", "off", "null"):
-        return [None]
-
-    if lower in ("auto", "all", "*"):
-        return [None] + list(project.mappings)
-
-    for item in project.mappings:
-        if item.id == selector:
-            return [None, item]
-        if item.name.strip().lower() == lower:
-            return [None, item]
-    raise ValueError(f"Mapping '{mapping_selector}' was not found. Available: {[m.name for m in project.mappings]}")
-
-
-def _copy_if_needed(source: Path, target: Path) -> None:
-    source = source.resolve()
-    target = target.resolve()
-    if source == target:
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, target)
-
-
 @dataclass
 class ExportResult:
     summary: Dict[str, Any]           # counts: tiles, sprites, steps, blob size, ...
@@ -1181,39 +1154,35 @@ class ExportResult:
 
 def export_project(
     project: Project,
-    output_demo_dir: Path,
+    output_dir: Path,
     mapping_selector: str = "all",
     project_path: Optional[Path] = None,
     copy_assets: bool = False,
 ) -> ExportResult:
     """Bake a project into an SGDK project folder (its res/, inc/ and src/ get the data files) and report what the
     game will see: Check Project's errors and warnings, merged colours and how the tiles fit in video memory."""
-    output_demo_dir = Path(output_demo_dir).resolve()
-    mappings = _resolve_mappings(project, mapping_selector)
+    output_dir = Path(output_dir).resolve()
+    mappings = resolve_mappings(project, mapping_selector)
     issues = [issue for issue in project_check.check_project(project) if issue.level != project_check.INFO]
 
-    bake = SGDKBakeContext(project=project, mappings=mappings, output_demo_dir=output_demo_dir)
+    bake = MegaDriveBakeContext(project=project, mappings=mappings, output_dir=output_dir)
     bake.bake()
-    files = [output_demo_dir / BLOB_FILE, output_demo_dir / HEADER_FILE, output_demo_dir / DATA_C_FILE,
-             output_demo_dir / RESOURCE_FILE]
+    files = [output_dir / BLOB_FILE, output_dir / HEADER_FILE, output_dir / DATA_C_FILE,
+             output_dir / RESOURCE_FILE]
     bake._emit_blob(files[0])
     bake._emit_header(files[1])
     bake._emit_data_c(files[2])
     bake._emit_resources(files[3])
 
-    if copy_assets and project_path is not None:
-        _copy_if_needed(Path(project_path), output_demo_dir / "source" / Path(project_path).name)
-        for asset in project.images:
-            image_path = Path(asset.file_path)
-            if image_path.exists():
-                _copy_if_needed(image_path, output_demo_dir / "source" / image_path.name)
+    if copy_assets:
+        copy_sources(project, project_path, output_dir)
 
-    console = project_check.console_issue(project)
+    console = project_check.console_issue(project, consoles.MEGA_DRIVE)
     if console is not None:
         issues.append(console)
     tiles = len(bake.tile_data) // 32
-    issues.append(project_check.tile_issue(tiles))
-    lines = project_check.palette_issue(len(bake.palette_entries))
+    issues.append(project_check.megadrive_tile_issue(tiles))
+    lines = project_check.megadrive_palette_issue(len(bake.palette_entries))
     if lines is not None:
         issues.append(lines)
     summary = {
@@ -1242,45 +1211,13 @@ def export_project(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bake modular sprite project JSON into SGDK demo assets.")
-    parser.add_argument(
-        "--project-json",
-        default=str((REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json").resolve()),
-        help="Path to source project JSON.",
-    )
-    parser.add_argument(
-        "--output-demo-dir",
-        default=str((REPO_ROOT / "examples" / "sgdk" / "sgdk_demo").resolve()),
-        help="Target SGDK demo directory.",
-    )
-    parser.add_argument(
-        "--mapping",
-        default="all",
-        help="Mapping name/id, 'all' (default), 'auto', or 'none'.",
-    )
-    parser.add_argument(
-        "--copy-assets",
-        action="store_true",
-        help="Copy source JSON and source atlas image into the demo directory for reference.",
-    )
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Exit with 1 when the project has errors (Check Project), e.g. steps whose frame was deleted.",
-    )
-
+    parser = export_arguments("Mega Drive", REPO_ROOT / "examples" / "pop" / "PoP_WW.json",
+                              REPO_ROOT / "examples" / "megadrive" / "megadrive_demo")
     args = parser.parse_args()
     project_json_path = Path(args.project_json).resolve()
     project = Project.from_json(str(project_json_path))
-    result = export_project(project, Path(args.output_demo_dir), args.mapping, project_json_path, args.copy_assets)
-
-    for key, value in result.summary.items():
-        print(f"{key}: {value}")
-    for issue in result.issues:
-        print(f"{'note' if issue.level == project_check.INFO else issue.level}: {issue.text}")
-    if args.strict and any(issue.level == project_check.ERROR for issue in result.issues):
-        return 1
-    return 0
+    result = export_project(project, Path(args.output_dir), args.mapping, project_json_path, args.copy_assets)
+    return print_result(result, args.strict)
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ CONFIG_SHOW = "Welcome/ShowAtStart"
 
 # (name, what it shows, path in the examples folder)
 EXAMPLES: List[Tuple[str, str, Tuple[str, ...]]] = [
-    ("Prince of Persia", "small parts, animations, a scene, mappings, palette swaps", ("sgdk", "PoP_WW.json")),
+    ("Prince of Persia", "small parts, animations, a scene, mappings, palette swaps", ("pop", "PoP_WW.json")),
     ("Sonic", "a hand-cut character with many animations", ("sonic", "sonic.json")),
     ("Adventurer", "a sheet of whole sprites to practise on", ("adventurer", "adventurer.json")),
 ]

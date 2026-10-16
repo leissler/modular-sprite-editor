@@ -47,7 +47,7 @@ from ui.refresh_rate import REFRESH
 from ui.sheet_export_dialog import SheetExportDialog
 from ui.shortcuts_dialog import MOD, ShortcutsDialog
 from ui.scene_editor.panel import SceneEditorPanel
-from ui.sgdk_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
+from ui.megadrive_export_dialog import ID_CHECK_PROJECT, ExportReportDialog, MegaDriveExportDialog, has_runtime, load_exporter
 from ui import snes_export_dialog
 from ui.theme import T
 from ui.welcome import CONFIG_SHOW, DOWNLOAD_URL, EXAMPLES_GUIDE_URL, GUIDE_URL, WelcomePanel, example_paths
@@ -1041,7 +1041,7 @@ class MainFrame(wx.Frame):
                                             "A sprite sheet PNG and its JSON as modules, frames and animations")
         file_menu.AppendSubMenu(import_menu, "Import")
         export_menu = wx.Menu()
-        m_export_sgdk = export_menu.Append(wx.ID_ANY, "Mega Drive (SGDK)...", "Bake the project into a Mega Drive game's SGDK folder")
+        m_export_megadrive = export_menu.Append(wx.ID_ANY, "Mega Drive (SGDK)...", "Bake the project into a Mega Drive game's SGDK folder")
         m_export_snes = export_menu.Append(wx.ID_ANY, "SNES (PVSnesLib)...", "Bake the project into a SNES game's PVSnesLib folder")
         m_export_retro = export_menu.Append(wx.ID_ANY, "RetroAnimator Project (*.json)...")
         m_export_sheet = export_menu.Append(wx.ID_ANY, "Sprite Sheet (JSON, Godot, Unity)...",
@@ -1062,7 +1062,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_import_retro_animator, m_import_retro)
         self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=False), m_import_aseprite)
         self.Bind(wx.EVT_MENU, lambda e: self.import_aseprite(sheet_json=True), m_import_sheet)
-        self.Bind(wx.EVT_MENU, self.on_export_sgdk, m_export_sgdk)
+        self.Bind(wx.EVT_MENU, self.on_export_megadrive, m_export_megadrive)
         self.Bind(wx.EVT_MENU, self.on_export_snes, m_export_snes)
         self.Bind(wx.EVT_MENU, self.on_export_retro_animator, m_export_retro)
         self.Bind(wx.EVT_MENU, self.on_export_gif, m_export_gif)
@@ -1501,12 +1501,17 @@ class MainFrame(wx.Frame):
         if isinstance(tab, int) and 0 <= tab < self.book.GetPageCount():
             self.select_tab(tab)
 
-    def _export_preference(self, kind: str = "SGDKExport") -> str:
+    def _export_preference(self, kind: str = "MegaDriveExport") -> str:
         """Preferences key for this project's export folder (the Mega Drive's, or ``kind``'s: "SNESExport")."""
         path = os.path.abspath(self.current_path) if self.current_path else "untitled"
         return kind + "/" + hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
 
-    def export_sgdk(self, folder: str, selector: str):
+    def _read_export_preference(self, key: str, default: str) -> str:
+        """A remembered export setting; up to 0.10.2 the Mega Drive's were kept under "SGDKExport/"."""
+        old = key.replace("MegaDriveExport/", "SGDKExport/", 1)
+        return self.config.Read(key, self.config.Read(old, default) if old != key else default)
+
+    def export_megadrive(self, folder: str, selector: str):
         """Bake the project into an SGDK project folder; the exporter's result, or None when it failed."""
         try:
             exporter = load_exporter()
@@ -1519,10 +1524,11 @@ class MainFrame(wx.Frame):
         self.set_status(f"Exported for the Mega Drive to {folder}")
         return result
 
-    def on_export_sgdk(self, _event: Optional[wx.CommandEvent] = None) -> None:
+    def on_export_megadrive(self, _event: Optional[wx.CommandEvent] = None) -> None:
         key = self._export_preference()
         default = os.path.dirname(os.path.abspath(self.current_path)) if self.current_path else os.path.expanduser("~")
-        folder, selector = self.config.Read(key, default), self.config.Read(key + "Mapping", "all")
+        folder = self._read_export_preference(key, default)
+        selector = self._read_export_preference(key + "Mapping", "all")
         with MegaDriveExportDialog(self, self.project, folder, selector) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
                 return
@@ -1539,7 +1545,7 @@ class MainFrame(wx.Frame):
         self.config.Write(key, folder)
         self.config.Write(key + "Mapping", selector)
         self.config.Flush()
-        result = self.export_sgdk(folder, selector)
+        result = self.export_megadrive(folder, selector)
         if result is None:
             return
         with ExportReportDialog(self, folder, result) as report:

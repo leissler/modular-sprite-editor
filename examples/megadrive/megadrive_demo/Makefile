@@ -1,4 +1,4 @@
-ROM_NAME = modular_sprite_sgdk_demo
+ROM_NAME = modular_sprite_megadrive_demo
 
 ifeq ($(SGDK),)
 # Relative: on Windows $(CURDIR) is an MSYS path (/c/...) that SGDK's gcc.exe cannot open.
@@ -6,7 +6,7 @@ SGDK := third_party/sgdk
 endif
 
 ifeq ($(wildcard $(SGDK)/makefile.gen),)
-$(error SGDK not found. Set SGDK=/path/to/sgdk or place SGDK in examples/sgdk/sgdk_demo/third_party/sgdk)
+$(error SGDK not found. Set SGDK=/path/to/sgdk or place SGDK in examples/megadrive/megadrive_demo/third_party/sgdk)
 endif
 
 include $(SGDK)/makefile.gen

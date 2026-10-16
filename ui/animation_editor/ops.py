@@ -20,7 +20,7 @@ Player = playback.Player
 can_finish = playback.can_finish
 loop_start = playback.loop_start
 
-# (label, playback_type). Labels say what the game does; "backward" repeats like the SGDK runtime.
+# (label, playback_type). Labels say what the game does; "backward" repeats like the console runtimes.
 PLAYBACK_MODES: List[Tuple[str, str]] = [
     ("Loop", "loop"),
     ("Play once", "forward"),

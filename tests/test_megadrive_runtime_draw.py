@@ -1,6 +1,6 @@
 """The Mega Drive runtime must draw every frame exactly like the editor.
 
-Bakes the testbed projects with the SGDK exporter, compiles examples/sgdk/sgdk_demo/src/modsprite.c for the
+Bakes the testbed projects with the SGDK exporter, compiles examples/megadrive/megadrive_demo/src/modsprite.c for the
 host (with the exporter's tables as C arrays), lets the runtime draw each frame into the sprite table (in the
 middle of the screen, where it copies whole frames, and across the edges, where it culls sprite by sprite),
 then rasterises that sprite table from the exported tiles like the VDP does (column-major tiles, flips, list
@@ -17,18 +17,18 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "megadrive" / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from models import Project  # noqa: E402
-from test_runtime_player import GENESIS_STUB, GENESIS_STUB_IMPL  # noqa: E402
+from test_megadrive_runtime_player import GENESIS_STUB, GENESIS_STUB_IMPL  # noqa: E402
 
 SCREEN_W, SCREEN_H = 320, 224
 POSITIONS = [(160, 112), (6, 10), (310, 216)]  # centre, across the top-left and the bottom-right edges
 VERSUS = [(100, 150), (220, 150)]  # hero, guard
 TILE_BASE = 16  # TILE_USER_INDEX in the stub
 FIRST_LINE = 1  # ms_init() puts the first palette entry on PAL1, the next ones on the lines after it
-PROJECTS = [REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json",
+PROJECTS = [REPO_ROOT / "examples" / "pop" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json",
             REPO_ROOT / "examples" / "adventurer" / "adventurer.json"]  # the last two cut parts off the 32 px grid
 
 
@@ -216,11 +216,11 @@ def _build_and_run(test: unittest.TestCase, ctx, tmp_path: Path, source: str):
     (tmp_path / "genesis.h").write_text(GENESIS_STUB)
     (tmp_path / "genesis_stub.c").write_text(GENESIS_STUB_IMPL)
     ctx._emit_header(tmp_path / "modsprite_data.h")
-    shutil.copy(REPO_ROOT / "examples" / "sgdk" / "sgdk_demo" / "inc" / "modsprite.h", tmp_path / "modsprite.h")
+    shutil.copy(REPO_ROOT / "examples" / "megadrive" / "megadrive_demo" / "inc" / "modsprite.h", tmp_path / "modsprite.h")
     (tmp_path / "harness.c").write_text(source)
     exe = tmp_path / "harness"
     build = subprocess.run(
-        ["cc", "-std=c99", "-w", f"-I{tmp_path}", str(REPO_ROOT / "examples" / "sgdk" / "sgdk_demo" / "src" / "modsprite.c"),
+        ["cc", "-std=c99", "-w", f"-I{tmp_path}", str(REPO_ROOT / "examples" / "megadrive" / "megadrive_demo" / "src" / "modsprite.c"),
          str(tmp_path / "harness.c"), str(tmp_path / "genesis_stub.c"), "-o", str(exe)],
         capture_output=True, text=True,
     )
@@ -248,14 +248,14 @@ def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, pale
 @unittest.skipIf(shutil.which("cc") is None, "no C compiler")
 class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
     def test_every_frame(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from ui.frame_render import FrameRenderer
 
         for project_path in PROJECTS:
             project = Project.from_json(str(project_path))
             with self.subTest(project=project_path.name), tempfile.TemporaryDirectory() as tmp:
                 tmp_path = Path(tmp)
-                ctx = sg.SGDKBakeContext(project, [None], tmp_path)
+                ctx = sg.MegaDriveBakeContext(project, [None], tmp_path)
                 ctx.bake()
                 lines = _build_and_run(self, ctx, tmp_path, _harness(ctx, len(project.frames)))
 
@@ -289,7 +289,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
     def test_images_in_two_palettes(self):
         """A frame with a part from an image in each palette: each sprite carries its palette line, the blob holds
         both palettes and the colours come from the right one."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from PIL import Image
 
         import palettes
@@ -312,7 +312,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                 palettes.add_missing_colours(project, palette)
             frame = project.create_frame("both")
             frame.fmodules += [FModule("a", "module", "m0", (0, 0)), FModule("b", "module", "m1", (16, 0))]
-            ctx = sg.SGDKBakeContext(project, [None], tmp_path / "out")
+            ctx = sg.MegaDriveBakeContext(project, [None], tmp_path / "out")
             ctx.bake()
             self.assertEqual(len(ctx.palette_entries), 2)
             lines = _build_and_run(self, ctx, tmp_path, _harness(ctx, len(project.frames)))
@@ -325,7 +325,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
 
     def test_two_players_with_their_own_mapping(self):
         """A guard re-skinned from the hero's animations: both in one sprite table, each with its own mapping."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from ui.frame_render import FrameRenderer, transform
 
         project = Project.from_json(str(PROJECTS[0]))
@@ -334,7 +334,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
         animations = [next(i for i, a in enumerate(project.animations) if a.name == n) for n in names]
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            ctx = sg.SGDKBakeContext(project, [None, guard_mapping], tmp_path)
+            ctx = sg.MegaDriveBakeContext(project, [None, guard_mapping], tmp_path)
             ctx.bake()
             lines = _build_and_run(self, ctx, tmp_path, _versus_harness(
                 ctx, len(project.frames), len(project.animations), animations, ticks=150))
@@ -365,7 +365,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
     def test_a_guard_in_other_colours(self):
         """The guard drawn with a mapping and a palette swap: his sprites come from the swap's palette line, the
         hero's from the palette's, the tiles are the same slots, and the active swap stays as it was."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from ui.frame_render import FrameRenderer, transform
 
         project = Project.from_json(str(PROJECTS[0]))
@@ -376,7 +376,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
         animations = [next(i for i, a in enumerate(project.animations) if a.name == n) for n in names]
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            ctx = sg.SGDKBakeContext(project, [None, guard_mapping], tmp_path)
+            ctx = sg.MegaDriveBakeContext(project, [None, guard_mapping], tmp_path)
             ctx.bake()
             self.assertEqual([(e.palette_id, e.swap_id) for e in ctx.palette_entries],
                              [(palette.id, None), (palette.id, swap.id)])
@@ -407,7 +407,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
         """A scene object with a palette swap of its own has the swap's entry fixed in its pieces; one that inherits
         follows the swap the game draws the scene with."""
         import console_bake
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from PIL import Image
 
         from models import ImageAsset, Module, PaletteChange, PaletteSwap, TimelineScene
@@ -427,7 +427,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
             guard.keyframes[0].x = 20
             guard.palette_swap_id = swap.id
             project.timeline_scenes.append(scene)
-            ctx = sg.SGDKBakeContext(project, [None], tmp_path / "out")
+            ctx = sg.MegaDriveBakeContext(project, [None], tmp_path / "out")
             ctx.bake()
             sample = ctx.render_frames[ctx.scene_samples[ctx.scene_records[0].first_sample]]
             entries = []
@@ -440,7 +440,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
 
     def test_colour_cycles_turn_like_the_preview(self):
         """ms_palette_tick() rotates a loaded entry's cycles in the colour RAM the way palettes.rotate shows them."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         import palettes
         from models import ColourCycle
 
@@ -449,7 +449,7 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
         palette.cycles = [ColourCycle(first=3, count=4, frames=3), ColourCycle(first=9, count=2, frames=5, reverse=True)]
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            ctx = sg.SGDKBakeContext(project, [None], tmp_path)
+            ctx = sg.MegaDriveBakeContext(project, [None], tmp_path)
             ctx.bake()
             source = _tables(ctx, len(project.frames)) + """
 int main(void)

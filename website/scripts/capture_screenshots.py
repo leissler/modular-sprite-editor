@@ -38,7 +38,7 @@ from ui.animation_editor.render import export_gif  # noqa: E402
 from ui.module_editor import dialogs as module_dialogs  # noqa: E402
 
 WINDOW = (1440, 900)
-POP = REPO / "examples" / "sgdk" / "PoP_WW.json"
+POP = REPO / "examples" / "pop" / "PoP_WW.json"
 SONIC = REPO / "examples" / "sonic" / "sonic.json"
 ADVENTURER = REPO / "examples" / "adventurer" / "adventurer_sprite_sheet_v1.1.png"
 GROUPS = {"welcome", "pop", "sonic", "lesson", "automod", "check"}
@@ -737,14 +737,14 @@ def run_check() -> None:
 
     from models import Animation
     from ui.check_dialog import CheckProjectDialog
-    from ui.sgdk_export_dialog import ExportReportDialog, short_path
+    from ui.megadrive_export_dialog import ExportReportDialog, short_path
 
     load(POP)
     proj = frame.project
     if wanted("export-report", group):
         folder = os.path.join(prefs_dir, "swordfight")
         os.makedirs(folder)
-        result = frame.export_sgdk(folder, "all")
+        result = frame.export_megadrive(folder, "all")
         dialog = ExportReportDialog(frame, folder, result)
         # a neutral example path instead of the temporary folder
         dialog.lines.SetLabel(dialog.lines.GetLabel().replace(short_path(folder), "~/Games/swordfight"))

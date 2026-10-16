@@ -17,7 +17,7 @@ unused modules, so the original project compares with the flattened and the modu
 Usage:
     python3 tools/automod_bench.py PROJECT.json... [--config NAME]... [--console PROFILE]   (configs: see CONFIGS;
     profiles: the budget's, md_h40 by default)
-    python3 tools/automod_bench.py examples/sonic/sonic.json examples/adventurer/adventurer.json examples/sgdk/PoP_WW.json
+    python3 tools/automod_bench.py examples/sonic/sonic.json examples/adventurer/adventurer.json examples/pop/PoP_WW.json
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(REPO / "examples" / "megadrive" / "tools"))
 
 from PIL import Image  # noqa: E402
 
@@ -135,7 +135,7 @@ def frames_only(project: Project, used: set) -> Project:
 
 
 def measure(project: Project, workdir: Path, profile: Any = None) -> Dict[str, Any]:
-    import export_sgdk_example as sg
+    import export_megadrive as sg
 
     profile = profile or hardware_budget.MEGA_DRIVE_H40
     used = set()
@@ -157,7 +157,7 @@ def measure(project: Project, workdir: Path, profile: Any = None) -> Dict[str, A
     area = sum(m.rect[2] * m.rect[3] for m in project.modules if m.id in used)
     pruned = frames_only(project, used)
     if profile.vram_tiles:  # the Mega Drive: exactly as the SGDK exporter bakes the frames
-        ctx = sg.SGDKBakeContext(pruned, [None], workdir)
+        ctx = sg.MegaDriveBakeContext(pruned, [None], workdir)
         ctx.bake()
         tiles = len(ctx.tile_data) // 32
         sprites = [ctx.render_frame_extent(ctx.render_frames[i])[0] for i in ctx.frame_render_frames]

@@ -1,6 +1,6 @@
 """The Mega Drive runtime's animation player must step exactly like the editor's preview.
 
-Compiles examples/sgdk/sgdk_demo/src/modsprite.c for the host (with a tiny stand-in for the SGDK
+Compiles examples/megadrive/megadrive_demo/src/modsprite.c for the host (with a tiny stand-in for the SGDK
 headers and the exporter's generated data header), plays the same animations in C and in
 ui.animation_editor.ops.Player, and compares which step of which animation shows on every tick.
 Skipped when no C compiler is available.
@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "megadrive" / "tools"))
 
 from models import AFrame, Animation, EventType, Project, StepEvent  # noqa: E402
 from ui.animation_editor import ops  # noqa: E402
@@ -193,7 +193,7 @@ def _python_trace(project: Project, anims, start: int) -> str:
 @unittest.skipIf(shutil.which("cc") is None, "no C compiler")
 class TestRuntimePlayerMatchesEditor(unittest.TestCase):
     def test_runtime_steps_like_the_editor(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         project = Project()
         project.event_types = [EventType("evt_0", "a", (255, 0, 0)), EventType("evt_1", "b", (0, 255, 0))]
@@ -212,12 +212,12 @@ class TestRuntimePlayerMatchesEditor(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             (tmp_path / "genesis.h").write_text(GENESIS_STUB)
-            ctx = sg.SGDKBakeContext(project, [None], tmp_path)
+            ctx = sg.MegaDriveBakeContext(project, [None], tmp_path)
             ctx._emit_header(tmp_path / "modsprite_data.h")
             (tmp_path / "harness.c").write_text(_c_harness(project, anims))
             (tmp_path / "genesis_stub.c").write_text(GENESIS_STUB_IMPL)
             exe = tmp_path / "harness"
-            demo = REPO_ROOT / "examples" / "sgdk" / "sgdk_demo"
+            demo = REPO_ROOT / "examples" / "megadrive" / "megadrive_demo"
             # modsprite.h includes "modsprite_data.h" from its own folder: keep it next to the fresh header.
             shutil.copy(demo / "inc" / "modsprite.h", tmp_path / "modsprite.h")
             build = subprocess.run(

@@ -14,7 +14,7 @@ import project_check as pc  # noqa: E402
 from models import CollisionRect, ControlPoint, EventType, Project, StepEvent, TimelineKeyframe  # noqa: E402
 from ui.module_editor import ops as module_ops  # noqa: E402
 
-POP = ROOT / "examples" / "sgdk" / "PoP_WW.json"
+POP = ROOT / "examples" / "pop" / "PoP_WW.json"
 SONIC = ROOT / "examples" / "sonic" / "sonic.json"
 ADVENTURER = ROOT / "examples" / "adventurer" / "adventurer.json"
 
@@ -251,9 +251,9 @@ class ImagesTest(unittest.TestCase):
             self.assertEqual(issues[0].level, pc.ERROR, "errors come first")
 
     def test_tiles(self) -> None:
-        self.assertEqual(pc.tile_issue(309).level, pc.INFO)
-        self.assertEqual(pc.tile_issue(1200).level, pc.WARNING)
-        self.assertEqual(pc.tile_issue(2000).level, pc.ERROR)
+        self.assertEqual(pc.megadrive_tile_issue(309).level, pc.INFO)
+        self.assertEqual(pc.megadrive_tile_issue(1200).level, pc.WARNING)
+        self.assertEqual(pc.megadrive_tile_issue(2000).level, pc.ERROR)
         self.assertEqual(pc.snes_tile_issue(300).level, pc.INFO)
         self.assertEqual(pc.snes_tile_issue(400).level, pc.WARNING, "three quarters of the two sprite tables")
         self.assertEqual(pc.snes_tile_issue(pc.SNES_TILE_CAPACITY + 1).level, pc.ERROR, "the export cannot hold them")

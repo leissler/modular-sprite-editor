@@ -17,9 +17,9 @@ reads Aseprite's JSON) and Aseprite files go both ways.
 
 ## Download
 
-The editor and the command-line exporters for the Mega Drive (`export_sgdk`) and the SNES (`export_snes`) for Windows,
-macOS and Linux are on the [Releases](https://github.com/leissler/modular-sprite-editor/releases) page (the editor
-exports for both itself; the exporters are for build scripts), with the example projects in
+The editor and the command-line exporters for the Mega Drive (`export_megadrive`) and the SNES (`export_snes`) for
+Windows, macOS and Linux are on the [Releases](https://github.com/leissler/modular-sprite-editor/releases) page (the
+editor exports for both itself; the exporters are for build scripts), with the example projects in
 `ModularSpriteEditor-examples.zip` and the SNES demo in `ModularSpriteEditor-snes-demo.zip` (the ROM, for an
 emulator, and its PVSnesLib project). The builds are not signed: on Windows choose "More info › Run anyway", on
 macOS right-click › Open the first time.
@@ -33,8 +33,10 @@ macOS right-click › Open the first time.
   targets (Mega Drive, SNES, NES, Game Boy Advance or Game Boy); the Mega Drive and the SNES have exporters.
 - Project files carry a `format_version` (currently 8); older files are upgraded when opened. See
   [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
-- The SGDK exporter, the Mega Drive runtime and a demo ROM live in [`examples/sgdk`](examples/sgdk/README.md); the
-  SNES exporter, runtime and demo ROM in [`examples/snes`](examples/snes/README.md).
+- Each fully supported console has its folder: the Mega Drive's exporter (SGDK), runtime and demo ROM in
+  [`examples/megadrive`](examples/megadrive/README.md), the SNES's (PVSnesLib) in
+  [`examples/snes`](examples/snes/README.md); [`docs/CONSOLES.md`](docs/CONSOLES.md) says what full support means. The
+  example projects are console-neutral: `examples/pop`, `examples/sonic`, `examples/adventurer`.
 
 ## Features
 
@@ -173,12 +175,12 @@ macOS right-click › Open the first time.
   the pixels, as the export cuts them), scanlines where sprites would drop out, sprite counts and, for the Mega
   Drive and the SNES, the video memory: tiles of what is shown, of the animation and of the whole project against
   the ~1424 SGDK leaves free (the SNES: its two sprite tables of 512). Both follow their exporter exactly.
-- **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_sgdk`): tiles, palettes,
+- **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_megadrive`): tiles, palettes,
   frames, animations, scenes, hitboxes, points, events and every mapping in one binary blob, written into the game's
   SGDK project (its own resources stay). It reports what the game gets: the video memory the sprites need, merged
   colours and anything Check Project finds.
-- **Runtime** (`examples/sgdk/sgdk_demo`): tiles stay in VRAM and drawing only writes the sprite table (on average 7 %
-  of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
+- **Runtime** (`examples/megadrive/megadrive_demo`): tiles stay in VRAM and drawing only writes the sprite table (on
+  average 7 % of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
   scenes; characters can share animations and differ by mapping and palette swap (`ms_draw_anim_player_as`), colour
   cycles turn with `ms_palette_tick`. Tests compile it for the host and compare what it draws with the editor pixel
   by pixel.
@@ -215,7 +217,7 @@ macOS right-click › Open the first time.
 
 | Project | What it shows |
 | :--- | :--- |
-| [`examples/sgdk/PoP_WW.json`](examples/sgdk/PoP_WW.json) | Prince of Persia: 165 modules, 207 frames, 68 animations, 2 mappings, a palette swap and the *Swordfight* scene (the Prince against a guard drawn with the "Normal" mapping and the "Blue guard" palette swap) |
+| [`examples/pop/PoP_WW.json`](examples/pop/PoP_WW.json) | Prince of Persia: 165 modules, 207 frames, 68 animations, 2 mappings, a palette swap and the *Swordfight* scene (the Prince against a guard drawn with the "Normal" mapping and the "Blue guard" palette swap) |
 | [`examples/sonic/sonic.json`](examples/sonic/sonic.json) | Sonic: 65 modules, 38 frames, 171 animations |
 | [`examples/adventurer/adventurer.json`](examples/adventurer/adventurer.json) | A sheet of 15 whole sprites to try Auto Modularize on |
 
@@ -229,7 +231,7 @@ cd modular-sprite-editor
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python3 app.py examples/sgdk/PoP_WW.json
+python3 app.py examples/pop/PoP_WW.json
 ```
 
 ## Build and release
@@ -241,18 +243,18 @@ build_windows.bat     # Windows
 ```
 
 Releases come from the **Build And Release** workflow (Actions ▸ Run workflow, with a version). It builds the editor and
-the SGDK and SNES exporters (`build_sgdk_exporter.spec`, `build_snes_exporter.spec`) for all three platforms and tests
+the Mega Drive and SNES exporters (`build_megadrive_exporter.spec`, `build_snes_exporter.spec`) for all three platforms and tests
 every build: unit tests, the built editor drives every tab against the PoP_WW and Sonic examples
 (`--smoke-test PROJECT.json [LOG]`), and the built exporters must write exactly what the Python ones write. It publishes
-`ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`, `export_sgdk-*`, `export_snes-*`, the
+`ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`, `export_megadrive-*`, `export_snes-*`, the
 example projects, `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`, `packaging/examples/`), and the SNES
 demo, `ModularSpriteEditor-snes-demo.zip` (the ROM and its PVSnesLib project, `tools/make_snes_demo_zip.py`,
 `packaging/snes_demo/`); with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first:
 the About box shows it, and the workflow stops if the two differ.
 
 The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
-`export_sgdk.exe` and `export_snes.exe`, the example projects, the SGDK demo with the SGDK it builds with and the SNES demo
-with the part of PVSnesLib's Windows release it builds with, plus `export_to_sgdk.bat` / `build_sgdk_demo.bat`,
+`export_megadrive.exe` and `export_snes.exe`, the example projects, the SGDK demo with the SGDK it builds with and the SNES demo
+with the part of PVSnesLib's Windows release it builds with, plus `export_to_megadrive.bat` / `build_megadrive_demo.bat`,
 `export_to_snes.bat` / `build_snes_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI
 unpacks it and builds the PoP_WW and Sonic Mega Drive ROMs and the PoP_WW and Adventurer SNES ROMs with those scripts.
 
@@ -317,12 +319,13 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 - [The user guide](https://modularsprites.bionic-productions.com/) for artists and animators (source in [`website/`](website/README.md))
 - [`AGENTS.md`](AGENTS.md): architecture, conventions and workflows for contributors and coding agents
 - [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md): project JSON schema and versioning
+- [`docs/CONSOLES.md`](docs/CONSOLES.md): what supporting a console means: the checklist, names, adding one
 - [`docs/AUDIT_0.7.md`](docs/AUDIT_0.7.md): audit of 0.7.1 and how each finding was done
 - [`docs/PALETTES.md`](docs/PALETTES.md): palettes, palette swaps, colour cycles and the console database
 - [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items
 - [`docs/ANIMATION.md`](docs/ANIMATION.md): animation capabilities and roadmap
-- [`examples/sgdk/README.md`](examples/sgdk/README.md): SGDK export and the Mega Drive runtime
-- [`examples/snes/README.md`](examples/snes/README.md): PVSnesLib export and the SNES runtime
+- [`examples/megadrive/README.md`](examples/megadrive/README.md): Mega Drive export (SGDK) and the Mega Drive runtime
+- [`examples/snes/README.md`](examples/snes/README.md): SNES export (PVSnesLib) and the SNES runtime
 
 ## License
 

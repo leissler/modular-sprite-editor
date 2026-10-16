@@ -39,7 +39,7 @@ class TestOptimizeSheet(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_pop_repacks_and_draws_every_frame_the_same(self):
-        project = Project.from_json(str(ROOT / "examples" / "sgdk" / "PoP_WW.json"))
+        project = Project.from_json(str(ROOT / "examples" / "pop" / "PoP_WW.json"))
         before = rendered(project)
         old = project.images[0]
         for rotate in (False, True, True):  # the last run repacks modules that are stored turned
@@ -51,7 +51,7 @@ class TestOptimizeSheet(unittest.TestCase):
         sheet = project.images[0]
         self.assertLess(sheet.width * sheet.height, old.width * old.height)
         self.assertTrue(any(m.rotated for m in project.modules))
-        self.assertTrue(os.path.exists(str(ROOT / "examples" / "sgdk" / "modules_POP.bmp")), "source files stay")
+        self.assertTrue(os.path.exists(str(ROOT / "examples" / "pop" / "modules_POP.bmp")), "source files stay")
 
     def _sheet(self, name, colour):
         path = self.folder / name

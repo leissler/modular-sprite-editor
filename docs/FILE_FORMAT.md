@@ -41,7 +41,7 @@ additive: `console: "megadrive"`, `palette_swaps: []`, objects get `palette_swap
 
 v5 → v6 adds `palette: 0` to every image: all images share the first palette, as every export did before. Images
 in the same palette share its 15 colours; the Mega Drive export stores one palette per group and the runtime loads
-them into consecutive palette lines (see `examples/sgdk/README.md`). Out-of-range values load as 0.
+them into consecutive palette lines (see `examples/megadrive/README.md`). Out-of-range values load as 0.
 
 v4 → v5 writes `playback_mode: "loop"` where an object has none (the old default), so every existing object keeps
 playing as before. New objects play their animation *as animated*: with the animation's own playback, repeat
@@ -78,7 +78,7 @@ python3 tools/migrate_projects.py --backup-zip ~/project_backup.zip path/to/proj
 ```
 
 On 2026-10-09 the following were migrated (originals in
-`~/Downloads/ModularSpriteEditor_format_v1_backup_2026-10-09.zip`): `examples/sgdk/PoP_WW.json` and, in
+`~/Downloads/ModularSpriteEditor_format_v1_backup_2026-10-09.zip`): `examples/pop/PoP_WW.json` and, in
 `~/Downloads`: `POP.json`, `PoP_SoT.json`, `PoP_Sonic.json`, `PoP_WW.json`, `PoP_WW_frameModules.json`,
 `PoP_WW_opt4.json`, `Pop_WW_opt.json`, `Pop_WW_opt2.json`, `modules_POP_optimized_3.json`, `Shapes.json`,
 `adventurer1.json`, `adventurer2.json`, `sonic.json`, `Hero_spritesheet/Hero_spritesheet.json`,
@@ -92,7 +92,7 @@ except for the added default keys.
 
 On 2026-10-12 the same files (with `examples/sonic/sonic.json` and `examples/adventurer/adventurer.json`; 18 in
 all) were migrated to v4 the same way (originals in `~/Downloads/ModularSpriteEditor_format_v3_backup_2026-10-12.zip`);
-`examples/sgdk/PoP_WW.json` and `~/Downloads/PoP_WW.json` were saved as v4 with the new *Swordfight* scene, which
+`examples/pop/PoP_WW.json` and `~/Downloads/PoP_WW.json` were saved as v4 with the new *Swordfight* scene, which
 replaced their disposable test scene.
 
 On 2026-10-13 all 19 project files (the three repo examples, the 13 in `~/Downloads` and the 3 in
@@ -105,7 +105,7 @@ Later on 2026-10-13 the same 19 files were migrated to v6 (originals in
 `~/Downloads/ModularSpriteEditor_format_v5_backup_2026-10-13.zip`); each was checked to equal its original except for
 `format_version` and the added `palette: 0`, and to load to the same project.
 
-On 2026-10-14 all 19 files went to v7: `examples/sgdk/PoP_WW.json` was saved by the editor (its palette stored in slot
+On 2026-10-14 all 19 files went to v7: `examples/pop/PoP_WW.json` was saved by the editor (its palette stored in slot
 order, and the *Swordfight* guard drawn with the new *Blue guard* palette swap), the other 18 were migrated (originals
 in `~/Downloads/ModularSpriteEditor_format_v6_backup_2026-10-14.zip`); each was checked to equal its original
 without the added keys (with `palette_id` read back as the old number) and to load to the same project.
@@ -246,7 +246,7 @@ put them.
 
 Palette notes: a palette swap changes slots per palette; a slot it leaves `null` shows the palette's colour.
 Colour cycles count video frames (60 a second; a 50 Hz console runs them at 50). The SGDK export stores every
-palette and every swap's version of the palettes it changes as palette entries (see `examples/sgdk/README.md`).
+palette and every swap's version of the palettes it changes as palette entries (see `examples/megadrive/README.md`).
 
 Not stored in the file: the active (preview) mapping and palette swap, view state (each tab's selection, zoom, pan
 and grid are kept per project file in the editor's preferences, `ui/view_memory.py`).
@@ -263,6 +263,6 @@ and grid are kept per project file in the editor's preferences, `ui/view_memory.
   report lists what the format can't hold; `Cropped parts/.modular-sprite-editor.json` records which parts each export
   file uses, so exporting again removes its own unused ones and nothing else);
   SGDK binary blob with tiles, palettes, frames, animations, scenes, hitboxes and points
-  (`examples/sgdk/tools/export_sgdk_example.py`); sprite sheets for other engines (`exporters/sheet.py`: a packed
+  (`examples/megadrive/tools/export_megadrive.py`); sprite sheets for other engines (`exporters/sheet.py`: a packed
   PNG with JSON in the Aseprite / TexturePacker layout, a Godot 4 SpriteFrames `.tres` or a Unity `.png.meta`);
   PNG sequences and animated GIFs of an animation, animated GIFs of a scene.

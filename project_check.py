@@ -1,6 +1,6 @@
 """Check Project: what exports would drop, show differently or get wrong (wx-free).
 
-Tools ▸ Check Project lists the issues, the Mega Drive export shows them in its report and export_sgdk prints them.
+Tools ▸ Check Project lists the issues, the Mega Drive export shows them in its report and export_megadrive prints them.
 Each issue says in plain words what happens and points at the item it is about; many have a fix that repairs them
 in one go (``fix``), which the editor runs as one undoable step.
 """
@@ -592,7 +592,7 @@ def check_project(project: Project, pixels: bool = True) -> List[Issue]:
     return sorted(issues, key=lambda issue: LEVEL_ORDER[issue.level])
 
 
-def tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
+def megadrive_tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
     """How the exported tiles fit the Mega Drive's video memory (SGDK's default layout)."""
     if tiles > capacity:
         return Issue(
@@ -620,18 +620,28 @@ def snes_tile_issue(tiles: int, capacity: int = SNES_TILE_CAPACITY) -> Issue:
                                  "for the game's own sprites.")
 
 
-def console_issue(project: Project) -> Optional[Issue]:
-    """The Mega Drive export of a project whose palettes follow another console (None for a Mega Drive project)."""
+def console_issue(project: Project, target: consoles.Console, detail: str = "") -> Optional[Issue]:
+    """An export for the target console of a project made for another one (None when it is made for the target):
+    every console's exporter reports it, ``detail`` names what else the export chose for it."""
     console = consoles.console_by_key(project.console)
-    if console is consoles.MEGA_DRIVE:
+    if console is target:
         return None
     return Issue(WARNING, "other-console",
-                 f"The project is made for the {console.name} (Console, above the tabs): the Mega Drive export makes "
-                 f"Mega Drive palettes of its palettes, {console.palette.visible} colours each, in the colours the "
-                 "Mega Drive shows.")
+                 f"The project is made for the {console.name} (Console, above the tabs): the {target.name} export "
+                 f"makes {target.name} palettes of its palettes, {target.palette.visible} colours each in the colours "
+                 f"the {target.name} shows{detail}.")
 
 
-def palette_issue(lines: int) -> Optional[Issue]:
+def snes_palette_issue(entries: int, palettes: int = 8) -> Optional[Issue]:
+    """How the exported palette entries fit the SNES's eight sprite palettes (None when they do)."""
+    if entries <= palettes:
+        return None
+    return Issue(WARNING, "palette-lines",
+                 f"The palettes and swaps make {entries} palette entries, and the SNES has {palettes} sprite palettes: "
+                 "ms_init() loads the first ones; load the others when they are needed (ms_load_palette).")
+
+
+def megadrive_palette_issue(lines: int) -> Optional[Issue]:
     """How the exported palette entries (palettes, then the swaps' versions of them) fit the Mega Drive's four palette
     lines (None for one: the runtime's default PAL1 fits)."""
     if lines <= 1:

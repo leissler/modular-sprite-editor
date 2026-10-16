@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-# The SGDK exporter as one console executable (export_sgdk / export_sgdk.exe), for the release and the Windows kit.
-# It finds examples/ next to itself (see REPO_ROOT in export_sgdk_example.py).
+# The SGDK exporter as one console executable (export_megadrive / export_megadrive.exe), for the release and the Windows kit.
+# It finds examples/ next to itself (see REPO_ROOT in export_megadrive.py).
 
 a = Analysis(
-    ['examples/sgdk/tools/export_sgdk_example.py'],
+    ['examples/megadrive/tools/export_megadrive.py'],
     pathex=['.'],
     binaries=[],
     datas=[],
@@ -23,7 +23,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='export_sgdk',
+    name='export_megadrive',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

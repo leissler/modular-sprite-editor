@@ -25,6 +25,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import console_bake
 import export_snes
 from models import Project
 
@@ -219,7 +220,7 @@ def have_compiler() -> bool:
 
 def export(project: Project, folder: Path, mappings: str = "all") -> export_snes.SNESBakeContext:
     """The project exported into ``folder`` (res/, inc/, src/ as in a PVSnesLib project); returns the bake."""
-    ctx = export_snes.SNESBakeContext(project, export_snes._resolve_mappings(project, mappings))
+    ctx = export_snes.SNESBakeContext(project, console_bake.resolve_mappings(project, mappings))
     ctx.bake()
     ctx.write(folder)
     return ctx

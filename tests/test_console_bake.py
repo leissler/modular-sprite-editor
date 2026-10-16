@@ -8,12 +8,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(ROOT / "examples" / "megadrive" / "tools"))
 
 import console_bake  # noqa: E402
 from models import Project  # noqa: E402
 
-POP = ROOT / "examples" / "sgdk" / "PoP_WW.json"
+POP = ROOT / "examples" / "pop" / "PoP_WW.json"
 
 
 class RecordingBake(console_bake.ConsoleBake):
@@ -41,13 +41,13 @@ class ConsoleBakeTest(unittest.TestCase):
     def test_the_mega_drive_export_is_this_bake_plus_its_own_tiles(self):
         """Every mapping, the Swordfight's objects with their own mapping and swap, hitboxes, points and events: the
         shared bake gives the Mega Drive exporter exactly its parts, frames, steps and samples."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         mappings = [None] + list(self.project.mappings)
         shared = RecordingBake(self.project, mappings)
         shared.bake()
         with tempfile.TemporaryDirectory() as tmp:
-            md = sg.SGDKBakeContext(self.project, mappings, Path(tmp))
+            md = sg.MegaDriveBakeContext(self.project, mappings, Path(tmp))
             md.bake()
         self.assertIsInstance(md, console_bake.ConsoleBake)
         for name in ("parts", "render_frames", "boxes", "points", "module_render_frames", "frame_render_frames",

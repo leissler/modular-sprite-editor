@@ -4,7 +4,7 @@ The Swordfight is a short scene in the Prince of Persia example: the Prince and 
 
 <div class="ms-art" markdown="span">![The Swordfight scene playing: slashes, blocks with sparks, a dash attack and a finishing throw](../assets/images/art/swordfight.webp){ .ms-pixel width="420" height="136" }</div>
 
-Open `examples/sgdk/PoP_WW.json`, go to the **Timeline** tab and press ++enter++.
+Open `examples/pop/PoP_WW.json`, go to the **Timeline** tab and press ++enter++.
 
 ## How it is built
 

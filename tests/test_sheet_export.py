@@ -18,7 +18,7 @@ from exporters import sheet  # noqa: E402
 from importers import aseprite  # noqa: E402
 from models import Project  # noqa: E402
 
-POP = ROOT / "examples" / "sgdk" / "PoP_WW.json"
+POP = ROOT / "examples" / "pop" / "PoP_WW.json"
 IDENTITY = ((1.0, 0.0), (0.0, 1.0))
 
 
@@ -188,13 +188,13 @@ class EngineClipsTest(unittest.TestCase):
 
     def test_markers_move_like_the_mega_drive_export(self):
         """A step's hitboxes and points, flipped, turned and moved, land where the SGDK export puts them."""
-        sys.path.insert(0, str(ROOT / "examples" / "sgdk" / "tools"))
-        import export_sgdk_example as sg
+        sys.path.insert(0, str(ROOT / "examples" / "megadrive" / "tools"))
+        import export_megadrive as sg
 
         project = Project.from_json(str(POP))
         frame = next(f for f in project.frames if f.collision_rects and f.control_points)
         with tempfile.TemporaryDirectory() as tmp:
-            ctx = sg.SGDKBakeContext(project, [None], Path(tmp))
+            ctx = sg.MegaDriveBakeContext(project, [None], Path(tmp))
         for flip_x in (False, True):
             for flip_y in (False, True):
                 for rotation in (0.0, 90.0, 180.0, 270.0):

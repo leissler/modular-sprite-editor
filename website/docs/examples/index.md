@@ -6,7 +6,7 @@ The sprite art in the examples belongs to its owners and is included only to sho
 
 ## Prince of Persia
 
-`examples/sgdk/PoP_WW.json` is the most complete example: the Prince from a mobile Prince of Persia game, cut into 165 small parts on one sheet, with 207 poses, 68 animations, two mappings, a palette swap and a scene.
+`examples/pop/PoP_WW.json` is the most complete example: the Prince from a mobile Prince of Persia game, cut into 165 small parts on one sheet, with 207 poses, 68 animations, two mappings, a palette swap and a scene.
 
 <div class="ms-art" markdown="span">![The Prince slashes while the hooded guard blocks with sparks](../assets/images/art/step-scene.png){ .ms-pixel width="408" height="216" }</div>
 

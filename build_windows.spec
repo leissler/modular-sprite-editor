@@ -4,13 +4,13 @@ block_cipher = None
 
 a = Analysis(
     ['app.py'],
-    pathex=['tools', 'examples/sgdk/tools', 'examples/snes/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive and SNES exporters
+    pathex=['tools', 'examples/megadrive/tools', 'examples/snes/tools'],  # gui_smoke: the --smoke-test self-test; the Mega Drive and SNES exporters
     binaries=[],
     datas=[
         ('ui', 'ui'),
         ('assets', 'assets'),
     ],
-    hiddenimports=['wx.lib.agw.flatnotebook', 'app', 'gui_smoke', 'export_sgdk_example', 'export_snes'],
+    hiddenimports=['wx.lib.agw.flatnotebook', 'app', 'gui_smoke', 'export_megadrive', 'export_snes'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

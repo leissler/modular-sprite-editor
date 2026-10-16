@@ -98,7 +98,7 @@ class TestExportCanvasParity(unittest.TestCase):
         self.assertEqual(bad, 0, "\n".join(problems[:20]))
 
     def test_pop_testbed_matches_canvas(self):
-        path = os.path.join(REPO_ROOT, "examples", "sgdk", "PoP_WW.json")
+        path = os.path.join(REPO_ROOT, "examples", "pop", "PoP_WW.json")
         checked, bad, problems = check_export_parity.check_project(path, _PARENT)
         self.assertGreater(checked, 500)
         self.assertEqual(bad, 0, "\n".join(problems[:20]))

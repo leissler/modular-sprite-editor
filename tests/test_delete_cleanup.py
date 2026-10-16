@@ -13,7 +13,7 @@ from ui.frame_editor import ops as frame_ops  # noqa: E402
 from ui.module_editor import ops as module_ops  # noqa: E402
 from ui.scene_editor import ops as scene_ops  # noqa: E402
 
-POP = ROOT / "examples" / "sgdk" / "PoP_WW.json"
+POP = ROOT / "examples" / "pop" / "PoP_WW.json"
 
 
 def errors_and_warnings(project):

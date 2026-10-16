@@ -2,11 +2,11 @@
 
 examples/snes/snes_demo/src/modsprite.c has the Mega Drive runtime's player. Built for the host with the SNES export's
 real data (examples/snes/tools/snes_host.py), it plays, video frame by video frame:
-- the Mega Drive player test's cases (tests/test_runtime_player.py: every playback mode, repeat counts, loop-from
+- the Mega Drive player test's cases (tests/test_megadrive_runtime_player.py: every playback mode, repeat counts, loop-from
   steps, follow-up animations, step events) and every animation of the Prince of Persia example with the game's timing,
   against playback.Player as the editor's preview runs it;
 - the hitboxes and points of every frame and of every step the players show, against what the bake stores for them,
-  and the Mega Drive marker test's frame (tests/test_sgdk_markers.py), plain, mirrored and offset, and turned.
+  and the Mega Drive marker test's frame (tests/test_megadrive_markers.py), plain, mirrored and offset, and turned.
 Skipped without a C compiler.
 """
 
@@ -23,10 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import playback  # noqa: E402
 import snes_host  # noqa: E402
 from models import AFrame, Animation, EventType, Frame, Project, StepEvent  # noqa: E402
-from test_runtime_player import CASES, TICKS  # noqa: E402
-from test_sgdk_markers import _project as marker_project  # noqa: E402
+from test_megadrive_runtime_player import CASES, TICKS  # noqa: E402
+from test_megadrive_markers import _project as marker_project  # noqa: E402
 
-POP = REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json"
+POP = REPO_ROOT / "examples" / "pop" / "PoP_WW.json"
 MAX_TICKS = 1200  # 20 seconds of the longest animation
 
 

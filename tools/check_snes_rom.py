@@ -33,11 +33,12 @@ DEMO = REPO / "examples" / "snes" / "snes_demo"
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "examples" / "snes" / "tools"))
 
+import console_bake  # noqa: E402
 import export_snes  # noqa: E402
 import snes_host  # noqa: E402
 from models import Project  # noqa: E402
 
-DEFAULT_PROJECTS = [REPO / "examples" / "sgdk" / "PoP_WW.json", REPO / "examples" / "adventurer" / "adventurer.json"]
+DEFAULT_PROJECTS = [REPO / "examples" / "pop" / "PoP_WW.json", REPO / "examples" / "adventurer" / "adventurer.json"]
 POSITIONS = [(128, 112), (6, 10), (250, 216)]  # the middle of the screen, across the top-left and bottom-right edges
 SCENE_TICKS = (0, 60, 300)
 HOLD = 3  # video frames each draw stays: the script sees the whole buffer, and the PPU's OAM after the transfer
@@ -336,7 +337,7 @@ def check_project(path: Path, mesen: str, pvsneslib: Path, work: Path) -> bool:
         project.palettes[0].cycles = [ColourCycle(first=3, count=4, frames=3),
                                       ColourCycle(first=9, count=2, frames=5, reverse=True)]
     try:
-        mapping_count = len(export_snes._resolve_mappings(project, "all"))
+        mapping_count = len(console_bake.resolve_mappings(project, "all"))
         items = probe_items(project, mapping_count)
         ctx, rom = build_rom(project, work, pvsneslib, items)
     except export_snes.ExportError as error:

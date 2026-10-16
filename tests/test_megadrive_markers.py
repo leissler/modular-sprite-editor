@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "megadrive" / "tools"))
 
 from models import (  # noqa: E402
     AFrame, Animation, CollisionRect, CollisionType, ControlPoint, Frame, PointType, Project,
@@ -35,10 +35,10 @@ def _project():
 
 class TestMarkerExport(unittest.TestCase):
     def setUp(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         self.tmp = tempfile.TemporaryDirectory()
-        self.ctx = sg.SGDKBakeContext(_project(), [None], Path(self.tmp.name))
+        self.ctx = sg.MegaDriveBakeContext(_project(), [None], Path(self.tmp.name))
         self.ctx.bake()
 
     def tearDown(self):

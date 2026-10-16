@@ -4,7 +4,7 @@ The product site and user guide, built with MkDocs Material.
 
 - Site: https://modularsprites.bionic-productions.com/
 - Readers: pixel artists, animators and other graphic content creators. Programmer-facing details stay in the
-  repository (`README.md`, `AGENTS.md`, `docs/`, `examples/sgdk/README.md`); the site links to them from
+  repository (`README.md`, `AGENTS.md`, `docs/`, `examples/megadrive/README.md`); the site links to them from
   [For your programmer](docs/reference/programmers.md).
 
 ## Preview locally

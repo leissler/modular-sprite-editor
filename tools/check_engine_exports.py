@@ -53,7 +53,7 @@ def find_unity(given: Optional[str]) -> Optional[str]:
 
 def make_case(fmt: str, folder: str, scale: int) -> int:
     """Export the case into ``folder`` (pop.png and the engine's files) with expected.json; returns the clip count."""
-    project = Project.from_json(os.path.join(REPO, "examples", "sgdk", "PoP_WW.json"))
+    project = Project.from_json(os.path.join(REPO, "examples", "pop", "PoP_WW.json"))
     long = [a for a in project.animations if len(a.aframes) >= 4]
     long[0].playback_type, long[0].next_animation_id = "forward", long[1].id
     long[1].playback_type, long[1].loop_start = "loop", 2

@@ -59,7 +59,7 @@ def scene_image(project: Project, scene, frame: int, crop, scale: int, backgroun
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    project = Project.from_json(str(REPO / "examples" / "sgdk" / "PoP_WW.json"))
+    project = Project.from_json(str(REPO / "examples" / "pop" / "PoP_WW.json"))
     frames = {f.name.strip(): f for f in project.frames}
     normal = next(m for m in project.mappings if m.name == "Normal")
     scene = next(s for s in project.timeline_scenes if s.name == "Swordfight")

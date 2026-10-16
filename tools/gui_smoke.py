@@ -5,7 +5,7 @@ copy/paste, nudging, onion skin, playback, filters, global undo/redo, mapping sy
 exits non-zero on any exception or failed check. Nothing is saved.
 
 Usage:
-    python3 tools/gui_smoke.py [PROJECT_JSON]     (default: examples/sgdk/PoP_WW.json)
+    python3 tools/gui_smoke.py [PROJECT_JSON]     (default: examples/pop/PoP_WW.json)
 """
 import atexit
 import faulthandler
@@ -17,7 +17,7 @@ import tempfile
 import traceback
 
 repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-project_path = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(repo, "examples", "sgdk", "PoP_WW.json")
+project_path = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(repo, "examples", "pop", "PoP_WW.json")
 sys.path.insert(0, repo)
 os.chdir(repo)
 if not os.environ.get("MSE_PREFERENCES_FILE"):
@@ -1857,7 +1857,7 @@ def run():
         import tempfile
 
         from ui.check_dialog import CheckProjectDialog
-        from ui.sgdk_export_dialog import ExportReportDialog, MegaDriveExportDialog, has_runtime
+        from ui.megadrive_export_dialog import ExportReportDialog, MegaDriveExportDialog, has_runtime
 
         project = frame.project
         anim = next(a for a in project.animations if a.aframes)
@@ -1885,7 +1885,7 @@ def run():
         pump()
         check(frame.project.get_frame(doomed) is not None, "undo brings the frame and its steps back")
 
-        folder = tempfile.mkdtemp(prefix="mse_sgdk_")
+        folder = tempfile.mkdtemp(prefix="mse_megadrive_")
         try:
             for path, text in (("src/modsprite.c", "/* runtime */"), ("inc/modsprite.h", "/* runtime */"),
                                ("res/resources.res", 'IMAGE TITLE "title.png" BEST\n')):
@@ -1896,7 +1896,7 @@ def run():
             dlg = MegaDriveExportDialog(frame, frame.project, folder, "all")
             check(dlg.values() == (folder, "all"), "the export dialog offers the folder and all mappings")
             dlg.Destroy()
-            result = frame.export_sgdk(folder, "all")
+            result = frame.export_megadrive(folder, "all")
             check(result is not None and result.summary["tiles"] > 0, "the Mega Drive export writes the data")
             check(result is not None and all(os.path.exists(path) for path in result.files), "every data file is there")
             with open(os.path.join(folder, "res", "resources.res"), encoding="utf-8") as handle:
@@ -1912,7 +1912,7 @@ def run():
     def snes_export():
         import consoles
         from ui import snes_export_dialog
-        from ui.sgdk_export_dialog import ExportReportDialog
+        from ui.megadrive_export_dialog import ExportReportDialog
 
         tiles = frame.snes_setup_tiles()
         check(set(tiles) == {setup.key for setup in consoles.SNES.budgets} and all(t > 0 for t in tiles.values()),

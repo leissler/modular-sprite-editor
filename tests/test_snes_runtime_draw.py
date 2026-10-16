@@ -25,7 +25,7 @@ import snes_host  # noqa: E402
 
 SCREEN_W, SCREEN_H = snes_host.SCREEN_W, snes_host.SCREEN_H
 POSITIONS = [(128, 112), (6, 10), (250, 216)]  # centre, across the top-left and the bottom-right edges
-PROJECTS = [REPO_ROOT / "examples" / "sgdk" / "PoP_WW.json", REPO_ROOT / "examples" / "adventurer" / "adventurer.json"]
+PROJECTS = [REPO_ROOT / "examples" / "pop" / "PoP_WW.json", REPO_ROOT / "examples" / "adventurer" / "adventurer.json"]
 
 
 def _editor_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, palette_at=lambda x, y: 0):

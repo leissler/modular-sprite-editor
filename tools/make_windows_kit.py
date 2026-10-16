@@ -3,7 +3,7 @@ of SGDK it builds with and the SNES demo with the part of PVSnesLib's Windows re
 and helper scripts from packaging/windows_kit.
 
 Only git-tracked files go in (no build output), and from PVSnesLib (not in git) what the build needs. Unpacked, the kit
-has the repo's examples/ layout, so the exporters' defaults and examples/sgdk/README.md and examples/snes/README.md
+has the repo's examples/ layout, so the exporters' defaults and examples/megadrive/README.md and examples/snes/README.md
 apply.
 
 Usage:
@@ -22,9 +22,9 @@ from typing import List, Tuple
 REPO = Path(__file__).resolve().parents[1]
 KIT_DIR = "ModularSpriteEditor-windows"  # the folder inside the zip
 PACKAGING = REPO / "packaging" / "windows_kit"
-EXAMPLES = ["examples/sgdk/PoP_WW.json", "examples/sgdk/modules_POP.bmp", "examples/sgdk/README.md", "examples/sonic/",
+EXAMPLES = ["examples/pop/PoP_WW.json", "examples/pop/modules_POP.bmp", "examples/megadrive/README.md", "examples/sonic/",
             "examples/adventurer/"]
-DEMO = "examples/sgdk/sgdk_demo/"
+DEMO = "examples/megadrive/megadrive_demo/"
 SGDK = DEMO + "third_party/sgdk/"
 # What building the demo needs (Windows tools, headers, prebuilt libraries, boot code) and SGDK's license;
 # its samples, docs and tool sources stay out.
@@ -99,7 +99,7 @@ def main() -> int:
     args.out_zip.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(args.out_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as kit:
         kit.write(args.editor_exe, f"{KIT_DIR}/ModularSpriteEditor.exe")
-        kit.write(args.exporter_exe, f"{KIT_DIR}/export_sgdk.exe")
+        kit.write(args.exporter_exe, f"{KIT_DIR}/export_megadrive.exe")
         kit.write(args.snes_exporter, f"{KIT_DIR}/export_snes.exe")
         for extra in sorted(PACKAGING.iterdir()):
             kit.writestr(f"{KIT_DIR}/{extra.name}", windows_text(extra, args.version))

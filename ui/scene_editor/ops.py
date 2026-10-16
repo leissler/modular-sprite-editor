@@ -60,8 +60,9 @@ def set_scene_length_frames(scene: TimelineScene, frames: int) -> None:
 
 # --------------------------------------------------------------------------- screen guide
 def screen_origin(size: Tuple[int, int]) -> Tuple[int, int]:
-    """Where the scene origin lies on a console screen: centred, three quarters down. That is where the SGDK demo
-    draws scenes (SPRITE_DRAW_X / SPRITE_DRAW_Y in sgdk_demo/src/main.c: 160, 168 on the Mega Drive's 320×224)."""
+    """Where the scene origin lies on a console screen: centred, three quarters down. That is where the console demos
+    draw scenes (SPRITE_DRAW_X / SPRITE_DRAW_Y in each demo's src/main.c: 160, 168 on the Mega Drive's 320×224, 128, 168
+    on the SNES's 256×224)."""
     width, height = size
     return (int(width) // 2, int(height) * 3 // 4)
 

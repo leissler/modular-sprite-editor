@@ -85,7 +85,7 @@ def paste_at_origin(banner: Image.Image, art: Image.Image, hx: int, hy: int, ori
 
 def main() -> None:
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPO, "assets", "readme_banner.png")
-    project = Project.from_json(os.path.join(REPO, "examples", "sgdk", "PoP_WW.json"))
+    project = Project.from_json(os.path.join(REPO, "examples", "pop", "PoP_WW.json"))
     frames = {f.name.strip(): f for f in project.frames}
 
     width, height = 880, 236

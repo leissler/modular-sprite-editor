@@ -4,7 +4,7 @@
 /* The Modular Sprite Editor's SNES runtime (PVSnesLib): draws the exported modules, frames, animations and scenes
    into PVSnesLib's OAM buffer (oamMemory, sent by its VBlank interrupt), plays animations exactly like the editor and
    gives the game the hitboxes and points of what it shows. The API is the Mega Drive runtime's
-   (examples/sgdk/sgdk_demo/inc/modsprite.h), so a game uses the same calls on both. */
+   (examples/megadrive/megadrive_demo/inc/modsprite.h), so a game uses the same calls on both. */
 
 #include <snes.h>
 #include "modsprite_data.h"

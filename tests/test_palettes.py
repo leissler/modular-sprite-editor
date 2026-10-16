@@ -11,7 +11,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(ROOT / "examples" / "megadrive" / "tools"))
 
 import consoles  # noqa: E402
 import palettes  # noqa: E402
@@ -175,11 +175,11 @@ class ProjectPalettesTest(unittest.TestCase):
         self.assertEqual(entries[2].colours, (BLUE, DARK))
 
     def test_the_preview_shows_what_the_export_stores(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         self.project.images.append(_sheet(self.folder, "many.png", _shades(24)))
         palettes.add_missing_colours(self.project, self.palette)
-        ctx = sg.SGDKBakeContext(self.project, [None], self.folder / "out")
+        ctx = sg.MegaDriveBakeContext(self.project, [None], self.folder / "out")
         with Image.open(self.project.images[0].file_path) as source:
             rgba = source.convert("RGBA")
         colours = ctx.palette_colours["pal_1"]
@@ -207,10 +207,10 @@ class ProjectPalettesTest(unittest.TestCase):
         self.assertEqual([i for i in pc.check_project(self.project) if i.code == "colours-not-in-palette"], [])
 
     def test_palette_lines_note(self):
-        self.assertIsNone(pc.palette_issue(1))
-        self.assertEqual(pc.palette_issue(3).level, pc.INFO)
-        self.assertEqual(pc.palette_issue(4).level, pc.WARNING)
-        self.assertIn("ms_load_palette", pc.palette_issue(5).text)
+        self.assertIsNone(pc.megadrive_palette_issue(1))
+        self.assertEqual(pc.megadrive_palette_issue(3).level, pc.INFO)
+        self.assertEqual(pc.megadrive_palette_issue(4).level, pc.WARNING)
+        self.assertIn("ms_load_palette", pc.megadrive_palette_issue(5).text)
 
 
 
@@ -290,14 +290,18 @@ class OtherConsolesTest(unittest.TestCase):
         self.assertEqual(shown[0], (0, 0, 0), "dark grey shows as the NES's black")
 
     def test_the_mega_drive_export_of_another_console(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
-        self.assertIsNone(pc.console_issue(self.project))
+        self.assertIsNone(pc.console_issue(self.project, consoles.MEGA_DRIVE))
         self.project.console = "nes"
-        issue = pc.console_issue(self.project)
+        issue = pc.console_issue(self.project, consoles.MEGA_DRIVE)
         self.assertEqual((issue.level, issue.code), (pc.WARNING, "other-console"))
         self.assertIn("made for the NES", issue.text)
-        words = sg.SGDKBakeContext(self.project, [None], self.folder / "out").packed_palette_words()
+        self.assertIn("Mega Drive palettes", issue.text)
+        snes = pc.console_issue(self.project, consoles.SNES, ", with 8×8 and 16×16 sprites")
+        self.assertIn("SNES palettes of its palettes, 15 colours each", snes.text)
+        self.assertTrue(snes.text.endswith("16×16 sprites."))
+        words = sg.MegaDriveBakeContext(self.project, [None], self.folder / "out").packed_palette_words()
         self.assertEqual(len(words), 16, "a Mega Drive palette line, whatever the console")
         self.assertEqual(words[1:4], [palettes.md_word(c) for c in (DARK, BLUE, GREEN)])
         self.assertEqual(words[4:], [0] * 12, "the slots the NES has no room for are black")

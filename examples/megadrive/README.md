@@ -30,7 +30,7 @@ Mega Drive code should not parse JSON or transform images per frame, so the expo
   sprite count and bounds; animations, scenes, mappings, step events and all names.
 
 Only the first two are the Mega Drive's: what parts, render frames, animations and scenes hold is worked out by
-`console_bake.py` (repository root), the bake every console's exporter shares; `SGDKBakeContext` subclasses it and
+`console_bake.py` (repository root), the bake every console's exporter shares; `MegaDriveBakeContext` subclasses it and
 stores each part's picture as VDP tiles and hardware sprites (`_store_part`).
 
 At start `ms_init()` loads all tiles into VRAM (at `TILE_USER_INDEX`) and the palette entries into consecutive
@@ -83,8 +83,8 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 
 ## Files
 
-- `tools/export_sgdk_example.py` - bake exporter
-- `sgdk_demo/` - self-contained SGDK project
+- `tools/export_megadrive.py` - bake exporter
+- `megadrive_demo/` - self-contained SGDK project
   - `inc/modsprite.h` - runtime API
   - `inc/modsprite_data.h` - generated record types, counts and `MS_EVENT_*` / `MS_HITBOX_*` / `MS_POINT_*` /
     `MS_ROLE_*` constants
@@ -96,15 +96,15 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 ## Regenerate SGDK data
 
 In the editor: **File ▸ Export ▸ Mega Drive (SGDK)...**, choose the game's SGDK project folder (one with
-`src/modsprite.c` and `inc/modsprite.h`, like `sgdk_demo/`) and the mappings. The editor remembers the folder
+`src/modsprite.c` and `inc/modsprite.h`, like `megadrive_demo/`) and the mappings. The editor remembers the folder
 per project and shows what the game gets.
 
 From the command line (the same exporter; run from the repo root):
 
 ```bash
-python3 examples/sgdk/tools/export_sgdk_example.py \
-  --project-json examples/sgdk/PoP_WW.json \
-  --output-demo-dir examples/sgdk/sgdk_demo \
+python3 examples/megadrive/tools/export_megadrive.py \
+  --project-json examples/pop/PoP_WW.json \
+  --output-dir examples/megadrive/megadrive_demo \
   --mapping all
 ```
 
@@ -135,12 +135,12 @@ data with the exporter after updating.
 The demo expects SGDK in one of these places:
 
 1. `SGDK` environment variable
-2. `examples/sgdk/sgdk_demo/third_party/sgdk`
+2. `examples/megadrive/megadrive_demo/third_party/sgdk`
 
 Then build:
 
 ```bash
-cd examples/sgdk/sgdk_demo
+cd examples/megadrive/megadrive_demo
 make debug CONVSYM=true
 ```
 
@@ -158,7 +158,7 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 - Per video frame: `ms_begin_frame()`, any number of draw calls, `ms_end_frame()`, then `SYS_doVBlankProcess()`
 - `ms_draw_module(index, x, y)`, `ms_draw_frame(index, x, y)`
 - `ms_anim_player_*()` for animation playback. The player follows the editor exactly
-  (`tests/test_runtime_player.py`): *Loop* plays the steps before `loop_start` once and then loops the rest,
+  (`tests/test_megadrive_runtime_player.py`): *Loop* plays the steps before `loop_start` once and then loops the rest,
   repeat counts end an animation, and an animation that ends continues with its follow-up
   (`player.animation_index` changes; `player.finished` is set only when there is none).
 - Animation events (editor: Animations ▸ step ▸ Events; `MS_EVENT_<NAME>` in `inc/modsprite_data.h`):
@@ -215,20 +215,20 @@ frame drops it; with the panel closed only the title, the look and the events ar
 
 ## Tests
 
-- `tests/test_sgdk_runtime_draw.py` compiles `src/modsprite.c` for the host, lets it draw every frame of the
+- `tests/test_megadrive_runtime_draw.py` compiles `src/modsprite.c` for the host, lets it draw every frame of the
   testbeds in the middle of the screen and across its edges, rasterises the sprite table from the exported
   tiles like the VDP and compares it with the editor's renderer pixel by pixel; it also checks the C record
   sizes against the blob. It also draws two players of one animation with different mappings into one sprite
   table (`ms_draw_anim_player_mapped`), and once with a palette swap (`ms_draw_anim_player_as`: the guard's sprites
   take the swap's palette line, the tiles are the same), scene objects with a swap of their own, and colour cycles
   turned by `ms_palette_tick()` against the editor's preview.
-- `tests/test_sgdk_scenes.py` checks that scene objects are placed like on the Timeline stage (root motion
+- `tests/test_megadrive_scenes.py` checks that scene objects are placed like on the Timeline stage (root motion
   mirrored and turned with the object, objects that follow a point of their parent's frames) and keep a mapping of
   their own in every baked mapping.
-- `tests/test_runtime_player.py` compiles the C animation player and compares it with the editor's preview
+- `tests/test_megadrive_runtime_player.py` compiles the C animation player and compares it with the editor's preview
   tick by tick.
-- `tests/test_sgdk_markers.py` checks hitbox / point export (types, roles, step transforms, defines).
-- `tests/test_sgdk_export_project.py` checks the export into a game folder (its own resources stay) and the
+- `tests/test_megadrive_markers.py` checks hitbox / point export (types, roles, step transforms, defines).
+- `tests/test_megadrive_export_project.py` checks the export into a game folder (its own resources stay) and the
   issues it reports.
 - `tests/test_hardware_budget.py` keeps the editor's Budget overlay in step with the exporter.
 

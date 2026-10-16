@@ -23,7 +23,7 @@ from models import (  # noqa: E402
 )
 from ui.project_history import SAVED_FIELDS, ProjectHistory, project_fingerprint  # noqa: E402
 
-EXAMPLE = ROOT / "examples" / "sgdk" / "PoP_WW.json"
+EXAMPLE = ROOT / "examples" / "pop" / "PoP_WW.json"
 
 # One change per saved field; a new field without an entry here fails test_every_field_is_covered.
 CHANGES = {

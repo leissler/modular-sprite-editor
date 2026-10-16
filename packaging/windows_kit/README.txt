@@ -15,7 +15,7 @@ does not handle spaces in paths.
 - Start ModularSpriteEditor.exe. Windows may warn about an unknown publisher (the exe is not
   signed): click "More info", then "Run anyway".
 - File > Open:
-    examples\sgdk\PoP_WW.json    Prince of Persia: 165 modules, 207 frames, 68 animations,
+    examples\pop\PoP_WW.json     Prince of Persia: 165 modules, 207 frames, 68 animations,
                                  a timeline scene, 2 mappings (re-skins), hitboxes, points
                                  and events
     examples\sonic\sonic.json    Sonic: 65 modules, 38 frames, 171 animations, hitboxes
@@ -33,17 +33,17 @@ does not handle spaces in paths.
 
 Needs a Java runtime (SGDK's resource compiler is written in Java; any current version) and a
 Mega Drive emulator, e.g. BlastEm (https://www.retrodev.com/blastem/). SGDK itself is included
-(examples\sgdk\sgdk_demo\third_party\sgdk).
+(examples\megadrive\megadrive_demo\third_party\sgdk).
 
-- build_sgdk_demo.bat builds the demo ROM from the data already exported from PoP_WW.json:
-      examples\sgdk\sgdk_demo\out\debug\rom.bin
+- build_megadrive_demo.bat builds the demo ROM from the data already exported from PoP_WW.json:
+      examples\megadrive\megadrive_demo\out\debug\rom.bin
   Open it in the emulator.
-- export_to_sgdk.bat exports a project into the demo and builds the ROM. Drag a project .json onto
+- export_to_megadrive.bat exports a project into the demo and builds the ROM. Drag a project .json onto
   it, or run for example
-      export_to_sgdk.bat examples\sonic\sonic.json
-  Without a project it exports examples\sgdk\PoP_WW.json. Save your edits in the editor first.
+      export_to_megadrive.bat examples\sonic\sonic.json
+  Without a project it exports examples\pop\PoP_WW.json. Save your edits in the editor first.
 - Or export from the editor: File > Export > Mega Drive (SGDK)..., choose the folder
-  examples\sgdk\sgdk_demo, then run build_sgdk_demo.bat. The editor shows what the game gets
+  examples\megadrive\megadrive_demo, then run build_megadrive_demo.bat. The editor shows what the game gets
   (video memory, colours, anything Tools > Check Project finds).
 
 The demo starts on the Swordfight scene. Demo controls (any pad):
@@ -68,7 +68,7 @@ works from a path with spaces too.
 - export_to_snes.bat exports a project into the demo and builds the ROM. Drag a project .json onto
   it, or run for example
       export_to_snes.bat examples\adventurer\adventurer.json
-  Without a project it exports examples\sgdk\PoP_WW.json. Save your edits in the editor first.
+  Without a project it exports examples\pop\PoP_WW.json. Save your edits in the editor first.
   All of a project's sprite tiles stay in the SNES's video memory, 512 at most: Sonic needs 600,
   so its export stops and says so.
 - Or export from the editor: File > Export > SNES (PVSnesLib)..., choose the folder
@@ -92,11 +92,14 @@ The user guide, every editor explained with pictures:
 What to hand to a programmer, and how the Mega Drive export works:
     https://modularsprites.bionic-productions.com/reference/programmers/
 
-examples\sgdk\README.md    how the export and the Mega Drive runtime work, the C API for your own
-                           game (animation player, events, hitboxes, points), limits, performance
-examples\snes\README.md    the same for the SNES: the export, the runtime (the same C API) and its
-                           limits; examples\snes\snes_demo\build_windows.ps1 builds it on Windows
-export_sgdk.exe --help     exporter options (for example --mapping to export a single mapping)
-export_snes.exe --help     the same for the SNES (--setup picks other sprite sizes, e.g. snes_8_32)
+examples\megadrive\README.md   how the export and the Mega Drive runtime work, the C API for your
+                               own game (animation player, events, hitboxes, points), limits,
+                               performance
+examples\snes\README.md        the same for the SNES: the export, the runtime (the same C API) and
+                               its limits; examples\snes\snes_demo\build_windows.ps1 builds it on
+                               Windows
+export_megadrive.exe --help    exporter options (for example --mapping to export a single mapping)
+export_snes.exe --help         the same for the SNES (--setup picks other sprite sizes, e.g.
+                               snes_8_32)
 
 Source code and issues: https://github.com/leissler/modular-sprite-editor

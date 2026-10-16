@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "megadrive" / "tools"))
 
 import project_check as pc  # noqa: E402
 from models import AFrame, Animation, FModule, Frame, ImageAsset, Module, Project  # noqa: E402
@@ -32,7 +32,7 @@ def _project(folder: Path) -> Project:
 
 class TestMergedResources(unittest.TestCase):
     def setUp(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         self.sg = sg
 
@@ -60,7 +60,7 @@ class TestMergedResources(unittest.TestCase):
 
 class TestExportProject(unittest.TestCase):
     def setUp(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         self.sg = sg
         self.tmp = tempfile.TemporaryDirectory()
@@ -109,9 +109,9 @@ class TestExportProject(unittest.TestCase):
         self.assertEqual(result.summary["anim_steps"], 2)  # the export drops the missing step, now it says so
 
     def test_tile_capacity(self):
-        self.assertEqual(pc.tile_issue(100).level, pc.INFO)
-        self.assertEqual(pc.tile_issue(pc.MD_TILE_CAPACITY).level, pc.WARNING)
-        self.assertEqual(pc.tile_issue(pc.MD_TILE_CAPACITY + 1).level, pc.ERROR)
+        self.assertEqual(pc.megadrive_tile_issue(100).level, pc.INFO)
+        self.assertEqual(pc.megadrive_tile_issue(pc.MD_TILE_CAPACITY).level, pc.WARNING)
+        self.assertEqual(pc.megadrive_tile_issue(pc.MD_TILE_CAPACITY + 1).level, pc.ERROR)
 
 
 if __name__ == "__main__":

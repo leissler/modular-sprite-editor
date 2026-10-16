@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "examples" / "sgdk" / "tools"))
+sys.path.insert(0, str(REPO_ROOT / "examples" / "megadrive" / "tools"))
 
 from models import TIMELINE_MAPPING_ORIGINAL, FModule, ModuleMapping, Project, TimelineKeyframe  # noqa: E402
 
@@ -44,11 +44,11 @@ def _project(folder: Path) -> Project:
 
 class TestSceneObjectMappings(unittest.TestCase):
     def test_objects_keep_their_mapping_in_every_baked_mapping(self):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         with tempfile.TemporaryDirectory() as tmp:
             project = _project(Path(tmp))
-            ctx = sg.SGDKBakeContext(project, [None, project.mappings[0]], Path(tmp) / "out")
+            ctx = sg.MegaDriveBakeContext(project, [None, project.mappings[0]], Path(tmp) / "out")
             ctx.bake()
             shown = []
             for record in ctx.scene_records:  # one per baked mapping (a single scene)
@@ -63,7 +63,7 @@ class TestSceneObjectMappings(unittest.TestCase):
 class TestScenePlayback(unittest.TestCase):
     def test_objects_play_their_animation_as_animated(self):
         """The baked scene plays like the Animations tab: Play once ends, then the follow-up takes over."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from models import AFrame, Animation
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -80,7 +80,7 @@ class TestScenePlayback(unittest.TestCase):
             scene = project.create_timeline_scene("Strike")
             scene.fps, scene.duration_seconds = 10, 0.5
             scene.create_object("Hero", "animation", "strike")
-            ctx = sg.SGDKBakeContext(project, [None], Path(tmp) / "out")
+            ctx = sg.MegaDriveBakeContext(project, [None], Path(tmp) / "out")
             ctx.bake()
             record = ctx.scene_records[-1]
             xs = []
@@ -95,7 +95,7 @@ class TestSceneObjectTransforms(unittest.TestCase):
         """Root motion and swap offsets are mirrored and turned with the object, in the exporter as on the stage."""
         import itertools
 
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from ui.scene_editor import ops
 
         for flip_x, flip_y, rotation, source_flip, source_rotation in itertools.product(
@@ -105,7 +105,7 @@ class TestSceneObjectTransforms(unittest.TestCase):
                      "source_offset": (10.0, -3.0), "source_flip_x": source_flip, "source_flip_y": False,
                      "source_rotation": source_rotation, "attach_offset": (5.0, -7.0)}
             with self.subTest(**{k: v for k, v in state.items() if k not in ("source_offset", "attach_offset")}):
-                for v1, v2 in zip(sg.SGDKBakeContext._build_local_matrix(state), ops.local_matrix(state)):
+                for v1, v2 in zip(sg.MegaDriveBakeContext._build_local_matrix(state), ops.local_matrix(state)):
                     self.assertAlmostEqual(v1, v2, places=9)
 
 
@@ -114,7 +114,7 @@ class TestAttachedObjects(unittest.TestCase):
     def test_an_object_follows_its_parents_point(self):
         """A sword on the hero's hand point: it moves with the point from step to step, mirrors with the hero and
         hides on the step whose frame has no such point; the export bakes it where the stage shows it."""
-        import export_sgdk_example as sg
+        import export_megadrive as sg
         from models import AFrame, Animation, ControlPoint, PointType
         from ui.scene_editor import ops
 
@@ -141,7 +141,7 @@ class TestAttachedObjects(unittest.TestCase):
             sword.attach_point_role = "hand"
 
             def baked():
-                ctx = sg.SGDKBakeContext(project, [None], Path(tmp) / "out")
+                ctx = sg.MegaDriveBakeContext(project, [None], Path(tmp) / "out")
                 ctx.bake()
                 record = ctx.scene_records[-1]
                 out = []

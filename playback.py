@@ -2,11 +2,12 @@
 
 One set of rules wherever an animation plays: the Animations tab steps a ``Player`` tick by tick; Timeline objects,
 and through them the exporters, ask what shows some time after an animation started (``animation_at``), which
-follows the same rules without stepping through every tick. ``tests/test_runtime_player.py`` compares the Player
-with the C runtime, ``tests/test_playback.py`` the shortcut with the Player.
+follows the same rules without stepping through every tick. ``tests/test_megadrive_runtime_player.py`` and
+``tests/test_snes_runtime_player.py`` compare the Player with the consoles' C runtimes, ``tests/test_playback.py`` the
+shortcut with the Player.
 
 Units: a step holds its frame for ``duration_frames`` ticks (below 1 counts as 1); ``Animation.fps`` is ticks per
-second. The runtime itself counts video frames: the SGDK export turns each hold into whole frames at 60 a second
+second. The runtimes count video frames: the console exports turn each hold into whole frames at 60 a second
 (``console_frames``), which a ``Player`` with ``hold_of=console_hold(anim)`` steps through like the game.
 """
 
@@ -37,8 +38,8 @@ def tick_rate(anim: "Animation") -> int:
 
 
 def console_frames(anim: "Animation", af: "AFrame") -> int:
-    """Video frames a step shows in the game: its hold at the animation's tick rate, rounded to whole frames (the SGDK
-    export's conversion). Tick rates that divide 60 convert exactly; others make some steps a little longer or
+    """Video frames a step shows in the game: its hold at the animation's tick rate, rounded to whole frames (the console
+    exports' conversion). Tick rates that divide 60 convert exactly; others make some steps a little longer or
     shorter."""
     return max(1, int(round(hold(af) * VIDEO_RATE / float(tick_rate(anim)))))
 
@@ -74,7 +75,7 @@ def can_finish(anim: "Animation") -> bool:
 
 # ---------------------------------------------------------------------------- tick by tick
 class Player:
-    """Advances an animation tick by tick the way the SGDK runtime (modsprite.c) does.
+    """Advances an animation tick by tick the way the console runtimes do (the player in each demo's modsprite.c).
 
     ``loop_count`` (> 0) stops repeating modes after that many cycles, like the data intends; the
     editor's Repeat toggle restarts a finished preview from the beginning.

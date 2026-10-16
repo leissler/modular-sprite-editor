@@ -95,7 +95,7 @@ Focus: pixel art for retro consoles (Mega Drive / SGDK first, SNES / GBA / NES-c
 - Data (format v3): `Animation.loop_start`, `Animation.next_animation_id`; scenes honour them too (follow-ups since
   format v5, for objects that play *as animated*).
 - Runtime: `MS_Animation.loop_start / next_animation / loop_count`; `ms_anim_player_tick` loops from
-  `loop_start`, counts passes and hands over to the follow-up. `tests/test_runtime_player.py` compiles the C player
+  `loop_start`, counts passes and hands over to the follow-up. `tests/test_megadrive_runtime_player.py` compiles the C player
   and checks it against the editor preview tick by tick.
 
 ### 4. Timing tools (medium value, low effort)

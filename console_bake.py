@@ -13,15 +13,21 @@ vflip); a hardware flip mirrors the picture padded to whole tiles. Palette entri
 palette, then each swap's version of the palettes it changes) are named per part as an entry index, ``FIXED_ENTRY``
 set where a scene object's own swap (or "original") fixes the colours.
 
-The Mega Drive's exporter (``SGDKBakeContext`` in examples/sgdk/tools/export_sgdk_example.py) adds the tiles, the
-hardware sprite cut, the palettes as CRAM words and the blob; another console's exporter subclasses ``ConsoleBake``
-the same way.
+Each console's exporter subclasses it: the Mega Drive's (``MegaDriveBakeContext`` in
+examples/megadrive/tools/export_megadrive.py: VDP tiles, the hardware sprite cut, CRAM words, the blob) and the SNES's
+(``SNESBakeContext`` in examples/snes/tools/export_snes.py: 4 bpp tiles in two sprite tables, OAM-ready sprites, chunks
+of a ROM bank). They also share what their command lines and the editor's export dialogs choose: the mappings
+(``resolve_mappings``), the copy of the sources (``copy_sources``) and the options every console's exporter takes
+(``export_arguments``, ``print_result``). docs/CONSOLES.md lists what full support of a console means.
 """
 
 from __future__ import annotations
 
+import argparse
 import math
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PIL import Image
@@ -78,6 +84,57 @@ class SceneRecord:
     fps: int
     duration_ticks: int
     loop: int
+
+
+def resolve_mappings(project: Project, selector: str) -> List[Optional[ModuleMapping]]:
+    """The mappings an export bakes, ``None`` (no mapping) first: every one for "all" (the default; "auto" and "*"
+    say the same), none for "none", else the one with that id or name."""
+    lower = str(selector or "all").strip().lower()
+    if lower in ("none", "off", "null"):
+        return [None]
+    if lower in ("all", "auto", "*"):
+        return [None] + list(project.mappings)
+    for item in project.mappings:
+        if item.id == selector or item.name.strip().lower() == lower:
+            return [None, item]
+    raise ValueError(f"Mapping '{selector}' was not found. Available: {[m.name for m in project.mappings]}")
+
+
+def copy_sources(project: Project, project_path: Optional[Path], folder: Path) -> None:
+    """The project file and the images it uses, copied into the game's folder (``source/``) for reference."""
+    if project_path is None:
+        return
+    target = Path(folder) / "source"
+    sources = [Path(project_path)] + [Path(asset.file_path) for asset in project.images]
+    for source in sources:
+        if source.exists() and source.resolve() != (target / source.name).resolve():
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target / source.name)
+
+
+def export_arguments(console: str, default_project: Path, default_folder: Path) -> argparse.ArgumentParser:
+    """The command line every console's exporter takes (a console adds its own options, such as the SNES's --setup)."""
+    parser = argparse.ArgumentParser(description=f"Export a modular sprite project for the {console}: the data a game "
+                                                 "with the runtime draws, plays and checks its sprites with.")
+    parser.add_argument("--project-json", default=str(default_project), help="The project file.")
+    parser.add_argument("--output-dir", default=str(default_folder),
+                        help="The game's project folder, with the console's runtime (as the demo has it).")
+    parser.add_argument("--output-demo-dir", dest="output_dir", default=argparse.SUPPRESS,
+                        help=argparse.SUPPRESS)  # the Mega Drive exporter's name for --output-dir up to 0.10.2
+    parser.add_argument("--mapping", default="all", help="A mapping's name or id, 'all' (default) or 'none'.")
+    parser.add_argument("--copy-assets", action="store_true",
+                        help="Also copy the project file and its images into the folder's source/.")
+    parser.add_argument("--strict", action="store_true", help="Exit with 1 when Check Project finds errors.")
+    return parser
+
+
+def print_result(result: Any, strict: bool) -> int:
+    """An export's summary and issues as the command line prints them; the exit code (1 for errors with --strict)."""
+    for key, value in result.summary.items():
+        print(f"{key}: {value}")
+    for issue in result.issues:
+        print(f"{'note' if issue.level == project_check.INFO else issue.level}: {issue.text}")
+    return 1 if strict and any(issue.level == project_check.ERROR for issue in result.issues) else 0
 
 
 def _event_symbols(names: Sequence[str], prefix: str = "MS_EVENT_", fallback: str = "EVENT") -> List[str]:

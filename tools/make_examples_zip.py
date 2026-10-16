@@ -18,7 +18,7 @@ from typing import List
 from make_windows_kit import tracked
 
 REPO = Path(__file__).resolve().parents[1]
-EXAMPLES = ["examples/sgdk/PoP_WW.json", "examples/sgdk/modules_POP.bmp", "examples/sonic/", "examples/adventurer/"]
+EXAMPLES = ["examples/pop/PoP_WW.json", "examples/pop/modules_POP.bmp", "examples/sonic/", "examples/adventurer/"]
 README = REPO / "packaging" / "examples" / "README.txt"
 
 

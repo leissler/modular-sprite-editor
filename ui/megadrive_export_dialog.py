@@ -1,6 +1,6 @@
 """File ▸ Export ▸ Mega Drive (SGDK): bake the project into an SGDK project folder and report what the game gets.
 
-The exporter is examples/sgdk/tools/export_sgdk_example.py, the same code as the export_sgdk command line tool; the
+The exporter is examples/megadrive/tools/export_megadrive.py, the same code as the export_megadrive command line tool; the
 built editor carries it inside (see the build specs).
 """
 
@@ -24,10 +24,10 @@ ID_CHECK_PROJECT = wx.NewIdRef()  # the report's Check Project button ends the d
 
 def load_exporter() -> Any:
     """The SGDK exporter module (bundled in builds; from the source tree otherwise)."""
-    tools = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "sgdk", "tools")
+    tools = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "megadrive", "tools")
     if os.path.isdir(tools) and tools not in sys.path:
         sys.path.insert(0, tools)
-    return importlib.import_module("export_sgdk_example")
+    return importlib.import_module("export_megadrive")
 
 
 def has_runtime(folder: str) -> bool:

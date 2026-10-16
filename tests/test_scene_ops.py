@@ -326,8 +326,14 @@ class TestRootMotion(unittest.TestCase):
 
 
 class TestScreenGuide(unittest.TestCase):
-    def test_origin_is_where_the_sgdk_demo_draws_scenes(self):
-        main_c = (Path(__file__).resolve().parents[1] / "examples" / "sgdk" / "sgdk_demo" / "src" / "main.c").read_text()
+    def test_origin_is_where_the_snes_demo_draws_scenes(self):
+        main_c = (Path(__file__).resolve().parents[1] / "examples" / "snes" / "snes_demo" / "src" / "main.c").read_text()
+        x = int(re.search(r"#define SPRITE_DRAW_X (\d+)", main_c).group(1))
+        y = int(re.search(r"#define SPRITE_DRAW_Y (\d+)", main_c).group(1))
+        self.assertEqual(ops.screen_origin((256, 224)), (x, y))
+
+    def test_origin_is_where_the_megadrive_demo_draws_scenes(self):
+        main_c = (Path(__file__).resolve().parents[1] / "examples" / "megadrive" / "megadrive_demo" / "src" / "main.c").read_text()
         x = int(re.search(r"#define SPRITE_DRAW_X (\d+)", main_c).group(1))
         y = int(re.search(r"#define SPRITE_DRAW_Y (\d+)", main_c).group(1))
         self.assertEqual(ops.screen_origin((320, 224)), (x, y))

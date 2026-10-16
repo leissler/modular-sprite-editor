@@ -3,8 +3,8 @@
 Input: sprites (RGBA images, e.g. the modules of a sheet that each hold a whole frame). Output: parts (new images)
 and, for every sprite, the placements of parts that rebuild it pixel for pixel.
 
-Cost model: what the console pays for the result (``Settings.hardware``, the Mega Drive by default, as the SGDK
-exporter bakes it): video memory holds every part's tiles once, and every placement of a part costs its hardware
+Cost model: what the console pays for the result (``Settings.hardware``: the console the parts are cut for, the
+project's to begin with; a console with an exporter as its export bakes them): video memory holds every part's tiles once, and every placement of a part costs its hardware
 sprites. The engine minimises
 
     cost = unique tiles + sprite_weight * hardware sprites drawn (summed over all sprites)

@@ -15,7 +15,7 @@ format an engine reads:
   included.
 
 Steps keep their offsets, flips and turns (what the Animations tab shows); identical pictures are stored once. Each
-step also carries its frame's hitboxes and points, moved like the picture (as the SGDK export moves them), and its
+step also carries its frame's hitboxes and points, moved like the picture (as the console exports move them), and its
 events. An animation becomes one clip per engine, or two when it plays an intro before its loop (``clips``): the
 clips play the steps exactly as the editor does (``playback.Player``), loop-from, repeat counts and follow-ups
 included.
@@ -169,7 +169,7 @@ def unique(name: str, taken: Dict[str, int]) -> str:
 def step_markers(project: Project, frame: Frame, a: compositor.Matrix,
                  b: compositor.Vector) -> Tuple[Tuple[Box, ...], Tuple[Point, ...]]:
     """The frame's own hitboxes and points under a step's transform: a box's corners move, a point marks the pixel
-    its pixel's centre lands in (as the SGDK export's ``_frame_markers``)."""
+    its pixel's centre lands in (as the console exports' ``ConsoleBake._frame_markers``)."""
     def move(x: float, y: float) -> Tuple[float, float]:
         tx, ty = compositor.mat_vec_mul(a, (float(x), float(y)))
         return tx + float(b[0]), ty + float(b[1])

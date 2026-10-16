@@ -25,7 +25,7 @@ Select an issue and choose **Go to** to see the item, or **Fix** where the edito
 
 The Mega Drive was the first console with an exporter and a runtime; the [SNES](#snes-pvsneslib) is the second.
 
-`export_sgdk`, on the [release page](https://github.com/leissler/modular-sprite-editor/releases/latest) next to the editor, turns a project into data for a Mega Drive game made with [SGDK](https://github.com/Stephane-D/SGDK). The source code includes a small runtime that draws it.
+`export_megadrive`, on the [release page](https://github.com/leissler/modular-sprite-editor/releases/latest) next to the editor, turns a project into data for a Mega Drive game made with [SGDK](https://github.com/Stephane-D/SGDK). The source code includes a small runtime that draws it.
 
 - Everything is baked into one data file: tiles and palettes, frames, animations, scenes, hitboxes and points with their types and roles, step events, and every mapping.
 - Each palette gets a palette line of its own, with its colours in the order of the **Palettes** tab: Palette 1 goes into the first line the game gives the runtime, Palette 2 into the next, and so on, followed by the palette swaps' versions of the palettes they change.
@@ -43,13 +43,13 @@ The Mega Drive was the first console with an exporter and a runtime; the [SNES](
   <figcaption>The report after exporting the Prince of Persia example.</figcaption>
 </figure>
 
-The game's folder needs the runtime from the source code. The demo project in `examples/sgdk/sgdk_demo` has it and shows every module, frame, animation and scene with live profiling. `export_sgdk` does the same from the command line, for build scripts; `--strict` makes it fail when the project has errors:
+The game's folder needs the runtime from the source code. The demo project in `examples/megadrive/megadrive_demo` has it and shows every module, frame, animation and scene with live profiling. `export_megadrive` does the same from the command line, for build scripts; `--strict` makes it fail when the project has errors:
 
 ```text
-export_sgdk --project-json my_project.json --output-demo-dir path/to/sgdk_demo
+export_megadrive --project-json my_project.json --output-dir path/to/megadrive_game
 ```
 
-The [SGDK guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/sgdk/README.md) covers the runtime, its functions and its limits.
+The [Mega Drive guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/megadrive/README.md) covers the runtime, its functions and its limits.
 
 ## SNES (PVSnesLib)
 

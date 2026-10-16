@@ -4,9 +4,10 @@ Guidance for coding agents (and humans) working on this repository. Read this be
 
 ## What this is
 
-A wxPython desktop tool for **modular pixel-art sprites for retro consoles** (Mega Drive / SGDK is the
-main target). Artwork is cut into reusable **modules** (sprite-sheet rectangles or vector shapes), assembled
-into **frames** (positioned, flipped, 90°-rotated parts, optionally nested frames), sequenced into
+A wxPython desktop tool for **modular pixel-art sprites for retro consoles**: the Mega Drive (SGDK) and the SNES
+(PVSnesLib) are fully supported, the NES, Game Boy Advance and Game Boy known to the budget and the palettes, and
+`docs/CONSOLES.md` says what full support means, so no console stands out. Artwork is cut into reusable **modules**
+(sprite-sheet rectangles or vector shapes), assembled into **frames** (positioned, flipped, 90°-rotated parts, optionally nested frames), sequenced into
 **animations** (per-frame duration in ticks, offset, flip), composed in **timeline scenes**
 (keyframed objects), re-skinned with **mappings** (module → module / hidden substitutions) and recoloured with
 **palette swaps** (per palette slot, chosen per draw like a mapping; colour cycles turn slots). Frames also carry
@@ -20,7 +21,7 @@ Primary testbeds (keep them working):
 
 | Project | Location | Size |
 |---|---|---|
-| Prince of Persia (WW) | `examples/sgdk/PoP_WW.json` (+ `modules_POP.bmp`), copy in `~/Downloads/PoP_WW.json` | 165 modules, 207 frames, 68 animations, 1 scene (*Swordfight*: the Prince vs. a mirrored guard with his own mapping and the *Blue guard* palette swap), 2 mappings, 1 palette, 1 palette swap; hitboxes (Hurt `head`/`body` on every frame, Attack `blade` on striking frames), points (Weapon `blade_tip` in combat, Ground `feet`), `hit`/`footstep` events |
+| Prince of Persia (WW) | `examples/pop/PoP_WW.json` (+ `modules_POP.bmp`), copy in `~/Downloads/PoP_WW.json` | 165 modules, 207 frames, 68 animations, 1 scene (*Swordfight*: the Prince vs. a mirrored guard with his own mapping and the *Blue guard* palette swap), 2 mappings, 1 palette, 1 palette swap; hitboxes (Hurt `head`/`body` on every frame, Attack `blade` on striking frames), points (Weapon `blade_tip` in combat, Ground `feet`), `hit`/`footstep` events |
 | Prince of Persia (SoT) | `~/Downloads/PoP_SoT.json` (not in the repo; mostly a duplicate of PoP_WW) | 165 modules, 208 frames, 68 animations |
 | Sonic | `examples/sonic/sonic.json` (+ `sonic.png`), copy in `~/Downloads/sonic.json` | 65 modules, 38 frames, 171 animations |
 | Adventurer | `examples/adventurer/adventurer.json` (+ `adventurer_sprite_sheet_v1.1.png`), copy in `~/Downloads/adventurer2.json` | 68 modules (32×32 grid slice), 15 frames of one whole sprite each: the Auto Modularize testbed |
@@ -42,15 +43,15 @@ python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project fil
 ```
 
 Releases: `.github/workflows/build-and-release.yml` (manual, with a version; *publish* off = build and test only)
-builds and tests the editor and the SGDK and SNES exporters (`build_sgdk_exporter.spec`, `build_snes_exporter.spec`:
+builds and tests the editor and the SGDK and SNES exporters (`build_megadrive_exporter.spec`, `build_snes_exporter.spec`:
 each built exporter must write exactly what its Python script writes) on all three platforms; the release gets all
 three, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: the example projects in the repo's
 `examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`) and
 `ModularSpriteEditor-snes-demo.zip` (`tools/make_snes_demo_zip.py`: the SNES demo ROM the SNES job built and checked,
 `packaging/snes_demo/README.txt` and the demo's PVSnesLib project in the same layout). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
-editor, `export_sgdk.exe`, `export_snes.exe` (`--snes-exporter`), examples, SGDK demo + vendored SGDK, the SNES demo +
+editor, `export_megadrive.exe`, `export_snes.exe` (`--snes-exporter`), examples, SGDK demo + vendored SGDK, the SNES demo +
 the part of PVSnesLib's Windows release it builds with (downloaded by the job, `--pvsneslib`), `packaging/windows_kit/`:
-`export_to_sgdk.bat` / `build_sgdk_demo.bat`, `export_to_snes.bat` / `build_snes_demo.bat`), and builds its ROMs on Windows with the
+`export_to_megadrive.bat` / `build_megadrive_demo.bat`, `export_to_snes.bat` / `build_snes_demo.bat`), and builds its ROMs on Windows with the
 vendored SGDK and, through `build_snes_demo.bat`, `examples/snes/snes_demo/build_windows.ps1` (PVSnesLib's build steps
 in Windows PowerShell: no make or MSYS2). Its SNES job builds the SNES demo ROM on Linux with PVSnesLib 4.6.0 (run artifact
 `snes-demo`): the demo's data exported again must be the committed data (re-export and commit it after
@@ -100,14 +101,15 @@ compositor.py              The reference compositor (Pillow, wx-free): 2×2 matr
                            shapes), leaf instances of nested frames, render_frame — previews, budget, Optimize Sprite
                            Sheet and both exporters build on it
 hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32, NES and Game Boy 8×8 /
-                           8×16, GBA): SGDK-exact part placement, the cuts of sprite_cut.py (Mega Drive: the export's),
+                           8×16, GBA): parts placed exactly as the console exports place them, the cuts of
+                           sprite_cut.py (Mega Drive and SNES: the exports'),
                            per-screen / per-line limits, video memory (tiles stored like the console's export, the
                            project's total; Mega Drive and SNES) — wx-free, tested against both exporters
 console_bake.py            The console-independent half of a console export (wx-free): ConsoleBake walks the project
                            like the editor draws it (parts through nested frames with flips and turns, palette entries
                            and swaps, hitboxes / points, animation steps with the game's timing and events, scene
                            samples with each object's mapping and swap, one pass per mapping) and hands each part's
-                           picture to the console's exporter (_store_part); SGDKBakeContext subclasses it
+                           picture to the console's exporter (_store_part); MegaDriveBakeContext subclasses it
 sprite_cut.py              How hardware sprites cover a part (wx-free, Pillow only), one implementation for the SGDK
                            exporter, the budget and Auto Modularize: export_cut (Mega Drive: fewest sprites, then fewest
                            tiles, at any pixel; the 32 px grid where that is as good), cut per console (cells, squares,
@@ -116,17 +118,17 @@ modularize.py              Auto-modularisation (wx-free): shared parts at any of
                            cut in a console's sprite sizes (Settings.hardware), cost = its tiles + weight x hardware
                            sprites (sprite_cut); plan(own=...), apply_plan() (mapping stand-ins), mapping_roles
 optimization.py            Sheet repacking (Optimize Sprite Sheet), nested-frame combo optimisation
-palettes.py                Palettes (wx-free, shared with the SGDK exporter): a palette's colours (stored in slot order, or
+palettes.py                Palettes (wx-free, shared with the console exporters): a palette's colours (stored in slot order, or
                            automatic: built from its images; colours_of = as many as the console shows, stored_colours =
                            all), console colours (consoles.PaletteHardware: 3 or 5 bits a channel, or the NES / Game Boy
                            fixed colours), palette swaps and colour cycles (swapped_colours, rotate, shown_colours),
                            recolouring images, the export's palette entries, maintenance (add missing colours, sort,
                            remove slots, keep_most_used)
-playback.py                Animation playback exactly like the SGDK runtime (wx-free): Player (tick by tick, or video frame by
+playback.py                Animation playback exactly like the console runtimes (wx-free): Player (tick by tick, or video frame by
                            video frame with hold_of=console_hold: the Animations tab's preview), console_frames (a step's
                            hold in the game's frames, the exporter's conversion) and animation_at (Timeline objects and so
                            the scene bakes)
-project_check.py           Check Project (wx-free, shared with the SGDK exporter): issues (error / warning / note) with
+project_check.py           Check Project (wx-free, shared with the console exporters): issues (error / warning / note) with
                            a target to go to and a fix, C symbol names, the Mega Drive tile capacity
 rect_packer.py             MaxRects bin packer
 safe_files.py              write_text_atomically: temp file + fsync + os.replace (+ name.json.bak), wx-free
@@ -175,7 +177,7 @@ ui/
     panel.py               FrameEditorPanel: Frames list (group filter and sort) + library, mode bar, stage, inspector +
                            contents list
   animation_editor/        Animations tab, redesigned from scratch:
-    ops.py                 wx-free: tick timing, Player (playback exactly like the SGDK runtime),
+    ops.py                 wx-free: tick timing, Player (playback exactly like the console runtimes),
                            step edits (insert/move/copy/hold/flip/rotate/nudge/reverse), whole-animation
                            mirror/rotate, animation list ops — unit-tested
     render.py              StepRenderer: pixel-exact step images via the RetroAnimator renderer
@@ -221,7 +223,7 @@ ui/
   welcome.py               The welcome screen (recent projects, the examples, the guide) shown before a project is open
   first_steps.py           Empty-state hints: what a tab needs first (frames need modules, animations need frames...)
   check_dialog.py          Tools ▸ Check Project: the issue list, Go to, Fix / Fix All
-  sgdk_export_dialog.py    File ▸ Export ▸ Mega Drive (SGDK): folder + mappings, the report (runs the SGDK exporter)
+  megadrive_export_dialog.py    File ▸ Export ▸ Mega Drive (SGDK): folder + mappings, the report (runs the SGDK exporter)
   snes_export_dialog.py    File ▸ Export ▸ SNES (PVSnesLib): folder + mappings + sprite sizes (with each pair's tiles),
                            the report (the SGDK dialog's, its own lines)
   utils.py                 image loading via Pillow, pixel shape rasteriser, ThumbnailGenerator (frames delegate
@@ -240,16 +242,20 @@ tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (
                            make_logo.py (the product logo: the icon's mannequin over a pixel wordmark, no example art)
 website/                   Product site + user guide for artists (MkDocs Material, deployed to
                            modularsprites.bionic-productions.com): see website/README.md
-examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one binary blob) + Mega Drive runtime
-                           (sgdk_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo
+examples/pop/, sonic/,     The example projects (console-neutral): Prince of Persia (PoP_WW.json + modules_POP.bmp),
+  adventurer/              Sonic, the Adventurer sheet
+examples/megadrive/        Mega Drive exporter (tools/export_megadrive.py: one binary blob, SGDK) + runtime
+                           (megadrive_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo;
+                           see examples/megadrive/README.md
 examples/snes/             SNES exporter (tools/export_snes.py: chunks of a ROM bank + the C that finds them;
                            tools/snes_host.py: the runtime compiled for the host) + runtime (snes_demo/src/modsprite.c,
                            the hot loops in src/modsprite_draw.asm, 65816 assembly) + demo (make, or build_windows.ps1
                            on Windows without MSYS2); see examples/snes/README.md
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
                            scene / animation / module / frame / mapping ops, export/canvas parity, migration,
-                           SGDK and SNES runtimes: player, drawing, hitboxes / points)
+                           Mega Drive and SNES runtimes: player, drawing, hitboxes / points)
 docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding was done), UX_AUDIT.md,
+                           CONSOLES.md (what full support of a console means: the checklist, names, adding one),
                            FILE_FORMAT.md, ANIMATION.md, PALETTES.md (palettes, swaps, cycles, the console database,
                            blob v5)
 ```
@@ -367,16 +373,16 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Budget overlay:** `FrameCanvas.budget_profile` + `compute_budget()` (the Timeline stage overrides it for the
   whole scene); the canvas draws the overlay with the content and the readout last (`_draw_budget_hud`). Keep
   `hardware_budget.py` in step with `console_bake.ConsoleBake._render_leaf_part`; both cut parts with
-  `sprite_cut.export_cut` (`SGDKBakeContext._store_part`) on the Mega Drive and `sprite_cut.cut` with the setup's two
+  `sprite_cut.export_cut` (`MegaDriveBakeContext._store_part`) on the Mega Drive and `sprite_cut.cut` with the setup's two
   sizes (`SNESBakeContext._store_part`) on the SNES, never with a cut of their own. `tests/test_hardware_budget.py`
-  compares them, `tests/test_sgdk_runtime_draw.py` draws the pieces with the compiled runtime. Video memory (profiles
+  compares them, `tests/test_megadrive_runtime_draw.py` draws the pieces with the compiled runtime. Video memory (profiles
   of a console with an exporter, `HardwareProfile.vram_model`): each part carries the ids of the tile blocks the
   console's export stores for it (`HwPart.vram`, compared in palette indices, flips free: the Mega Drive's hardware
   sprites, the SNES's squares), so `Budget.unique_tiles` / `vram_tiles` count what a view, an animation or
   `export_tiles(project, mappings, profile)` (the whole export: every module, frame, step and scene sample per mapping)
   needs; the tests compare `export_tiles` with the exporters' totals. The readouts take the project's total from
   `canvas.EXPORT_TILES` (worked out again per undo checkpoint, `app_services.project_revision`); Check Project counts
-  for the project's console (`check_dialog.memory_issues`: `tile_issue`, `snes_tile_issue`).
+  for the project's console (`check_dialog.memory_issues`: `megadrive_tile_issue`, `snes_tile_issue`).
 - **Palettes:** a palette's slot order is fixed once stored (swaps and cycles refer to slots); `palettes.py` maps a
   colour to its slot (exact, else nearest) the way the exporter does; the exporter, Check Project (per palette:
   `too-many-colours`, `colours-not-in-palette`, `palette-too-long`, `duplicate-palette-colour`; dead swap entries), the
@@ -391,13 +397,13 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   (`ms_palettes_fit`; `ms_load_palette` for more entries than lines) and turns cycles with `ms_palette_tick`. The
   export always writes Mega Drive palette lines (16 colours); a project whose palettes follow another console gets the
   `other-console` warning (`project_check.console_issue`).
-  `tests/test_sgdk_runtime_draw.py` draws a swapped guard and turning cycles against the editor.
-- **SGDK runtime:** the exporter writes everything into `modsprite_blob.bin` (`_emit_blob`) and generates the C
+  `tests/test_megadrive_runtime_draw.py` draws a swapped guard and turning cycles against the editor.
+- **Mega Drive runtime (SGDK):** the exporter writes everything into `modsprite_blob.bin` (`_emit_blob`) and generates the C
   record types and parser (`_emit_header`, `_emit_data_c`). Records are packed structs (`MS_RECORD`): when one
-  changes, update the struct, the `struct.pack` format and the size list in `tests/test_sgdk_runtime_draw.py`, and
+  changes, update the struct, the `struct.pack` format and the size list in `tests/test_megadrive_runtime_draw.py`, and
   bump `BLOB_VERSION` (now 5). Animation holds are exported with `playback.console_frames`, the preview's timing.
   Tiles stay in VRAM; drawing only writes `vdpSpriteCache` (no SGDK `SPR_*` engine).
-  `tests/test_sgdk_runtime_draw.py` compiles `modsprite.c` for the host and compares its sprite table, rasterised
+  `tests/test_megadrive_runtime_draw.py` compiles `modsprite.c` for the host and compares its sprite table, rasterised
   like the VDP, with `FrameRenderer`. The active mapping is runtime state read at draw time (players keep none), so
   characters with different mappings share one set of animations (`ms_draw_anim_player_mapped`, as AuroraGT games
   set the mapping per draw); scenes are baked once per mapping, objects with their own mapping keep it. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
@@ -405,16 +411,20 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Console exports:** `console_bake.ConsoleBake` is what every console's exporter shares: it bakes the project
   (render frames of parts, hitboxes and points; module and frame render frames; animation steps and records; scene
   samples and records; once per mapping) and calls `_store_part(image, palette, entry)` for each part's picture, which
-  the console's exporter implements (the Mega Drive's `SGDKBakeContext`: VDP tiles, the sprite cut, pieces per flip).
-  Put nothing console-specific into it (tile formats, sprite sizes, palette words, blob layout); a console's exporter
-  subclasses it. `tests/test_console_bake.py` checks that a minimal exporter gets exactly the Mega Drive exporter's
-  parts, frames, steps and samples.
-- **SGDK export:** `export_project()` in the exporter is the one entry point for the command line and File ▸ Export ▸
+  the console's exporter implements (the Mega Drive's `MegaDriveBakeContext`: VDP tiles, the sprite cut, pieces per flip;
+  the SNES's `SNESBakeContext`: squares in two sprite tables). Put nothing console-specific into it (tile formats, sprite
+  sizes, palette words, blob layout); a console's exporter subclasses it. It also holds what every exporter's command
+  line and dialog share: `resolve_mappings`, `copy_sources`, `export_arguments` (the same options for every console;
+  a console adds its own, like the SNES's `--setup`) and `print_result`. `tests/test_console_bake.py` checks that a
+  minimal exporter gets exactly the Mega Drive exporter's parts, frames, steps and samples. Name console-specific
+  things after the console's key in consoles.py (`megadrive`, `snes`: folders, scripts, specs, release files, tests);
+  `docs/CONSOLES.md` is the checklist a fully supported console meets.
+- **Mega Drive export (SGDK):** `export_project()` in the exporter is the one entry point for the command line and File ▸ Export ▸
   Mega Drive (the editor builds carry both console exporters: `pathex` + `hiddenimports` in the three editor specs). It writes
   the blob, the header and the parser and merges its `BIN MS_BLOB` line into the game's `res/resources.res`
   (`merged_resources`; never overwrite the game's file, and delete nothing in its folder but older exporters'
-  `var_NNNN.png` sheets). Its issues are `project_check`'s plus the tile count (`tile_issue`) and the palette lines
-  (`palette_issue`): whatever the exporter leaves out or changes must show up as an issue there, not
+  `var_NNNN.png` sheets). Its issues are `project_check`'s plus the tile count (`megadrive_tile_issue`) and the palette lines
+  (`megadrive_palette_issue`): whatever the exporter leaves out or changes must show up as an issue there, not
   disappear silently. Name C symbols through `project_check.c_symbols` so Check Project's clash warning stays true.
 - **SNES export and runtime** (`examples/snes`, see its README): `export_snes.export_project()` is the entry point for
   the command line and File ▸ Export ▸ SNES; it bakes for one pair of sprite sizes (the project's SNES setup, else
@@ -481,7 +491,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   measures and budgets each object with its mapping (`StageCanvas.object_mapping`); canvases resolve parts through
   `FrameCanvas.mapping` (the preview mapping unless `drawing_mapping()` overrides it), never
   `project.active_mapping` directly. The screen guide puts the scene origin where the SGDK demo draws scenes
-  (`ops.screen_origin`, tested against `SPRITE_DRAW_X/Y` in `sgdk_demo/src/main.c`). Objects play animations
+  (`ops.screen_origin`, tested against `SPRITE_DRAW_X/Y` in `megadrive_demo/src/main.c`). Objects play animations
   *as animated* through `playback.animation_at` (own playback, repeat count, loop-from, follow-ups at their own tick
   rate); the other modes (`ops.PLAYBACK_MODES`) override them. Flips and visibility are stepped (they change at the
   key). Caches of what an object shows must compare `ops.playback_signature`, which covers its animations' timing.
@@ -498,7 +508,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   (`rounded-holds`). Spread presets (`ops.SPREADS`) and Change Animations (`ops.change_animations`, tick rate with or
   without keeping the timing) are wx-free. Playback preview goes through `playback.Player` (also `ops.Player`),
   which mirrors `ms_anim_player_tick` in the SGDK runtime (Loop backwards repeats; ping-pong does not repeat its end steps; `loop_start`, repeat counts,
-  follow-up animation); `tests/test_runtime_player.py` compiles the C player and compares both tick by tick (the SNES
+  follow-up animation); `tests/test_megadrive_runtime_player.py` compiles the C player and compares both tick by tick (the SNES
   runtime's copy: `tests/test_snes_runtime_player.py`), and `tests/test_playback.py` checks `playback.step_after` /
   `animation_at` (what scenes use) against the Player — keep them all in sync.
   Step events reference `Project.event_types` by id (order = `MS_EVENT_*` number); `ops.Player.step_started` is the
@@ -582,7 +592,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   anchor/origin — flip first, then rotate. A mirrored parent (odd number of flips) reverses the direction of
   its children's rotation (`final_rot = parent_rot - child_rot`). A timeline object's root motion (the step's
   offset, flips, rotation) and swap offset sit inside the object's transform (`ops.local_matrix` = pose ·
-  `ops.source_matrix`, the same in the SGDK exporter's `_build_local_matrix`; `tests/test_sgdk_scenes.py` compares).
+  `ops.source_matrix`, the same in the SGDK exporter's `_build_local_matrix`; `tests/test_megadrive_scenes.py` compares).
 - `tools/check_export_parity.py` and `tests/test_export_canvas_parity.py` render with the real canvas code and
   compare against the RetroAnimator export pixel by pixel (and the Animations stage's mirror preview against
   `StepRenderer`); run them after touching any transform code.
@@ -598,10 +608,10 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 | RetroAnimator export | `exporters/retroanimator.py` (on `compositor`) | yes | any (affine) | yes | yes |
 | Sprite sheets, PNG sequences | `exporters/sheet.py` (on `compositor`) | yes | yes | yes | yes |
 | Scene pictures and GIF | `ui/scene_editor/thumbnails.py` (`FrameRenderer`, each object's mapping and swap) | yes | yes | yes | yes |
-| SGDK export | `examples/sgdk/tools/export_sgdk_example.py` (on `console_bake.py`) | yes | baked | yes | yes |
+| SGDK export | `examples/megadrive/tools/export_megadrive.py` (on `console_bake.py`) | yes | baked | yes | yes |
 | SNES export | `examples/snes/tools/export_snes.py` (on `console_bake.py`) | yes | baked | yes | yes |
 
 Previews share one compositor (`compositor.py`, cached by `ui/frame_render.py`); `tests/test_thumbnails.py` checks
 thumbnails against the canvas. The console exporters bake on their own (they need per-part hardware sprites, not a flat
-image); `tests/test_sgdk_runtime_draw.py` and `tests/test_snes_runtime_draw.py` check what the Mega Drive and SNES
+image); `tests/test_megadrive_runtime_draw.py` and `tests/test_snes_runtime_draw.py` check what the Mega Drive and SNES
 runtimes draw against `FrameRenderer`.

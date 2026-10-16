@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(REPO_ROOT, "examples", "sgdk", "tools"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "examples", "megadrive", "tools"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import compositor  # noqa: E402
@@ -96,7 +96,7 @@ class TestMatchesSgdkExporter(unittest.TestCase):
     """Part placement (position, padded size, flip bits) must equal what the SGDK exporter bakes."""
 
     def _check(self, project):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
         calc = hb.BudgetCalculator()
         cases = [(f, (0.0, 0.0), 0.0, False, False) for f in project.frames]
@@ -107,7 +107,7 @@ class TestMatchesSgdkExporter(unittest.TestCase):
                     cases.append((frame, tuple(map(float, af.offset)), float(af.rotation_degrees), bool(af.flip_x), bool(af.flip_y)))
         with tempfile.TemporaryDirectory() as out:
             (Path(out) / "res" / "gen").mkdir(parents=True)
-            ctx = sg.SGDKBakeContext(project, [None], Path(out))
+            ctx = sg.MegaDriveBakeContext(project, [None], Path(out))
             for frame, offset, rotation, flip_x, flip_y in cases:
                 expected = sorted(
                     (x, y, ctx.variants[v].tile_w * 8, ctx.variants[v].tile_h * 8, bool(h), bool(vf))
@@ -129,7 +129,7 @@ class TestMatchesSgdkExporter(unittest.TestCase):
             self.assertGreater(self._check(Project.from_json(path)), 60)
 
     def test_pop_testbed(self):
-        self.assertGreater(self._check(Project.from_json(os.path.join(REPO_ROOT, "examples", "sgdk", "PoP_WW.json"))), 500)
+        self.assertGreater(self._check(Project.from_json(os.path.join(REPO_ROOT, "examples", "pop", "PoP_WW.json"))), 500)
 
 
 class TestVideoMemory(unittest.TestCase):
@@ -171,9 +171,9 @@ class TestVideoMemory(unittest.TestCase):
         self.assertEqual((sum(p.tiles for p in parts), hb.vram_tiles(parts)), (2, 1))
 
     def _exported_tiles(self, project, mappings):
-        import export_sgdk_example as sg
+        import export_megadrive as sg
 
-        ctx = sg.SGDKBakeContext(project, mappings, self.folder / "out")
+        ctx = sg.MegaDriveBakeContext(project, mappings, self.folder / "out")
         ctx.bake()
         return len(ctx.tile_data) // 32
 
@@ -201,7 +201,7 @@ class TestVideoMemory(unittest.TestCase):
             self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings), self._exported_tiles(project, mappings))
 
     def test_testbed_totals_match_the_export(self):
-        for path in ("examples/sgdk/PoP_WW.json", "examples/adventurer/adventurer.json"):
+        for path in ("examples/pop/PoP_WW.json", "examples/adventurer/adventurer.json"):
             project = Project.from_json(os.path.join(REPO_ROOT, path))
             mappings = [None] + project.mappings
             self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings), self._exported_tiles(project, mappings), path)
@@ -273,7 +273,7 @@ class TestSnes(unittest.TestCase):
         from console_bake import ConsoleBake
 
         self.assertEqual((hb.SNES_16_32.vram_tiles, hb.SNES_16_32.vram_model), (512, "snes"))
-        for path in ("examples/sgdk/PoP_WW.json", "examples/adventurer/adventurer.json"):
+        for path in ("examples/pop/PoP_WW.json", "examples/adventurer/adventurer.json"):
             project = Project.from_json(os.path.join(REPO_ROOT, path))
             mappings = [None] + project.mappings
             for key in ("snes_8_16", "snes_8_32", "snes_16_32"):

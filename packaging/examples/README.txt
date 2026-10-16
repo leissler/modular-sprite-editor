@@ -3,7 +3,7 @@ Modular Sprite Editor @VERSION@ - example projects
 
 Open a project in the editor with File > Open... and keep it next to its image, where it is now.
 
-  sgdk/PoP_WW.json              Prince of Persia, the most complete one: small parts, animations,
+  pop/PoP_WW.json               Prince of Persia, the most complete one: small parts, animations,
                                 the Swordfight scene, mappings, a palette swap, hitboxes, points
                                 and events
   sonic/sonic.json              Sonic: a hand-cut character with many animations

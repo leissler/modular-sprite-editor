@@ -40,7 +40,7 @@ def memory_issues(project: Project) -> List[pc.Issue]:
     if not profile.vram_tiles:
         return []
     tiles = BUDGET.export_tiles(project, [None] + list(project.mappings), profile)
-    issue = pc.snes_tile_issue(tiles) if profile.vram_model == "snes" else pc.tile_issue(tiles)
+    issue = pc.snes_tile_issue(tiles) if profile.vram_model == "snes" else pc.megadrive_tile_issue(tiles)
     return [issue] if issue.level != pc.INFO else []
 
 
