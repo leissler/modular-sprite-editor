@@ -2,6 +2,14 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.10.1, October 2026
+
+**The SNES demo to download.** The release page now has `ModularSpriteEditor-snes-demo.zip`: a SNES ROM made from the Prince of Persia example, to open in a SNES emulator, with its PVSnesLib project to build again with your own export. On Windows it builds without make or MSYS2. See [SNES (PVSnesLib)](programmers.md#snes-pvsneslib).
+
+**The Timeline shows your console's screen.** Version 0.10 could open every project on a screen chosen in an earlier version, such as the Game Boy's. A screen chosen before 0.10 now follows the console of the project you open, and the **Screen** menu keeps a choice you make for every project. See [The Timeline shows another console's screen](troubleshooting.md#the-timeline-shows-another-consoles-screen).
+
+Projects are saved in file format 8, as in 0.10.
+
 ## 0.10, October 2026
 
 **The project's console.** **Console**, above the tabs, says which console your project is made for, with its setup: the Mega Drive's screen mode, the SNES's two sprite sizes, the sprite size of the NES and the Game Boy. The palettes, **View ▸ Console Colours**, the budget overlay, the Timeline's screen outline, Auto Modularize and **Check Project** all follow it. See [The console](../start/tour.md#the-console).
