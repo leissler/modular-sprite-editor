@@ -308,18 +308,23 @@ def run_rom(mesen: str, rom: Path, work: Path, item_count: int, has_scene: bool)
            .replace("@MAX_FRAMES@", str(max_frames)))
     script = work / "probe.lua"
     script.write_text(lua)
-    # Mesen's test runner stops itself after 100 s unless told otherwise; 840 s leaves this call's limit the last word.
+    result = run_mesen(mesen, rom, script)
+    lines = result.stdout.splitlines()
+    if not any(line.startswith("vram ") for line in lines):
+        raise RuntimeError("Mesen did not finish the probe:\n" + (result.stdout + result.stderr)[-2000:])
+    return lines
+
+
+def run_mesen(mesen: str, rom: Path, script: Path) -> subprocess.CompletedProcess:
+    """Mesen's headless test runner playing the ROM with the Lua script (what the script prints is the output)."""
+    # The test runner stops itself after 100 s unless told otherwise; 840 s leaves this call's limit the last word.
     # On Linux, Mesen 2.1's core (with a C++ library of its own) dies with std::bad_cast while it loads when .NET has
     # loaded the system's ICU first: run .NET without ICU.
     env = dict(os.environ)
     if sys.platform.startswith("linux"):
         env.setdefault("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1")
-    result = subprocess.run([mesen, "--testrunner", "--timeout=840", str(rom), str(script)], capture_output=True,
-                            text=True, timeout=900, env=env)
-    lines = result.stdout.splitlines()
-    if not any(line.startswith("vram ") for line in lines):
-        raise RuntimeError("Mesen did not finish the probe:\n" + (result.stdout + result.stderr)[-2000:])
-    return lines
+    return subprocess.run([mesen, "--testrunner", "--timeout=840", str(rom), str(script)], capture_output=True,
+                          text=True, timeout=900, env=env)
 
 
 def check_project(path: Path, mesen: str, pvsneslib: Path, work: Path) -> bool:

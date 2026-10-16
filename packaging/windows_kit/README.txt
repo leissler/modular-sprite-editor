@@ -1,7 +1,8 @@
 Modular Sprite Editor @VERSION@ - Windows kit
 =============================================
 
-The editor, three example projects and an SGDK demo that runs them on a Mega Drive.
+The editor, three example projects, and demos that run them on a Mega Drive (SGDK) and a SNES
+(PVSnesLib).
 The user guide, with pictures of every editor: https://modularsprites.bionic-productions.com/
 
 Unzip this folder to a path without spaces (for example C:\ModularSpriteEditor): SGDK's make
@@ -21,7 +22,8 @@ does not handle spaces in paths.
     examples\adventurer\adventurer.json
                                  Adventurer: 15 frames, each one whole sprite
 - Tabs: Modules (cut the sprite sheet), Frames (assemble parts, hitboxes, points),
-  Animations, Timeline (scenes), Mappings. Help > Keyboard & Mouse Shortcuts lists the controls.
+  Animations, Timeline (scenes), Mappings (re-skins), Palettes (colours, palette swaps).
+  Help > Keyboard & Mouse Shortcuts lists the controls.
 - Tools > Auto Modularize Image cuts whole sprites into hardware-sized parts they share, with a
   preview of the Mega Drive cost (try it on the Adventurer sheet in the Modules tab).
 
@@ -53,7 +55,30 @@ The demo starts on the Swordfight scene. Demo controls (any pad):
   START            the controls, frame rate, CPU load, sprites and tiles
 
 
-3. More
+3. Run it on a SNES (PVSnesLib)
+-------------------------------
+
+Needs a SNES emulator, e.g. Mesen (https://www.mesen.ca/). PVSnesLib's Windows tools are included
+(examples\snes\snes_demo\third_party\pvsneslib); no Java, make or MSYS2 needed, and this part
+works from a path with spaces too.
+
+- build_snes_demo.bat builds the demo ROM from the data already exported from PoP_WW.json:
+      examples\snes\snes_demo\modular_sprite_snes_demo.sfc
+  Open it in the emulator.
+- To show another project: in the editor, File > Export > SNES (PVSnesLib)..., choose the folder
+  examples\snes\snes_demo and the sprite sizes (the list shows the tiles each pair needs: all of
+  them stay in the SNES's video memory, 512 at most), then run build_snes_demo.bat.
+
+The demo starts on the Swordfight scene. Demo controls (pad 1):
+  UP / DOWN        what to show: scenes, animations, frames, modules
+  LEFT / RIGHT     previous / next (hold to run through them)
+  A                play / pause
+  B                hitboxes and points
+  X                change the look: mappings and palette swaps, then side by side
+  START            the controls, frame rate, CPU load, sprites and tiles
+
+
+4. More
 -------
 
 The user guide, every editor explained with pictures:
@@ -63,6 +88,8 @@ What to hand to a programmer, and how the Mega Drive export works:
 
 examples\sgdk\README.md    how the export and the Mega Drive runtime work, the C API for your own
                            game (animation player, events, hitboxes, points), limits, performance
+examples\snes\README.md    the same for the SNES: the export, the runtime (the same C API) and its
+                           limits; examples\snes\snes_demo\build_windows.ps1 builds it on Windows
 export_sgdk.exe --help     exporter options (for example --mapping to export a single mapping)
 
 Source code and issues: https://github.com/leissler/modular-sprite-editor

@@ -2,12 +2,13 @@ name: Build And Release
 
 # Builds the editor and the SGDK exporter for macOS, Windows and Linux and tests every build: unit tests, the
 # built editor drives every tab against both example projects (--smoke-test), the built exporter must write
-# exactly what the Python exporter writes. The release gets the editor and the exporter for each platform, and
-# the example projects (ModularSpriteEditor-examples.zip, made by the Linux job).
+# exactly what the Python exporter writes. The release gets the editor and the exporter for each platform, the
+# example projects (ModularSpriteEditor-examples.zip, made by the Linux job) and the SNES demo
+# (ModularSpriteEditor-snes-demo.zip: the ROM and its PVSnesLib project, made by the SNES job).
 # On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
-# artifact): editor, exporter, examples and the SGDK demo, built into ROMs with the bundled SGDK.
-# The SNES job builds the SNES demo ROM with PVSnesLib and checks the runtime in it in Mesen 2 (a run artifact, not
-# released either).
+# artifact): editor, exporter, examples, the SGDK demo built into ROMs with the bundled SGDK, and the SNES demo built
+# with the bundled PVSnesLib (its Windows tools, no make), which the snes-kit job plays next to the Linux ROM.
+# The SNES job builds the SNES demo ROM with PVSnesLib and checks the runtime in it in Mesen 2.
 # With "publish" off it only builds and tests. The version has to be APP_VERSION in app.py (the About box shows it).
 
 on:
@@ -144,6 +145,27 @@ jobs:
         if: runner.os == 'Linux'
         run: python tools/make_examples_zip.py dist/release/ModularSpriteEditor-examples.zip --version "${{ github.event.inputs.version }}"
 
+      - name: Cache PVSnesLib for Windows
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: snes-downloads
+          key: pvsneslib-4.6.0-windows
+
+      - name: Unpack PVSnesLib for Windows (the kit's SNES demo builds with it)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PVSNESLIB_ZIP: https://github.com/alekmaul/pvsneslib/releases/download/4.6.0/pvsneslib_460_64b_windows_release.zip
+        run: |
+          New-Item -ItemType Directory -Force snes-downloads | Out-Null
+          $zip = Join-Path snes-downloads ([IO.Path]::GetFileName($env:PVSNESLIB_ZIP))
+          if (-not (Test-Path $zip)) {
+            Invoke-WebRequest -Uri $env:PVSNESLIB_ZIP -OutFile $zip -MaximumRetryCount 6 -RetryIntervalSec 20
+          }
+          Expand-Archive $zip -DestinationPath snes-tools
+          if (-not (Test-Path snes-tools/pvsneslib/devkitsnes/bin/816-tcc.exe)) { exit 1 }
+
       - name: Build Windows exe and kit
         if: runner.os == 'Windows'
         shell: pwsh
@@ -151,7 +173,8 @@ jobs:
           python -m PyInstaller --clean --noconfirm --distpath dist/windows --workpath build/windows build_windows.spec
           Compress-Archive -Path dist/windows/ModularSpriteEditor.exe -DestinationPath dist/release/ModularSpriteEditor-windows.zip
           python tools/make_windows_kit.py dist/windows/ModularSpriteEditor.exe dist/exporter/export_sgdk.exe `
-            "dist/kit/ModularSpriteEditor-${{ github.event.inputs.version }}-windows-kit.zip" --version "${{ github.event.inputs.version }}"
+            "dist/kit/ModularSpriteEditor-${{ github.event.inputs.version }}-windows-kit.zip" `
+            --pvsneslib snes-tools/pvsneslib --version "${{ github.event.inputs.version }}"
 
       - name: Setup Java (SGDK's resource compiler)
         if: runner.os == 'Windows'
@@ -181,6 +204,11 @@ jobs:
           cmd /c "$kit\export_to_sgdk.bat" "$kit\examples\sonic\sonic.json"
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Copy-Item "$kit\examples\sgdk\sgdk_demo\out\debug\rom.bin" (Join-Path $results "rom-sonic.bin")
+          # The SNES demo ROM with the kit's PVSnesLib (the snes-kit job plays it next to the Linux build).
+          cmd /c "$kit\build_snes_demo.bat"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item "$kit\examples\snes\snes_demo\modular_sprite_snes_demo.sfc" (Join-Path $results "rom-snes.sfc")
+          Copy-Item "$kit\examples\snes\snes_demo\modular_sprite_snes_demo.sym" (Join-Path $results "rom-snes.sym")
           Get-ChildItem $results
 
       - name: Upload release files
@@ -270,7 +298,7 @@ jobs:
         run: |
           make -C examples/snes/snes_demo
           mkdir -p dist/snes
-          cp examples/snes/snes_demo/modular_sprite_snes_demo.sfc dist/snes/
+          cp examples/snes/snes_demo/modular_sprite_snes_demo.sfc examples/snes/snes_demo/modular_sprite_snes_demo.sym dist/snes/
 
       - name: Check the runtime in the ROM (Mesen 2)
         run: |
@@ -278,11 +306,23 @@ jobs:
           mkdir -p test-results
           python tools/check_snes_rom.py | tee test-results/snes-rom-check.txt
 
-      - name: Upload the demo ROM (not released)
+      - name: Zip the SNES demo (the ROM and its PVSnesLib project)
+        run: |
+          test -z "$(git status --porcelain --untracked-files=no)"  # the project as committed
+          python tools/make_snes_demo_zip.py dist/snes/modular_sprite_snes_demo.sfc dist/release/ModularSpriteEditor-snes-demo.zip \
+            --version "${{ github.event.inputs.version }}"
+
+      - name: Upload the demo ROM
         uses: actions/upload-artifact@v4
         with:
           name: snes-demo
-          path: dist/snes/*.sfc
+          path: dist/snes/*
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-snes
+          path: dist/release/*
 
       - name: Upload test results
         if: always()
@@ -292,9 +332,80 @@ jobs:
           path: test-results
           if-no-files-found: ignore
 
+  snes-kit:
+    # The SNES demo the Windows kit builds (examples/snes/snes_demo/build_windows.ps1, PVSnesLib's Windows tools) is not
+    # byte for byte the Linux build: wlalink places sections of the same size as each C library's qsort leaves them.
+    # Played in Mesen 2 next to the ROM the SNES job checked, with the same presses through every view, it must draw
+    # the same on every frame (tools/compare_snes_roms.py).
+    name: SNES demo from the Windows kit
+    needs: [build, snes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MESEN_ZIP: https://github.com/SourMesen/Mesen2/releases/download/2.1.1/Mesen_2.1.1_Linux_x64.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-2.0-0
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+
+      - name: Restore Mesen (cached by the SNES job)
+        uses: actions/cache/restore@v4
+        with:
+          path: snes-downloads
+          key: pvsneslib-4.6.0-mesen-2.1.1-linux-x64
+
+      - name: Unpack Mesen
+        run: |
+          mkdir -p snes-downloads
+          zip="snes-downloads/$(basename "$MESEN_ZIP")"
+          [ -f "$zip" ] || curl -fL --retry 6 --retry-delay 20 --retry-all-errors --max-time 600 -o "$zip" "$MESEN_ZIP"
+          unzip -q "$zip" -d snes-tools
+          chmod +x snes-tools/Mesen
+          echo '{}' > snes-tools/settings.json
+          echo "MESEN=$PWD/snes-tools/Mesen" >> "$GITHUB_ENV"
+
+      - name: Download the Linux ROM
+        uses: actions/download-artifact@v4
+        with:
+          name: snes-demo
+          path: roms/snes-demo
+
+      - name: Download the Windows kit's ROM
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-Windows
+          path: roms/test-results-Windows
+
+      - name: Play both ROMs (Mesen 2)
+        run: |
+          set -o pipefail
+          mkdir -p test-results
+          python tools/compare_snes_roms.py roms/snes-demo/modular_sprite_snes_demo.sfc \
+            roms/test-results-Windows/rom-snes.sfc | tee test-results/snes-kit-check.txt
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-snes-kit
+          path: test-results
+          if-no-files-found: ignore
+
   release:
     name: Publish Release
-    needs: [build, snes]
+    needs: [build, snes, snes-kit]
     if: ${{ github.event.inputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:

@@ -94,6 +94,7 @@ sprite and the C around it as long again (the first ROM needed half a frame for 
 - `tools/export_snes.py` - bake exporter
 - `tools/snes_host.py` - the runtime compiled for the host (the tests' and the ROM check's reference)
 - `snes_demo/` - a PVSnesLib project
+  - `build_windows.ps1` - builds it on Windows with PVSnesLib's Windows tools, without make or MSYS2
   - `inc/modsprite.h` - runtime API
   - `src/modsprite.c` - players, palettes, hitboxes and points, the C versions of the assembly
   - `src/modsprite_draw.asm` - the runtime's hot loops in 65816 assembly
@@ -130,6 +131,28 @@ make
 
 This builds `modular_sprite_snes_demo.sfc` (FastROM, LoROM; 512 KB for the Prince of Persia example).
 
+On Windows, PVSnesLib's rules need MSYS2 (`make`, `sh`, `sed`). Without it, unpack PVSnesLib's Windows release into
+`snes_demo/third_party/pvsneslib` (or set `PVSNESLIB_HOME` to it) and run, in `snes_demo`:
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -File build_windows.ps1
+```
+
+`build_windows.ps1` takes the steps PVSnesLib's `snes_rules` takes for this project with its Windows tools: `hdr.asm`
+from the Makefile's settings (and `modsprite_rom.mk`), every C file through `816-tcc`, `816-opt` and `wla-65816`, the
+assembly files through `wla-65816`, `wlalink` with PVSnesLib's libraries (LoROM, like the demo). Its paths are relative,
+so it builds in a folder whose path has spaces too. The Windows kit the release workflow assembles carries the demo
+with PVSnesLib's Windows tools and `build_snes_demo.bat`, which runs it.
+
+A ROM built on one system is not byte for byte one built on another: `wlalink` places sections of the same size (four
+of the data chunks fill a bank each, and the compiler and PVSnesLib's libraries make many small code sections) in the
+order the system's C library's `qsort` leaves them, as its comparison never says "equal"; a second `make` without
+`make clean` also assembles the `hdr.asm` the first one left. What a build draws does not depend on it:
+`tools/compare_snes_roms.py` (below) plays two builds and checks they draw the same.
+
+The release page has the demo as `ModularSpriteEditor-snes-demo.zip`: the ROM built and checked by the release
+workflow, with this README and the `snes_demo` project (without PVSnesLib), in the repository's `examples/` layout.
+
 The demo starts on the project's first scene. **Up / Down** switch between scenes, animations, frames and modules,
 **Left / Right** browse (held: faster), **A** plays and pauses, **B** shows hitboxes and points, **X** changes the
 look (every mapping with every palette swap, then one animation drawn twice, the second re-skinned and recoloured),
@@ -153,6 +176,16 @@ while loading when .NET has loaded the system's ICU first.
 
 ```bash
 python3 tools/check_snes_rom.py [PROJECT.json ...]
+```
+
+`tools/compare_snes_roms.py` carries that over to a demo ROM built elsewhere: it plays two builds in Mesen with the same
+presses through every view (the first scene, animations with hitboxes and every look, frames, modules) and checks that
+both show the same sprite table on every video frame, the same palettes whenever they change and the same video memory
+at the end (Mesen fills video memory, the sprite table and the palettes with random values at power-on: the script
+clears them first). The release workflow compares the Windows kit's build with the Linux one this way.
+
+```bash
+python3 tools/compare_snes_roms.py REFERENCE.sfc OTHER.sfc
 ```
 
 ## Notes on 816-tcc

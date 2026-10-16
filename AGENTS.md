@@ -35,6 +35,7 @@ python3 tools/gui_smoke.py [project]     # drives the real window (needs a displ
 python3 tools/check_export_parity.py PROJECT...   # RetroAnimator export vs editor canvas, pixel-exact
 python3 tools/check_engine_exports.py             # Godot / Unity exports played inside Godot 4 and Unity 6 (installed)
 python3 tools/check_snes_rom.py [PROJECT...]      # the SNES runtime built into a ROM vs. its host build, in Mesen 2
+python3 tools/compare_snes_roms.py REF.sfc OTHER.sfc  # two builds of the SNES demo draw the same, frame by frame (Mesen 2)
 python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project files to the current format
 ./build_macos.sh | ./build_linux.sh | build_windows.bat     # PyInstaller builds
 <built executable> --smoke-test PROJECT.json [LOG]          # gui_smoke inside a build (own preferences file)
@@ -43,13 +44,20 @@ python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project fil
 Releases: `.github/workflows/build-and-release.yml` (manual, with a version; *publish* off = build and test only)
 builds and tests the editor and the SGDK exporter (`build_sgdk_exporter.spec`) on all three platforms; the release
 gets both, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: the example projects in the repo's
-`examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
-editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, `packaging/windows_kit/`), and builds its ROMs on
-Windows with the vendored SGDK. Its SNES job builds the SNES demo ROM on Linux with PVSnesLib 4.6.0 (run artifact
-`snes-demo`, not released): the demo's data exported again must be the committed data (re-export and commit it after
+`examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`) and
+`ModularSpriteEditor-snes-demo.zip` (`tools/make_snes_demo_zip.py`: the SNES demo ROM the SNES job built and checked,
+`packaging/snes_demo/README.txt` and the demo's PVSnesLib project in the same layout). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
+editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, the SNES demo + the part of PVSnesLib's Windows release
+it builds with (downloaded by the job, `--pvsneslib`), `packaging/windows_kit/`), and builds its ROMs on Windows with the
+vendored SGDK and, through `build_snes_demo.bat`, `examples/snes/snes_demo/build_windows.ps1` (PVSnesLib's build steps
+in Windows PowerShell: no make or MSYS2). Its SNES job builds the SNES demo ROM on Linux with PVSnesLib 4.6.0 (run artifact
+`snes-demo`): the demo's data exported again must be the committed data (re-export and commit it after
 changing the exporter), and `tools/check_snes_rom.py` runs in Mesen 2's test runner (a `settings.json` next to the
 executable: without one Mesen opens its first-run window instead; on Linux the tool sets
-`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`, without which Mesen 2.1 dies with std::bad_cast); publishing waits for it. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
+`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`, without which Mesen 2.1 dies with std::bad_cast). ROMs built on different
+systems are not byte for byte the same (wlalink leaves sections of the same size in the order the system's qsort
+does): the snes-kit job plays the Windows kit's ROM next to the Linux one with `tools/compare_snes_roms.py` (Mesen's
+random power-on memory cleared first), which must draw the same on every frame. Publishing waits for both. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
 with; `tests/test_requirements.py` checks they agree, and `requirements.txt` says what moving to 4.3 needs. Set
 `APP_VERSION` in `app.py` to the release first: the About box and the macOS Info.plist show it, and the workflow stops if
 it releases another version.
@@ -219,8 +227,10 @@ ui/
 tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
                            check_engine_exports.py (+ engine_checks/: the Godot / Unity exports checked in the engines),
                            check_snes_rom.py (the SNES runtime in a ROM: a probe program played in Mesen 2's test
-                           runner, every OAM against the host build),
+                           runner, every OAM against the host build), compare_snes_roms.py (two builds of the SNES
+                           demo played side by side: the same sprite tables, palettes, video memory),
                            make_windows_kit.py, make_examples_zip.py (the examples download of a release),
+                           make_snes_demo_zip.py (the SNES demo download: ROM + its PVSnesLib project),
                            make_readme_banner.py (README banner from the PoP example),
                            make_app_icon.py (the pixel-art app icon, a wooden mannequin: every size, nearest-neighbour only),
                            make_logo.py (the product logo: the icon's mannequin over a pixel wordmark, no example art)
@@ -230,7 +240,8 @@ examples/sgdk/             SGDK exporter (tools/export_sgdk_example.py: one bina
                            (sgdk_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo
 examples/snes/             SNES exporter (tools/export_snes.py: chunks of a ROM bank + the C that finds them;
                            tools/snes_host.py: the runtime compiled for the host) + runtime (snes_demo/src/modsprite.c,
-                           the hot loops in src/modsprite_draw.asm, 65816 assembly) + demo; see examples/snes/README.md
+                           the hot loops in src/modsprite_draw.asm, 65816 assembly) + demo (make, or build_windows.ps1
+                           on Windows without MSYS2); see examples/snes/README.md
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
                            scene / animation / module / frame / mapping ops, export/canvas parity, migration,
                            SGDK and SNES runtimes: player, drawing, hitboxes / points)

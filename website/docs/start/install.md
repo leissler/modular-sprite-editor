@@ -14,6 +14,8 @@ Open the [latest release](https://github.com/leissler/modular-sprite-editor/rele
 
 The `export_sgdk` downloads are for programmers who build Mega Drive games. You do not need them to make sprites.
 
+`ModularSpriteEditor-snes-demo.zip` holds a SNES ROM made from the Prince of Persia example: open `modular_sprite_snes_demo.sfc` in a SNES emulator such as [Mesen](https://www.mesen.ca/) to see the export running on the console. It starts on the *Swordfight*. See [SNES (PVSnesLib)](../reference/programmers.md#snes-pvsneslib).
+
 ## Start it
 
 === "Windows"

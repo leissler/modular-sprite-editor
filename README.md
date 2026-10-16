@@ -19,8 +19,9 @@ reads Aseprite's JSON) and Aseprite files go both ways.
 
 The editor and the SGDK exporter (`export_sgdk`) for Windows, macOS and Linux are on the
 [Releases](https://github.com/leissler/modular-sprite-editor/releases) page, with the example projects in
-`ModularSpriteEditor-examples.zip`. The builds are not signed: on Windows choose "More info › Run anyway", on macOS
-right-click › Open the first time.
+`ModularSpriteEditor-examples.zip` and the SNES demo in `ModularSpriteEditor-snes-demo.zip` (the ROM, for an
+emulator, and its PVSnesLib project). The builds are not signed: on Windows choose "More info › Run anyway", on
+macOS right-click › Open the first time.
 
 ## Status
 
@@ -190,7 +191,10 @@ right-click › Open the first time.
   assembly (the Swordfight scene in 12 % of a frame, measured in Mesen 2); colour cycles turn in vertical blank.
   Tests compile it for the host and compare what it draws with the editor pixel by pixel, and
   `tools/check_snes_rom.py` compares the ROM with that host build byte by byte in Mesen.
-- **Demo ROM**: the Mega Drive demo's browser, at 60 frames a second.
+- **Demo ROM**: the Mega Drive demo's browser, at 60 frames a second; on the release page as
+  `ModularSpriteEditor-snes-demo.zip`. It builds with PVSnesLib's `make` on macOS and Linux and with
+  `build_windows.ps1` on Windows (PVSnesLib's Windows tools, no make or MSYS2); `tools/compare_snes_roms.py` plays
+  two builds in Mesen and checks they draw the same on every frame.
 
 ### Import and export
 - Import Aseprite files (read the way Aseprite flattens them, tags as animations), sprite sheets with Aseprite or
