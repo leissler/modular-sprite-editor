@@ -56,8 +56,9 @@ changing the exporter), and `tools/check_snes_rom.py` runs in Mesen 2's test run
 executable: without one Mesen opens its first-run window instead; on Linux the tool sets
 `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`, without which Mesen 2.1 dies with std::bad_cast). ROMs built on different
 systems are not byte for byte the same (wlalink leaves sections of the same size in the order the system's qsort
-does): the snes-kit job plays the Windows kit's ROM next to the Linux one with `tools/compare_snes_roms.py` (Mesen's
-random power-on memory cleared first), which must draw the same on every frame. Publishing waits for both. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
+does): the snes-kit job plays the Windows kit's ROM next to the Linux one with `tools/compare_snes_roms.py` (each with
+work RAM all zeros and all 0xFF at power-on: PVSnesLib clears no RAM, so a read of memory never written shows), which
+must draw the same on every frame. Publishing waits for both. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
 with; `tests/test_requirements.py` checks they agree, and `requirements.txt` says what moving to 4.3 needs. Set
 `APP_VERSION` in `app.py` to the release first: the About box and the macOS Info.plist show it, and the workflow stops if
 it releases another version.
@@ -428,7 +429,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `tools/check_snes_rom.py` builds the
   assembly into a ROM and compares every OAM with the host build in Mesen 2 (run it after touching the runtime). 816-tcc:
   never step a far pointer in a loop (reach records by index), assembly reaches globals with long addressing
-  (initialised ones live in bank $7F), a `u8` argument is pushed as one byte. CGRAM can only be written in vertical
+  (initialised ones live in bank $7F), a `u8` argument is pushed as one byte. PVSnesLib's start-up code clears no RAM:
+  a global without an initial value is not zero, give it one before reading it (`ms_init_ex` does for the runtime's). CGRAM can only be written in vertical
   blank: `ms_palette_tick()` uploads what it prepared one call earlier, then prepares the next. Measure in Mesen 2 with
   the PPU's V counter (and Lua `exec` callbacks on single addresses for a breakdown), not by eye.
 - **Preferences** go through `wx.Config.Get()`. `SpriteEditorApp.OnInit` names the app and makes the editor's store

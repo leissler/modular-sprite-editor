@@ -5,8 +5,14 @@ its C library's qsort leaves them (its comparison never answers "equal"), so the
 sections land elsewhere on macOS, Linux and Windows. What a build draws does not depend on that. Both ROMs play the same
 button presses, through every view of the demo (the first scene, animations with hitboxes and every look, frames,
 modules), and must show the same sprite table (the PPU's OAM) on every video frame, the same palettes whenever they
-change and the same video memory at the end (and so as many lag frames). tools/check_snes_rom.py checks the runtime in a ROM
-against the editor; this check carries that over to a ROM built elsewhere, such as the Windows kit's.
+change and the same video memory at the end (and so as many lag frames). tools/check_snes_rom.py checks the runtime in a
+ROM against the editor; this check carries that over to a ROM built elsewhere, such as the Windows kit's.
+
+A console powers on with whatever its RAM holds, and PVSnesLib's start-up code clears none of it: a program that reads
+memory it never wrote (C's zeros for variables without an initial value) behaves by chance. Each ROM plays twice, with
+work RAM filled with zeros and with 0xFF before it starts, and all four must draw the same (Mesen's own random fill
+would catch that only now and then). Video memory, the sprite table and the palettes start as zeros in every run.
+Mesen's own notes of reads from memory nothing had written ("Uninitialized memory read") are listed, not compared.
 
 Usage (from the repository root):
     python3 tools/compare_snes_roms.py REFERENCE.sfc OTHER.sfc [--mesen PATH]
@@ -50,8 +56,9 @@ local function hex(mem, base, size)
   for i = 0, size - 1 do parts[#parts + 1] = HEX[emu.read(base + i, mem, false)] end
   return table.concat(parts)
 end
--- Mesen fills video memory, the sprite table and the palettes with random values at power-on: both ROMs start from
--- zeros (the demo writes what it uses; what it does not stays the same).
+-- Mesen fills memory with random values at power-on: work RAM starts as @FILL@ (a program must not depend on it),
+-- video memory, the sprite table and the palettes as zeros (what the demo never writes stays the same).
+for i = 0, 0x1FFFF do emu.write(i, @FILL@, emu.memType.snesWorkRam) end
 for i = 0, 0xFFFF do emu.write(i, 0, emu.memType.snesVideoRam) end
 for i = 0, 543 do emu.write(i, 0, emu.memType.snesSpriteRam) end
 for i = 0, 511 do emu.write(i, 0, emu.memType.snesCgRam) end
@@ -87,16 +94,29 @@ def lag_counter(rom: Path) -> int:
     return symbols(sym).get("lag_frame_counter", 0x35) if sym.exists() else 0x35
 
 
-def play(mesen: str, rom: Path, work: Path) -> List[str]:
+FILLS = (0x00, 0xFF)  # work RAM at power-on
+TRACE = ("oam", "cgram", "lag", "vram")  # what the script prints; Mesen adds notes of its own
+
+
+def play(mesen: str, rom: Path, work: Path, fill: int) -> List[str]:
     presses = ", ".join(f'{{{frame}, "{button}"}}' for frame, button in PRESSES)
-    script = work / f"{rom.stem}.lua"
+    script = work / f"{rom.stem}-{fill:02x}.lua"
     script.write_text(LUA.replace("@PRESSES@", presses).replace("@PRESS@", str(PRESS))
-                      .replace("@FRAMES@", str(FRAMES)).replace("@LAG@", hex(lag_counter(rom))))
+                      .replace("@FRAMES@", str(FRAMES)).replace("@LAG@", hex(lag_counter(rom)))
+                      .replace("@FILL@", hex(fill)))
     result = run_mesen(mesen, rom, script)
     lines = result.stdout.splitlines()
     if not any(line.startswith("vram ") for line in lines):
         raise RuntimeError(f"Mesen did not finish {rom.name}:\n" + (result.stdout + result.stderr)[-2000:])
     return lines
+
+
+def trace_of(lines: List[str]) -> List[str]:
+    return [line for line in lines if line.split(" ", 1)[0] in TRACE]
+
+
+def notes_of(lines: List[str]) -> List[str]:
+    return [line for line in lines if line.split(" ", 1)[0] not in TRACE]
 
 
 def difference(a: str, b: str) -> str:
@@ -123,22 +143,29 @@ def main() -> int:
     if not mesen:
         print("needs Mesen 2 (--mesen)")
         return 2
+    runs = [(rom, fill) for rom in (args.reference, args.other) for fill in FILLS]
     with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp)
-        traces = [play(mesen, rom.resolve(), work) for rom in (args.reference, args.other)]
-    reference, other = traces
-    oams = sum(line.startswith("oam ") for line in reference)
-    lag = [next(line for line in t if line.startswith("lag ")) for t in traces]
-    for index, (a, b) in enumerate(zip(reference, other)):
-        if a != b:
-            print(f"{args.other.name} does not draw like {args.reference.name}: {difference(a, b)}")
+        outputs = [play(mesen, rom.resolve(), Path(tmp), fill) for rom, fill in runs]
+    traces = [trace_of(lines) for lines in outputs]
+    for (rom, _fill), lines in zip(runs[::len(FILLS)], outputs[::len(FILLS)]):
+        notes = sorted(set(notes_of(lines)))
+        if notes:
+            print(f"Mesen's notes on {rom.name}: " + "; ".join(notes[:8]) + (" ..." if len(notes) > 8 else ""))
+    reference = traces[0]
+    for (rom, fill), trace in zip(runs[1:], traces[1:]):
+        name = f"{rom.name} with work RAM {fill:#04x} at power-on"
+        for a, b in zip(reference, trace):
+            if a != b:
+                print(f"{name} does not draw like {args.reference.name} with zeros: {difference(a, b)}")
+                return 1
+        if len(reference) != len(trace):
+            print(f"{name} differs from {args.reference.name} with zeros: {len(reference)} / {len(trace)} lines")
             return 1
-    if len(reference) != len(other):
-        print(f"{args.other.name} differs from {args.reference.name}: {len(reference)} / {len(other)} lines")
-        return 1
-    print(f"{args.other.name} draws like {args.reference.name}: {FRAMES} video frames, {len(PRESSES)} presses through "
-          f"every view, {oams} sprite tables, the palettes and video memory the same, "
-          f"{lag[0].split()[1]} lag frames after the first second")
+    oams = sum(line.startswith("oam ") for line in reference)
+    lag = next(line for line in reference if line.startswith("lag ")).split()[1]
+    print(f"{args.other.name} draws like {args.reference.name}, whatever work RAM holds at power-on: {FRAMES} video "
+          f"frames, {len(PRESSES)} presses through every view, {oams} sprite tables, the palettes and video memory the "
+          f"same, {lag} lag frames after the first second")
     return 0
 
 

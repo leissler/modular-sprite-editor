@@ -419,6 +419,8 @@ void ms_init_ex(u16 vram_address, u16 first_palette)
     }
     memset(&oamMemory[512], 0, 32);
     memset(ms_high_bits, 0, sizeof(ms_high_bits));
+    /* ms_put_render_frame reads an entry's bits as a word (the next entry's byte unused): every byte has a value. */
+    memset(ms_swap_bits, 0, sizeof(ms_swap_bits));
     /* The palette entries go into consecutive sprite palettes from the first one, as many as fit; a game with more
        entries than palettes loads the rest itself (ms_load_palette). */
     for (n = 0, t = 0; n < MS_MAPPING_COUNT; n++)

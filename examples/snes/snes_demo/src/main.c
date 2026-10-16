@@ -956,8 +956,11 @@ int main(void)
     scr_txt_dirty = 1;
     ms_init();  /* sprite tiles at 0x0000-0x1FFF, the palette entries in sprite palettes 0, 1, ... */
     demo_init_markers();
+    /* PVSnesLib's start-up code leaves RAM as the console powered on: what C would start at zero starts here. */
     for (view = 0; view < VIEW_COUNT; view++)
         g_index[view] = 0;
+    memset(g_row_dirty, 0, sizeof(g_row_dirty));
+    memset(&g_disp_frame_profile, 0, sizeof(g_disp_frame_profile));
     /* Start on the first scene (the Swordfight in the Prince of Persia example), or the first thing there is. */
     g_view = VIEW_COUNT - 1;
     demo_switch_view(1);

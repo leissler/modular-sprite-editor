@@ -181,8 +181,10 @@ python3 tools/check_snes_rom.py [PROJECT.json ...]
 `tools/compare_snes_roms.py` carries that over to a demo ROM built elsewhere: it plays two builds in Mesen with the same
 presses through every view (the first scene, animations with hitboxes and every look, frames, modules) and checks that
 both show the same sprite table on every video frame, the same palettes whenever they change and the same video memory
-at the end (Mesen fills video memory, the sprite table and the palettes with random values at power-on: the script
-clears them first). The release workflow compares the Windows kit's build with the Linux one this way.
+at the end. Each build plays twice, with work RAM filled with zeros and with 0xFF at power-on, and all four runs must
+be the same: a program that reads memory it never wrote is caught (Mesen's own random fill would catch it only now and
+then; video memory, the sprite table and the palettes start as zeros). It lists the reads of unwritten memory Mesen
+reports. The release workflow compares the Windows kit's build with the Linux one this way.
 
 ```bash
 python3 tools/compare_snes_roms.py REFERENCE.sfc OTHER.sfc
@@ -201,3 +203,6 @@ quirks the runtime works around:
 - A multiplication by anything but a power of two is a library call: records the runtime indexes are padded to 8 or
   16 bytes, and a render frame's 22 are multiplied in shifts.
 - A ternary choosing between an array and a pointer argument crashed the compiler (`ICE 2`).
+- PVSnesLib's start-up code clears no RAM: a global without an initial value starts with whatever the console's RAM
+  held at power-on, not zero (initialised globals are copied from the ROM). The runtime gives everything it reads a
+  value in `ms_init_ex`; a game must do the same with its own (the demo's text rows once took their state from it).
