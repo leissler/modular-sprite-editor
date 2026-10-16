@@ -137,7 +137,8 @@ class SceneEditorPanel(wx.Panel):
         self.screen_choice = wx.Choice(self.canvas_controls, choices=[f"Compare: {label}" for label, _ in SCREEN_GUIDES])
         self.screen_choice.SetToolTip(
             "Outline of a console screen, placed like the SGDK demo shows scenes: the scene origin centred, three "
-            "quarters down. The first is the project's console (Console, above the tabs); Compare shows another one."
+            "quarters down. The first is the project's console (Console, above the tabs); Compare shows another one, on "
+            "every project until you choose again."
         )
         fit_choice(self.screen_choice)  # macOS sizes a Choice for its current item: room for the longest label
         self.screen_value = ""

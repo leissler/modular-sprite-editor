@@ -120,8 +120,9 @@ right-click › Open the first time.
 - **Groups** and sort orders for long lists (Sonic has 171 animations).
 
 ### Timeline (scenes)
-- **Library → stage**: drag animations, frames or modules onto the stage; a console screen guide (MD / SNES / NES /
-  GBA / GB) shows what fits on screen, placed the way the SGDK demo shows scenes.
+- **Library → stage**: drag animations, frames or modules onto the stage; **Screen** outlines the screen of the
+  project's console (or, to compare, another console's: MD / SNES / NES / GBA / GB; one choice for every project),
+  placed the way the SGDK demo shows scenes, so the outline shows what fits on screen.
 - **Layers and dopesheet** in one timeline, counted in frames: lower rows draw on top, drag a layer onto another to
   parent it, eye / lock per layer.
 - **Auto-Key**: moving, flipping or rotating an object sets a key at the playhead; with Auto-Key off, edits move the

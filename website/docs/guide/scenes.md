@@ -96,7 +96,7 @@ Choosing **Follows** keeps the object where it is at the playhead; giving it ano
 
 ## See it on screen
 
-**Screen** in the view bar outlines the screen of your project's console (the first entry, which follows **Console** above the tabs), or, under **Compare:**, another console's: Mega Drive, SNES, NES, Game Boy Advance or Game Boy. The scene's origin sits where the Mega Drive demo shows scenes, in the middle and three quarters down, so what is inside the outline is what fits on the console's screen. The **Budget** overlay counts the hardware sprites of everything in view at the playhead.
+**Screen** in the view bar outlines the screen of your project's console (the first entry, which follows **Console** above the tabs), or, under **Compare:**, another console's: Mega Drive, SNES, NES, Game Boy Advance or Game Boy. The editor keeps your choice for every project you open, so a **Compare:** outline stays until you choose another entry. It never changes the project: only **Console** does. The scene's origin sits where the Mega Drive demo shows scenes, in the middle and three quarters down, so what is inside the outline is what fits on the console's screen. The **Budget** overlay counts the hardware sprites of everything in view at the playhead.
 
 Press ++enter++ to play the scene. ++comma++ and ++period++ step one frame, ++shift+comma++ and ++shift+period++ jump between the selected layer's keys. **View ▸ Play at 50 Hz** plays it at the speed of a PAL console.
 

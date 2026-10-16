@@ -44,6 +44,10 @@ All of a project's tiles stay in the console's video memory. Every module, every
 
 Too many hardware sprites meet on those lines, and on the console some would disappear. [Stay within the console's limits](../guide/hardware-budget.md) has tips for bringing the number down.
 
+## The Timeline shows another console's screen
+
+**Screen** in the Timeline's view bar chooses the outline, for every project you open. Choose its first entry: the screen of the console your project is made for, which **Console** above the tabs sets. The outline never changes your project. Version 0.10 could open on a screen chosen in an earlier version, such as the Game Boy's, on every project; 0.10.1 follows the project's console instead. See [See it on screen](../guide/scenes.md#see-it-on-screen).
+
 ## Keys do nothing
 
 Shortcuts go to a canvas only while you are not typing in a text field. Click the canvas, then try again.
