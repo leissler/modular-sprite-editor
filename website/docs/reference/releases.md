@@ -2,6 +2,12 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.10.2, October 2026
+
+**The SNES exporter to download.** `export_snes` for Windows, macOS and Linux exports a project for the SNES from the command line, the way `export_sgdk` does for the Mega Drive: for programmers who export in a game's build, without opening the editor. The editor exports for both consoles itself, so you do not need either to make sprites. See [SNES (PVSnesLib)](programmers.md#snes-pvsneslib).
+
+Projects are saved in file format 8, as in 0.10.
+
 ## 0.10.1, October 2026
 
 **The SNES demo to download.** The release page now has `ModularSpriteEditor-snes-demo.zip`: a SNES ROM made from the Prince of Persia example, to open in a SNES emulator, with its PVSnesLib project to build again with your own export. On Windows it builds without make or MSYS2. See [SNES (PVSnesLib)](programmers.md#snes-pvsneslib).

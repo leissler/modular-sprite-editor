@@ -55,7 +55,7 @@ from ui.dpi import px
 
 APP_NAME = "Modular Sprite Editor"
 # The release this is: the About box shows it, and the Build And Release workflow stops if it releases another.
-APP_VERSION = "0.10.1"
+APP_VERSION = "0.10.2"
 TAB_NAMES = ["Modules", "Frames", "Animations", "Timeline", "Mappings", "Palettes"]
 CONFIG_WINDOW = "Window/Geometry"  # "x,y,width,height" when the editor last closed
 CONFIG_WINDOW_MAXIMIZED = "Window/Maximized"
