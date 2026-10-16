@@ -2,6 +2,14 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.11, October 2026
+
+**Every supported console is treated the same.** The Mega Drive's command-line exporter is now called `export_megadrive`, the way the SNES's is called `export_snes`; up to 0.10.2 it was `export_sgdk`, so scripts that call it need the new name. Both take the same options. See [Mega Drive (SGDK)](programmers.md#mega-drive-sgdk).
+
+**The Prince of Persia example moved** to `examples/pop/PoP_WW.json`, next to Sonic and the Adventurer, because it belongs to no one console. The examples download and the paths in this guide follow; copies you already have open as before. See [Get the example projects](../start/install.md#get-the-example-projects).
+
+Projects are saved in file format 8, as in 0.10.
+
 ## 0.10.2, October 2026
 
 **The SNES exporter to download.** `export_snes` for Windows, macOS and Linux exports a project for the SNES from the command line, the way `export_sgdk` does for the Mega Drive: for programmers who export in a game's build, without opening the editor. The editor exports for both consoles itself, so you do not need either to make sprites. See [SNES (PVSnesLib)](programmers.md#snes-pvsneslib).
