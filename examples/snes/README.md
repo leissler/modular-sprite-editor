@@ -116,6 +116,10 @@ From the command line (the same exporter; run from the repo root):
 python3 examples/snes/tools/export_snes.py --project-json examples/sgdk/PoP_WW.json --output-dir examples/snes/snes_demo
 ```
 
+The release page has it built for Windows, macOS and Linux, without Python: `export_snes` (`export_snes.exe`) takes the
+same options (`build_snes_exporter.spec`; the release workflow checks that it writes exactly what the script writes). The
+Windows kit has it with `export_to_snes.bat`, which exports a project dragged onto it into the demo and builds the ROM.
+
 `--mapping all` (the default) bakes one data set per mapping plus index `0` (no mapping), `--setup snes_8_32` picks
 other sprite sizes, and `--strict` makes the command fail (exit code 1) when Check Project finds errors.
 

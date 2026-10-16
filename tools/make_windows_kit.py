@@ -1,13 +1,13 @@
-"""Assemble the Windows kit: the editor, the SGDK exporter, the example projects, the SGDK demo with the part of SGDK
-it builds with and the SNES demo with the part of PVSnesLib's Windows release it builds with, plus the README and
-helper scripts from packaging/windows_kit.
+"""Assemble the Windows kit: the editor, the SGDK and SNES exporters, the example projects, the SGDK demo with the part
+of SGDK it builds with and the SNES demo with the part of PVSnesLib's Windows release it builds with, plus the README
+and helper scripts from packaging/windows_kit.
 
 Only git-tracked files go in (no build output), and from PVSnesLib (not in git) what the build needs. Unpacked, the kit
 has the repo's examples/ layout, so the exporters' defaults and examples/sgdk/README.md and examples/snes/README.md
 apply.
 
 Usage:
-    python3 tools/make_windows_kit.py EDITOR_EXE EXPORTER_EXE OUT_ZIP --pvsneslib DIR [--version 0.4]
+    python3 tools/make_windows_kit.py EDITOR_EXE EXPORTER_EXE OUT_ZIP --snes-exporter EXE --pvsneslib DIR [--version 0.4]
 
 DIR is PVSnesLib's Windows release unpacked (the folder with devkitsnes/ and pvsneslib/).
 """
@@ -89,6 +89,7 @@ def main() -> int:
     parser.add_argument("editor_exe", type=Path)
     parser.add_argument("exporter_exe", type=Path)
     parser.add_argument("out_zip", type=Path)
+    parser.add_argument("--snes-exporter", type=Path, required=True, help="export_snes.exe")
     parser.add_argument("--pvsneslib", type=Path, required=True, help="PVSnesLib's Windows release, unpacked")
     parser.add_argument("--version", default="")
     args = parser.parse_args()
@@ -99,6 +100,7 @@ def main() -> int:
     with zipfile.ZipFile(args.out_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as kit:
         kit.write(args.editor_exe, f"{KIT_DIR}/ModularSpriteEditor.exe")
         kit.write(args.exporter_exe, f"{KIT_DIR}/export_sgdk.exe")
+        kit.write(args.snes_exporter, f"{KIT_DIR}/export_snes.exe")
         for extra in sorted(PACKAGING.iterdir()):
             kit.writestr(f"{KIT_DIR}/{extra.name}", windows_text(extra, args.version))
         for path in files:
@@ -106,7 +108,7 @@ def main() -> int:
         for path, name in pvsneslib:
             kit.write(path, f"{KIT_DIR}/{name}")
     size = args.out_zip.stat().st_size
-    count = len(files) + len(pvsneslib) + 2 + len(list(PACKAGING.iterdir()))
+    count = len(files) + len(pvsneslib) + 3 + len(list(PACKAGING.iterdir()))
     print(f"{args.out_zip}: {count} files ({len(pvsneslib)} of PVSnesLib), {size / 1e6:.1f} MB")
     return 0
 

@@ -42,13 +42,15 @@ python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project fil
 ```
 
 Releases: `.github/workflows/build-and-release.yml` (manual, with a version; *publish* off = build and test only)
-builds and tests the editor and the SGDK exporter (`build_sgdk_exporter.spec`) on all three platforms; the release
-gets both, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: the example projects in the repo's
+builds and tests the editor and the SGDK and SNES exporters (`build_sgdk_exporter.spec`, `build_snes_exporter.spec`:
+each built exporter must write exactly what its Python script writes) on all three platforms; the release gets all
+three, plus `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`: the example projects in the repo's
 `examples/` layout, so the user guide's paths apply, with `packaging/examples/README.txt`) and
 `ModularSpriteEditor-snes-demo.zip` (`tools/make_snes_demo_zip.py`: the SNES demo ROM the SNES job built and checked,
 `packaging/snes_demo/README.txt` and the demo's PVSnesLib project in the same layout). It also assembles the Windows kit, a run artifact that is not released (`tools/make_windows_kit.py`:
-editor, `export_sgdk.exe`, examples, SGDK demo + vendored SGDK, the SNES demo + the part of PVSnesLib's Windows release
-it builds with (downloaded by the job, `--pvsneslib`), `packaging/windows_kit/`), and builds its ROMs on Windows with the
+editor, `export_sgdk.exe`, `export_snes.exe` (`--snes-exporter`), examples, SGDK demo + vendored SGDK, the SNES demo +
+the part of PVSnesLib's Windows release it builds with (downloaded by the job, `--pvsneslib`), `packaging/windows_kit/`:
+`export_to_sgdk.bat` / `build_sgdk_demo.bat`, `export_to_snes.bat` / `build_snes_demo.bat`), and builds its ROMs on Windows with the
 vendored SGDK and, through `build_snes_demo.bat`, `examples/snes/snes_demo/build_windows.ps1` (PVSnesLib's build steps
 in Windows PowerShell: no make or MSYS2). Its SNES job builds the SNES demo ROM on Linux with PVSnesLib 4.6.0 (run artifact
 `snes-demo`): the demo's data exported again must be the committed data (re-export and commit it after

@@ -12,7 +12,7 @@ Open the [latest release](https://github.com/leissler/modular-sprite-editor/rele
 | Mac with Apple silicon | `ModularSpriteEditor-macos.zip` |
 | Linux (64-bit, for example Ubuntu 22.04 or newer) | `ModularSpriteEditor-linux.tar.gz` |
 
-The `export_sgdk` downloads are for programmers who build Mega Drive games. You do not need them to make sprites.
+The `export_sgdk` and `export_snes` downloads are for programmers who build Mega Drive or SNES games: they export from the command line, for example in a game's build. You do not need them to make sprites, the editor exports for both consoles itself.
 
 `ModularSpriteEditor-snes-demo.zip` holds a SNES ROM made from the Prince of Persia example: open `modular_sprite_snes_demo.sfc` in a SNES emulator such as [Mesen](https://www.mesen.ca/) to see the export running on the console. It starts on the *Swordfight*. See [SNES (PVSnesLib)](../reference/programmers.md#snes-pvsneslib).
 

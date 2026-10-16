@@ -65,9 +65,15 @@ works from a path with spaces too.
 - build_snes_demo.bat builds the demo ROM from the data already exported from PoP_WW.json:
       examples\snes\snes_demo\modular_sprite_snes_demo.sfc
   Open it in the emulator.
-- To show another project: in the editor, File > Export > SNES (PVSnesLib)..., choose the folder
-  examples\snes\snes_demo and the sprite sizes (the list shows the tiles each pair needs: all of
-  them stay in the SNES's video memory, 512 at most), then run build_snes_demo.bat.
+- export_to_snes.bat exports a project into the demo and builds the ROM. Drag a project .json onto
+  it, or run for example
+      export_to_snes.bat examples\adventurer\adventurer.json
+  Without a project it exports examples\sgdk\PoP_WW.json. Save your edits in the editor first.
+  All of a project's sprite tiles stay in the SNES's video memory, 512 at most: Sonic needs 600,
+  so its export stops and says so.
+- Or export from the editor: File > Export > SNES (PVSnesLib)..., choose the folder
+  examples\snes\snes_demo and the sprite sizes (the list shows the tiles each pair needs), then
+  run build_snes_demo.bat.
 
 The demo starts on the Swordfight scene. Demo controls (pad 1):
   UP / DOWN        what to show: scenes, animations, frames, modules
@@ -91,5 +97,6 @@ examples\sgdk\README.md    how the export and the Mega Drive runtime work, the C
 examples\snes\README.md    the same for the SNES: the export, the runtime (the same C API) and its
                            limits; examples\snes\snes_demo\build_windows.ps1 builds it on Windows
 export_sgdk.exe --help     exporter options (for example --mapping to export a single mapping)
+export_snes.exe --help     the same for the SNES (--setup picks other sprite sizes, e.g. snes_8_32)
 
 Source code and issues: https://github.com/leissler/modular-sprite-editor

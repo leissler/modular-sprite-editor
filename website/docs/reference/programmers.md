@@ -61,11 +61,13 @@ The source code includes an exporter and a runtime for SNES games made with [PVS
 
 **File ▸ Export ▸ SNES (PVSnesLib)...** writes the data into the game's PVSnesLib project folder. Choose the folder, which mappings to include and the sprite sizes: the list shows how many of the 512 tiles each pair needs, so you can see which ones fit. The editor remembers your choices for the project, and the report afterwards shows what the game gets.
 
-The game's folder needs the runtime from the source code. The demo project in `examples/snes/snes_demo` has it: it starts on the *Swordfight* and shows every module, frame, animation and scene at 60 frames a second. The release page has it as `ModularSpriteEditor-snes-demo.zip`: the ROM, to open in a SNES emulator, and the project, to build again with your own export. It builds with PVSnesLib's `make` on macOS and Linux, and on Windows with `build_windows.ps1` in the project, which needs only PVSnesLib's Windows release, no MSYS2. The exporter also runs from the command line:
+The game's folder needs the runtime from the source code. The demo project in `examples/snes/snes_demo` has it: it starts on the *Swordfight* and shows every module, frame, animation and scene at 60 frames a second. The release page has it as `ModularSpriteEditor-snes-demo.zip`: the ROM, to open in a SNES emulator, and the project, to build again with your own export. It builds with PVSnesLib's `make` on macOS and Linux, and on Windows with `build_windows.ps1` in the project, which needs only PVSnesLib's Windows release, no MSYS2. The exporter also runs from the command line, `export_snes` from the release page (Windows, macOS and Linux) or, from the source code, `python3 examples/snes/tools/export_snes.py`:
 
 ```text
-python3 examples/snes/tools/export_snes.py --project-json my_project.json --output-dir path/to/snes_game
+export_snes --project-json my_project.json --output-dir path/to/snes_game
 ```
+
+`--mapping` exports a single mapping, `--setup snes_8_32` picks other sprite sizes and `--strict` fails when **Check Project** finds errors.
 
 The [SNES guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/snes/README.md) covers the runtime, its functions, its limits and how to build the demo.
 

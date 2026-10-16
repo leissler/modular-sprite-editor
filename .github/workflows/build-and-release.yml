@@ -1,12 +1,12 @@
 name: Build And Release
 
-# Builds the editor and the SGDK exporter for macOS, Windows and Linux and tests every build: unit tests, the
-# built editor drives every tab against both example projects (--smoke-test), the built exporter must write
-# exactly what the Python exporter writes. The release gets the editor and the exporter for each platform, the
+# Builds the editor and the SGDK and SNES exporters for macOS, Windows and Linux and tests every build: unit tests, the
+# built editor drives every tab against both example projects (--smoke-test), the built exporters must write
+# exactly what the Python exporters write. The release gets the editor and the exporters for each platform, the
 # example projects (ModularSpriteEditor-examples.zip, made by the Linux job) and the SNES demo
 # (ModularSpriteEditor-snes-demo.zip: the ROM and its PVSnesLib project, made by the SNES job).
 # On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
-# artifact): editor, exporter, examples, the SGDK demo built into ROMs with the bundled SGDK, and the SNES demo built
+# artifact): editor, exporters, examples, the SGDK demo built into ROMs with the bundled SGDK, and the SNES demo built
 # with the bundled PVSnesLib (its Windows tools, no make), which the snes-kit job plays next to the Linux ROM.
 # The SNES job builds the SNES demo ROM with PVSnesLib and checks the runtime in it in Mesen 2.
 # With "publish" off it only builds and tests. The version has to be APP_VERSION in app.py (the About box shows it).
@@ -115,6 +115,35 @@ jobs:
             Windows) python -m zipfile -c dist/release/export_sgdk-windows.zip dist/exporter/export_sgdk.exe ;;
           esac
 
+      - name: Build and test the SNES exporter
+        shell: bash
+        run: |
+          python -m PyInstaller --clean --noconfirm --distpath dist/exporter --workpath build/snes-exporter build_snes_exporter.spec
+          exe=dist/exporter/export_snes
+          if [ "$RUNNER_OS" = "Windows" ]; then exe=$exe.exe; fi
+          mkdir -p snes-exporter-test
+          for project in examples/sgdk/PoP_WW.json examples/adventurer/adventurer.json; do
+            name=$(basename "$project" .json)
+            "$exe" --project-json "$project" --output-dir "snes-exporter-test/exe/$name" --mapping all \
+              > "snes-exporter-test/$name-exe.txt"
+            python examples/snes/tools/export_snes.py --project-json "$project" \
+              --output-dir "snes-exporter-test/py/$name" --mapping all > "snes-exporter-test/$name-py.txt"
+            diff -r "snes-exporter-test/exe/$name" "snes-exporter-test/py/$name"
+            diff "snes-exporter-test/$name-exe.txt" "snes-exporter-test/$name-py.txt"
+          done
+          # Sonic needs 600 tiles, more than the SNES's 512: both stop with the same message and write nothing.
+          if "$exe" --project-json examples/sonic/sonic.json --output-dir snes-exporter-test/exe/sonic \
+              > snes-exporter-test/sonic-exe.txt; then exit 1; fi
+          if python examples/snes/tools/export_snes.py --project-json examples/sonic/sonic.json \
+              --output-dir snes-exporter-test/py/sonic > snes-exporter-test/sonic-py.txt; then exit 1; fi
+          diff snes-exporter-test/sonic-exe.txt snes-exporter-test/sonic-py.txt
+          test ! -e snes-exporter-test/exe/sonic
+          case "$RUNNER_OS" in
+            macOS) (cd dist/exporter && zip -q ../release/export_snes-macos.zip export_snes) ;;
+            Linux) tar -czf dist/release/export_snes-linux.tar.gz -C dist/exporter export_snes ;;
+            Windows) python -m zipfile -c dist/release/export_snes-windows.zip dist/exporter/export_snes.exe ;;
+          esac
+
       - name: Build and test macOS app
         if: runner.os == 'macOS'
         run: |
@@ -174,7 +203,8 @@ jobs:
           Compress-Archive -Path dist/windows/ModularSpriteEditor.exe -DestinationPath dist/release/ModularSpriteEditor-windows.zip
           python tools/make_windows_kit.py dist/windows/ModularSpriteEditor.exe dist/exporter/export_sgdk.exe `
             "dist/kit/ModularSpriteEditor-${{ github.event.inputs.version }}-windows-kit.zip" `
-            --pvsneslib snes-tools/pvsneslib --version "${{ github.event.inputs.version }}"
+            --snes-exporter dist/exporter/export_snes.exe --pvsneslib snes-tools/pvsneslib `
+            --version "${{ github.event.inputs.version }}"
 
       - name: Setup Java (SGDK's resource compiler)
         if: runner.os == 'Windows'
@@ -209,6 +239,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Copy-Item "$kit\examples\snes\snes_demo\modular_sprite_snes_demo.sfc" (Join-Path $results "rom-snes.sfc")
           Copy-Item "$kit\examples\snes\snes_demo\modular_sprite_snes_demo.sym" (Join-Path $results "rom-snes.sym")
+          # Then export the Adventurer into the SNES demo with export_snes.exe and build again.
+          cmd /c "$kit\export_to_snes.bat" "$kit\examples\adventurer\adventurer.json"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item "$kit\examples\snes\snes_demo\modular_sprite_snes_demo.sfc" (Join-Path $results "rom-snes-adventurer.sfc")
           Get-ChildItem $results
 
       - name: Upload release files

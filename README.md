@@ -17,8 +17,9 @@ reads Aseprite's JSON) and Aseprite files go both ways.
 
 ## Download
 
-The editor and the SGDK exporter (`export_sgdk`) for Windows, macOS and Linux are on the
-[Releases](https://github.com/leissler/modular-sprite-editor/releases) page, with the example projects in
+The editor and the command-line exporters for the Mega Drive (`export_sgdk`) and the SNES (`export_snes`) for Windows,
+macOS and Linux are on the [Releases](https://github.com/leissler/modular-sprite-editor/releases) page (the editor
+exports for both itself; the exporters are for build scripts), with the example projects in
 `ModularSpriteEditor-examples.zip` and the SNES demo in `ModularSpriteEditor-snes-demo.zip` (the ROM, for an
 emulator, and its PVSnesLib project). The builds are not signed: on Windows choose "More info › Run anyway", on
 macOS right-click › Open the first time.
@@ -184,7 +185,8 @@ macOS right-click › Open the first time.
 - **Demo ROM**: browse every module, frame, animation and scene with live profiling.
 
 ### SNES / PVSnesLib
-- **Export from the editor** (File ▸ Export ▸ SNES) or the command line (`examples/snes/tools/export_snes.py`):
+- **Export from the editor** (File ▸ Export ▸ SNES) or the command line (`export_snes` from the release page, or
+  `examples/snes/tools/export_snes.py`):
   the same data as for the Mega Drive in chunks of a ROM bank, with the C files the runtime reads, for one of the
   SNES's six pairs of sprite sizes (the dialog shows the tiles each needs; every tile stays in video memory).
 - **Runtime** (`examples/snes/snes_demo`): the Mega Drive runtime's API on PVSnesLib, its hot loops in 65816
@@ -239,21 +241,25 @@ build_windows.bat     # Windows
 ```
 
 Releases come from the **Build And Release** workflow (Actions ▸ Run workflow, with a version). It builds the editor and
-the SGDK exporter for all three platforms and tests every build: unit tests, the built editor drives every tab against
-the PoP_WW and Sonic examples (`--smoke-test PROJECT.json [LOG]`), and the built exporter must write exactly what the
-Python one writes. It publishes `ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`,
-`export_sgdk-*` and the example projects, `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`,
-`packaging/examples/`); with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first: the About box shows it,
-and the workflow stops if the two differ.
+the SGDK and SNES exporters (`build_sgdk_exporter.spec`, `build_snes_exporter.spec`) for all three platforms and tests
+every build: unit tests, the built editor drives every tab against the PoP_WW and Sonic examples
+(`--smoke-test PROJECT.json [LOG]`), and the built exporters must write exactly what the Python ones write. It publishes
+`ModularSpriteEditor-{macos,windows}.zip`, `ModularSpriteEditor-linux.tar.gz`, `export_sgdk-*`, `export_snes-*`, the
+example projects, `ModularSpriteEditor-examples.zip` (`tools/make_examples_zip.py`, `packaging/examples/`), and the SNES
+demo, `ModularSpriteEditor-snes-demo.zip` (the ROM and its PVSnesLib project, `tools/make_snes_demo_zip.py`,
+`packaging/snes_demo/`); with *publish* off it only builds and tests. Set `APP_VERSION` in `app.py` to the version first:
+the About box shows it, and the workflow stops if the two differ.
 
 The run also leaves a **Windows kit** (artifact `windows-kit`, not released) to hand to a developer: the editor,
-`export_sgdk.exe`, the example projects and the SGDK demo with the SGDK it builds with, plus `export_to_sgdk.bat` /
-`build_sgdk_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI unpacks it and builds the
-PoP_WW and Sonic ROMs with those scripts.
+`export_sgdk.exe` and `export_snes.exe`, the example projects, the SGDK demo with the SGDK it builds with and the SNES demo
+with the part of PVSnesLib's Windows release it builds with, plus `export_to_sgdk.bat` / `build_sgdk_demo.bat`,
+`export_to_snes.bat` / `build_snes_demo.bat` and a README (`tools/make_windows_kit.py`, `packaging/windows_kit/`). CI
+unpacks it and builds the PoP_WW and Sonic Mega Drive ROMs and the PoP_WW and Adventurer SNES ROMs with those scripts.
 
-A **SNES** job builds the SNES demo ROM with PVSnesLib 4.6.0 (artifact `snes-demo`, not released): the demo's data
-exported again must be the committed data, and `tools/check_snes_rom.py` plays the ROM in Mesen 2's headless test runner
-against the host build of the runtime. A release waits for it too.
+A **SNES** job builds the SNES demo ROM with PVSnesLib 4.6.0: the demo's data exported again must be the committed data,
+and `tools/check_snes_rom.py` plays the ROM in Mesen 2's headless test runner against the host build of the runtime.
+Then the **snes-kit** job plays the Windows kit's SNES ROM next to it with `tools/compare_snes_roms.py`. A release waits
+for both.
 
 ## Tests and tools
 

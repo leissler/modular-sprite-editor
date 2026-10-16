@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# The SGDK exporter as one console executable (export_sgdk / export_sgdk.exe), for the Windows kit.
+# The SGDK exporter as one console executable (export_sgdk / export_sgdk.exe), for the release and the Windows kit.
 # It finds examples/ next to itself (see REPO_ROOT in export_sgdk_example.py).
 
 a = Analysis(

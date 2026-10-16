@@ -65,7 +65,8 @@ class PackagingTest(unittest.TestCase):
         for name in ("examples/snes/README.md", "examples/snes/snes_demo/build_windows.ps1",
                      "examples/snes/snes_demo/src/modsprite_draw.asm", "examples/snes/snes_demo/res/ms_chunk_00.bin"):
             self.assertIn(name, files)
-        self.assertTrue((make_windows_kit.PACKAGING / "build_snes_demo.bat").exists())
+        for helper in ("build_snes_demo.bat", "export_to_snes.bat"):
+            self.assertTrue((make_windows_kit.PACKAGING / helper).exists(), helper)
 
     def test_the_demo_zip(self):
         with tempfile.TemporaryDirectory() as tmp:
