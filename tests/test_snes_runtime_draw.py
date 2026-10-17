@@ -3,7 +3,8 @@
 Exports the testbeds with the SNES exporter (examples/snes/tools/export_snes.py), compiles
 examples/snes/snes_demo/src/modsprite.c with the generated data file for the host (examples/snes/tools/snes_host.py:
 PVSnesLib replaced by a small stub, the OAM buffer, VRAM and CGRAM as arrays), loads the real data chunks, lets the runtime draw each frame into the OAM
-buffer (in the middle of the screen and across its edges), then decodes that buffer like the PPU does (the high table's
+buffer (in the middle of the screen and across its edges; as it is and mirrored each way, and each module), then
+decodes that buffer like the PPU does (the high table's
 X bit and size bit, the setup's two sprite sizes, 4 bpp planar tiles from the 16-tile-wide sprite tables, flips, lower
 entries in front) and compares the visible pixels with the editor's renderer as (palette entry, colour slot). Also
 draws the Swordfight scene (the guard keeps his own palette swap) and one animation twice with
@@ -40,6 +41,18 @@ def _editor_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, palet
                 palette_id = ctx.palette_entries[entry].palette_id
                 pixels[(x, y)] = (entry, ctx._nearest_palette_index((r, g, b), palette_id) + 1)
     return pixels
+
+
+def _mirrored(image, hx: int, hy: int, flip: int):
+    """A picture whose top left is at (hx, hy) mirrored around the origin (flip: bit 0 left-right, bit 1 top-bottom; a
+    pixel's x goes to -x - 1), and its new top left."""
+    from PIL import Image
+
+    if flip & 1:
+        image, hx = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT), -hx - image.width
+    if flip & 2:
+        image, hy = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM), -hy - image.height
+    return image, hx, hy
 
 
 def _export_and_build(project: Project, folder: Path, mappings: str = "all"):
@@ -79,6 +92,59 @@ class SNESRuntimeTest(unittest.TestCase):
                     self.assertEqual(shown, expected, f"{project.frames[frame_index].name} at {x},{y}")
                     checked += 1
                 self.assertEqual(checked, len(project.frames) * len(POSITIONS))
+
+    def test_every_frame_mirrored(self):
+        """ms_draw_frame_flipped draws each frame as the editor mirrors it around its origin, each way, in the middle
+        of the screen and across the edges."""
+        from ui.frame_render import FrameRenderer
+
+        renderer = FrameRenderer()
+        for path in PROJECTS:
+            project = Project.from_json(str(path))
+            with self.subTest(project=path.name), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                ctx, exe = _export_and_build(project, folder, "none")
+                draws = [(f, flip, x, y) for f in range(len(project.frames)) for flip in (1, 2, 3) for x, y in POSITIONS]
+                head, lines = snes_host.run(exe, folder, [f"flipped {f} 0 {flip} {x} {y}" for f, flip, x, y in draws])
+                vram = snes_host.vram_bytes(head)
+                self.assertEqual(len(lines), len(draws))
+                pictures = {}
+                for (f, flip, x, y), line in zip(draws, lines):
+                    draw = snes_host.parse_draw(line)
+                    self.assertEqual((draw["what"], draw["dropped"]), ("flipped", 0))
+                    if f not in pictures:
+                        image, hx, hy = renderer.render(project, project.frames[f], None)
+                        pictures[f] = (image, int(hx), int(hy))
+                    image, hx, hy = _mirrored(*pictures[f], flip)
+                    shown = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
+                    self.assertEqual(shown, _editor_pixels(ctx, image, hx, hy, x, y),
+                                     f"{path.name}: '{project.frames[f].name}' mirrored {flip} at {x},{y}")
+
+    def test_every_module_as_it_is_and_mirrored(self):
+        """ms_draw_module_flipped draws each module with its pivot where it is drawn, as it is (flip 0: ms_draw_module)
+        and mirrored around that point each way, in the middle of the screen and across the top-left edge."""
+        from ui.frame_render import FrameRenderer
+
+        renderer = FrameRenderer()
+        for path in PROJECTS:
+            project = Project.from_json(str(path))
+            with self.subTest(project=path.name), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                ctx, exe = _export_and_build(project, folder, "none")
+                draws = [(m, flip, x, y) for m in range(len(project.modules)) for flip in range(4)
+                         for x, y in POSITIONS[:2]]
+                head, lines = snes_host.run(exe, folder, [f"module {m} 0 {flip} {x} {y}" for m, flip, x, y in draws])
+                vram = snes_host.vram_bytes(head)
+                self.assertEqual(len(lines), len(draws))
+                for (m, flip, x, y), line in zip(draws, lines):
+                    module = project.modules[m]
+                    draw = snes_host.parse_draw(line)
+                    self.assertEqual((draw["what"], draw["dropped"]), ("module", 0))
+                    image, hx, hy = _mirrored(renderer.module(project, module), -int(module.pivot[0]),
+                                              -int(module.pivot[1]), flip)
+                    shown = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
+                    self.assertEqual(shown, _editor_pixels(ctx, image, hx, hy, x, y),
+                                     f"{path.name}: module '{module.name}' mirrored {flip} at {x},{y}")
 
     def test_the_swordfight_and_a_recoloured_guard(self):
         """The scene draws its objects with their own mapping and swap; ms_draw_anim_player_as recolours one draw and

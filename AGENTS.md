@@ -482,8 +482,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   library call), the render frame's 22 are multiplied in shifts (asserted); when a record changes, update the struct
   in `header_text`, the C reference and `modsprite_draw.asm` (the size list in the host test follows `RECORDS`), and
   bump `DATA_VERSION` (now 2; `STREAM_RECORDS` and `STREAMED_DATA_VERSION` the same way). The hot loops are 65816
-  assembly (`modsprite_draw.asm`: `ms_put_render_frame`, `ms_add_hw_sprite`, `ms_finish_oam`, `ms_send_uploads`; tcc's
-  direct page has r0-r5, r9, r10, f2 and f3 only) with C versions under `MS_PUT_FRAME_C`, which
+  assembly (`modsprite_draw.asm`: `ms_put_render_frame`, `ms_put_render_frame_flipped` (mirrored draws: its sprites
+  read through the data bank, which leaves the pointer registers to the mirroring), `ms_add_hw_sprite`, `ms_finish_oam`,
+  `ms_send_uploads`; tcc's direct page has r0-r5, r9, r10, f2 and f3 only) with C versions under `MS_PUT_FRAME_C`, which
   `tests/test_snes_runtime_draw.py` compiles for the host (`tools/snes_host.py`) and compares with the editor; `tests/test_snes_runtime_player.py` plays
   the Mega Drive player test's cases and every PoP animation against `playback.Player` video frame by video frame and
   checks every frame's and step's hitboxes and points (the SNES player is the Mega Drive's C: keep both in step);

@@ -9,6 +9,13 @@ slot of its own (after the default one) and adds to each draw's line the tiles i
 load lists it queued and, when it uploaded, video memory from tile 0 to the second slot's end (``parse_draw``):
 
     frame INDEX MAPPING X Y                  ms_draw_frame with that mapping
+    flipped INDEX MAPPING FLIP X Y           ms_draw_frame_flipped with that mapping
+    module INDEX MAPPING FLIP X Y            ms_draw_module_flipped (FLIP 0: drawn as ms_draw_module draws it)
+    crowd INDEX MAPPING COUNT X Y DX         a frame drawn COUNT times in one sprite table, DX apart, the flips 0 to 3
+                                             in turn (past the 128 sprites: the limit, sprites dropped)
+    lists MAPPING                            each frame's and each module's load list and its tiles
+                                             ("list:tiles,..." for the frames, then for the modules, "-" for none),
+                                             then the ones out of range ("frame:module:tiles") (no OAM)
     scene INDEX MAPPING TICKS X Y            a scene player ticked TICKS times
     versus ANIM MAPPING SWAP TICKS X Y X2 Y2 an animation drawn as it is, then with ms_draw_anim_player_as
     sprite X Y TILE ATTRIBUTE LARGE          a game's own sprite (ms_add_hw_sprite)
@@ -176,6 +183,43 @@ int main(int argc, char **argv)
             ms_draw_frame(index, x, y);
             ms_end_frame();
             dump("frame");
+        }
+        else if (sscanf(line, "flipped %u %u %u %d %d", &index, &mapping, &swap, &x, &y) == 5)
+        {
+            ms_set_mapping(mapping);
+            ms_begin_frame();
+            ms_draw_frame_flipped(index, x, y, (u8)swap);
+            ms_end_frame();
+            dump("flipped");
+        }
+        else if (sscanf(line, "crowd %u %u %u %d %d %d", &index, &mapping, &ticks, &x, &y, &x2) == 6)
+        {
+            ms_set_mapping(mapping);
+            ms_begin_frame();
+            for (t = 0; t < ticks; t++)
+                ms_draw_frame_flipped(index, x + (int)t * x2, y, (u8)(t & 3));
+            ms_end_frame();
+            dump("crowd");
+        }
+        else if (sscanf(line, "module %u %u %u %d %d", &index, &mapping, &swap, &x, &y) == 5)
+        {
+            ms_set_mapping(mapping);
+            ms_begin_frame();
+            ms_draw_module_flipped(index, x, y, (u8)swap);
+            ms_end_frame();
+            dump("module");
+        }
+        else if (sscanf(line, "lists %u", &mapping) == 1)
+        {
+            ms_set_mapping(mapping);
+            printf("lists %s", MS_FRAME_COUNT ? "" : "-");
+            for (t = 0; t < MS_FRAME_COUNT; t++)
+                printf("%s%u:%u", t ? "," : "", ms_frame_load_list(t), ms_load_list_tiles(ms_frame_load_list(t)));
+            printf(" %s", MS_MODULE_COUNT ? "" : "-");
+            for (t = 0; t < MS_MODULE_COUNT; t++)
+                printf("%s%u:%u", t ? "," : "", ms_module_load_list(t), ms_load_list_tiles(ms_module_load_list(t)));
+            printf(" %u:%u:%u\n", ms_frame_load_list(MS_FRAME_COUNT), ms_module_load_list(MS_MODULE_COUNT),
+                   ms_load_list_tiles(0xFFFF));
         }
         else if (sscanf(line, "scene %u %u %u %d %d", &index, &mapping, &ticks, &x, &y) == 5)
         {

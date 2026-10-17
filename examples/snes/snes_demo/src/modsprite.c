@@ -165,6 +165,50 @@ void ms_put_render_frame(u16 render_index, s16 ox, s16 oy)
     ms_frame_profile.sprites_dropped = ms_dropped;
 }
 
+/* ms_put_render_frame mirrored around (ox, oy) (flip: bit 0 left-right, bit 1 top-bottom; 0 as it is), as a mirrored
+   animation step draws its frame: each sprite at its mirror image (on a mirrored axis -x - size), its flip bits
+   toggled, in the same order. modsprite_draw.asm on the SNES, with the fast loop when the mirrored box lies on the
+   screen. */
+void ms_put_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u16 flip)
+{
+    const MS_RenderFrame *frame = ms_render_frame(render_index);
+    const u8 *runs;
+    u8 flips = (u8)(((flip & 1) ? 0x40 : 0) | ((flip & 2) ? 0x80 : 0));
+    u16 r, k, at = 0;
+
+    if (!(flip & 3))
+    {
+        ms_put_render_frame(render_index, ox, oy);
+        return;
+    }
+    ms_frame_profile.render_calls++;
+    ms_frame_profile.parts_submitted += frame->part_count;
+    if (!frame->run_count)
+        return;
+    runs = MS_FAR(frame->sprites_chunk, frame->sprites_offset);
+    for (r = 0; r < frame->run_count; r++)
+    {
+        const MS_Run *run = (const MS_Run *)(runs + at);
+        u8 bits = (u8)(MS_PRIORITY | ms_swap_bits[ms_swap_bits_at + run->palette]);
+        u16 count = run->count;
+
+        at += sizeof(MS_Run);
+        for (k = 0; k < count; k++)
+        {
+            const MS_Sprite *sprite = (const MS_Sprite *)(runs + at);
+            s16 size = (s16)(sprite->size ? ms_large_size : ms_small_size);
+            s16 x = (flip & 1) ? -sprite->x - size : sprite->x;
+            s16 y = (flip & 2) ? -sprite->y - size : sprite->y;
+
+            ms_push_sprite(ox + x, oy + y, (u16)((sprite->tile | ((u16)(sprite->attribute & 1) << 8)) + ms_slot_base),
+                           (u8)(((sprite->attribute & 0xC0) ^ flips) | bits), sprite->size);
+            at += sizeof(MS_Sprite);
+        }
+    }
+    ms_frame_profile.hw_sprites = ms_hw_count;
+    ms_frame_profile.sprites_dropped = ms_dropped;
+}
+
 /* The end of a frame: the entries count .. shown-1 (drawn last frame, not now) go below the screen, and the high
    table gets each drawn sprite's two bits, its bytes after the last group of four drawn sprites 0 up to the last
    frame's (the bytes after those are 0 already). modsprite_draw.asm on the SNES. */
@@ -233,6 +277,7 @@ u16 ms_send_uploads(const MS_LoadList *lists)
 #else
 /* modsprite_draw.asm (ms_add_hw_sprite too) */
 void ms_put_render_frame(u16 render_index, s16 ox, s16 oy);
+void ms_put_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u16 flip);
 void ms_finish_oam(u8 *high_table, u16 count, u16 shown);
 #ifdef MS_STREAMED
 u16 ms_send_uploads(const MS_LoadList *lists);
@@ -322,6 +367,23 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
     ms_slot_base = g_slot->tile_index;
 #endif
     ms_put_render_frame(render_index, ox, oy);
+}
+
+/* A render frame mirrored around the point it is drawn at (flip: bit 0 left-right, bit 1 top-bottom), as a mirrored
+   animation step or nested frame part is: each hardware sprite at its mirror image, its flip bits toggled (flip 0:
+   ms_put_render_frame_flipped draws it as ms_draw_render_frame does). The SNES build's fast loop takes the mirrored
+   box (on a mirrored axis from -max to -min). */
+static void ms_draw_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u16 flip)
+{
+    if (render_index >= MS_RENDER_FRAME_COUNT)
+        return;
+#ifdef MS_STREAMED
+    render_index = ms_slot_render(render_index);
+    if (render_index == MS_NOTHING_SHOWN)
+        return;
+    ms_slot_base = g_slot->tile_index;
+#endif
+    ms_put_render_frame_flipped(render_index, ox, oy, flip);
 }
 
 static void ms_anim_apply_step(MS_AnimPlayer *player, u16 step_index)
@@ -750,6 +812,66 @@ void ms_draw_frame(u16 frame_index, s16 x, s16 y)
     ms_draw_render_frame(ms_frame_render_frames[ms_mapping_frame_base() + frame_index], x, y);
 }
 
+static u16 ms_module_render_index(u16 module_index)
+{
+    if (module_index >= MS_MODULE_COUNT)
+        return 0xFFFFu;
+    return ms_module_render_frames[ms_mapping_module_base() + module_index];
+}
+
+static u16 ms_frame_render_index(u16 frame_index)
+{
+    if (frame_index >= MS_FRAME_COUNT)
+        return 0xFFFFu;
+    return ms_frame_render_frames[ms_mapping_frame_base() + frame_index];
+}
+
+void ms_draw_module_flipped(u16 module_index, s16 x, s16 y, u8 flip)
+{
+    if (module_index >= MS_MODULE_COUNT)
+        return;
+    ms_draw_render_frame_flipped(ms_module_render_frames[ms_mapping_module_base() + module_index], x, y, flip);
+}
+
+void ms_draw_frame_flipped(u16 frame_index, s16 x, s16 y, u8 flip)
+{
+    if (frame_index >= MS_FRAME_COUNT)
+        return;
+    ms_draw_render_frame_flipped(ms_frame_render_frames[ms_mapping_frame_base() + frame_index], x, y, flip);
+}
+
+static u16 ms_render_load_list(u16 render_index)
+{
+#ifdef MS_STREAMED
+    if (render_index < MS_RENDER_FRAME_COUNT)
+        return ms_render_frame_loads[render_index];  /* MS_NO_LIST (MS_NOTHING_LOADED) when it shows nothing */
+#else
+    (void)render_index;
+#endif
+    return MS_NOTHING_LOADED;
+}
+
+u16 ms_frame_load_list(u16 frame_index)
+{
+    return ms_render_load_list(ms_frame_render_index(frame_index));
+}
+
+u16 ms_module_load_list(u16 module_index)
+{
+    return ms_render_load_list(ms_module_render_index(module_index));
+}
+
+u16 ms_load_list_tiles(u16 load_list)
+{
+#ifdef MS_STREAMED
+    if (load_list < MS_LOAD_LIST_COUNT)
+        return ms_load_lists[load_list].tile_count;
+#else
+    (void)load_list;
+#endif
+    return 0;
+}
+
 void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index)
 {
     const MS_Animation *anim;
@@ -1053,13 +1175,6 @@ static u16 ms_render_points(u16 render_index, const MS_Point **out)
     if (out && rf->point_count)
         *out = (const MS_Point *)MS_FAR(rf->points_chunk, rf->points_offset);
     return rf->point_count;
-}
-
-static u16 ms_frame_render_index(u16 frame_index)
-{
-    if (frame_index >= MS_FRAME_COUNT)
-        return 0xFFFFu;
-    return ms_frame_render_frames[ms_mapping_frame_base() + frame_index];
 }
 
 u16 ms_frame_hitboxes(u16 frame_index, const MS_Hitbox **out)

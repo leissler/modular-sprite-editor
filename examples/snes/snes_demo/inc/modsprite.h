@@ -123,6 +123,17 @@ void ms_palette_tick(void);
 void ms_draw_module(u16 module_index, s16 x, s16 y);
 void ms_draw_frame(u16 frame_index, s16 x, s16 y);
 
+/* Mirrored (flip: bit 0 left-right, bit 1 top-bottom) around the point drawn at (a frame's origin, a module's pivot),
+   like a mirrored animation step: a character facing either way needs its frames stored once. */
+void ms_draw_module_flipped(u16 module_index, s16 x, s16 y, u8 flip);
+void ms_draw_frame_flipped(u16 frame_index, s16 x, s16 y, u8 flip);
+/* For a game that keeps its own slots (streamed exports): the load list a frame or module draws with under the active
+   mapping (MS_NOTHING_LOADED if none, and in resident exports), and the tiles a load list takes in a slot. Actors that
+   show the same frame can share one slot that holds it. */
+u16 ms_frame_load_list(u16 frame_index);
+u16 ms_module_load_list(u16 module_index);
+u16 ms_load_list_tiles(u16 load_list);
+
 void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index);
 void ms_anim_player_tick(MS_AnimPlayer *player);
 void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y);

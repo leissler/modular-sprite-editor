@@ -1,8 +1,8 @@
-; The SNES runtime's hot loops in 65816 assembly: a render frame's sprites into the OAM buffer, a game's own sprite, the
-; end of a frame (hiding what is not drawn any more, packing the high table) and a streamed export's uploads into its
-; slots. Exactly ms_put_render_frame, ms_add_hw_sprite, ms_finish_oam and ms_send_uploads in modsprite.c (the C versions
-; the host tests run, which tools/check_snes_rom.py compares with these in an emulator); 816-tcc's code for them was
-; several to ten times slower.
+; The SNES runtime's hot loops in 65816 assembly: a render frame's sprites into the OAM buffer (as it is or mirrored), a
+; game's own sprite, the end of a frame (hiding what is not drawn any more, packing the high table) and a streamed
+; export's uploads into its slots. Exactly ms_put_render_frame, ms_put_render_frame_flipped, ms_add_hw_sprite,
+; ms_finish_oam and ms_send_uploads in modsprite.c (the C versions the host tests run, which tools/check_snes_rom.py
+; compares with these in an emulator); 816-tcc's code for them was several to ten times slower.
 ;
 ; Calling convention (816-tcc): arguments on the stack, 16 bits each (a u8 one byte), a pointer as its address then
 ; its bank (after jsl's 3 bytes the first argument is at 4,s); 16-bit A, X and Y; direct page 0 with tcc's scratch registers
@@ -294,6 +294,411 @@ ms_pr_next_run:
     jmp ms_pr_run
 
 ms_pr_done:
+    txa
+    lsr a
+    lsr a
+    sta.l ms_hw_count
+    sta.l ms_frame_profile+4    ; hw_sprites
+    lda.l ms_dropped
+    sta.l ms_frame_profile+6    ; sprites_dropped
+    rtl
+
+; void ms_put_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u16 flip)
+;   ms_put_render_frame mirrored around (ox, oy), flip bit 0 left-right, bit 1 top-bottom (neither: ms_put_render_frame
+;   draws it): each sprite goes to its mirror image (on a mirrored axis -x - size, its own size), its flip bits toggled,
+;   in the same order; the fast loop's test takes the mirrored box (on a mirrored axis from -max to -min). A sprite's
+;   place on the screen is its size's base plus its x XOR the axis' mask: ox + x, or mirrored (ox - size + 1) + ~x; y
+;   alike. The sprites are read through the data bank (their chunk's), which leaves the registers ms_put_render_frame's
+;   pointers take to the mirroring. The caller checked render_index.
+ms_put_render_frame_flipped:
+    lda 10,s
+    and.w #$0003
+    bne ms_pf_mirrored
+    jmp ms_put_render_frame     ; as it is (its arguments are where it takes them)
+ms_pf_mirrored:
+    lda 4,s
+    xba
+    and.w #$00FC                ; (index >> 10) * 4: the page's pointer
+    tax
+    lda.l ms_rf_pages,x
+    sta.b tcc__r10
+    lda.l ms_rf_pages+2,x
+    sta.b tcc__r10h
+    lda 4,s
+    and.w #$03FF
+    asl a
+    sta.b tcc__f2               ; 2i
+    asl a
+    sta.b tcc__f2h              ; 4i
+    asl a
+    asl a                       ; 16i
+    clc
+    adc.b tcc__f2
+    clc
+    adc.b tcc__f2h              ; 22i
+    clc
+    adc.b tcc__r10
+    sta.b tcc__r10              ; the record
+    lda.l ms_frame_profile      ; the profile: one more render call,
+    inc a
+    sta.l ms_frame_profile
+    ldy.w #12
+    lda [tcc__r10],y            ; the sprite count (low byte), the part count (high byte)
+    sta.b tcc__f3
+    xba
+    and.w #$00FF
+    clc
+    adc.l ms_frame_profile+2    ; its parts
+    sta.l ms_frame_profile+2
+    ldy.w #2
+    lda [tcc__r10],y            ; the sprites' chunk (low byte), the run count (high byte)
+    sta.b tcc__f3h
+    xba
+    and.w #$00FF
+    bne ms_pf_has_runs
+    rtl
+ms_pf_has_runs:
+    sta.b tcc__r0               ; runs left
+    ; the sprites: ms_chunks[chunk] + offset
+    lda.b tcc__f3h
+    and.w #$00FF
+    asl a
+    asl a
+    tax
+    lda [tcc__r10]              ; the offset
+    clc
+    adc.l ms_chunks,x
+    sta.b tcc__r9               ; their address,
+    lda.l ms_chunks+2,x
+    sta.b tcc__r9h              ; their bank
+    ; the mirroring: x bases for small and large sprites, the x mask, the tile word's flip bits; y alike
+    lda 10,s
+    lsr a
+    bcs ms_pf_mirror_x
+    lda 6,s
+    sta.b tcc__r2               ; ox, whatever the size
+    sta.b tcc__r2h
+    stz.b tcc__r4
+    stz.b tcc__r5
+    bra ms_pf_y
+ms_pf_mirror_x:
+    lda 6,s
+    sec
+    sbc.l ms_small_size
+    inc a
+    sta.b tcc__r2               ; ox - small + 1
+    lda 6,s
+    sec
+    sbc.l ms_large_size
+    inc a
+    sta.b tcc__r2h              ; ox - large + 1
+    lda.w #$FFFF
+    sta.b tcc__r4
+    lda.w #$4000                ; H
+    sta.b tcc__r5
+ms_pf_y:
+    lda 10,s
+    and.w #$0002
+    bne ms_pf_mirror_y
+    lda 8,s
+    sta.b tcc__r3               ; oy, whatever the size
+    sta.b tcc__r3h
+    stz.b tcc__r4h
+    bra ms_pf_fast_test
+ms_pf_mirror_y:
+    lda 8,s
+    sec
+    sbc.l ms_small_size
+    inc a
+    sta.b tcc__r3               ; oy - small + 1
+    lda 8,s
+    sec
+    sbc.l ms_large_size
+    inc a
+    sta.b tcc__r3h              ; oy - large + 1
+    lda.w #$FFFF
+    sta.b tcc__r4h
+    lda.b tcc__r5
+    ora.w #$8000                ; V
+    sta.b tcc__r5
+ms_pf_fast_test:
+    ; fast? (as ms_put_render_frame decides it, with the mirrored box: left, right, top, bottom)
+    stz.b tcc__r1h
+    lda.b tcc__f3
+    and.w #$00FF
+    clc
+    adc.l ms_hw_count
+    cmp.l ms_sprite_limit
+    beq ms_pf_room
+    bcc ms_pf_room
+    jmp ms_pf_go                ; not all of them fit
+ms_pf_room:
+    lda 10,s
+    lsr a
+    bcs ms_pf_box_x_mirrored
+    ldy.w #14
+    lda [tcc__r10],y            ; min x
+    clc
+    adc 6,s
+    sta.b tcc__f2
+    ldy.w #18
+    lda [tcc__r10],y            ; max x
+    clc
+    adc 6,s
+    sta.b tcc__f2h
+    bra ms_pf_box_y
+ms_pf_box_x_mirrored:
+    lda 6,s
+    ldy.w #18
+    sec
+    sbc [tcc__r10],y            ; ox - max x
+    sta.b tcc__f2
+    lda 6,s
+    ldy.w #14
+    sec
+    sbc [tcc__r10],y            ; ox - min x
+    sta.b tcc__f2h
+ms_pf_box_y:
+    lda 10,s
+    and.w #$0002
+    bne ms_pf_box_y_mirrored
+    ldy.w #16
+    lda [tcc__r10],y            ; min y
+    clc
+    adc 8,s
+    sta.b tcc__f3
+    ldy.w #20
+    lda [tcc__r10],y            ; max y
+    clc
+    adc 8,s
+    sta.b tcc__f3h
+    bra ms_pf_box
+ms_pf_box_y_mirrored:
+    lda 8,s
+    ldy.w #20
+    sec
+    sbc [tcc__r10],y            ; oy - max y
+    sta.b tcc__f3
+    lda 8,s
+    ldy.w #16
+    sec
+    sbc [tcc__r10],y            ; oy - min y
+    sta.b tcc__f3h
+ms_pf_box:
+    lda.b tcc__f2               ; left >= 0
+    bmi ms_pf_go
+    lda.b tcc__f2h              ; right - small < 256
+    sec
+    sbc.l ms_small_size
+    bmi ms_pf_x_in
+    cmp.w #256
+    bcs ms_pf_go
+ms_pf_x_in:
+    lda.b tcc__f3               ; top > -small
+    clc
+    adc.l ms_small_size
+    dec a
+    bmi ms_pf_go
+    lda.b tcc__f3h              ; bottom - small < 224
+    sec
+    sbc.l ms_small_size
+    bmi ms_pf_y_in
+    cmp.w #224
+    bcs ms_pf_go
+ms_pf_y_in:
+    inc.b tcc__r1h              ; fast
+ms_pf_go:
+    lda.l ms_hw_count
+    asl a
+    asl a
+    tax                         ; X: the next sprite's OAM offset, all the way through
+    ldy.b tcc__r9               ; Y: the next sprite, in the data bank
+    sep #$20
+.accu 8
+    phb
+    lda.b tcc__r9h
+    pha
+    plb                         ; the data bank: the sprites' chunk's
+    rep #$20
+.accu 16
+
+ms_pf_run:
+    lda.w $0000,y               ; the palette entry (low byte), the sprite count (high byte)
+    iny
+    iny
+    phx
+    pha
+    and.w #$00FF
+    clc
+    adc.l ms_swap_bits_at       ; under the active palette swap (256 bytes a swap)
+    tax
+    lda.l ms_swap_bits,x        ; the entry's palette bits
+    xba
+    and.w #$FF00
+    ora.w #$2000                ; and priority 2: the attribute's bits, added to each sprite's tile word
+    clc
+    adc.l ms_slot_base          ; with the slot's first tile (the sum stays below 512: no carry into the palette)
+    sta.b tcc__r1
+    pla
+    xba
+    and.w #$00FF
+    asl a
+    asl a
+    asl a
+    sty.b tcc__r0h
+    clc
+    adc.b tcc__r0h
+    sta.b tcc__r0h              ; the run's end
+    plx
+    lda.b tcc__r1h
+    bne ms_pf_fast
+    jmp ms_pf_careful
+
+ms_pf_fast:
+    lda.w $0004,y               ; the tile, the attribute (flips, tile bit 8)
+    eor.b tcc__r5               ; the flips toggled
+    clc
+    adc.b tcc__r1
+    sta.l oamMemory+2,x
+    sep #$20
+.accu 8
+    lda.w $0006,y               ; the size bit (X bit 8 is 0)
+    sta.l ms_high_bits,x
+    bne ms_pf_fast_large
+    lda.w $0000,y               ; x: its low byte is enough (0 <= x < 256)
+    eor.b tcc__r4
+    clc
+    adc.b tcc__r2
+    sta.l oamMemory,x
+    lda.w $0002,y               ; y: its low byte (above the top it wraps from line 255, as the hardware draws it)
+    eor.b tcc__r4h
+    clc
+    adc.b tcc__r3
+    sta.l oamMemory+1,x
+    bra ms_pf_fast_placed
+ms_pf_fast_large:
+    lda.w $0000,y
+    eor.b tcc__r4
+    clc
+    adc.b tcc__r2h
+    sta.l oamMemory,x
+    lda.w $0002,y
+    eor.b tcc__r4h
+    clc
+    adc.b tcc__r3h
+    sta.l oamMemory+1,x
+ms_pf_fast_placed:
+    rep #$20
+.accu 16
+    tya
+    clc
+    adc.w #8
+    tay
+    inx
+    inx
+    inx
+    inx
+    cpy.b tcc__r0h
+    bne ms_pf_fast
+    jmp ms_pf_next_run
+
+ms_pf_careful:
+    lda.w $0006,y               ; the size bit: 0 small, 2 large
+    and.w #$0002
+    sta.b tcc__r5h
+    bne ms_pf_large
+    lda.w $0000,y               ; x
+    eor.b tcc__r4
+    clc
+    adc.b tcc__r2
+    sta.b tcc__r9
+    lda.w $0002,y               ; y
+    eor.b tcc__r4h
+    clc
+    adc.b tcc__r3
+    sta.b tcc__r9h
+    lda.l ms_small_size
+    bra ms_pf_sized
+ms_pf_large:
+    lda.w $0000,y
+    eor.b tcc__r4
+    clc
+    adc.b tcc__r2h
+    sta.b tcc__r9
+    lda.w $0002,y
+    eor.b tcc__r4h
+    clc
+    adc.b tcc__r3h
+    sta.b tcc__r9h
+    lda.l ms_large_size
+ms_pf_sized:
+    dec a
+    sta.b tcc__r10              ; size - 1
+    ; on the screen: -size < x < 256 and -size < y < 224, as ms_put_render_frame tests it
+    clc
+    adc.w #256
+    sta.b tcc__r10h
+    lda.b tcc__r10
+    clc
+    adc.b tcc__r9
+    cmp.b tcc__r10h
+    bcs ms_pf_off
+    lda.b tcc__r10
+    clc
+    adc.w #224
+    sta.b tcc__r10h
+    lda.b tcc__r10
+    clc
+    adc.b tcc__r9h
+    cmp.b tcc__r10h
+    bcs ms_pf_off
+    txa
+    lsr a
+    lsr a
+    cmp.l ms_sprite_limit
+    bcs ms_pf_dropped
+    lda.w $0004,y               ; the tile, the attribute
+    eor.b tcc__r5               ; the flips toggled
+    clc
+    adc.b tcc__r1
+    sta.l oamMemory+2,x
+    lda.b tcc__r9
+    sta.l oamMemory,x           ; x (its high byte lands on y, written next)
+    sep #$20
+.accu 8
+    lda.b tcc__r9h
+    sta.l oamMemory+1,x         ; y
+    lda.b tcc__r9+1             ; X bit 8
+    and #$01
+    ora.b tcc__r5h              ; and the size bit
+    sta.l ms_high_bits,x
+    rep #$20
+.accu 16
+    inx
+    inx
+    inx
+    inx
+ms_pf_off:
+    tya
+    clc
+    adc.w #8
+    tay
+    cpy.b tcc__r0h
+    beq ms_pf_next_run
+    jmp ms_pf_careful
+ms_pf_dropped:
+    lda.l ms_dropped
+    inc a
+    sta.l ms_dropped
+    bra ms_pf_off
+
+ms_pf_next_run:
+    dec.b tcc__r0
+    beq ms_pf_done
+    jmp ms_pf_run
+
+ms_pf_done:
+    plb
     txa
     lsr a
     lsr a

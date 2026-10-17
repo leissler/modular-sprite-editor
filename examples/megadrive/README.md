@@ -81,6 +81,12 @@ ms_set_slot(NULL);                                            /* the default slo
 A scene streams through one slot, a sample's tiles at a time, so a sample that only moves its objects uploads nothing.
 In a resident export the slot functions do nothing (`ms_slot_tiles()` is 0), so the same game code builds with either.
 
+A game with many actors can keep a cache of slots of its own instead of one per actor: `ms_frame_load_list(frame)` and
+`ms_module_load_list(module)` name the load list a frame or module draws with (under the current mapping;
+`MS_NOTHING_LOADED` in a resident export), `ms_load_list_tiles(list)` how many tiles it takes. Actors showing the same
+frame then share one slot, loaded once (the native Prince of Persia: Warrior Within keeps 496 tiles of slots for every
+gameplay bank).
+
 ### Performance
 
 Measured in BlastEm 0.6.2 (`PoP_WW.json`, every animation for one cycle and every frame, scanline-accurate
@@ -218,7 +224,12 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
   lines; `ms_palette_tick()` once per video frame turns the colour cycles of the loaded entries
   (`MS_PALETTE_SWAP_COUNT`, `ms_palette_swap_name()`, `ms_find_palette_swap_index_by_id()`)
 - Per video frame: `ms_begin_frame()`, any number of draw calls, `ms_end_frame()`, then `SYS_doVBlankProcess()`
-- `ms_draw_module(index, x, y)`, `ms_draw_frame(index, x, y)`
+- `ms_draw_module(index, x, y)`, `ms_draw_frame(index, x, y)`; `ms_draw_module_flipped(index, x, y, flip)`,
+  `ms_draw_frame_flipped(index, x, y, flip)` (bit 0 mirrors left to right, bit 1 top to bottom, about the point drawn
+  at: a frame's origin, a module's pivot; each hardware sprite is mirrored and gets the flip bits, so the export stores
+  a frame once for both directions)
+- Streamed exports, a game's own slots: `ms_frame_load_list(index)`, `ms_module_load_list(index)`,
+  `ms_load_list_tiles(list)`
 - `ms_anim_player_*()` for animation playback. The player follows the editor exactly
   (`tests/test_megadrive_runtime_player.py`): *Loop* plays the steps before `loop_start` once and then loops the rest,
   repeat counts end an animation, and an animation that ends continues with its follow-up

@@ -88,6 +88,58 @@ class TestStreamedRuntime(unittest.TestCase):
                         if listed != export_snes.NO_LIST:
                             loaded = listed
 
+    def test_mirrored_frames_through_the_default_slot(self):
+        """ms_draw_frame_flipped through a slot: each frame mirrored each way shows what the editor's mirrored frame
+        shows (Sonic: more tiles than video memory keeps)."""
+        from test_snes_runtime_draw import _mirrored
+        from ui.frame_render import FrameRenderer
+
+        renderer = FrameRenderer()
+        project = Project.from_json(str(PROJECTS[1]))
+        for mode in STREAMED:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                ctx, exe = _export_and_build(project, folder, mode, "none")
+                draws = [(f, flip, x, y) for f in range(len(project.frames)) for flip in (1, 2, 3)
+                         for x, y in POSITIONS[:2]]
+                _head, lines = snes_host.run(exe, folder, [f"flipped {f} 0 {flip} {x} {y}" for f, flip, x, y in draws])
+                self.assertEqual(len(lines), len(draws))
+                for (f, flip, x, y), draw in zip(draws, _draws(lines)):
+                    self.assertEqual((draw["dropped"], draw["waiting"]), (0, 0))
+                    image, hx, hy = renderer.render(project, project.frames[f], None)
+                    image, hx, hy = _mirrored(image, int(hx), int(hy), flip)
+                    self.assertEqual(_shown(ctx, draw), _editor_pixels(ctx, image, hx, hy, x, y),
+                                     f"{mode}: '{project.frames[f].name}' mirrored {flip} at {x},{y}")
+
+    def test_load_lists_for_a_game_of_its_own_slots(self):
+        """A game that keeps its own slots asks each frame's and module's load list and its tiles (a list drawn by
+        several actors is loaded once): ms_frame_load_list, ms_module_load_list and ms_load_list_tiles name the
+        export's lists under the active mapping; out of range, and in an export that keeps every tile in video memory,
+        they name none."""
+        project = Project.from_json(str(PROJECTS[0]))
+        mappings = 1 + len(project.mappings)
+        for mode in ("parts",) + STREAMED:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                ctx, exe = _export_and_build(project, folder, mode)
+                _head, lines = snes_host.run(exe, folder, [f"lists {m}" for m in range(mappings)])
+                self.assertEqual(len(lines), mappings)
+                for m, line in enumerate(lines):
+                    _what, frames, modules, beyond = line.split(" ")
+                    for kind, field, renders in (("frame", frames, ctx.frame_render_frames),
+                                                 ("module", modules, ctx.module_render_frames)):
+                        count = len(renders) // mappings
+                        got = [tuple(int(v) for v in item.split(":")) for item in field.split(",")]
+                        if ctx.streamed:
+                            listed = [ctx.render_frame_loads[render] for render in renders[m * count:(m + 1) * count]]
+                            expected = [(n, 0 if n == export_snes.NO_LIST else ctx.load_lists[n][1]) for n in listed]
+                        else:
+                            expected = [(0xFFFF, 0)] * count
+                        self.assertEqual(got, expected, f"{mode}, mapping {m}: the {kind}s' load lists")
+                    self.assertEqual(beyond, "65535:65535:0", "out of range: none")
+                if ctx.streamed:
+                    self.assertGreater(len({n for n in ctx.render_frame_loads if n != export_snes.NO_LIST}), 1)
+
     def test_two_characters_in_two_slots(self):
         """One animation drawn as it is through the default slot and re-skinned and recoloured through a slot of its
         own (ms_draw_anim_player_as): both upload when their step's tiles change and show what the editor shows."""

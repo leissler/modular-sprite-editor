@@ -179,6 +179,34 @@ int main(void)
 """
 
 
+def _mirrored_harness(ctx, frame_count: int) -> str:
+    """Each frame mirrored three ways (left-right, top-bottom, both) through ms_draw_frame_flipped, in the middle of
+    the screen and across the top-left edge."""
+    return _tables(ctx, frame_count) + f"""
+int main(void)
+{{
+    u16 f, i, p, flip;
+    ms_init();
+    for (f = 0; f < ms_frame_count; f++)
+        for (flip = 1; flip <= 3; flip++)
+            for (p = 0; p < 2; p++)
+            {{
+                MS_FrameProfile profile;
+                ms_begin_frame();
+                ms_draw_frame_flipped(f, g_positions[p][0], g_positions[p][1], (u8)flip);
+                ms_get_frame_profile(&profile);
+                ms_end_frame();
+                printf("mirrored %u %u %u %u", f, flip, profile.hw_sprites, profile.sprites_dropped);
+                for (i = 0; i < profile.hw_sprites; i++)
+                    printf(" %d,%d,%u,%u", vdpSpriteCache[i].x - 0x80, vdpSpriteCache[i].y - 0x80, vdpSpriteCache[i].size,
+                           vdpSpriteCache[i].attribut);
+                printf("\\n");
+            }}
+    return 0;
+}}
+"""
+
+
 def _rasterise(sprites, tiles: bytes, base: int = TILE_BASE):
     """{{(x, y): (palette entry, colour index)}} of the sprite list as the VDP shows it (earlier sprites in front); the
     runtime loads the palette entries into consecutive lines from FIRST_LINE. ``tiles`` start at tile ``base``."""
@@ -314,6 +342,44 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                                          f"{project_path.name}: frame '{frame.name}' at {draw_x},{draw_y} differs on the console")
                     checked += 1
                 self.assertEqual(checked, len(project.frames))
+
+    def test_every_frame_mirrored(self):
+        """ms_draw_frame_flipped draws each frame as the editor mirrors it around its origin (pixel x to -x - 1),
+        on screen and across the edge."""
+        import export_megadrive as sg
+        from PIL import Image
+        from ui.frame_render import FrameRenderer
+
+        for project_path in PROJECTS[:2]:
+            project = Project.from_json(str(project_path))
+            with self.subTest(project=project_path.name), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                ctx = sg.MegaDriveBakeContext(project, [None], tmp_path)
+                ctx.bake()
+                lines = _build_and_run(self, ctx, tmp_path, _mirrored_harness(ctx, len(project.frames)))
+                renderer = FrameRenderer()
+                tiles = bytes(ctx.tile_data)
+                results = iter(lines)
+                for frame in project.frames:
+                    image, hx, hy = renderer.render(project, frame, None)
+                    for flip in (1, 2, 3):
+                        mirrored, mx, my = image, hx, hy
+                        if flip & 1:
+                            mirrored = mirrored.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                            mx = -hx - image.width
+                        if flip & 2:
+                            mirrored = mirrored.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+                            my = -hy - image.height
+                        for draw_x, draw_y in POSITIONS[:2]:
+                            fields = next(results).split()
+                            self.assertEqual(fields[0], "mirrored")
+                            self.assertEqual(int(fields[4]), 0, f"{frame.name}: sprites dropped")
+                            sprites = [tuple(int(v) for v in item.split(",")[:4]) for item in fields[5:]]
+                            self.assertEqual(len(sprites), int(fields[3]))
+                            self.assertEqual(_rasterise(sprites, tiles),
+                                             _palette_pixels(ctx, mirrored, mx, my, draw_x, draw_y),
+                                             f"{project_path.name}: frame '{frame.name}' mirrored {flip} at "
+                                             f"{draw_x},{draw_y} differs on the console")
 
     def test_images_in_two_palettes(self):
         """A frame with a part from an image in each palette: each sprite carries its palette line, the blob holds

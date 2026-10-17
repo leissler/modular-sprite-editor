@@ -204,6 +204,93 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
     g_frame_profile.hw_sprites = g_hw_count;
 }
 
+/* A render frame mirrored around the point it is drawn at (flip: bit 0 left-right, bit 1 top-bottom), as a mirrored
+   animation step or nested frame part is: each hardware sprite at its mirror image, its flip bits toggled. */
+static void ms_draw_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u8 flip)
+{
+    const MS_RenderFrame *frame;
+    const MS_Part *part;
+    s16 min_x, min_y, max_x, max_y;
+    u16 n;
+
+    flip &= 3;
+    if (flip == 0)
+    {
+        ms_draw_render_frame(render_index, ox, oy);
+        return;
+    }
+    if (render_index >= MS_RENDER_FRAME_COUNT)
+        return;
+#ifdef MS_STREAMED
+    ms_fill_slot(render_index);
+#endif
+    frame = &ms_render_frames[render_index];
+    g_frame_profile.render_calls++;
+    g_frame_profile.parts_submitted += frame->part_count;
+    min_x = (flip & 1) ? -frame->max_x : frame->min_x;
+    max_x = (flip & 1) ? -frame->min_x : frame->max_x;
+    min_y = (flip & 2) ? -frame->max_y : frame->min_y;
+    max_y = (flip & 2) ? -frame->min_y : frame->max_y;
+
+    /* The last part is on top: it goes first into the sprite list. */
+    part = &ms_parts[frame->first_part + frame->part_count];
+    if (ox + min_x >= 0 && oy + min_y >= 0 && ox + max_x <= g_screen_w && oy + max_y <= g_screen_h
+        && g_hw_count + frame->sprite_count <= g_sprite_limit)
+    {
+        VDPSprite *sprite = &vdpSpriteCache[g_hw_count];
+        u16 link = g_hw_count;
+
+        for (n = frame->part_count; n > 0; n--)
+        {
+            const MS_Piece *piece;
+            u16 attribute, k;
+
+            part--;
+            piece = &ms_pieces[part->first_piece];
+            attribute = g_attr_base | ((u16)(part->flip ^ flip) << 11);
+            for (k = part->piece_count; k > 0; k--, piece++, sprite++)
+            {
+                s16 x = part->x + piece->x;
+                s16 y = part->y + piece->y;
+
+                if (flip & 1)
+                    x = -x - (s16)((((piece->size >> 2) & 3) + 1) << 3);
+                if (flip & 2)
+                    y = -y - (s16)(((piece->size & 3) + 1) << 3);
+                sprite->y = oy + y + 0x80;
+                sprite->size = piece->size;
+                sprite->link = (u8)++link;
+                sprite->attribut = attribute + piece->tile_offset + g_entry_bits[piece->palette];
+                sprite->x = ox + x + 0x80;
+            }
+        }
+        g_hw_count = link;
+        g_frame_profile.hw_sprites = g_hw_count;
+        return;
+    }
+    for (n = frame->part_count; n > 0; n--)
+    {
+        const MS_Piece *piece;
+        u16 attribute, k;
+
+        part--;
+        piece = &ms_pieces[part->first_piece];
+        attribute = g_attr_base | ((u16)(part->flip ^ flip) << 11);
+        for (k = part->piece_count; k > 0; k--, piece++)
+        {
+            s16 x = part->x + piece->x;
+            s16 y = part->y + piece->y;
+
+            if (flip & 1)
+                x = -x - (s16)((((piece->size >> 2) & 3) + 1) << 3);
+            if (flip & 2)
+                y = -y - (s16)(((piece->size & 3) + 1) << 3);
+            ms_push_sprite(ox + x, oy + y, piece->size, attribute + piece->tile_offset + g_entry_bits[piece->palette]);
+        }
+    }
+    g_frame_profile.hw_sprites = g_hw_count;
+}
+
 static void ms_anim_apply_step(MS_AnimPlayer *player, u16 step_index)
 {
     const MS_Animation *anim;
@@ -513,6 +600,78 @@ void ms_draw_frame(u16 frame_index, s16 x, s16 y)
     if (table_index >= table_count)
         return;
     ms_draw_render_frame(ms_frame_render_frames[table_index], x, y);
+}
+
+static u16 ms_module_render_index(u16 module_index)
+{
+    u32 table_index;
+
+    if (module_index >= MS_MODULE_COUNT)
+        return 0xFFFFu;
+    table_index = ms_mapping_module_base() + module_index;
+    if (table_index >= ((u32)MS_MAPPING_COUNT) * ((u32)MS_MODULE_COUNT))
+        return 0xFFFFu;
+    return ms_module_render_frames[table_index];
+}
+
+static u16 ms_frame_render(u16 frame_index)
+{
+    u32 table_index;
+
+    if (frame_index >= MS_FRAME_COUNT)
+        return 0xFFFFu;
+    table_index = ms_mapping_frame_base() + frame_index;
+    if (table_index >= ((u32)MS_MAPPING_COUNT) * ((u32)MS_FRAME_COUNT))
+        return 0xFFFFu;
+    return ms_frame_render_frames[table_index];
+}
+
+void ms_draw_module_flipped(u16 module_index, s16 x, s16 y, u8 flip)
+{
+    u16 render = ms_module_render_index(module_index);
+
+    if (render != 0xFFFFu)
+        ms_draw_render_frame_flipped(render, x, y, flip);
+}
+
+void ms_draw_frame_flipped(u16 frame_index, s16 x, s16 y, u8 flip)
+{
+    u16 render = ms_frame_render(frame_index);
+
+    if (render != 0xFFFFu)
+        ms_draw_render_frame_flipped(render, x, y, flip);
+}
+
+static u16 ms_render_load_list(u16 render_index)
+{
+#ifdef MS_STREAMED
+    if (render_index < MS_RENDER_FRAME_COUNT)
+        return ms_render_frame_loads[render_index];
+#else
+    (void)render_index;
+#endif
+    return MS_NOTHING_LOADED;
+}
+
+u16 ms_frame_load_list(u16 frame_index)
+{
+    return ms_render_load_list(ms_frame_render(frame_index));
+}
+
+u16 ms_module_load_list(u16 module_index)
+{
+    return ms_render_load_list(ms_module_render_index(module_index));
+}
+
+u16 ms_load_list_tiles(u16 load_list)
+{
+#ifdef MS_STREAMED
+    if (load_list < ms_load_list_count)
+        return ms_load_lists[load_list].tile_count;
+#else
+    (void)load_list;
+#endif
+    return 0;
 }
 
 void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index)

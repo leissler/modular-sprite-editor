@@ -116,6 +116,36 @@ class TestStreamedRuntime(unittest.TestCase):
                                              f"{project_path.name} ({mode}): '{frame.name}' at {draw_x},{draw_y}")
                         loaded = listed
 
+    def test_load_lists_for_a_game_of_its_own_slots(self):
+        """A game that keeps its own slots asks each frame's and module's load list and its tiles (a list drawn by
+        several actors is loaded once): ms_frame_load_list, ms_module_load_list and ms_load_list_tiles name the
+        export's lists; out of range they name none."""
+        body = """
+    for (f = 0; f < ms_frame_count; f++)
+        printf("frame %u %u %u\\n", f, ms_frame_load_list(f), ms_load_list_tiles(ms_frame_load_list(f)));
+    for (m = 0; m < ms_module_count; m++)
+        printf("module %u %u %u\\n", m, ms_module_load_list(m), ms_load_list_tiles(ms_module_load_list(m)));
+    printf("beyond %u %u %u\\n", ms_frame_load_list(ms_frame_count), ms_module_load_list(ms_module_count),
+           ms_load_list_tiles(0xFFFF));"""
+        project = Project.from_json(str(PROJECTS[0]))
+        for mode in STREAMED:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                ctx = _bake(project, [None], mode, Path(tmp))
+                source = _harness(ctx, body, "0", frame_count=len(project.frames), module_count=len(project.modules))
+                lines = [line.split() for line in _build_and_run(self, ctx, Path(tmp), source)]
+                frames = [line for line in lines if line[0] == "frame"]
+                modules = [line for line in lines if line[0] == "module"]
+                self.assertEqual(len(frames), len(project.frames))
+                self.assertEqual(len(modules), len(project.modules))
+                for kind, rows, renders in (("frame", frames, ctx.frame_render_frames),
+                                            ("module", modules, ctx.module_render_frames)):
+                    for index, listed, tiles in ((int(r[1]), int(r[2]), int(r[3])) for r in rows):
+                        expected = ctx.render_frame_loads[renders[index]]
+                        self.assertEqual(listed, expected, f"{kind} {index}")
+                        self.assertEqual(tiles, ctx.load_lists[expected][2], f"{kind} {index}: tiles")
+                beyond = next(line for line in lines if line[0] == "beyond")
+                self.assertEqual([int(v) for v in beyond[1:]], [0xFFFF, 0xFFFF, 0])
+
     def test_two_players_in_two_slots(self):
         """The hero through the default slot, the guard (his own mapping) through a slot of his own: both upload
         when their step's tiles change and show what the editor shows."""

@@ -49,9 +49,16 @@ sprite by sprite. `ms_end_frame()` hides the entries the last frame used and thi
 lines the PPU looks at) and packs the sprite table's high table (X bit 8 and size of every sprite). Add sprites of
 your own to the same list with `ms_add_hw_sprite()`; `ms_tiles_end()` says where free tiles start.
 
-The hot loops (`ms_put_render_frame`, `ms_add_hw_sprite`, `ms_finish_oam`, a streamed export's `ms_send_uploads`) are
-65816 assembly in `src/modsprite_draw.asm`; `src/modsprite.c` has their C versions, which the host tests run and
-`tools/check_snes_rom.py` compares with the assembly in an emulator.
+`ms_draw_frame_flipped(frame, x, y, flip)` and `ms_draw_module_flipped(module, x, y, flip)` draw it mirrored about the
+point it is drawn at (a frame's origin, a module's pivot; bit 0 of `flip` mirrors left to right, bit 1 top to bottom,
+like a mirrored animation step): each sprite goes to its mirror image and gets its flip bits toggled, so a character
+facing either way needs its frames stored once. The box is mirrored too, so a mirrored frame on the screen takes the
+fast loop as well.
+
+The hot loops (`ms_put_render_frame` and, mirrored, `ms_put_render_frame_flipped`, `ms_add_hw_sprite`,
+`ms_finish_oam`, a streamed export's `ms_send_uploads`) are 65816 assembly in `src/modsprite_draw.asm`;
+`src/modsprite.c` has their C versions, which the host tests run and `tools/check_snes_rom.py` compares with the
+assembly in an emulator.
 
 ### Streamed exports
 
@@ -105,6 +112,12 @@ what its slot holds (the step before) and uploads in a later frame; the first li
 text rows only when that leaves room). In a resident export the slot functions do nothing (`ms_slot_tiles()` is 0), so
 the same game code builds with either.
 
+A game with many actors can keep a cache of slots of its own instead of one per actor: `ms_frame_load_list(frame)` and
+`ms_module_load_list(module)` name the load list a frame or module draws with (under the current mapping;
+`MS_NOTHING_LOADED` when it shows nothing, and in a resident export), `ms_load_list_tiles(list)` the tiles it takes in a
+slot. Actors showing the same frame then share one slot, loaded once: a slot that holds a list draws it as often as a
+frame asks, mirrored or not.
+
 ### Performance
 
 Measured in Mesen 2 with the PPU's V counter (`PoP_WW.json`, 8×8 and 16×16 sprites; one NTSC frame has 262 lines):
@@ -112,13 +125,16 @@ Measured in Mesen 2 with the PPU's V counter (`PoP_WW.json`, 8×8 and 16×16 spr
 | | scanlines | of a frame |
 |---|---|---|
 | one frame of the Prince, 18 sprites on average | 18 | 7 % |
+| the same frames mirrored (`ms_draw_frame_flipped`) | 20 | 8 % |
 | the Swordfight scene, 38 sprites | 31 | 12 % |
 | one animation drawn twice, the second through a mapping and a palette swap, 30 sprites | 37 | 14 % |
 | a frame across the screen's edge (tested sprite by sprite) | up to 38 | 15 % |
+| a mirrored frame across the edge | up to 41 | 16 % |
 
 The Swordfight plays without a lag frame; the demo runs at 60 frames a second in every view, with the text panel
-open. Each sprite costs about 90 cycles in the fast loop; 816-tcc's C for the same loop took about 320 cycles a
-sprite and the C around it as long again (the first ROM needed half a frame for the Swordfight).
+open. Each sprite costs about 90 cycles in the fast loop (mirrored about 100, and about 230 more a frame to set the
+mirroring up); 816-tcc's C for the same loop took about 320 cycles a sprite and the C around it as long again (the
+first ROM needed half a frame for the Swordfight).
 
 Streamed exports, with the demo playing PoP's Swordfight (600 frames in Mesen 2):
 
@@ -240,8 +256,9 @@ second character through a slot of its own.
 ## Check it in an emulator
 
 `tools/check_snes_rom.py` (repository root) builds the runtime with a probe program in place of the demo's `main.c`
-and plays it in Mesen 2's headless test runner: every frame at three positions, the scenes with every mapping, an
-animation drawn through another mapping and swap, a game's own sprites across the screen's edges, the colour cycles;
+and plays it in Mesen 2's headless test runner: every frame at three positions as it is and mirrored, every module,
+frames drawn until the 128 sprites run out, the scenes with every mapping, an animation drawn through another mapping
+and swap, a game's own sprites across the screen's edges, the colour cycles;
 each sprite table must equal the host build's byte for byte (which `tests/test_snes_runtime_draw.py` checks against
 the editor; `tests/test_snes_runtime_player.py` checks the host build's animation player, hitboxes and points against
 the editor's), video memory the export's tiles. It prints the slowest draw in scanlines and the lag frames of the first
@@ -258,9 +275,9 @@ python3 tools/check_snes_rom.py [PROJECT.json ...]
 
 With `--mode parts_streamed` or `--mode frames_streamed` it checks a streamed export: the probe uploads after each draw
 (`ms_upload_tiles`, timed too), and the slots' video memory after every draw must equal the host build's
-(`tests/test_snes_streaming.py` checks the host build against the editor: every frame of the testbeds, two characters
-in two slots, modules and the Swordfight as the resident export draws them, uploads waiting for the budget or cut off
-by the end of the blank). `--timings FILE` writes each draw's scanlines and its upload's, with what it uploaded. The
+(`tests/test_snes_streaming.py` checks the host build against the editor: every frame of the testbeds, mirrored ones,
+two characters in two slots, modules and the Swordfight as the resident export draws them, uploads waiting for the
+budget or cut off by the end of the blank, the load lists a game's own slots ask for). `--timings FILE` writes each draw's scanlines and its upload's, with what it uploaded. The
 release workflow checks PoP and Sonic both ways.
 
 `tools/compare_snes_roms.py` carries that over to a demo ROM built elsewhere: it plays two builds in Mesen with the same
