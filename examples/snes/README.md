@@ -49,9 +49,61 @@ sprite by sprite. `ms_end_frame()` hides the entries the last frame used and thi
 lines the PPU looks at) and packs the sprite table's high table (X bit 8 and size of every sprite). Add sprites of
 your own to the same list with `ms_add_hw_sprite()`; `ms_tiles_end()` says where free tiles start.
 
-The hot loops (`ms_put_render_frame`, `ms_add_hw_sprite`, `ms_finish_oam`) are 65816 assembly in
-`src/modsprite_draw.asm`; `src/modsprite.c` has their C versions, which the host tests run and
+The hot loops (`ms_put_render_frame`, `ms_add_hw_sprite`, `ms_finish_oam`, a streamed export's `ms_send_uploads`) are
+65816 assembly in `src/modsprite_draw.asm`; `src/modsprite.c` has their C versions, which the host tests run and
 `tools/check_snes_rom.py` compares with the assembly in an emulator.
+
+### Streamed exports
+
+By default every tile stays in video memory. The export can instead keep there only what is on screen
+(`--mode parts_streamed` or `--mode frames_streamed`; in the editor the export dialog's **Store as**, remembered per
+project); [docs/EXPORT_MODES.md](../../docs/EXPORT_MODES.md) compares the three ways on the example projects:
+
+- **`parts_streamed`**: the same parts and tiles in the cartridge as the default export. A project bigger than the 512
+  sprite tiles exports this way: Sonic's 600 tiles stay in the cartridge, a player's slot takes 64.
+- **`frames_streamed`**: each frame flattened into one picture per palette and cut into squares like a part, so
+  overlapping parts cost nothing (PoP: 4.3 hardware sprites a step instead of 14.0, 6 on the busiest line instead of
+  21), but the cartridge holds every frame's picture (PoP: 4912 tiles instead of 300) and each mapping is baked again.
+
+The cartridge then holds the squares in strips: each frame's new squares, in the order frames first use them, side by
+side in rows of at most 16 tiles. Every render frame names a load list (data version 3): its strips' pieces placed in a
+slot of whole sprite-table rows, each square aligned to its size as the PPU finds its tiles 16 to a row, as DMA runs (a
+row of a piece each, neighbours merged), with what uploading it costs in vertical blank; identical lists once. Its
+sprites count their tiles from the slot. The generated header defines `MS_STREAMED`, `MS_SLOT_TILES` (a player's slot),
+`MS_SCENE_SLOT_TILES` (a scene's), `MS_SLOT_ALIGN` (a slot's first tile is a multiple of it: a row of large sprites)
+and `MS_UPLOAD_BUDGET`.
+
+`ms_init()` then loads no tiles: it makes a default slot at tile 0, as big as the largest module, frame, step or scene
+sample. Video memory can only be written in vertical blank, so drawing a render frame whose list the slot does not hold
+queues it, and `ms_upload_tiles()`, called right after `WaitForVBlank()`, sends it: PVSnesLib's interrupt has sent the
+sprite table just before, so the tiles and the sprites that use them change in the same vertical blank. It sends the
+sprite palettes `ms_palette_tick` prepared first, then the lists, a DMA on channel 0 per run (`ms_send_uploads`);
+before and after each list it looks whether the vertical blank still lasts, and a list cut off is queued again when it
+is drawn next. Drawing what a slot holds already uploads nothing.
+
+Everything drawn at the same time needs a slot of its own, set before drawing like the mapping:
+
+```c
+static MS_Slot guard_slot;
+ms_slot_init(&guard_slot, ms_tiles_end());   /* after the default slot (rounded up to MS_SLOT_ALIGN) */
+
+ms_draw_anim_player(&hero, hero_x, hero_y);  /* through the default slot */
+ms_set_slot(&guard_slot);
+ms_draw_anim_player_mapped(&guard, guard_mapping, guard_x, guard_y);
+ms_set_slot(NULL);                           /* the default slot again */
+...
+WaitForVBlank();
+ms_upload_tiles();                           /* the slots' new tiles */
+ms_palette_tick();
+```
+
+A slot shows one thing a frame, and a scene streams through one slot, a sample's tiles at a time. What one vertical
+blank uploads stays within a budget (`ms_set_upload_budget`, `MS_UPLOAD_BUDGET`: bytes of DMA, each list counted with
+what setting up its runs costs; the default is what PVSnesLib's interrupt leaves of the blank). A draw over it shows
+what its slot holds (the step before) and uploads in a later frame; the first list of a frame goes whatever it costs.
+`ms_upload_queued()` says what this frame queued, for a game that sends more in the same blank (the demo writes its
+text rows only when that leaves room). In a resident export the slot functions do nothing (`ms_slot_tiles()` is 0), so
+the same game code builds with either.
 
 ### Performance
 
@@ -68,13 +120,31 @@ The Swordfight plays without a lag frame; the demo runs at 60 frames a second in
 open. Each sprite costs about 90 cycles in the fast loop; 816-tcc's C for the same loop took about 320 cycles a
 sprite and the C around it as long again (the first ROM needed half a frame for the Swordfight).
 
+Streamed exports, with the demo playing PoP's Swordfight (600 frames in Mesen 2):
+
+| | drawing, average | at most | uploads, in vertical blank |
+|---|---|---|---|
+| parts, resident | 31.4 lines | 39.4 lines | none |
+| `parts_streamed` | 33.8 lines | 44.5 lines | 17.8 lines in one frame in nine, 25.7 at most |
+| `frames_streamed` | 21.5 lines | 28.2 lines | 11.3 lines in one frame in nine, 14.3 at most |
+
+A draw through a slot costs about 3 lines more with parts (finding and queueing its list); whole frames have fewer
+sprites to draw. The uploads use the vertical blank after PVSnesLib's interrupt: scanlines 230 to 261 (242 to 261 when
+it sends the text map too). Each byte costs 8.5 master cycles, each run 533, each list 939 (1364 a scanline).
+
 ### Limits
 
 - **Video memory**: all tiles stay resident, in the two sprite tables of 256 tiles. `PoP_WW` needs 300 tiles with
-  8×8 and 16×16 sprites (284 with 8×8 and 32×32), the Adventurer 329, Sonic 600 (too many: the export stops). The
-  File ▸ Export ▸ SNES dialog shows what each pair of sizes needs; the export reports the count, warns above three
-  quarters and stops above 512; the editor shows the same count in the Budget readout (SNES setups) and in Check
-  Project. `ms_init_ex(vram_address, first_palette)` puts the tables elsewhere (0x0000, 0x2000, 0x4000 or 0x6000).
+  8×8 and 16×16 sprites (284 with 8×8 and 32×32), the Adventurer 329, Sonic 600 (too many: the export stops, unless
+  it streams). The File ▸ Export ▸ SNES dialog shows what each pair of sizes needs; the export reports the count,
+  warns above three quarters and stops above 512; the editor shows the same count in the Budget readout (SNES setups)
+  and in Check Project. `ms_init_ex(vram_address, first_palette)` puts the tables elsewhere (0x0000, 0x2000, 0x4000 or
+  0x6000). A streamed export keeps only its slots there (PoP: 64 tiles a player and 64 a scene, whole frames 32 and
+  64; Sonic 64): `ms_tiles_end()` is the default slot's end, the game places the others.
+- **Uploads** (streamed exports): what PVSnesLib's interrupt leaves of an NTSC vertical blank carries about 4.8 KB of
+  tiles (`MS_UPLOAD_BUDGET`, runs counted in); the export and Check Project warn when filling one slot costs more. A
+  game that sends more in vertical blank lowers the budget (`ms_set_upload_budget`) or sends its own data only when
+  `ms_upload_queued()` leaves room. The uploads use DMA channel 0, as PVSnesLib's own copies do.
 - **Palettes**: 15 colours plus transparent each, in the order of the editor's slots, eight sprite palettes. The
   runtime loads the palette entries into consecutive palettes from the first; `ms_palettes_fit()` is false when they
   would run past palette 7, and `ms_load_palette(entry, palette)` loads others when they are needed. Colour cycles
@@ -101,8 +171,8 @@ sprite and the C around it as long again (the first ROM needed half a frame for 
   - `src/main.c` - the demo
   - `Makefile` - PVSnesLib's rules, FastROM, the ROM size from `modsprite_rom.mk`
   - generated by the export: `res/ms_chunk_NN.bin`, `modsprite_chunks.asm`, `inc/modsprite_data.h` (record types,
-    counts and `MS_EVENT_*` / `MS_HITBOX_*` / `MS_POINT_*` / `MS_ROLE_*` constants), `src/modsprite_data.c`,
-    `modsprite_rom.mk`
+    counts and `MS_EVENT_*` / `MS_HITBOX_*` / `MS_POINT_*` / `MS_ROLE_*` constants; a streamed export's also
+    `MS_STREAMED` and the slot sizes), `src/modsprite_data.c`, `modsprite_rom.mk`
 
 ## Regenerate the data
 
@@ -121,7 +191,9 @@ same options (`build_snes_exporter.spec`; the release workflow checks that it wr
 Windows kit has it with `export_to_snes.bat`, which exports a project dragged onto it into the demo and builds the ROM.
 
 `--mapping all` (the default) bakes one data set per mapping plus index `0` (no mapping), `--setup snes_8_32` picks
-other sprite sizes, and `--strict` makes the command fail (exit code 1) when Check Project finds errors.
+other sprite sizes, `--mode parts_streamed` or `--mode frames_streamed` writes a streamed export
+([Streamed exports](#streamed-exports); the default, `--mode parts`, keeps every tile in video memory), and `--strict`
+makes the command fail (exit code 1) when Check Project finds errors.
 
 ## Build the demo
 
@@ -161,7 +233,9 @@ The demo starts on the project's first scene. **Up / Down** switch between scene
 **Left / Right** browse (held: faster), **A** plays and pauses, **B** shows hitboxes and points, **X** changes the
 look (every mapping with every palette swap, then one animation drawn twice, the second re-skinned and recoloured),
 **Start** shows the controls and what a frame costs (frames a second, the share of the frame the work takes, the
-sprites, the tiles, sprites lost to the limits of a line).
+sprites, the tiles, sprites lost to the limits of a line). Built from a streamed export, it shows the most tiles one
+frame uploaded instead of the tiles, and how many draws waited for their tiles; the side-by-side look draws its
+second character through a slot of its own.
 
 ## Check it in an emulator
 
@@ -181,6 +255,13 @@ while loading when .NET has loaded the system's ICU first.
 ```bash
 python3 tools/check_snes_rom.py [PROJECT.json ...]
 ```
+
+With `--mode parts_streamed` or `--mode frames_streamed` it checks a streamed export: the probe uploads after each draw
+(`ms_upload_tiles`, timed too), and the slots' video memory after every draw must equal the host build's
+(`tests/test_snes_streaming.py` checks the host build against the editor: every frame of the testbeds, two characters
+in two slots, modules and the Swordfight as the resident export draws them, uploads waiting for the budget or cut off
+by the end of the blank). `--timings FILE` writes each draw's scanlines and its upload's, with what it uploaded. The
+release workflow checks PoP and Sonic both ways.
 
 `tools/compare_snes_roms.py` carries that over to a demo ROM built elsewhere: it plays two builds in Mesen with the same
 presses through every view (the first scene, animations with hitboxes and every look, frames, modules) and checks that

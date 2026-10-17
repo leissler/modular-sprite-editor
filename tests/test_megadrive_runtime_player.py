@@ -68,6 +68,9 @@ typedef struct { s16 y; u8 size; u8 link; u16 attribut; s16 x; } VDPSprite;
 extern VDPSprite vdpSpriteCache[80];
 void VDP_updateSprites(u16 num, u16 tm);
 void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm);
+#define DMA_VRAM 0
+u8 DMA_queueDma(u8 location, void *from, u16 to, u16 len, u16 step);
+u8 DMA_queueDmaFast(u8 location, void *from, u16 to, u16 len, u16 step);
 void PAL_setPalette(u16 num, const u16 *pal, u16 tm);
 void PAL_setColors(u16 index, const u16 *pal, u16 count, u16 tm);
 u16 VDP_getScreenWidth(void);
@@ -75,13 +78,32 @@ u16 VDP_getScreenHeight(void);
 #endif
 """
 
-# The SGDK functions the runtime calls, for host builds (sprite table and colour RAM in RAM, VRAM loads ignored).
+# The SGDK functions the runtime calls, for host builds (sprite table, video and colour RAM in RAM).
 GENESIS_STUB_IMPL = r"""
+#include <string.h>
 #include "genesis.h"
 VDPSprite vdpSpriteCache[80];
 u16 g_stub_sprites_sent = 0;
 void VDP_updateSprites(u16 num, u16 tm) { g_stub_sprites_sent = num; }
-void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm) {}
+u8 g_stub_vram[0x10000];  /* what the runtime loaded or uploaded: tile n at n * 32 */
+void VDP_loadTileData(const u32 *data, u16 index, u16 num, u16 tm)
+{
+    if (data)
+        memcpy(g_stub_vram + (u32)index * 32u, data, (u32)num * 32u);
+}
+u16 g_stub_dma_calls = 0;  /* transfers queued: one per run of tiles */
+u16 g_stub_dma_room = 0xFFFFu;  /* transfers the queue still takes (0xFFFF: no end); SGDK's refuses them when full */
+u8 DMA_queueDmaFast(u8 location, void *from, u16 to, u16 len, u16 step)
+{
+    if (!g_stub_dma_room)
+        return 0;
+    if (g_stub_dma_room != 0xFFFFu)
+        g_stub_dma_room--;
+    memcpy(g_stub_vram + to, from, (u32)len * 2u);  /* len counts words, to is a byte address */
+    g_stub_dma_calls++;
+    return 1;
+}
+u8 DMA_queueDma(u8 location, void *from, u16 to, u16 len, u16 step) { return DMA_queueDmaFast(location, from, to, len, step); }
 void PAL_setPalette(u16 num, const u16 *pal, u16 tm) {}
 u16 g_stub_cram[64];  /* what the runtime put into the colour RAM */
 void PAL_setColors(u16 index, const u16 *pal, u16 count, u16 tm)

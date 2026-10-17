@@ -24,12 +24,13 @@ listed under [Gaps](#gaps).
 | Export entry | `console_exports.py`: the one table the editor and the build follow ([below](#the-export-entry)) | `MEGA_DRIVE` | `SNES` |
 | Budget with video memory | a `hardware_budget` profile with `vram_model`: tiles counted the way the export stores them, tested against the exporter (`tests/test_hardware_budget.py`) | H40, H32 | six pairs of sprite sizes |
 | Check Project | the console's tile and palette checks in `project_check`, `<console>_tile_issue` and `<console>_palette_issue` | `megadrive_tile_issue`, `megadrive_palette_issue` | `snes_tile_issue`, `snes_palette_issue` |
-| Exporter | a `console_bake.ConsoleBake` subclass (`_store_part`), `export_project()` (the one entry point for the command line and the editor) and `report_line()` (the editor's report) | `examples/megadrive/tools/export_megadrive.py` | `examples/snes/tools/export_snes.py` |
+| Exporter | a `console_bake.ConsoleBake` subclass (`_store_part`, `_stored_part` for measuring), `export_project()` (the one entry point for the command line and the editor), `report_line()` (the editor's report) and `bake_context()` (its bake without writing: [export modes](EXPORT_MODES.md)) | `examples/megadrive/tools/export_megadrive.py` | `examples/snes/tools/export_snes.py` |
 | Its warnings | `project_check.console_issue(project, console)` for a project made for another console, the tile and palette checks | yes | yes |
 | Command line | `console_bake.export_arguments` (`--project-json`, `--output-dir`, `--mapping`, `--copy-assets`, `--strict`) plus the console's own options | `export_megadrive` | `export_snes` (`--setup`) |
 | Command-line download | `build_<console>_exporter.spec`; the release workflow builds it on three platforms and checks it writes what the script writes | `export_megadrive-*` | `export_snes-*` |
 | Editor | File ▸ Export ▸ *Console (SDK)*...: the dialog every console shares (`ui/console_export_dialog.py`), remembered choices, report; the editor's builds carry the exporter | from the entry | from the entry, with the sprite sizes |
 | Runtime | the common C API (`ms_*`): players, mappings and palette swaps per draw, colour cycles, hitboxes, points and events, scenes | `megadrive_demo/src/modsprite.c` | `snes_demo/src/modsprite.c`, `modsprite_draw.asm` |
+| Streamed export | [parts or whole frames streamed](EXPORT_MODES.md): load lists, slots (`ms_slot_init`, `ms_set_slot`), the uploads in vertical blank, `<console>_stream_issues`, host tests | yes (`MS_STREAMED`, `tests/test_megadrive_streaming.py`) | yes (`MS_STREAMED`, `ms_upload_tiles`, `tests/test_snes_streaming.py`, `tools/check_snes_rom.py --mode`) |
 | Host tests | the runtime compiled for the host against the editor: drawing pixel for pixel, the player tick by tick, hitboxes and points | `tests/test_megadrive_runtime_draw.py`, `_runtime_player.py`, `_markers.py`, `_scenes.py` | `tests/test_snes_runtime_draw.py`, `_runtime_player.py` |
 | Demo | `examples/<console>/<console>_demo`: starts on the first scene, one button per feature, scenes drawn where the Timeline's screen outline puts them (`tests/test_scene_ops.py`) | yes | yes |
 | Emulator check in CI | the demo's runtime in a ROM, run in an emulator against the host build | no | `tools/check_snes_rom.py`, `tools/compare_snes_roms.py` (Mesen 2) |
@@ -39,8 +40,11 @@ listed under [Gaps](#gaps).
 
 ## Gaps
 
-- The Mega Drive has no emulator check in CI and no demo download yet; the SNES has both. Its runtime is plain C, so the
-  host tests cover more of it than of the SNES's, but nothing runs its ROM automatically.
+- The Mega Drive has no emulator check in CI and no demo download yet; the SNES has both (its ROM check covers the
+  streamed exports too). Its runtime is plain C, so the host tests cover more of it than of the SNES's, but nothing runs
+  its ROM automatically (its streamed ROMs were checked by hand in MAME and BlastEm, docs/EXPORT_MODES.md).
+- Resident, the SNES keeps every tile in its 512, so a bigger project (Sonic, 565 tiles at best) exports for it only
+  streamed.
 
 ## Names
 
@@ -65,6 +69,7 @@ exporters of their own. An entry holds what differs in substance:
 | `setups` | the export bakes for one of the console's setups: the dialog's row for them | none | Sprite sizes |
 | `tiles_about` | the tiles a game has depend on its video memory layout (readouts: "~1424") | yes | no |
 | `sdk_folder`, `sdk_in_git`, `sdk_keep`, `sdk_needs` | where the demo finds its SDK, whether it is in git (else the kit is given it: `--sdk KEY=DIR`), what the Windows kit takes of it and what must be there | SGDK, in git | PVSnesLib's Windows release |
+| `modes` | the ways its exporter and runtime store the sprites (`parts` first; more make a Store as row and `--mode`) | parts, parts streamed, whole frames streamed | parts, parts streamed, whole frames streamed |
 
 Everything else comes from the console's key: the exporter (`examples/<console>/tools/export_<console>.py`), its spec,
 the demo (`examples/<console>/<console>_demo`), the README, the checks and the kit's scripts.
@@ -92,10 +97,12 @@ Code and files that are the console's own, by design or because hand-written is 
 
 - `consoles.py`: the hardware entry (screens, sprites, palettes, setups).
 - `console_exports.py`: the export entry.
-- `examples/<console>/`: the exporter (`ConsoleBake` subclass, `export_project`, `report_line`, `main`), the runtime,
-  the demo, the README.
+- `examples/<console>/`: the exporter (`ConsoleBake` subclass with `_store_part` and `_stored_part`, `export_project`,
+  `report_line`, `main`, `bake_context`), the runtime, the demo, the README.
 - `hardware_budget.py`: how the export stores tiles (`_stored_blocks`, by the profile's `vram_model`), and its cut in
-  `sprite_cut.py` where it is new; `project_check.py`: `<console>_tile_issue` and `<console>_palette_issue`.
+  `sprite_cut.py` where it is new; `project_check.py`: `<console>_tile_issue` and `<console>_palette_issue` (and
+  `<console>_stream_issues` once it streams; its exporter's `stream_slots` / `stream_upload_cost` where its slots hold
+  more than the tiles, as the SNES's whole rows).
 - Tests: the runtime on the host (drawing, the player, hitboxes and points), the exporter's own tests.
 - `build_<console>_exporter.spec`: another console's, with the three names changed.
 - `packaging/windows_kit/`: `export_to_<console>.bat`, `build_<console>_demo.bat`, the README's section.
@@ -114,8 +121,8 @@ Code and files that are the console's own, by design or because hand-written is 
    Game Boy have one. The palettes, the budget and the Timeline follow; `website/scripts/make_consoles_page.py`
    regenerates the guide's Consoles page.
 2. **Exporter**: `examples/<console>/tools/export_<console>.py` with a `ConsoleBake` subclass that stores each part's
-   picture as the hardware draws it, `export_project()`, `report_line()`, and `main()` through
-   `console_bake.export_arguments` and `print_result`. Its checks go into `project_check` as `<console>_tile_issue`
+   picture as the hardware draws it (and tells, in `_stored_part`, what it stored), `export_project()`,
+   `report_line()`, `bake_context()`, and `main()` through `console_bake.export_arguments` and `print_result`. Its checks go into `project_check` as `<console>_tile_issue`
    and `<console>_palette_issue`; `hardware_budget._stored_blocks` counts tiles as the export stores them, tested
    against the exporter.
 3. **Export entry**: one `ConsoleExport` in `console_exports.py`. The editor (menu, dialog, remembered choices,

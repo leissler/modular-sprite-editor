@@ -3,13 +3,19 @@ draws it: tests/test_snes_runtime_draw.py and tests/test_snes_runtime_player.py 
 with it, tools/check_snes_rom.py the ROM against it.
 
 PVSnesLib is replaced by a small stub (the OAM buffer, VRAM and CGRAM as arrays); the harness loads the export's real
-data chunks and runs commands from stdin, printing the OAM buffer after each (as hex, 544 bytes):
+data chunks and runs commands from stdin, printing the OAM buffer after each (as hex, 544 bytes); a draw ends with
+ms_upload_tiles() as a game's frame does. A streamed export's harness draws the second character of "versus" through a
+slot of its own (after the default one) and adds to each draw's line the tiles it uploaded, the draws that waited, the
+load lists it queued and, when it uploaded, video memory from tile 0 to the second slot's end (``parse_draw``):
 
     frame INDEX MAPPING X Y                  ms_draw_frame with that mapping
     scene INDEX MAPPING TICKS X Y            a scene player ticked TICKS times
     versus ANIM MAPPING SWAP TICKS X Y X2 Y2 an animation drawn as it is, then with ms_draw_anim_player_as
     sprite X Y TILE ATTRIBUTE LARGE          a game's own sprite (ms_add_hw_sprite)
     cycle                                    the sprite palettes in CGRAM (128 words), then one ms_palette_tick
+    budget BYTES                             ms_set_upload_budget (streamed)
+    vblank CHECKS                            the next ms_upload_tiles finds the vertical blank over after CHECKS
+                                             looks (one before and one after each list; streamed)
     player ANIM TICKS                        an animation player for TICKS video frames: per frame
                                              "animation:step:finished:event type 0 started:event type 1's value:
                                              hitboxes|points" (no OAM)
@@ -23,7 +29,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import console_bake
 import export_snes
@@ -90,14 +96,49 @@ static void print_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Point 
         printf("%s%u,%u,%d,%d", i ? ";" : "", points[i].type, points[i].role, points[i].x, points[i].y);
 }
 
+#ifdef MS_STREAMED
+static MS_Slot g_second_slot;
+static u16 g_vblank_checks = 0xFFFF;
+u8 ms_host_in_vblank(void)
+{
+    if (g_vblank_checks == 0xFFFF)
+        return TRUE;
+    if (!g_vblank_checks)
+        return FALSE;
+    g_vblank_checks--;
+    return TRUE;
+}
+#endif
+
 static void dump(const char *what)
 {
     unsigned i;
     MS_FrameProfile profile;
+#ifdef MS_STREAMED
+    extern u16 ms_upload_count;
+    extern u16 ms_upload_lists[];
+    u16 queued[8], count = ms_upload_count;
+    memcpy(queued, ms_upload_lists, sizeof(queued));
+#endif
     ms_get_frame_profile(&profile);
+    ms_upload_tiles();
+#ifdef MS_STREAMED
+    g_vblank_checks = 0xFFFF;
+#endif
     printf("%s %u %u ", what, profile.hw_sprites, profile.sprites_dropped);
     for (i = 0; i < sizeof(oamMemory); i++)
         printf("%02x", oamMemory[i]);
+#ifdef MS_STREAMED
+    printf(" %u %u ", profile.tiles_uploaded, profile.uploads_waiting);
+    for (i = 0; i < count; i++)
+        printf("%s%u", i ? "," : "", queued[i]);
+    printf("%s ", count ? "" : "-");
+    if (profile.tiles_uploaded)
+        for (i = 0; i < (unsigned)(ms_tiles_end() + ms_slot_tiles()) * 16u; i++)
+            printf("%04x", g_vram[i]);
+    else
+        printf("-");
+#endif
     printf("\n");
 }
 
@@ -108,10 +149,15 @@ int main(int argc, char **argv)
     load_chunks(argv[1]);
     ms_init();
     printf("obsel %u %u\n", g_obj_address, g_obj_size);
-    printf("sizes %u %u %u %u %u %u %u %u %u %u %u\n", (unsigned)sizeof(MS_RenderFrame), (unsigned)sizeof(MS_Run),
+    printf("sizes %u %u %u %u %u %u %u %u %u %u %u", (unsigned)sizeof(MS_RenderFrame), (unsigned)sizeof(MS_Run),
            (unsigned)sizeof(MS_Sprite), (unsigned)sizeof(MS_Hitbox), (unsigned)sizeof(MS_Point),
            (unsigned)sizeof(MS_AnimStep), (unsigned)sizeof(MS_Animation), (unsigned)sizeof(MS_StepEvent),
            (unsigned)sizeof(MS_Scene), (unsigned)sizeof(MS_PaletteEntry), (unsigned)sizeof(MS_ColourCycle));
+#ifdef MS_STREAMED
+    printf(" %u %u %u", (unsigned)sizeof(MS_LoadList), (unsigned)sizeof(MS_LoadGroup), (unsigned)sizeof(MS_LoadEntry));
+    ms_slot_init(&g_second_slot, ms_tiles_end());
+#endif
+    printf("\n");
     printf("vram ");
     for (i = 0; i < 0x2000; i++)
         printf("%04x", g_vram[i]);
@@ -153,7 +199,13 @@ int main(int argc, char **argv)
                 ms_anim_player_tick(&player);
             ms_begin_frame();
             ms_draw_anim_player(&player, x, y);
+#ifdef MS_STREAMED
+            ms_set_slot(&g_second_slot);
+#endif
             ms_draw_anim_player_as(&player, mapping, swap, x2, y2);
+#ifdef MS_STREAMED
+            ms_set_slot(NULL);
+#endif
             ms_end_frame();
             printf("step %u %u %u ", player.step_index, ms_get_mapping(), ms_get_palette_swap());
             dump("versus");
@@ -200,6 +252,12 @@ int main(int argc, char **argv)
             print_markers(boxes, box_count, points, point_count);
             printf("\n");
         }
+#ifdef MS_STREAMED
+        else if (sscanf(line, "budget %u", &index) == 1)
+            ms_set_upload_budget((u16)index);
+        else if (sscanf(line, "vblank %u", &index) == 1)
+            g_vblank_checks = (u16)index;
+#endif
         else if (strncmp(line, "cycle", 5) == 0)
         {
             printf("cgram");
@@ -218,9 +276,9 @@ def have_compiler() -> bool:
     return shutil.which("cc") is not None
 
 
-def export(project: Project, folder: Path, mappings: str = "all") -> export_snes.SNESBakeContext:
+def export(project: Project, folder: Path, mappings: str = "all", mode: str = "parts") -> export_snes.SNESBakeContext:
     """The project exported into ``folder`` (res/, inc/, src/ as in a PVSnesLib project); returns the bake."""
-    ctx = export_snes.SNESBakeContext(project, console_bake.resolve_mappings(project, mappings))
+    ctx = export_snes.SNESBakeContext(project, console_bake.resolve_mappings(project, mappings), mode=mode)
     ctx.bake()
     ctx.write(folder)
     return ctx
@@ -271,8 +329,24 @@ def parse_markers(text: str):
 
 
 def oam_of(line: str) -> str:
-    """The OAM hex of a harness output line (its last field)."""
-    return line.rsplit(" ", 1)[1]
+    """The OAM hex of a draw's harness output line."""
+    return parse_draw(line)["oam"]
+
+
+def parse_draw(line: str) -> Dict[str, Any]:
+    """A draw's harness output line: what, sprites, dropped, oam; a streamed export's also uploaded, waiting, queued
+    (the load lists it queued) and vram (bytes from tile 0, b"" when the draw uploaded nothing)."""
+    fields = line.split(" ")
+    oam_at = next(i for i, field in enumerate(fields) if len(field) == 2 * 544)
+    draw: Dict[str, Any] = {"what": fields[0], "sprites": int(fields[oam_at - 2]), "dropped": int(fields[oam_at - 1]),
+                            "oam": fields[oam_at]}
+    if len(fields) > oam_at + 1:
+        draw["uploaded"], draw["waiting"] = int(fields[oam_at + 1]), int(fields[oam_at + 2])
+        queued = fields[oam_at + 3]
+        draw["queued"] = [] if queued == "-" else [int(n) for n in queued.split(",")]
+        vram = fields[oam_at + 4]
+        draw["vram"] = b"" if vram == "-" else vram_bytes({"vram": vram})
+    return draw
 
 
 def decode_oam(hexdata: str) -> List[Tuple[int, int, int, int, bool]]:

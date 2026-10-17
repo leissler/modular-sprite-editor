@@ -36,19 +36,39 @@ typedef struct
     u16 parts_submitted;
     u16 hw_sprites;       /* hardware sprites used this frame */
     u16 sprites_dropped;  /* pieces that did not fit into the sprite table */
+    u16 tiles_uploaded;   /* tiles queued for upload this frame (streamed exports) */
 } MS_FrameProfile;
+
+/* Streamed exports (MS_STREAMED in modsprite_data.h, docs/EXPORT_MODES.md) keep only what is on screen in video
+   memory. Whatever is drawn takes its tiles from a slot: ms_slot_tiles() tiles for a player (ms_scene_slot_tiles() for
+   a scene) that hold what was drawn through it last; drawing something else queues an upload of its tiles, which
+   reaches video memory with the sprite table at the next vertical blank. ms_init() makes a default slot at its tile
+   index, as big as either; give everything else drawn at the same time a slot of its own and set it before drawing,
+   like the mapping. Exports that keep every tile in video memory ignore slots (their sizes are 0). */
+typedef struct
+{
+    u16 tile_index;  /* its first tile in video memory */
+    u16 load_list;   /* the tiles it holds, MS_NOTHING_LOADED until something is drawn through it */
+} MS_Slot;
+
+#define MS_NOTHING_LOADED 0xFFFFu
 
 /* All tiles stay in VRAM: ms_init() loads them once at TILE_USER_INDEX with the palette entries from PAL1 on;
    ms_init_ex() picks the place (e.g. after a game's background tiles) and the first palette line. Palette entries
    are the editor's palettes, then each palette swap's version of the palettes it changes; they go into consecutive
    lines from the first one as far as they fit. Drawing then only writes the sprite table, which ms_end_frame()
-   queues for DMA (SYS_doVBlankProcess() sends it). */
+   queues for DMA (SYS_doVBlankProcess() sends it). A streamed export loads no tiles there: the place is the default
+   slot's. */
 void ms_init(void);
 void ms_init_ex(u16 tile_index, u16 palette);
-u8 ms_tiles_fit(void);          /* FALSE when the tiles did not fit below the font in VRAM */
+u8 ms_tiles_fit(void);          /* FALSE when the tiles (streamed: the default slot) did not fit below the font in VRAM */
 u8 ms_palettes_fit(void);       /* FALSE when not every palette entry got a line (load them with ms_load_palette) */
 u16 ms_tile_base(void);
-u16 ms_tiles_used(void);
+u16 ms_tiles_used(void);        /* the tiles from ms_tile_base() it takes: every one, or the default slot's */
+void ms_slot_init(MS_Slot *slot, u16 tile_index);
+void ms_set_slot(MS_Slot *slot);  /* draw through this slot from now on; NULL: the default slot */
+u16 ms_slot_tiles(void);          /* a player's slot: the most tiles a module, frame or animation step needs */
+u16 ms_scene_slot_tiles(void);    /* a scene's slot: the most a scene sample needs */
 void ms_set_sprite_limit(u16 limit);  /* 80 in H40 (default), 64 in H32 */
 void ms_begin_frame(void);
 void ms_end_frame(void);

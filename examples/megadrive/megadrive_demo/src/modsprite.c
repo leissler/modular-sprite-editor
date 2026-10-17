@@ -10,7 +10,7 @@ static u8 g_initialized = FALSE;
 static u8 g_tiles_fit = FALSE;
 static u8 g_palettes_fit = FALSE;
 static u16 g_active_mapping = 0;
-static MS_FrameProfile g_frame_profile = { 0, 0, 0, 0 };
+static MS_FrameProfile g_frame_profile = { 0, 0, 0, 0, 0 };
 static u16 g_tile_base = TILE_USER_INDEX;
 static u16 g_palette = PAL1;
 static u16 g_sprite_limit = MS_DEFAULT_SPRITE_LIMIT;
@@ -27,6 +27,12 @@ static u16 g_line_colours[4][16];  /* what each line shows, its colour cycles ap
 static u16 g_line_phase[4];        /* a mark of the cycle steps each line last showed */
 static s16 g_screen_w = 320;
 static s16 g_screen_h = 224;
+#ifdef MS_STREAMED
+/* A streamed export: what is drawn takes its tiles from a slot (the default one unless the game sets its own). */
+#define MS_DEFAULT_SLOT_TILES (MS_SLOT_TILES > MS_SCENE_SLOT_TILES ? MS_SLOT_TILES : MS_SCENE_SLOT_TILES)
+static MS_Slot g_default_slot = { TILE_USER_INDEX, MS_NOTHING_LOADED };
+static MS_Slot *g_slot = &g_default_slot;
+#endif
 
 static u32 ms_mapping_module_base(void)
 {
@@ -94,6 +100,44 @@ static const MS_Scene *ms_current_scene(u16 scene_index)
     return &ms_scenes[table_index];
 }
 
+#ifdef MS_STREAMED
+/* The slot drawn through gets the render frame's tiles unless it holds them already: a DMA per run of tiles, queued to
+   reach video memory with the sprite table at the next vertical blank. The pieces count their tiles from the slot.
+   Queueing costs the 68000 time per run (the transfer itself happens in the vertical blank), so the runs go straight
+   to DMA_queueDmaFast; only a run that crosses a 128 KB bank of the cartridge (DMA cannot) takes SGDK's splitting
+   DMA_queueDma. A run SGDK refuses (its queue is full: 80 transfers unless DMA_setMaxQueueSize sets another size; or
+   the frame is over the DMA capacity and the game set DMA_setIgnoreOverCapacity) leaves the slot holding nothing known,
+   and the next draw through it queues the list again. */
+static void ms_fill_slot(u16 render_index)
+{
+    u16 list = ms_render_frame_loads[render_index];
+
+    if (g_slot->load_list != list && list < ms_load_list_count)
+    {
+        const MS_LoadList *load = &ms_load_lists[list];
+        const MS_LoadEntry *entry = &ms_load_entries[load->first_entry];
+        u16 tile = g_slot->tile_index;
+        u8 queued = TRUE;
+        u16 n;
+
+        for (n = load->entry_count; n > 0; n--, entry++)
+        {
+            const u32 *from = ms_tiles + ((u32)entry->first_tile << 3);
+            u16 words = (u16)(entry->tile_count << 4);
+
+            if ((((u32)from & 0x1FFFFu) + ((u32)words << 1)) <= 0x20000u)
+                queued &= DMA_queueDmaFast(DMA_VRAM, (void *)from, (u16)(tile << 5), words, 2);
+            else
+                queued &= DMA_queueDma(DMA_VRAM, (void *)from, (u16)(tile << 5), words, 2);
+            tile += entry->tile_count;
+        }
+        g_slot->load_list = queued ? list : MS_NOTHING_LOADED;
+        g_frame_profile.tiles_uploaded += load->tile_count;
+    }
+    g_attr_base = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, g_slot->tile_index);
+}
+#endif
+
 static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
 {
     const MS_RenderFrame *frame;
@@ -102,6 +146,9 @@ static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
 
     if (render_index >= MS_RENDER_FRAME_COUNT)
         return;
+#ifdef MS_STREAMED
+    ms_fill_slot(render_index);
+#endif
     frame = &ms_render_frames[render_index];
     g_frame_profile.render_calls++;
     g_frame_profile.parts_submitted += frame->part_count;
@@ -308,9 +355,16 @@ void ms_init_ex(u16 tile_index, u16 palette)
     {
         u16 entry;
 
+#ifdef MS_STREAMED
+        /* Nothing to load now: the default slot takes the tiles from here as things are drawn through it. */
+        g_tiles_fit = ((u32)g_tile_base + (u32)MS_DEFAULT_SLOT_TILES) <= (u32)TILE_FONT_INDEX;
+        ms_slot_init(&g_default_slot, g_tile_base);
+        g_slot = &g_default_slot;
+#else
         g_tiles_fit = ((u32)g_tile_base + (u32)MS_TILE_COUNT) <= (u32)TILE_FONT_INDEX;
         if (g_tiles_fit && MS_TILE_COUNT > 0)
             VDP_loadTileData(ms_tiles, g_tile_base, MS_TILE_COUNT, DMA);
+#endif
         /* The palette entries go into consecutive lines from the first one, as many as fit; a game with more
            entries than lines loads the rest itself (ms_load_palette). */
         g_palettes_fit = (g_palette + MS_PALETTE_ENTRY_COUNT) <= 4;
@@ -343,7 +397,46 @@ u16 ms_tile_base(void)
 
 u16 ms_tiles_used(void)
 {
+#ifdef MS_STREAMED
+    return (u16)MS_DEFAULT_SLOT_TILES;
+#else
     return (u16)MS_TILE_COUNT;
+#endif
+}
+
+void ms_slot_init(MS_Slot *slot, u16 tile_index)
+{
+    if (!slot)
+        return;
+    slot->tile_index = tile_index;
+    slot->load_list = MS_NOTHING_LOADED;
+}
+
+void ms_set_slot(MS_Slot *slot)
+{
+#ifdef MS_STREAMED
+    g_slot = slot ? slot : &g_default_slot;
+#else
+    (void)slot;
+#endif
+}
+
+u16 ms_slot_tiles(void)
+{
+#ifdef MS_STREAMED
+    return (u16)MS_SLOT_TILES;
+#else
+    return 0;
+#endif
+}
+
+u16 ms_scene_slot_tiles(void)
+{
+#ifdef MS_STREAMED
+    return (u16)MS_SCENE_SLOT_TILES;
+#else
+    return 0;
+#endif
 }
 
 void ms_set_sprite_limit(u16 limit)
@@ -360,6 +453,7 @@ void ms_begin_frame(void)
     g_frame_profile.parts_submitted = 0;
     g_frame_profile.hw_sprites = 0;
     g_frame_profile.sprites_dropped = 0;
+    g_frame_profile.tiles_uploaded = 0;
     g_hw_count = 0;
     g_screen_w = (s16)VDP_getScreenWidth();
     g_screen_h = (s16)VDP_getScreenHeight();

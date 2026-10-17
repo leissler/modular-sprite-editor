@@ -32,18 +32,24 @@ PROJECTS = [REPO_ROOT / "examples" / "pop" / "PoP_WW.json", REPO_ROOT / "example
             REPO_ROOT / "examples" / "adventurer" / "adventurer.json"]  # the last two cut parts off the 32 px grid
 
 
-def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int = 0) -> str:
-    """The exporter's tables as C arrays, with the counts and accessors modsprite.c expects."""
+def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int = 0, module_count: int = 0,
+            scene_count: int = 0) -> str:
+    """The exporter's tables as C arrays, with the counts and accessors modsprite.c expects (modules and scenes only
+    when they are counted)."""
     def rows(items, fmt):
         return ",\n".join("    {" + fmt(item) + "}" for item in items) or "    {0}"
 
     variants = rows(ctx.variants, lambda v: f"{v.first_piece}, {v.piece_count}, {v.tile_w}, {v.tile_h}")
-    pieces = rows(ctx.pieces, lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[4]}, {p[3]}")
+    pieces = rows(ctx.packed_pieces(), lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[4]}, {p[3]}")
     parts = rows(ctx.packed_parts(), lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[3]}, {p[4]}")
     frames = rows(ctx.render_frames, lambda r: f"{r.first_part}, {r.part_count}, 0, 0, 0, 0, "
                   + ", ".join(str(v) for v in ctx.render_frame_extent(r)))
     positions = ", ".join(f"{{{x}, {y}}}" for x, y in POSITIONS)
     frame_render = ", ".join(str(i) for i in ctx.frame_render_frames) or "0"
+    module_render = ", ".join(str(i) for i in ctx.module_render_frames) or "0"
+    samples = ", ".join(str(i) for i in ctx.scene_samples) or "0"
+    scenes = rows(ctx.scene_records, lambda r: f"{r.first_sample}, {r.sample_count}, {r.fps}, {r.duration_ticks}, "
+                  f"{r.loop}, 0, 0, 0")
     steps = rows(ctx.anim_steps, lambda s: f"{s[0]}, {s[1]}, {s[2]}, {s[3]}, 0")
     records = rows(ctx.anim_records, lambda r: f"{r.first_step}, {r.step_count}, {r.fps}, {r.playback}, 0, "
                    f"{r.loop_start}, {r.next_animation}, {r.loop_count}")
@@ -52,10 +58,27 @@ def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int 
     entries = rows(ctx.packed_palette_entries(), lambda e: f"{e[0]}, {e[1]}, {e[2]}, {e[3]}, 0")
     cycles = rows(ctx.packed_colour_cycles(), lambda c: f"{c[0]}, {c[1]}, {c[2]}, {c[3]}, 0")
     swap_entries = ", ".join(str(e) for e in ctx.packed_swap_entries()) or "0"
+    streamed, tiles_pointer = "", "NULL"
+    if ctx.streamed:  # each render frame's load list, and the tiles to upload from
+        streamed = f"""
+static const u16 g_loads[] = {{ {", ".join(str(i) for i in ctx.render_frame_loads) or "0"} }};
+static const MS_LoadList g_load_lists[] = {{
+{rows(ctx.load_lists, lambda l: f"{l[0]}, {l[1]}, {l[2]}")}
+}};
+static const MS_LoadEntry g_load_entries[] = {{
+{rows(ctx.load_entries, lambda e: f"{e[0]}, {e[1]}")}
+}};
+static const u8 g_tile_bytes[] __attribute__((aligned(4))) = {{ {", ".join(str(b) for b in ctx.tile_data) or "0"} }};
+u16 ms_load_list_count = {len(ctx.load_lists)}; u32 ms_load_entry_count = {len(ctx.load_entries)};
+const u16 *ms_render_frame_loads = g_loads; const MS_LoadList *ms_load_lists = g_load_lists;
+const MS_LoadEntry *ms_load_entries = g_load_entries;
+extern u8 g_stub_vram[0x10000];
+"""
+        tiles_pointer = "(const u32 *)g_tile_bytes"
     return f"""
 #include <stdio.h>
 #include "modsprite.h"
-
+{streamed}
 static const MS_Variant g_variants[] = {{
 {variants}
 }};
@@ -78,6 +101,11 @@ static const MS_StepEvent g_events[] = {{
 {events}
 }};
 static const u16 g_frame_render[] = {{ {frame_render} }};
+static const u16 g_module_render[] = {{ {module_render} }};
+static const u16 g_samples[] = {{ {samples} }};
+static const MS_Scene g_scenes[] = {{
+{scenes}
+}};
 static const u16 g_palette[] = {{ {words} }};
 static const MS_PaletteEntry g_entries[] = {{
 {entries}
@@ -91,22 +119,23 @@ static const s16 g_positions[][2] = {{ {positions} }};
 extern u16 g_stub_sprites_sent;
 
 u16 ms_variant_count = {len(ctx.variants)}; u32 ms_part_count = {len(ctx.parts)}; u16 ms_render_frame_count = {len(ctx.render_frames)};
-u16 ms_module_count = 0; u16 ms_frame_count = {frame_count}; u16 ms_animation_count = {animation_count};
-u16 ms_scene_count = 0; u16 ms_mapping_count = {mapping_count}; u16 ms_anim_step_count = {len(ctx.anim_steps)};
-u16 ms_scene_sample_count = 0; u16 ms_animation_record_count = {len(ctx.anim_records) if animation_count else 0}; u16 ms_scene_record_count = 0;
+u16 ms_module_count = {module_count}; u16 ms_frame_count = {frame_count}; u16 ms_animation_count = {animation_count};
+u16 ms_scene_count = {scene_count}; u16 ms_mapping_count = {mapping_count}; u16 ms_anim_step_count = {len(ctx.anim_steps)};
+u16 ms_scene_sample_count = {len(ctx.scene_samples) if scene_count else 0}; u16 ms_animation_record_count = {len(ctx.anim_records) if animation_count else 0};
+u16 ms_scene_record_count = {len(ctx.scene_records) if scene_count else 0};
 u16 ms_event_type_count = 0; u16 ms_step_event_count = {len(ctx.step_events)};
-u16 ms_tile_count = {len(ctx.tile_data) // 32}; u16 ms_piece_count = {len(ctx.pieces)};
+u16 ms_tile_count = {len(ctx.tile_data) // 32}; u16 ms_piece_count = {len(ctx.packed_pieces())};
 u16 ms_palette_entry_count = {len(ctx.palette_entries)}; u16 ms_base_palette_count = {len(ctx.palette_ids)};
 u16 ms_palette_swap_count = {len(ctx.swaps) + 1}; u16 ms_colour_cycle_count = {len(ctx.packed_colour_cycles())};
 const MS_PaletteEntry *ms_palette_entries = g_entries; const MS_ColourCycle *ms_colour_cycles = g_cycles;
 const u8 *ms_swap_entries = g_swap_entries;
 u16 ms_hitbox_count = 0; u16 ms_point_count = 0; u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
-const MS_Variant *ms_variants = g_variants; const MS_Piece *ms_pieces = g_pieces; const u32 *ms_tiles = NULL;
+const MS_Variant *ms_variants = g_variants; const MS_Piece *ms_pieces = g_pieces; const u32 *ms_tiles = {tiles_pointer};
 const u16 *ms_palette = g_palette; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = g_parts; const MS_RenderFrame *ms_render_frames = g_frames;
-const u16 *ms_module_render_frames = NULL; const u16 *ms_frame_render_frames = g_frame_render;
+const u16 *ms_module_render_frames = g_module_render; const u16 *ms_frame_render_frames = g_frame_render;
 const MS_AnimStep *ms_anim_steps = g_steps; const MS_Animation *ms_animations = g_records;
-const u16 *ms_scene_samples = NULL; const MS_Scene *ms_scenes = NULL; const MS_StepEvent *ms_step_events = g_events;
+const u16 *ms_scene_samples = g_samples; const MS_Scene *ms_scenes = g_scenes; const MS_StepEvent *ms_step_events = g_events;
 void ms_data_init(void) {{}}
 u8 ms_data_is_ready(void) {{ return TRUE; }}
 const char *ms_mapping_id(u16 i) {{ return ""; }} const char *ms_mapping_name_data(u16 i) {{ return ""; }}
@@ -150,15 +179,15 @@ int main(void)
 """
 
 
-def _rasterise(sprites, tiles: bytes):
+def _rasterise(sprites, tiles: bytes, base: int = TILE_BASE):
     """{{(x, y): (palette entry, colour index)}} of the sprite list as the VDP shows it (earlier sprites in front); the
-    runtime loads the palette entries into consecutive lines from FIRST_LINE."""
+    runtime loads the palette entries into consecutive lines from FIRST_LINE. ``tiles`` start at tile ``base``."""
     out = {}
     for x, y, size, attr in reversed(sprites):
         tw, th = ((size >> 2) & 3) + 1, (size & 3) + 1
         hflip, vflip = bool(attr & 0x0800), bool(attr & 0x1000)
         palette = ((attr >> 13) & 3) - FIRST_LINE
-        first = (attr & 0x07FF) - TILE_BASE
+        first = (attr & 0x07FF) - base
         for sy in range(th * 8):
             for sx in range(tw * 8):
                 ux = tw * 8 - 1 - sx if hflip else sx

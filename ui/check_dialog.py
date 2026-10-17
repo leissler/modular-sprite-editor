@@ -31,10 +31,10 @@ def level_icons() -> wx.ImageList:
     return icons
 
 
-def memory_issues(project: Project) -> List[pc.Issue]:
+def memory_issues(project: Project, mode: str = "parts") -> List[pc.Issue]:
     """Video memory as the export for the project's console (with every mapping) fills it, once it gets tight (the
-    export report and the budget readout always show it): the console's tile check (console_exports); nothing for a
-    console without an export."""
+    export report and the budget readout always show it): the console's tile check (console_exports), or for a
+    streamed ``mode`` (the one chosen last for the project) its slots; nothing for a console without an export."""
     import hardware_budget
     from ui.canvas import BUDGET
 
@@ -42,6 +42,14 @@ def memory_issues(project: Project) -> List[pc.Issue]:
     profile = hardware_budget.project_profile(project)
     if export is None or not profile.vram_tiles:
         return []
+    if mode != "parts" and mode in export.modes:
+        import export_modes
+
+        costs = export_modes.measure_mode(project, export, export_modes.mode_by_key(mode),
+                                          profile.key if export.setups else "")
+        return [issue for issue in export.stream_issues(costs.video_tiles, costs.scene_video_tiles,
+                                                        costs.upload_cost_max)
+                if issue.level != pc.INFO]
     issue = export.tile_issue(BUDGET.export_tiles(project, [None] + list(project.mappings), profile))
     return [issue] if issue.level != pc.INFO else []
 
@@ -60,10 +68,12 @@ def describe_counts(issues: List[pc.Issue]) -> str:
 class CheckProjectDialog(wx.Dialog):
     """Lists the issues; Go to closes the dialog and shows the item (``target``), Fix repairs in place."""
 
-    def __init__(self, parent: Optional[wx.Window], project: Project, after_fix: Callable[[str], None]):
+    def __init__(self, parent: Optional[wx.Window], project: Project, after_fix: Callable[[str], None],
+                 export_mode: str = "parts"):
         super().__init__(parent, title="Check Project", size=(px(860), px(540)),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.project = project
+        self.export_mode = export_mode  # how the export for the project's console stores the sprites
         self._after_fix = after_fix
         self.issues: List[pc.Issue] = []
         self.target: Optional[pc.Target] = None  # the item Go to chose
@@ -109,7 +119,7 @@ class CheckProjectDialog(wx.Dialog):
 
     # ------------------------------------------------------------------ list
     def refresh(self) -> None:
-        self.issues = sorted(pc.check_project(self.project) + memory_issues(self.project),
+        self.issues = sorted(pc.check_project(self.project) + memory_issues(self.project, self.export_mode),
                              key=lambda issue: pc.LEVEL_ORDER[issue.level])
         self.list.DeleteAllItems()
         levels = list(LEVEL_LABELS)

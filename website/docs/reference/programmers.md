@@ -43,7 +43,15 @@ The Mega Drive was the first console with an exporter and a runtime; the [SNES](
   <figcaption>The report after exporting the Prince of Persia example.</figcaption>
 </figure>
 
-The game's folder needs the runtime from the source code. The demo project in `examples/megadrive/megadrive_demo` has it and shows every module, frame, animation and scene with live profiling. `export_megadrive` does the same from the command line, for build scripts; `--strict` makes it fail when the project has errors:
+**Store as** picks how the game keeps the sprites; the table under it, *Ways to store the sprites*, shows what each way costs for the project:
+
+- **Parts, resident** (the default): every tile stays in video memory, and nothing is copied while the game runs.
+- **Parts, streamed**: video memory holds only what each character shows, and a step's tiles are copied in when it starts. This is for projects bigger than video memory: the Prince of Persia example needs 39 tiles a character instead of 305.
+- **Whole frames, streamed**: each frame becomes one picture, so parts drawn over each other cost no extra hardware sprites, for many times the cartridge space.
+
+When the game streams, it gives each character on screen a slot of its own; the Mega Drive guide in the repository (below) shows how.
+
+The game's folder needs the runtime from the source code. The demo project in `examples/megadrive/megadrive_demo` has it and shows every module, frame, animation and scene with live profiling. `export_megadrive` does the same from the command line, for build scripts; `--mode parts_streamed` or `--mode frames_streamed` streams, and `--strict` makes it fail when the project has errors:
 
 ```text
 export_megadrive --project-json my_project.json --output-dir path/to/megadrive_game
@@ -56,10 +64,10 @@ The [Mega Drive guide in the repository](https://github.com/leissler/modular-spr
 The source code includes an exporter and a runtime for SNES games made with [PVSnesLib](https://github.com/alekmaul/pvsneslib). The runtime has the same functions as the Mega Drive's, so a game draws, plays and re-skins its characters the same way, with everything listed for the Mega Drive above: palettes and swaps, colour cycles, animations tick for tick, scenes, hitboxes, points and events.
 
 - The SNES draws sprites as squares in two sizes a game chooses for the whole screen: 8 and 16 pixels, 8 and 32, up to 32 and 64. The export cuts every part into those squares, the way the budget overlay shows them for that pair.
-- Every tile stays in video memory, in the SNES's two sprite tables of 256 tiles. The budget overlay and **Check Project** count them for the project's sizes when the project is made for the SNES (**Console**, above the tabs).
+- By default every tile stays in video memory, in the SNES's two sprite tables of 256 tiles. The budget overlay and **Check Project** count them for the project's sizes when the project is made for the SNES (**Console**, above the tabs).
 - Each palette gets one of the eight sprite palettes, in the order of the **Palettes** tab, followed by the palette swaps' versions of the palettes they change.
 
-**File ▸ Export ▸ SNES (PVSnesLib)...** writes the data into the game's PVSnesLib project folder. Choose the folder, which mappings to include and the sprite sizes: the list shows how many of the 512 tiles each pair needs, so you can see which ones fit. The editor remembers your choices for the project, and the report afterwards shows what the game gets.
+**File ▸ Export ▸ SNES (PVSnesLib)...** writes the data into the game's PVSnesLib project folder. Choose the folder, which mappings to include and the sprite sizes: the list shows how many of the 512 tiles each pair needs, so you can see which ones fit. **Store as** works as for the Mega Drive: streamed, a project bigger than the 512 tiles fits too (the Sonic example needs 600, but only 64 for a character on screen). The editor remembers your choices for the project, and the report afterwards shows what the game gets.
 
 The game's folder needs the runtime from the source code. The demo project in `examples/snes/snes_demo` has it: it starts on the *Swordfight* and shows every module, frame, animation and scene at 60 frames a second. The release page has it as `ModularSpriteEditor-snes-demo.zip`: the ROM, to open in a SNES emulator, and the project, to build again with your own export. It builds with PVSnesLib's `make` on macOS and Linux, and on Windows with `build_windows.ps1` in the project, which needs only PVSnesLib's Windows release, no MSYS2. The exporter also runs from the command line, `export_snes` from the release page (Windows, macOS and Linux) or, from the source code, `python3 examples/snes/tools/export_snes.py`:
 
@@ -67,7 +75,7 @@ The game's folder needs the runtime from the source code. The demo project in `e
 export_snes --project-json my_project.json --output-dir path/to/snes_game
 ```
 
-`--mapping` exports a single mapping, `--setup snes_8_32` picks other sprite sizes and `--strict` fails when **Check Project** finds errors.
+`--mapping` exports a single mapping, `--setup snes_8_32` picks other sprite sizes, `--mode parts_streamed` or `--mode frames_streamed` streams, and `--strict` fails when **Check Project** finds errors.
 
 The [SNES guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/snes/README.md) covers the runtime, its functions, its limits and how to build the demo.
 

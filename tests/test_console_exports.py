@@ -13,6 +13,7 @@ from PIL import Image
 
 import console_exports
 import consoles
+import export_modes
 import hardware_budget as hb
 import project_check as pc
 from models import AFrame, Animation, FModule, Frame, ImageAsset, Module, Project
@@ -106,10 +107,16 @@ class RegistryTest(unittest.TestCase):
             with self.subTest(export.key):
                 module = export.load()
                 self.assertEqual(module.__name__, export.module)
-                for name in ("export_project", "report_line", "main"):
+                for name in ("export_project", "report_line", "main", "bake_context"):
                     self.assertTrue(callable(getattr(module, name, None)), name)
                 takes = inspect.signature(module.export_project).parameters
                 self.assertEqual("setup_key" in takes, bool(export.setups), "a setup where the export has setups")
+                self.assertEqual(export.modes[0], "parts", "every export can keep every tile in video memory")
+                self.assertTrue(set(export.modes) <= {mode.key for mode in export_modes.MODES})
+                if len(export.modes) > 1:  # its runtime streams
+                    self.assertIn("mode", takes)
+                    self.assertEqual(tuple(module.MODES), export.modes)
+                    self.assertTrue(callable(getattr(pc, f"{export.key}_stream_issues", None)))
 
     def test_the_checks(self):
         for export in console_exports.EXPORTS:

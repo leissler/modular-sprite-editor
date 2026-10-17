@@ -108,6 +108,11 @@ jobs:
               --output-dir "exporter-test/py/$name" --mapping all > /dev/null
             diff -r "exporter-test/exe/$name" "exporter-test/py/$name"
           done
+          # A streamed export (--mode, docs/EXPORT_MODES.md) the same.
+          "$exe" --project-json examples/pop/PoP_WW.json --output-dir exporter-test/exe/streamed --mode parts_streamed
+          python examples/megadrive/tools/export_megadrive.py --project-json examples/pop/PoP_WW.json \
+            --output-dir exporter-test/py/streamed --mode parts_streamed > /dev/null
+          diff -r exporter-test/exe/streamed exporter-test/py/streamed
           mkdir -p dist/release
           case "$RUNNER_OS" in
             macOS) (cd dist/exporter && zip -q ../release/export_megadrive-macos.zip export_megadrive) ;;
@@ -138,6 +143,13 @@ jobs:
               --output-dir snes-exporter-test/py/sonic > snes-exporter-test/sonic-py.txt; then exit 1; fi
           diff snes-exporter-test/sonic-exe.txt snes-exporter-test/sonic-py.txt
           test ! -e snes-exporter-test/exe/sonic
+          # Streamed (--mode, docs/EXPORT_MODES.md), Sonic fits: the same data and report both ways.
+          "$exe" --project-json examples/sonic/sonic.json --output-dir snes-exporter-test/exe/sonic-streamed \
+            --mode parts_streamed > snes-exporter-test/sonic-streamed-exe.txt
+          python examples/snes/tools/export_snes.py --project-json examples/sonic/sonic.json \
+            --output-dir snes-exporter-test/py/sonic-streamed --mode parts_streamed > snes-exporter-test/sonic-streamed-py.txt
+          diff -r snes-exporter-test/exe/sonic-streamed snes-exporter-test/py/sonic-streamed
+          diff snes-exporter-test/sonic-streamed-exe.txt snes-exporter-test/sonic-streamed-py.txt
           case "$RUNNER_OS" in
             macOS) (cd dist/exporter && zip -q ../release/export_snes-macos.zip export_snes) ;;
             Linux) tar -czf dist/release/export_snes-linux.tar.gz -C dist/exporter export_snes ;;
@@ -270,8 +282,9 @@ jobs:
   snes:
     # The SNES demo (examples/snes): its data exported again must be the committed data, the ROM is built with
     # PVSnesLib and played in Mesen 2's headless test runner against the host build of the runtime
-    # (tools/check_snes_rom.py: every OAM byte for byte, video memory, palettes, lag frames). The runtime's host test
-    # (tests/test_snes_runtime_draw.py) runs with the unit tests of the build job.
+    # (tools/check_snes_rom.py: every OAM byte for byte, video memory, palettes, lag frames), and so are ROMs of
+    # streamed exports (--mode: the slots' video memory after every draw). The runtime's host tests
+    # (tests/test_snes_runtime_draw.py, tests/test_snes_streaming.py) run with the unit tests of the build job.
     name: SNES demo
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -340,6 +353,11 @@ jobs:
           set -o pipefail
           mkdir -p test-results
           python tools/check_snes_rom.py | tee test-results/snes-rom-check.txt
+          # Streamed exports (docs/EXPORT_MODES.md): Sonic's tiles fit the SNES only this way.
+          for mode in parts_streamed frames_streamed; do
+            python tools/check_snes_rom.py examples/pop/PoP_WW.json examples/sonic/sonic.json --mode "$mode" \
+              | tee -a test-results/snes-rom-check.txt
+          done
 
       - name: Zip the SNES demo (the ROM and its PVSnesLib project)
         run: |

@@ -15,6 +15,14 @@ lists a render frame points to (its sprites, hitboxes, points) are far reference
 chunk. A render frame's sprites are ready for the sprite table: in OAM order (the last part first: it is on top),
 relative to where the frame is drawn, in runs of one palette entry, so the runtime's loop (modsprite_draw.asm) only
 adds the position and the palette.
+
+Streamed exports (``--mode parts_streamed`` or ``frames_streamed``, docs/EXPORT_MODES.md) keep only what is on screen in
+video memory, in slots of whole rows of a sprite table (16 tiles). The cartridge holds the squares in strips: each
+render frame's new squares, in the order frames first use them, side by side in rows of at most 16 tiles, row after
+row, so the squares a frame uses mostly lie together. Every render frame names a load list: its strips' pieces placed
+in a slot (aligned to their size, as the PPU finds a square's tiles 16 to a row), as DMA runs (a row of a piece each,
+neighbours merged), identical lists once; its sprites count their tiles from the slot. ``frames_streamed`` stores whole
+frames (ConsoleBake.whole_frames) instead of parts.
 """
 
 from __future__ import annotations
@@ -41,7 +49,8 @@ import palettes  # noqa: E402
 import project_check  # noqa: E402
 import sprite_cut  # noqa: E402
 from console_bake import (  # noqa: E402
-    FIXED_ENTRY, ConsoleBake, RenderFrameSpan, copy_sources, export_arguments, print_result, resolve_mappings,
+    FIXED_ENTRY, ConsoleBake, RenderFrameSpan, StoredPart, copy_sources, export_arguments, print_result,
+    resolve_mappings,
 )
 from models import ModuleMapping, Project  # noqa: E402
 from project_check import Issue  # noqa: E402
@@ -54,7 +63,16 @@ SPRITE_TILES = 2 * TABLE_TILES
 SPRITE_PALETTES = 8  # CGRAM 128-255
 RF_PAGE_SHIFT = 10  # render frames per page: 1024
 DATA_VERSION = 2
+STREAMED_DATA_VERSION = 3  # load lists, sprites counted from a slot (a resident export stays version 2)
 DEFAULT_SETUP = "snes_8_16"
+MODES = ("parts", "parts_streamed", "frames_streamed")
+# What a load list costs to upload in vertical blank, in bytes of DMA (8 master cycles each, about 170 a scanline): its
+# bytes, and the 65816's time in ms_send_uploads (modsprite_draw.asm) per run (setting up a DMA), per group of runs from
+# one chunk and per list, measured in Mesen 2 (533, 611 and 939 master cycles; tools/check_snes_rom.py --timings).
+RUN_COST = 67
+GROUP_COST = 76
+LIST_COST = 117
+UPLOAD_BUDGET = project_check.SNES_UPLOAD_CAPACITY  # the default per vertical blank (ms_set_upload_budget)
 OBSEL_SIZES = {  # the OBSEL size select (bits 5-7) of each pair of sprite sizes
     ((8, 8), (16, 16)): 0, ((8, 8), (32, 32)): 1, ((8, 8), (64, 64)): 2,
     ((16, 16), (32, 32)): 3, ((16, 16), (64, 64)): 4, ((32, 32), (64, 64)): 5,
@@ -85,9 +103,17 @@ CYCLE = struct.Struct("<BBHBB2x")  # 8: first slot, count, frames, reverse, 0
 RECORDS = {"MS_RenderFrame": RENDER_FRAME, "MS_Run": RUN, "MS_Sprite": SPRITE, "MS_Hitbox": HITBOX,
            "MS_Point": POINT, "MS_AnimStep": STEP, "MS_Animation": ANIMATION, "MS_StepEvent": EVENT,
            "MS_Scene": SCENE, "MS_PaletteEntry": PALETTE_ENTRY, "MS_ColourCycle": CYCLE}
+# Streamed exports: a render frame's load list (8: its entries (offset, chunk), group count, tiles, upload cost) and the
+# entries, in groups of one chunk (2: the chunk, entry count), each a DMA run (6: VRAM word offset in the slot, offset
+# in the chunk, bytes).
+LOAD_LIST = struct.Struct("<HBBHH")
+LOAD_GROUP = struct.Struct("<BB")
+LOAD_ENTRY = struct.Struct("<HHH")
+STREAM_RECORDS = {"MS_LoadList": LOAD_LIST, "MS_LoadGroup": LOAD_GROUP, "MS_LoadEntry": LOAD_ENTRY}
 
 FLAG_LARGE, FLAG_HFLIP, FLAG_VFLIP = 0x01, 0x40, 0x80
 SIZE_BIT = 0x02  # a large sprite's bit in the sprite table's high table
+NO_LIST = 0xFFFF  # a render frame that shows nothing loads nothing
 
 
 class ExportError(RuntimeError):
@@ -133,8 +159,14 @@ class SNESBakeContext(ConsoleBake):
     """The SNES half of the export: ConsoleBake's parts as square hardware sprites of the setup's two sizes, their
     tiles in the two sprite tables, the palettes as CGRAM words, all of it in bank-sized chunks."""
 
-    def __init__(self, project: Project, mappings: List[Optional[ModuleMapping]], setup_key: str = "") -> None:
+    def __init__(self, project: Project, mappings: List[Optional[ModuleMapping]], setup_key: str = "",
+                 mode: str = "parts") -> None:
         super().__init__(project, mappings)
+        if mode not in MODES:
+            raise ValueError(f"unknown mode {mode!r}: one of {', '.join(MODES)}")
+        self.mode = mode
+        self.streamed = mode != "parts"
+        self.whole_frames = mode == "frames_streamed"
         console, setup = consoles.target(project.console, project.console_setup)
         if console is not consoles.SNES or setup_key:
             setup = consoles.SNES.setup(setup_key or DEFAULT_SETUP)
@@ -148,10 +180,22 @@ class SNESBakeContext(ConsoleBake):
         self.block_lookup: Dict[Tuple[int, bytes], int] = {}
         self.block_tiles: List[int] = []  # the tile number (9 bits) each block starts at, after _allocate
         self.tables = bytearray()  # the sprite tiles, 2 x 256 x 32 bytes at most
+        self.block_pieces: Dict[Tuple[int, bool, bool], List[Tuple[int, int, int, int, int]]] = {}
         self.piece_lists: Dict[Tuple[int, bool, bool], List[Tuple[int, int, int, int, int]]] = {}
         self.chunk_data: List[bytearray] = []
         self.tables_used = 0
         self.tile_end = 0  # the first tile number after every tile in use: the rest of the tables is free
+        # Streamed exports (_stream): the strips of squares in the cartridge, in pieces of at most a chunk, each
+        # render frame's load list and its squares' tiles in the slot, the lists, and the slots' sizes in tiles.
+        self.strips: List[Tuple[int, List[int]]] = []  # (square side in tiles, its squares' blocks)
+        self.store_pieces: List[bytes] = []
+        self.render_frame_loads: List[int] = []
+        self.render_frame_slot_tiles: List[Dict[int, int]] = []  # block -> its first tile in the slot
+        self.load_lists: List[Tuple[Tuple[Tuple[int, int, int, int], ...], int, int]] = []  # (runs, tiles, cost)
+        self.slot_tiles = 0
+        self.scene_slot_tiles = 0
+        self.slot_align = 0  # tiles: a slot starts on a row a large square's tiles may start on
+        self.streamed_layout = False
 
     # ---------------------------------------------------------------- parts as hardware sprites
     def _store_part(self, image: Image.Image, palette: str, entry: int) -> int:
@@ -181,6 +225,15 @@ class SNESBakeContext(ConsoleBake):
         self.variants.append(Variant(max(TILE, -(-rgba.width // TILE) * TILE), max(TILE, -(-rgba.height // TILE) * TILE),
                                      blocks))
         return index
+
+    def _stored_part(self, stored: int) -> StoredPart:
+        """ConsoleBake's measuring hook: a variant's padded size and its squares; a square's tiles are its block."""
+        meta = self.variants[stored]
+        sprites = []
+        for bx, by, large, block, _entry in meta.blocks:
+            size = self.large if large else self.small
+            sprites.append((bx, by, size, size, block, (size // TILE) ** 2))
+        return StoredPart(meta.pad_w, meta.pad_h, tuple(sprites))
 
     def _allocate(self) -> None:
         """Tile numbers for the blocks: largest first, each at the first free place aligned to its size in table 0,
@@ -214,11 +267,11 @@ class SNESBakeContext(ConsoleBake):
         self.tables_used = 2 if highest >= TABLE_TILES else 1
         self.tile_end = highest + 1
 
-    def _piece_list(self, variant: int, hflip: bool, vflip: bool) -> List[Tuple[int, int, int, int, int]]:
-        """A variant's hardware sprites for one flip combination (x, y, tile, flags, palette entry): a flip mirrors
+    def _block_pieces(self, variant: int, hflip: bool, vflip: bool) -> List[Tuple[int, int, int, int, int]]:
+        """A variant's hardware sprites for one flip combination (x, y, block, flags, palette entry): a flip mirrors
         the whole padded part, so the pieces swap places inside it and the sprites flip."""
         key = (variant, bool(hflip), bool(vflip))
-        found = self.piece_lists.get(key)
+        found = self.block_pieces.get(key)
         if found is not None:
             return found
         meta = self.variants[variant]
@@ -228,15 +281,25 @@ class SNESBakeContext(ConsoleBake):
             x = meta.pad_w - bx - size if hflip else bx
             y = meta.pad_h - by - size if vflip else by
             flags = (FLAG_LARGE if large else 0) | (FLAG_HFLIP if hflip else 0) | (FLAG_VFLIP if vflip else 0)
-            pieces.append((x, y, self.block_tiles[block], flags, entry))
-        self.piece_lists[key] = pieces
+            pieces.append((x, y, block, flags, entry))
+        self.block_pieces[key] = pieces
         return pieces
+
+    def _piece_list(self, variant: int, hflip: bool, vflip: bool) -> List[Tuple[int, int, int, int, int]]:
+        """The pieces with their tile numbers in the sprite tables (x, y, tile, flags, palette entry): every tile in
+        video memory."""
+        key = (variant, bool(hflip), bool(vflip))
+        found = self.piece_lists.get(key)
+        if found is None:
+            found = self.piece_lists[key] = [(x, y, self.block_tiles[block], flags, entry)
+                                             for x, y, block, flags, entry in self._block_pieces(variant, hflip, vflip)]
+        return found
 
     def render_frame_extent(self, span: RenderFrameSpan) -> Tuple[int, int, int, int, int]:
         """(sprite count, min x, min y, max x, max y) of a render frame's pieces, relative to where it is drawn."""
         count, min_x, min_y, max_x, max_y = 0, 0x7FFF, 0x7FFF, -0x8000, -0x8000
         for variant, px, py, hflip, vflip in self.parts[span.first_part:span.first_part + span.part_count]:
-            for x, y, _tile, flags, _entry in self._piece_list(variant, bool(hflip), bool(vflip)):
+            for x, y, _block, flags, _entry in self._block_pieces(variant, bool(hflip), bool(vflip)):
                 size = self.large if flags & FLAG_LARGE else self.small
                 min_x, min_y = min(min_x, px + x), min(min_y, py + y)
                 max_x, max_y = max(max_x, px + x + size), max(max_y, py + y + size)
@@ -258,12 +321,166 @@ class SNESBakeContext(ConsoleBake):
                          for slot in range(visible))
         return words
 
+    # ---------------------------------------------------------------- streamed exports
+    def _stream_order(self) -> List[int]:
+        """Render frames in the order a game first shows them: frames, animation steps, scene samples, modules on their
+        own, then the rest."""
+        order: List[int] = []
+        seen = set()
+        for renders in (self.frame_render_frames, [step[0] for step in self.anim_steps], self.scene_samples,
+                        self.module_render_frames, range(len(self.render_frames))):
+            for render in renders:
+                if render not in seen:
+                    seen.add(render)
+                    order.append(render)
+        return order
+
+    def _render_blocks(self, render: int) -> List[int]:
+        """The squares a render frame shows, each once, in the order its parts first use them."""
+        blocks: Dict[int, None] = {}
+        for variant, *_placement in self.render_frame_parts(render):
+            for _bx, _by, _large, block, _entry in self.variants[variant].blocks:
+                blocks.setdefault(block, None)
+        return list(blocks)
+
+    def _stream(self) -> None:
+        """Streamed exports: the squares in strips (each render frame's new ones, in the order frames first use them, at
+        most 16 tiles a row), the cartridge's pieces of them, and every render frame's load list and slot tiles."""
+        self.streamed_layout = True
+        self.slot_align = (self.large // TILE) * GRID
+        strip_of: Dict[int, Tuple[int, int]] = {}  # block -> (strip, position in it)
+        for render in self._stream_order():
+            new: Dict[int, List[int]] = {}
+            for block in self._render_blocks(render):
+                if block not in strip_of:
+                    new.setdefault(self.blocks[block][0], []).append(block)
+            for side in sorted(new, reverse=True):
+                per = GRID // side
+                for start in range(0, len(new[side]), per):
+                    blocks = new[side][start:start + per]
+                    for position, block in enumerate(blocks):
+                        strip_of[block] = (len(self.strips), position)
+                    self.strips.append((side, blocks))
+        # The cartridge: each strip a row of tiles after the other, its squares side by side, in pieces of a chunk at
+        # most (a DMA run reads one bank).
+        strip_at: List[Tuple[int, int]] = []  # (chunk, offset)
+        piece = bytearray()
+        for side, blocks in self.strips:
+            data = b"".join(_snes_tile(self.blocks[block][1], side * TILE, tx * TILE, ty * TILE)
+                            for ty in range(side) for block in blocks for tx in range(side))
+            if len(piece) + len(data) > CHUNK_SIZE:
+                self.store_pieces.append(bytes(piece))
+                piece = bytearray()
+            strip_at.append((len(self.store_pieces), len(piece)))
+            piece.extend(data)
+        if piece:
+            self.store_pieces.append(bytes(piece))
+        lists: Dict[Tuple[Tuple[int, int, int, int], ...], int] = {}
+        players = set(self.module_render_frames) | set(self.frame_render_frames) | {step[0] for step in self.anim_steps}
+        scenes = set(self.scene_samples)
+        player_rows = scene_rows = 0
+        for render in range(len(self.render_frames)):
+            runs, in_slot, rows = self._slot_layout(self._render_blocks(render), strip_of, strip_at)
+            self.render_frame_slot_tiles.append(in_slot)
+            if not runs:
+                self.render_frame_loads.append(NO_LIST)
+                continue
+            if runs not in lists:
+                lists[runs] = len(self.load_lists)
+                tiles = sum(run[3] for run in runs)
+                cost = tiles * 32 + len(runs) * RUN_COST + len({run[0] for run in runs}) * GROUP_COST + LIST_COST
+                self.load_lists.append((runs, tiles, min(0xFFFF, cost)))
+            self.render_frame_loads.append(lists[runs])
+            if render in players:
+                player_rows = max(player_rows, rows)
+            if render in scenes:
+                scene_rows = max(scene_rows, rows)
+        if len(self.load_lists) >= NO_LIST:
+            raise ExportError("More than 65534 different load lists")
+        align = self.large // TILE
+        self.slot_tiles = -(-player_rows // align) * align * GRID
+        self.scene_slot_tiles = -(-scene_rows // align) * align * GRID
+        self.tile_end = max(self.slot_tiles, self.scene_slot_tiles)  # the default slot's end
+        if self.tile_end > SPRITE_TILES:
+            raise ExportError(f"A frame or scene sample needs a slot of {max(self.slot_tiles, self.scene_slot_tiles)} "
+                              f"tiles, more than the SNES's {SPRITE_TILES} sprite tiles")
+
+    def stream_slots(self) -> Tuple[int, int]:
+        """ConsoleBake's measuring hook: the slots in tiles, whole rows of the sprite tables (_stream works them out
+        when the bake has not)."""
+        if not self.streamed_layout:
+            self._stream()
+        return self.slot_tiles, self.scene_slot_tiles
+
+    def stream_upload_cost(self, tile_bytes: int = 32) -> int:
+        """ConsoleBake's measuring hook: the most a load list costs in vertical blank (its bytes and its runs, as
+        ms_send_uploads spends them)."""
+        if not self.streamed_layout:
+            self._stream()
+        return max((cost for _runs, _tiles, cost in self.load_lists), default=0)
+
+    def _slot_layout(self, blocks: Sequence[int], strip_of: Dict[int, Tuple[int, int]], strip_at: List[Tuple[int, int]]
+                     ) -> Tuple[Tuple[Tuple[int, int, int, int], ...], Dict[int, int], int]:
+        """Where a render frame's squares go in a slot: the neighbouring squares of a strip it shows (a segment) stay
+        side by side, segments of the largest squares first, longest first, each at the first free place aligned to its
+        squares (rows of 16 tiles). Returns the DMA runs (chunk, offset, slot tile, tiles: a row of a segment each, runs
+        that follow each other in the chunk and in the slot merged), each square's first tile in the slot and the rows
+        used."""
+        by_strip: Dict[int, List[int]] = {}
+        for block in blocks:
+            strip, position = strip_of[block]
+            by_strip.setdefault(strip, []).append(position)
+        segments: List[Tuple[int, int, int]] = []  # (strip, first position, squares)
+        for strip in sorted(by_strip):
+            positions = sorted(by_strip[strip])
+            first = last = positions[0]
+            for position in positions[1:]:
+                if position != last + 1:
+                    segments.append((strip, first, last - first + 1))
+                    first = position
+                last = position
+            segments.append((strip, first, last - first + 1))
+        taken = set()
+        rows = 0
+        runs: List[Tuple[int, int, int, int]] = []
+        in_slot: Dict[int, int] = {}
+        for strip, first, count in sorted(segments, key=lambda s: (-self.strips[s[0]][0], -s[2], s[0], s[1])):
+            side, strip_blocks = self.strips[strip]
+            width = side * count
+            row = 0
+            while True:
+                col = next((c for c in range(0, GRID - width + 1, side)
+                            if not any((row + r, c + k) in taken for r in range(side) for k in range(width))), None)
+                if col is not None:
+                    break
+                row += side
+            taken.update((row + r, col + k) for r in range(side) for k in range(width))
+            rows = max(rows, row + side)
+            chunk, offset = strip_at[strip]
+            strip_width = side * len(strip_blocks)
+            for r in range(side):
+                runs.append((chunk, offset + (r * strip_width + first * side) * 32, (row + r) * GRID + col, width))
+            for k in range(count):
+                in_slot[strip_blocks[first + k]] = row * GRID + col + k * side
+        runs.sort()
+        merged: List[List[int]] = []
+        for chunk, source, tile, tiles in runs:
+            last = merged[-1] if merged else None
+            if last and last[0] == chunk and last[1] + last[3] * 32 == source and last[2] + last[3] == tile:
+                last[3] += tiles
+            else:
+                merged.append([chunk, source, tile, tiles])
+        return tuple(tuple(run) for run in merged), in_slot, rows
+
     # ---------------------------------------------------------------- the data
     def bake(self) -> None:
         super().bake()
-        self._allocate()
-        for variant, _x, _y, hflip, vflip in self.parts:
-            self._piece_list(variant, bool(hflip), bool(vflip))
+        if self.streamed:
+            self._stream()
+        else:
+            self._allocate()
+            for variant, _x, _y, hflip, vflip in self.parts:
+                self._piece_list(variant, bool(hflip), bool(vflip))
         assert RENDER_FRAME.size == 22, "ms_render_frame and modsprite_draw.asm multiply by 22 in shifts"
         assert RF_PAGE_SHIFT == 10, "modsprite_draw.asm finds a render frame's page as (index >> 8) & 0xFC"
         for span in self.render_frames:
@@ -276,17 +493,20 @@ class SNESBakeContext(ConsoleBake):
         """Lay the data out in chunks; returns where each table is (for the header)."""
         chunks = Chunks()
         where: Dict[str, Any] = {}
-        # The sprite tiles first, a table each (DMA reads a bank at a time).
+        # The sprite tiles first, a table each (DMA reads a bank at a time); a streamed export's strips in their pieces.
         tables = [bytes(self.tables[t * TABLE_TILES * 32:(t + 1) * TABLE_TILES * 32]) for t in range(self.tables_used)]
         where["tiles"] = [chunks.place(data, "a sprite table", share=False) for data in tables]
+        for index, piece in enumerate(self.store_pieces):
+            assert chunks.place(piece, "the sprite tiles", share=False) == (index, 0), "the strips start the chunks"
 
         def table(name: str, data: bytes) -> None:
             where[name] = chunks.place(data or b"\0\0", f"the {name.replace('_', ' ')} table", share=False)
 
         # Render frames: their lists, then the records in pages.
         records: List[bytes] = []
-        for span in self.render_frames:
-            sprite_bytes, run_count = self.sprite_runs(span)
+        for index, span in enumerate(self.render_frames):
+            sprite_bytes, run_count = self.sprite_runs(span, self.render_frame_slot_tiles[index] if self.streamed
+                                                       else None)
             sprites_at = chunks.place(sprite_bytes, "a frame's sprites") if sprite_bytes else (0, 0)
             boxes = self.boxes[span.first_box:span.first_box + span.box_count]
             box_bytes = b"".join(HITBOX.pack(t & 0xFF, 0, r & 0xFFFF, x, y, w, h) for t, r, x, y, w, h in boxes)
@@ -327,6 +547,26 @@ class SNESBakeContext(ConsoleBake):
         table("swap_entries", bytes(self.entry_of.get((pid, swap.id), self.entry_of[(pid, None)])
                                     for swap in self.swaps for pid in self.palette_ids))
         where["cycle_count"] = len(cycle_records)
+        if self.streamed:
+            list_records = []
+            for runs, tiles, cost in self.load_lists:
+                data = bytearray()
+                groups = start = 0
+                while start < len(runs):
+                    end = start
+                    while end < len(runs) and runs[end][0] == runs[start][0] and end - start < 255:
+                        end += 1
+                    data += LOAD_GROUP.pack(runs[start][0], end - start)
+                    data += b"".join(LOAD_ENTRY.pack(tile * 16, source, count * 32)
+                                     for _chunk, source, tile, count in runs[start:end])
+                    groups += 1
+                    start = end
+                if groups > 255:
+                    raise ExportError("A frame or scene sample's tiles come from more than 255 places")
+                at = chunks.place(bytes(data), "a load list")
+                list_records.append(LOAD_LIST.pack(at[1], at[0], groups, tiles, cost))
+            table("load_lists", b"".join(list_records))
+            table("render_frame_loads", u16s(self.render_frame_loads))
         # Names and ids: one string table with a list of offsets each.
         lists = self.name_lists()
         strings = bytearray()
@@ -349,13 +589,18 @@ class SNESBakeContext(ConsoleBake):
         self.chunk_data = chunks.data
         return where
 
-    def sprite_runs(self, span: RenderFrameSpan) -> Tuple[bytes, int]:
+    def sprite_runs(self, span: RenderFrameSpan, slot_tiles: Optional[Dict[int, int]] = None) -> Tuple[bytes, int]:
         """A render frame's sprites as the runtime writes them into the sprite table: in OAM order (the last part
         first, it is on top), in runs of one palette entry (a run's header, then its sprites); returns (the bytes, the
-        run count)."""
+        run count). ``slot_tiles``: a streamed export's squares' first tiles in the slot (block -> tile)."""
         sprites = []
         for variant, x, y, hflip, vflip in reversed(self.parts[span.first_part:span.first_part + span.part_count]):
-            for px, py, tile, flags, entry in self._piece_list(variant, bool(hflip), bool(vflip)):
+            if slot_tiles is None:
+                pieces = self._piece_list(variant, bool(hflip), bool(vflip))
+            else:
+                pieces = [(px, py, slot_tiles[block], flags, entry)
+                          for px, py, block, flags, entry in self._block_pieces(variant, bool(hflip), bool(vflip))]
+            for px, py, tile, flags, entry in pieces:
                 attribute = (flags & (FLAG_HFLIP | FLAG_VFLIP)) | ((tile >> 8) & 1)
                 sprites.append((entry, SPRITE.pack(int(x) + px, int(y) + py, tile & 0xFF, attribute,
                                                    SIZE_BIT if flags & FLAG_LARGE else 0, 0)))
@@ -424,7 +669,8 @@ class SNESBakeContext(ConsoleBake):
     def header_text(self, where: Dict[str, Any]) -> str:
         p = self.project
         defines = [
-            ("MS_DATA_VERSION", DATA_VERSION), ("MS_CHUNK_COUNT", len(self.chunk_data)),
+            ("MS_DATA_VERSION", STREAMED_DATA_VERSION if self.streamed else DATA_VERSION),
+            ("MS_CHUNK_COUNT", len(self.chunk_data)),
             ("MS_MODULE_COUNT", len(p.modules)), ("MS_FRAME_COUNT", len(p.frames)),
             ("MS_ANIMATION_COUNT", len(p.animations)), ("MS_SCENE_COUNT", len(p.timeline_scenes)),
             ("MS_MAPPING_COUNT", len(self.mappings)), ("MS_RENDER_FRAME_COUNT", len(self.render_frames)),
@@ -447,6 +693,20 @@ class SNESBakeContext(ConsoleBake):
             f"/* {self.setup.name}: OBSEL's size select is MS_OBJ_SIZE. */",
         ]
         lines += [f"#define {name} {value}" for name, value in defines]
+        if self.streamed:
+            lines += [
+                "",
+                "/* A streamed export (modsprite.h): video memory holds slots of MS_SLOT_TILES tiles a player and",
+                "   MS_SCENE_SLOT_TILES a scene, each starting on a multiple of MS_SLOT_ALIGN tiles; MS_TILE_COUNT tiles "
+                "in the cartridge. */",
+                "#define MS_STREAMED 1",
+                f"#define MS_SLOT_TILES {self.slot_tiles}",
+                f"#define MS_SCENE_SLOT_TILES {self.scene_slot_tiles}",
+                f"#define MS_SLOT_ALIGN {self.slot_align}",
+                f"#define MS_LOAD_LIST_COUNT {len(self.load_lists)}",
+                f"#define MS_UPLOAD_BUDGET {UPLOAD_BUDGET}",
+                "#define MS_NO_LIST 0xFFFF",
+            ]
         lines += ["", "#define MS_NO_ANIMATION 0xFFFF", "#define MS_NO_ROLE 0xFFFF", "#define MS_UNKNOWN_TYPE 0xFF", ""]
         for title, symbols in (("Event types", self.event_symbols), ("Hitbox types", self.box_type_symbols),
                                ("Point types", self.point_type_symbols), ("Roles", self.role_symbols)):
@@ -482,6 +742,22 @@ class SNESBakeContext(ConsoleBake):
             "typedef struct { u8 palette; u8 swap; u16 first_cycle; u8 cycle_count; u8 reserved; u16 reserved2; } "
             "MS_PaletteEntry;",
             "typedef struct { u8 first; u8 count; u16 frames; u8 reverse; u8 reserved; u16 reserved2; } MS_ColourCycle;",
+        ]
+        if self.streamed:
+            lines += [
+                "/* A render frame's load list (ms_render_frame_loads, MS_NO_LIST when it shows nothing): group_count "
+                "groups of DMA runs,",
+                "   each an MS_LoadGroup (the chunk its runs read) and its count MS_LoadEntrys; what they upload and "
+                "what that costs in",
+                "   vertical blank, in bytes of DMA (ms_set_upload_budget). An entry copies bytes from its chunk to "
+                "the slot's VRAM",
+                "   word address + vram. */",
+                "typedef struct { u16 entries_offset; u8 entries_chunk; u8 group_count; u16 tile_count; u16 cost; } "
+                "MS_LoadList;",
+                "typedef struct { u8 chunk; u8 count; } MS_LoadGroup;",
+                "typedef struct { u16 vram; u16 source; u16 bytes; } MS_LoadEntry;",
+            ]
+        lines += [
             "",
             "extern const u8 *const ms_chunks[];",
             "#define MS_FAR(chunk, offset) (ms_chunks[(chunk)] + (offset))",
@@ -499,6 +775,10 @@ class SNESBakeContext(ConsoleBake):
             "extern const MS_PaletteEntry *ms_palette_entries;",
             "extern const MS_ColourCycle *ms_colour_cycles;",
             "extern const u8 *ms_swap_entries;",
+        ]
+        if self.streamed:
+            lines += ["extern const MS_LoadList *ms_load_lists;", "extern const u16 *ms_render_frame_loads;"]
+        lines += [
             "",
             "void ms_data_init(void);",
             "const MS_RenderFrame *ms_render_frame(u16 index);",
@@ -526,6 +806,9 @@ class SNESBakeContext(ConsoleBake):
                   ("ms_palette_entries", "const MS_PaletteEntry *", "palette_entries"),
                   ("ms_colour_cycles", "const MS_ColourCycle *", "colour_cycles"),
                   ("ms_swap_entries", "const u8 *", "swap_entries")]
+        if self.streamed:
+            tables += [("ms_load_lists", "const MS_LoadList *", "load_lists"),
+                       ("ms_render_frame_loads", "const u16 *", "render_frame_loads")]
         lines += [f"{ctype}{name};" for name, ctype, _key in tables]
         lines += ["", "void ms_data_init(void)", "{"]
         for index, (chunk, offset) in enumerate(where["tiles"]):
@@ -594,12 +877,12 @@ class ExportResult:
 
 
 def export_project(project: Project, project_dir: Path, mapping_selector: str = "all", setup_key: str = "",
-                   project_path: Optional[Path] = None, copy_assets: bool = False) -> ExportResult:
+                   project_path: Optional[Path] = None, copy_assets: bool = False, mode: str = "parts") -> ExportResult:
     """Bake a project into a PVSnesLib project folder and report what the game will see (Check Project's errors and
-    warnings, how the tiles and palettes fit)."""
+    warnings, how the tiles and palettes fit). ``mode``: one of MODES (docs/EXPORT_MODES.md)."""
     mappings = resolve_mappings(project, mapping_selector)
     issues = [issue for issue in project_check.check_project(project) if issue.level != project_check.INFO]
-    bake = SNESBakeContext(project, mappings, setup_key)
+    bake = SNESBakeContext(project, mappings, setup_key, mode)
     bake.bake()
     files = bake.write(Path(project_dir))
     if copy_assets:
@@ -609,7 +892,11 @@ def export_project(project: Project, project_dir: Path, mapping_selector: str = 
     if console:
         issues.append(console)
     tiles = bake.tiles_used()
-    issues.append(project_check.snes_tile_issue(tiles, SPRITE_TILES))
+    if bake.streamed:
+        issues.extend(project_check.snes_stream_issues(bake.slot_tiles, bake.scene_slot_tiles,
+                                                       bake.stream_upload_cost()))
+    else:
+        issues.append(project_check.snes_tile_issue(tiles, SPRITE_TILES))
     palette_entries = project_check.snes_palette_issue(len(bake.palette_entries), SPRITE_PALETTES)
     if palette_entries:
         issues.append(palette_entries)
@@ -622,12 +909,26 @@ def export_project(project: Project, project_dir: Path, mapping_selector: str = 
         "chunks": len(bake.chunk_data), "data_bytes": sum(len(c) for c in bake.chunk_data),
         "rom_kb": int(bake.rom_make_text().split("ROMBANKS := ")[1].split()[0]) * 32,
     }
+    if bake.streamed:
+        summary.update(mode=mode, slot_tiles=bake.slot_tiles, scene_slot_tiles=bake.scene_slot_tiles,
+                       load_lists=len(bake.load_lists))
     order = project_check.LEVEL_ORDER
     return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
 
 
+def bake_context(project: Project, mappings: List[Optional[ModuleMapping]], setup_key: str = "") -> SNESBakeContext:
+    """The bake for a pair of sprite sizes as export_modes measures it (ConsoleBake.bake: the sprite tables are not
+    filled, so whole frames over 512 tiles can be measured too; nothing is written)."""
+    return SNESBakeContext(project, mappings, setup_key)
+
+
 def report_line(summary: Dict[str, Any]) -> str:
     """The editor's export report: the sprite sizes, the tiles they need and the data in the ROM."""
+    if "slot_tiles" in summary:
+        return (f"{summary.get('setup', '')}. Streamed: {summary.get('tiles', 0)} tiles in the cartridge, a slot of "
+                f"{summary['slot_tiles']} sprite tiles a player and {summary.get('scene_slot_tiles', 0)} a scene, "
+                f"{summary.get('data_bytes', 0) / 1024:.0f} KB of data in {summary.get('chunks', 0)} ROM banks "
+                f"(a {summary.get('rom_kb', 0)} KB ROM)")
     return (f"{summary.get('setup', '')}: {summary.get('tiles', 0)} of {SPRITE_TILES} sprite tiles, "
             f"{summary.get('data_bytes', 0) / 1024:.0f} KB of data in {summary.get('chunks', 0)} ROM banks "
             f"(a {summary.get('rom_kb', 0)} KB ROM)")
@@ -635,7 +936,7 @@ def report_line(summary: Dict[str, Any]) -> str:
 
 def main() -> int:
     parser = export_arguments("SNES", REPO_ROOT / "examples" / "pop" / "PoP_WW.json",
-                              REPO_ROOT / "examples" / "snes" / "snes_demo")
+                              REPO_ROOT / "examples" / "snes" / "snes_demo", MODES)
     parser.add_argument("--setup", default="", help="The two sprite sizes (snes_8_16 ... snes_32_64); default: the "
                         "project's when it is made for the SNES, else snes_8_16.")
     args = parser.parse_args()
@@ -643,7 +944,7 @@ def main() -> int:
     project = Project.from_json(str(project_json_path))
     try:
         result = export_project(project, Path(args.output_dir), args.mapping, args.setup, project_json_path,
-                                args.copy_assets)
+                                args.copy_assets, args.mode)
     except ExportError as error:
         print(f"error: {error}")
         return 1

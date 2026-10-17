@@ -178,7 +178,9 @@ macOS right-click › Open the first time.
 - **Export from the editor** (File ▸ Export ▸ Mega Drive) or the command line (`export_megadrive`): tiles, palettes,
   frames, animations, scenes, hitboxes, points, events and every mapping in one binary blob, written into the game's
   SGDK project (its own resources stay). It reports what the game gets: the video memory the sprites need, merged
-  colours and anything Check Project finds.
+  colours and anything Check Project finds. **Store as** (`--mode`) keeps every tile in video memory (the default) or
+  streams: video memory holds only what each character shows and a step uploads its tiles when it starts, as parts or
+  as whole frames, flattened into the fewest hardware sprites ([`docs/EXPORT_MODES.md`](docs/EXPORT_MODES.md)).
 - **Runtime** (`examples/megadrive/megadrive_demo`): tiles stay in VRAM and drawing only writes the sprite table (on
   average 7 % of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
   scenes; characters can share animations and differ by mapping and palette swap (`ms_draw_anim_player_as`), colour
@@ -190,7 +192,9 @@ macOS right-click › Open the first time.
 - **Export from the editor** (File ▸ Export ▸ SNES) or the command line (`export_snes` from the release page, or
   `examples/snes/tools/export_snes.py`):
   the same data as for the Mega Drive in chunks of a ROM bank, with the C files the runtime reads, for one of the
-  SNES's six pairs of sprite sizes (the dialog shows the tiles each needs; every tile stays in video memory).
+  SNES's six pairs of sprite sizes (the dialog shows the tiles each needs). **Store as** (`--mode`) keeps every tile in
+  video memory (the default) or streams parts or whole frames into slots, uploaded in vertical blank: Sonic's 600
+  tiles, more than the SNES's 512, fit this way.
 - **Runtime** (`examples/snes/snes_demo`): the Mega Drive runtime's API on PVSnesLib, its hot loops in 65816
   assembly (the Swordfight scene in 12 % of a frame, measured in Mesen 2); colour cycles turn in vertical blank.
   Tests compile it for the host and compare what it draws with the editor pixel by pixel, and
@@ -321,6 +325,7 @@ python3 tools/make_logo.py                         # the product logo: the icon'
 - [`AGENTS.md`](AGENTS.md): architecture, conventions and workflows for contributors and coding agents
 - [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md): project JSON schema and versioning
 - [`docs/CONSOLES.md`](docs/CONSOLES.md): what supporting a console means: the checklist, names, adding one
+- [`docs/EXPORT_MODES.md`](docs/EXPORT_MODES.md): parts or whole frames, resident or streamed: what each would cost, measured
 - [`docs/AUDIT_0.7.md`](docs/AUDIT_0.7.md): audit of 0.7.1 and how each finding was done
 - [`docs/PALETTES.md`](docs/PALETTES.md): palettes, palette swaps, colour cycles and the console database
 - [`docs/UX_AUDIT.md`](docs/UX_AUDIT.md): UI/UX audit, what changed, open items

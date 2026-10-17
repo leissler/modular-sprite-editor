@@ -13,7 +13,8 @@
                  the second re-skinned and recoloured through ms_draw_anim_player_as
    START         the controls and what the frame costs (time, sprites, tiles)
 
-   The screen shows what is playing and the look; START opens the rest. */
+   The screen shows what is playing and the look; START opens the rest. A streamed export (MS_STREAMED, see modsprite.h)
+   draws through the default slot, and the side-by-side look's second character through a slot of its own. */
 
 enum
 {
@@ -76,6 +77,9 @@ static u16 g_disp_cpu_load = 0;
 
 static MS_AnimPlayer g_anim_player;
 static MS_ScenePlayer g_scene_player;
+static MS_Slot g_second_slot;      /* the side-by-side look's second character (streamed exports) */
+static u16 g_period_uploads = 0;   /* the most tiles one frame uploaded since the numbers were last shown */
+static u16 g_disp_uploads = 0;
 
 /* Hitbox / point overlay (B): corner marks for boxes and a cross for points, in two colours of PAL0 (the demo's own
    line, with the backdrop and the text): the sprites' palette lines start at PAL1, a palette swap's included. */
@@ -311,6 +315,14 @@ static void draw_panel(char lines[UI_TEXT_LINES][LINE_BUFFER])
     p = put_u16(p, ms_tiles_used());
     put_str(p, " tiles");
     row++;
+    if (ms_slot_tiles())
+    {
+        /* streamed: up to 39 tiles a frame uploaded */
+        p = put_str(lines[row], "streamed: up to ");
+        p = put_u16(p, g_disp_uploads);
+        put_str(p, " tiles a frame uploaded");
+        row++;
+    }
     if (prof->sprites_dropped)
     {
         p = put_u16(lines[row], prof->sprites_dropped);
@@ -621,8 +633,12 @@ static void demo_draw(void)
         demo_draw_markers(boxes, nb, points, np, x, SPRITE_DRAW_Y);
         ms_draw_anim_player(&g_anim_player, x, SPRITE_DRAW_Y);
         if (demo_is_side_by_side())  /* one animation, re-skinned and recoloured for this draw only */
+        {
+            ms_set_slot(&g_second_slot);
             ms_draw_anim_player_as(&g_anim_player, demo_second_mapping(), demo_second_swap(),
                                    SPRITE_DRAW_X + SIDE_BY_SIDE_SPACING, SPRITE_DRAW_Y);
+            ms_set_slot(NULL);
+        }
     }
     else if (g_view == VIEW_FRAME)
     {
@@ -694,6 +710,7 @@ int main(void)
     JOY_init();
     ms_init();
     demo_init_markers();
+    ms_slot_init(&g_second_slot, g_marker_tile + 5);  /* after the marks */
     for (view = 0; view < VIEW_COUNT; view++)
         g_index[view] = 0;
     /* Start on the first scene (the Swordfight in the Prince of Persia example), or the first thing there is. */
@@ -716,6 +733,8 @@ int main(void)
         demo_draw();
         g_render_lines = demo_lines_since(g_render_lines);
         ms_get_frame_profile(&g_frame_profile);
+        if (g_frame_profile.tiles_uploaded > g_period_uploads)
+            g_period_uploads = g_frame_profile.tiles_uploaded;
         g_fps = SYS_getFPS();
         g_cpu_load = SYS_getCPULoad();
         if (g_flash_frames && --g_flash_frames == 0)
@@ -736,6 +755,8 @@ int main(void)
             g_disp_render_us = demo_lines_to_us(g_render_lines);
             g_disp_update_us = demo_lines_to_us(g_update_lines);
             g_disp_frame_profile = g_frame_profile;
+            g_disp_uploads = g_period_uploads;
+            g_period_uploads = 0;
             if (g_show_panel)
                 g_ui_dirty = TRUE;  /* the numbers only show with the panel */
         }

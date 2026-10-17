@@ -17,7 +17,11 @@
    takes a couple of hundred cycles a character, about a seventh of a frame a row): a row is put together only when it
    changes, in one frame, and written in the next, with indices (816-tcc does not step pointers reliably), straight
    into the text map (consoleDrawText formats through vsprintf: about half a frame a row). The library's font has odd lower-case letters, so the text is
-   in capitals. */
+   in capitals.
+
+   A streamed export (MS_STREAMED, see modsprite.h) draws through the default slot, and the side-by-side look's second
+   character through a slot of its own; the tiles go into video memory right after WaitForVBlank (ms_upload_tiles). A
+   text row waits for a frame whose uploads leave room for the text map in the vertical blank. */
 
 enum
 {
@@ -50,6 +54,9 @@ enum
 #define SPRITE_DRAW_Y 168      /* Timeline screen guide puts the scene origin there) */
 #define SIDE_BY_SIDE_SPACING 40   /* the side-by-side look: the two characters this far left / right of the centre */
 #define BACKDROP RGB5(12, 12, 12)
+/* The most a frame's tile uploads may cost (bytes of DMA, ms_upload_queued) for the text map to go in the same vertical
+   blank: PVSnesLib's interrupt sends it (2 KB, 12 scanlines) after the sprite table, before ms_upload_tiles. */
+#define UPLOADS_WITH_TEXT 2688
 #define REG_SLHV (*(vuint8 *)0x2137)
 #define REG_OPVCT (*(vuint8 *)0x213D)
 
@@ -95,6 +102,11 @@ static u8 g_latch;
 
 static MS_AnimPlayer g_anim_player;
 static MS_ScenePlayer g_scene_player;
+static MS_Slot g_second_slot;      /* the side-by-side look's second character (streamed exports) */
+static u16 g_period_uploads = 0;   /* the most tiles one frame uploaded since the numbers were last shown */
+static u16 g_period_waits = 0;     /* draws that showed what their slot held, their upload waiting, since then */
+static u16 g_disp_uploads = 0;
+static u16 g_disp_waits = 0;
 
 /* Hitbox / point overlay (B): corner marks for boxes and a cross for points, two colours of sprite palette 7 (the
    runtime's palettes start at 0; a project with eight palette entries shares it with the last). A mark is a small
@@ -466,6 +478,8 @@ static u8 ui_optional_applies(u16 item)
         return (g_disp_overflow & 0x40) ? TRUE : FALSE;
     if (item == 2)
         return (g_disp_overflow & 0x80) ? TRUE : FALSE;
+    if (item == 3)
+        return g_disp_waits ? TRUE : FALSE;
     return (g_show_markers && (g_view == VIEW_ANIMATION || g_view == VIEW_FRAME)) ? TRUE : FALSE;
 }
 
@@ -482,6 +496,11 @@ static void ui_optional_line(u16 item)
         put_str(0, "Over 32 sprites on a line");
     else if (item == 2)
         put_str(0, "Over 34 sprite tiles a line");
+    else if (item == 3)
+    {
+        at = put_u16(0, g_disp_waits);
+        put_str(at, g_disp_waits == 1 ? " draw waited for its tiles" : " draws waited for tiles");
+    }
     else
     {
         at = put_u16(0, g_shown_boxes);
@@ -525,13 +544,24 @@ static void ui_number(u16 r)
     }
     else if (r == 2)
     {
-        at = put_u16(0, ms_tiles_used());
-        put_str(at, " of 512 sprite tiles");
+        if (ms_slot_tiles())
+        {
+            /* streamed: 37 OF 64 SLOT TILES UPLOADED (the most one frame uploaded) */
+            at = put_u16(0, g_disp_uploads);
+            at = put_str(at, " of ");
+            at = put_u16(at, ms_tiles_used());
+            put_str(at, " slot tiles uploaded");
+        }
+        else
+        {
+            at = put_u16(0, ms_tiles_used());
+            put_str(at, " of 512 sprite tiles");
+        }
     }
     else
     {
         found = 3;
-        for (item = 0; item < 4; item++)
+        for (item = 0; item < 5; item++)
         {
             if (!ui_optional_applies(item))
                 continue;
@@ -580,7 +610,8 @@ static void ui_update(void)
 
     if (g_row_ready)
     {
-        ui_put_ready_row();
+        if (ms_upload_queued() <= UPLOADS_WITH_TEXT)  /* else the next frame: the tiles first */
+            ui_put_ready_row();
         return;
     }
     if (!g_rows_dirty)
@@ -796,7 +827,7 @@ static void demo_init_markers(void)
         else if (row < 7)
             g_mark_rows[1][row * 2 + 1] = 0x10;
     }
-    g_corner_tile = demo_free_block(ms_tiles_end(), side);
+    g_corner_tile = demo_free_block(ms_tiles_end() + ms_slot_tiles(), side);  /* after the second slot (streamed) */
     g_cross_tile = g_corner_tile == 0xFFFF ? 0xFFFF : demo_free_block(g_corner_tile + 1, side);
     if (g_cross_tile == 0xFFFF)
     {
@@ -879,8 +910,12 @@ static void demo_draw(void)
         demo_draw_markers(boxes, nb, points, np, x, SPRITE_DRAW_Y);
         ms_draw_anim_player(&g_anim_player, x, SPRITE_DRAW_Y);
         if (demo_is_side_by_side())  /* one animation, re-skinned and recoloured for this draw only */
+        {
+            ms_set_slot(&g_second_slot);
             ms_draw_anim_player_as(&g_anim_player, demo_second_mapping(), demo_second_swap(),
                                    SPRITE_DRAW_X + SIDE_BY_SIDE_SPACING, SPRITE_DRAW_Y);
+            ms_set_slot(NULL);
+        }
     }
     else if (g_view == VIEW_FRAME)
     {
@@ -955,6 +990,7 @@ int main(void)
     memset(scr_txt_font_map, 0, sizeof(scr_txt_font_map));  /* blank: the library does not clear it */
     scr_txt_dirty = 1;
     ms_init();  /* sprite tiles at 0x0000-0x1FFF, the palette entries in sprite palettes 0, 1, ... */
+    ms_slot_init(&g_second_slot, ms_tiles_end());  /* after the default slot (streamed) */
     demo_init_markers();
     /* PVSnesLib's start-up code leaves RAM as the console powered on: what C would start at zero starts here. */
     for (view = 0; view < VIEW_COUNT; view++)
@@ -983,12 +1019,16 @@ int main(void)
         ms_end_frame();
         g_draw_lines = demo_lines_since(g_draw_lines);
         ms_get_frame_profile(&g_frame_profile);
+        if (g_frame_profile.tiles_uploaded > g_period_uploads)
+            g_period_uploads = g_frame_profile.tiles_uploaded;
+        g_period_waits += g_frame_profile.uploads_waiting;
         if (g_flash_frames && --g_flash_frames == 0)
             ui_mark(ROW_STATUS, 1);
         ui_update();
         g_work_lines = demo_lines_since(start);
         WaitForVBlank();
-        ms_palette_tick();             /* right after the vertical blank starts: colour cycles turn */
+        ms_upload_tiles();             /* right after the vertical blank starts: the slots' new tiles (streamed), */
+        ms_palette_tick();             /* then the colour cycles turn */
         g_line_overflow |= REG_STAT77 & 0xC0;  /* the last frame's sprite lines (cleared when the blank ends) */
         g_loops++;
         if ((u16)(snes_vblank_count - g_second_start) >= snes_fps)
@@ -1006,6 +1046,10 @@ int main(void)
             g_disp_frame_profile = g_frame_profile;
             g_disp_overflow = g_line_overflow;
             g_line_overflow = 0;
+            g_disp_uploads = g_period_uploads;
+            g_disp_waits = g_period_waits;
+            g_period_uploads = 0;
+            g_period_waits = 0;
             if (g_show_panel)
                 ui_mark(ROW_NUMBERS, NUMBER_ROWS);  /* the numbers only show with the panel */
         }

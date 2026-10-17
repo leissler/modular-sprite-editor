@@ -506,7 +506,12 @@ class FrameCanvas(BaseCanvas):
         over = budget.over_budget()
         lines = [budget.profile.name, budget.summary()]
         capacity = budget.profile.vram_tiles
-        if capacity:
+        project_console = console_exports.for_console(self.project.console)
+        if capacity and project_console is not None and budget.profile.vram_model == project_console.key \
+                and app_services.export_mode() != "parts":
+            # A streamed export keeps only what is on screen: this view's tiles are what it uploads.
+            lines.append(f"Video memory: {budget.unique_tiles} tiles here, uploaded when shown (streamed export)")
+        elif capacity:
             total = EXPORT_TILES.get(self.project, budget.profile)
             export = console_exports.for_console(budget.profile.vram_model)
             lines.append(memory_text(budget.unique_tiles, total, capacity, bool(export and export.tiles_about)))

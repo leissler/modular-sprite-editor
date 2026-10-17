@@ -57,6 +57,28 @@ static u8 g_lines_pending = FALSE;
 static u16 g_cycle_wait[MS_CYCLE_SLOTS];
 static u8 g_cycle_step[MS_CYCLE_SLOTS];
 static u8 g_cycle_moved[MS_CYCLE_SLOTS];
+/* The first tile of the slot drawn through, which modsprite_draw.asm adds to every sprite's tile (0 when every tile is
+   in video memory). */
+u16 ms_slot_base = 0;
+/* Shared with modsprite_draw.asm (ms_send_uploads), which every build assembles: a streamed export's load lists queued
+   for the next vertical blank and each one's slot's VRAM word address (an export that keeps every tile in video memory
+   queues none). */
+#define MS_MAX_UPLOADS 8u
+u16 ms_upload_count = 0;
+u16 ms_upload_lists[MS_MAX_UPLOADS];
+u16 ms_upload_vram[MS_MAX_UPLOADS];
+#ifdef MS_STREAMED
+/* A streamed export: the slots (the default one unless the game sets its own), the frame number (a slot shows one thing
+   a frame), the queued lists' slots and what they cost of the vertical blank's budget. */
+#define MS_DEFAULT_SLOT_TILES (MS_SLOT_TILES > MS_SCENE_SLOT_TILES ? MS_SLOT_TILES : MS_SCENE_SLOT_TILES)
+#define MS_NOTHING_SHOWN 0xFFFFu
+static MS_Slot g_default_slot;
+static MS_Slot *g_slot;
+static u16 g_frame_number;
+static u16 g_upload_used;
+static u16 g_upload_budget;
+static MS_Slot *g_upload_slots[MS_MAX_UPLOADS];
+#endif
 
 static u16 ms_mapping_module_base(void)
 {
@@ -107,10 +129,10 @@ static u8 ms_push_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
     return TRUE;
 }
 
-/* A render frame's sprites (run_count runs: an MS_Run, then its sprites), in OAM order: the first in front. The SNES
-   build runs modsprite_draw.asm instead, which does exactly this, with no tests per sprite when the frame lies on the
-   screen with X >= 0 and all its sprites fit (see ms_draw_render_frame). Records are reached by offset: 816-tcc does
-   not step far pointers reliably. */
+/* A render frame's sprites (run_count runs: an MS_Run, then its sprites), in OAM order: the first in front, their tiles
+   counted from ms_slot_base. The SNES build runs modsprite_draw.asm instead, which does exactly this, with no tests per
+   sprite when the frame lies on the screen with X >= 0 and all its sprites fit (see ms_draw_render_frame). Records are
+   reached by offset: 816-tcc does not step far pointers reliably. */
 void ms_put_render_frame(u16 render_index, s16 ox, s16 oy)
 {
     const MS_RenderFrame *frame = ms_render_frame(render_index);
@@ -133,7 +155,8 @@ void ms_put_render_frame(u16 render_index, s16 ox, s16 oy)
         {
             const MS_Sprite *sprite = (const MS_Sprite *)(runs + at);
 
-            ms_push_sprite(ox + sprite->x, oy + sprite->y, sprite->tile | ((u16)(sprite->attribute & 1) << 8),
+            ms_push_sprite(ox + sprite->x, oy + sprite->y,
+                           (u16)((sprite->tile | ((u16)(sprite->attribute & 1) << 8)) + ms_slot_base),
                            (u8)((sprite->attribute & 0xC0) | bits), sprite->size);
             at += sizeof(MS_Sprite);
         }
@@ -167,10 +190,53 @@ u8 ms_add_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
     ms_frame_profile.sprites_dropped = ms_dropped;
     return added;
 }
+
+#ifdef MS_STREAMED
+/* The host's vertical blank: FALSE once it ended (the harness decides; HVBJOY's bit 7 on the SNES). */
+u8 ms_host_in_vblank(void);
+
+/* The queued load lists (records in ``lists``) into their slots, a DMA run per entry, while the vertical blank lasts
+   (looked at before and after each list); returns how many arrived whole. modsprite_draw.asm on the SNES. */
+u16 ms_send_uploads(const MS_LoadList *lists)
+{
+    u16 n, g, e, at;
+
+    for (n = 0; n < ms_upload_count; n++)
+    {
+        const MS_LoadList *load = &lists[ms_upload_lists[n]];
+        const u8 *entries = MS_FAR(load->entries_chunk, load->entries_offset);
+
+        if (!ms_host_in_vblank())
+            return n;
+        at = 0;
+        for (g = 0; g < load->group_count; g++)
+        {
+            const MS_LoadGroup *group = (const MS_LoadGroup *)(entries + at);
+            const u8 *chunk = ms_chunks[group->chunk];
+            u16 count = group->count;
+
+            at += sizeof(MS_LoadGroup);
+            for (e = 0; e < count; e++)
+            {
+                const MS_LoadEntry *entry = (const MS_LoadEntry *)(entries + at);
+
+                dmaCopyVram((u8 *)(chunk + entry->source), (u16)(ms_upload_vram[n] + entry->vram), entry->bytes);
+                at += sizeof(MS_LoadEntry);
+            }
+        }
+        if (!ms_host_in_vblank())
+            return n;
+    }
+    return ms_upload_count;
+}
+#endif
 #else
 /* modsprite_draw.asm (ms_add_hw_sprite too) */
 void ms_put_render_frame(u16 render_index, s16 ox, s16 oy);
 void ms_finish_oam(u8 *high_table, u16 count, u16 shown);
+#ifdef MS_STREAMED
+u16 ms_send_uploads(const MS_LoadList *lists);
+#endif
 #endif
 
 static const MS_Animation *ms_current_animation(u16 animation_index)
@@ -197,13 +263,65 @@ static const MS_Scene *ms_current_scene(u16 scene_index)
     return &ms_scenes[table_index];
 }
 
+#ifdef MS_STREAMED
+/* What the slot drawn through shows of a render frame this frame: the render frame itself when the slot holds its tiles
+   or they can be queued for the next vertical blank; else what the slot showed before, while the upload waits for room
+   in the budget (or nothing, when the slot holds nothing). A slot shows one thing a frame: a second list through it in
+   the same frame is not drawn. */
+static u16 ms_slot_render(u16 render_index)
+{
+    MS_Slot *slot = g_slot;
+    u16 list = ms_render_frame_loads[render_index];
+    u16 cost;
+
+    if (list == MS_NO_LIST)
+        return render_index;  /* it shows nothing: the slot keeps what it holds */
+    if (list == slot->load_list)
+    {
+        slot->render = render_index;
+        slot->frame = g_frame_number;
+        return render_index;
+    }
+    if (slot->frame == g_frame_number)
+    {
+        ms_frame_profile.uploads_waiting++;
+        return MS_NOTHING_SHOWN;
+    }
+    slot->frame = g_frame_number;
+    cost = ms_load_lists[list].cost;
+    /* the first list of a frame goes whatever it costs: a list above the budget would never go otherwise */
+    if (ms_upload_count >= MS_MAX_UPLOADS
+        || (ms_upload_count && (g_upload_used > g_upload_budget || cost > (u16)(g_upload_budget - g_upload_used))))
+    {
+        ms_frame_profile.uploads_waiting++;
+        return slot->render;
+    }
+    g_upload_used += cost;
+    g_upload_slots[ms_upload_count] = slot;
+    ms_upload_lists[ms_upload_count] = list;
+    ms_upload_vram[ms_upload_count] = g_vram + (slot->tile_index << 4);
+    ms_upload_count++;
+    slot->load_list = list;
+    slot->render = render_index;
+    ms_frame_profile.tiles_uploaded += ms_load_lists[list].tile_count;
+    return render_index;
+}
+#endif
+
 /* The SNES build skips the tests per sprite when the frame's box lies on the screen with X >= 0 (ox + min_x >= 0,
    ox + max_x < 256 + small, oy + min_y > -small, oy + max_y < 224 + small: every sprite then has 0 <= x < 256 and
    -size < y < 224) and all its sprites fit under the limit; what it draws is the same. */
 static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
 {
-    if (render_index < MS_RENDER_FRAME_COUNT)
-        ms_put_render_frame(render_index, ox, oy);
+    if (render_index >= MS_RENDER_FRAME_COUNT)
+        return;
+#ifdef MS_STREAMED
+    render_index = ms_slot_render(render_index);
+    if (render_index == MS_NOTHING_SHOWN)
+        return;
+    ms_slot_base = g_slot->tile_index;
+#endif
+    ms_put_render_frame(render_index, ox, oy);
 }
 
 static void ms_anim_apply_step(MS_AnimPlayer *player, u16 step_index)
@@ -405,9 +523,19 @@ void ms_init_ex(u16 vram_address, u16 first_palette)
     }
     memset(g_line_of, MS_NO_LINE, sizeof(g_line_of));
     memset(g_line_entry, MS_NO_LINE, sizeof(g_line_entry));
-    /* Both sprite tables, the second right after the first (OBSEL's name select 0). */
+    /* Both sprite tables, the second right after the first (OBSEL's name select 0); a streamed export loads nothing
+       now: the default slot takes the tiles from tile 0 as things are drawn through it. */
     for (t = 0; t < MS_TILE_TABLES; t++)
         dmaCopyVram((u8 *)ms_tile_tables[t], g_vram + t * 0x1000, 0x2000);
+    ms_slot_base = 0;
+#ifdef MS_STREAMED
+    ms_slot_init(&g_default_slot, 0);
+    g_slot = &g_default_slot;
+    g_frame_number = 0;
+    g_upload_used = 0;
+    g_upload_budget = MS_UPLOAD_BUDGET;
+    ms_upload_count = 0;
+#endif
     oamInitGfxAttr(g_vram, MS_OBJ_SIZE);
     /* Every sprite hidden: below the screen, small, X below 256. */
     for (n = 0; n < MS_MAX_SPRITES; n++)
@@ -478,12 +606,96 @@ u16 ms_tile_base(void)
 
 u16 ms_tiles_used(void)
 {
+#ifdef MS_STREAMED
+    return (u16)MS_DEFAULT_SLOT_TILES;
+#else
     return (u16)MS_TILE_COUNT;
+#endif
 }
 
 u16 ms_tiles_end(void)
 {
     return (u16)MS_TILE_END;
+}
+
+void ms_slot_init(MS_Slot *slot, u16 tile_index)
+{
+    if (!slot)
+        return;
+#ifdef MS_STREAMED
+    tile_index = (tile_index + (MS_SLOT_ALIGN - 1)) & ~(MS_SLOT_ALIGN - 1);
+#endif
+    slot->tile_index = tile_index;
+    slot->load_list = MS_NOTHING_LOADED;
+    slot->render = MS_NOTHING_LOADED;
+    slot->frame = 0xFFFFu;
+}
+
+void ms_set_slot(MS_Slot *slot)
+{
+#ifdef MS_STREAMED
+    g_slot = slot ? slot : &g_default_slot;
+#else
+    (void)slot;
+#endif
+}
+
+u16 ms_slot_tiles(void)
+{
+#ifdef MS_STREAMED
+    return (u16)MS_SLOT_TILES;
+#else
+    return 0;
+#endif
+}
+
+u16 ms_scene_slot_tiles(void)
+{
+#ifdef MS_STREAMED
+    return (u16)MS_SCENE_SLOT_TILES;
+#else
+    return 0;
+#endif
+}
+
+void ms_set_upload_budget(u16 bytes)
+{
+#ifdef MS_STREAMED
+    g_upload_budget = bytes;
+#else
+    (void)bytes;
+#endif
+}
+
+u16 ms_upload_queued(void)
+{
+#ifdef MS_STREAMED
+    return g_upload_used;
+#else
+    return 0;
+#endif
+}
+
+void ms_upload_tiles(void)
+{
+#ifdef MS_STREAMED
+    u16 sent;
+#endif
+
+    ms_upload_lines();  /* the sprite palettes ms_palette_tick prepared first: they are small, and need the blank too */
+#ifdef MS_STREAMED
+    if (!ms_upload_count)
+        return;
+    sent = ms_send_uploads(ms_load_lists);
+    for (; sent < ms_upload_count; sent++)
+    {
+        /* past the vertical blank: the slot holds part of it at most; drawn again, it queues the list again */
+        g_upload_slots[sent]->load_list = MS_NOTHING_LOADED;
+        g_upload_slots[sent]->render = MS_NOTHING_LOADED;
+    }
+    ms_upload_count = 0;
+    g_upload_used = 0;
+#endif
 }
 
 void ms_set_sprite_limit(u16 limit)
@@ -504,8 +716,14 @@ void ms_begin_frame(void)
     ms_frame_profile.parts_submitted = 0;
     ms_frame_profile.hw_sprites = 0;
     ms_frame_profile.sprites_dropped = 0;
+    ms_frame_profile.tiles_uploaded = 0;
+    ms_frame_profile.uploads_waiting = 0;
     ms_hw_count = 0;
     ms_dropped = 0;
+#ifdef MS_STREAMED
+    if (++g_frame_number == 0xFFFFu)
+        g_frame_number = 0;
+#endif
 }
 
 void ms_end_frame(void)

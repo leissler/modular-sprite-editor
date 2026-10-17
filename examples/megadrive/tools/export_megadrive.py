@@ -3,7 +3,13 @@
 
 The console-independent bake (parts through nested frames, animations, scenes, mappings, hitboxes and points) is
 console_bake.ConsoleBake; MegaDriveBakeContext adds what the Mega Drive needs: VDP tiles, the hardware sprite cut, CRAM
-palettes, the blob and its C side."""
+palettes, the blob and its C side.
+
+Modes (docs/EXPORT_MODES.md): "parts" (the default) keeps every tile in video memory. "parts_streamed" and
+"frames_streamed" (whole frames, flattened per palette) keep only what is on screen: each render frame gets a load list
+(the tile runs a slot takes, in the blob's order) and pieces whose tiles count from the slot, and the runtime uploads a
+render frame's tiles into the slot it is drawn through when that slot holds another list (MS_STREAMED, blob version 6).
+"""
 
 from __future__ import annotations
 
@@ -28,7 +34,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import consoles  # noqa: E402
 from console_bake import (  # noqa: E402
-    ConsoleBake, RenderFrameSpan, copy_sources, export_arguments, print_result, resolve_mappings,
+    ConsoleBake, RenderFrameSpan, StoredPart, copy_sources, export_arguments, print_result, resolve_mappings,
 )
 import sprite_cut  # noqa: E402
 from models import ModuleMapping, Project  # noqa: E402
@@ -58,10 +64,16 @@ PieceEntry = Tuple[int, int, int, int, int]
 # 5: palette entries (every palette, then every swap's version of the palettes it changes) with names and colour
 #    cycles, the swaps' entry table; a piece names its palette entry in its spare byte (the runtime turns entries into
 #    palette lines at draw time), its tile offset has no palette bits any more
+# 6: streamed exports (MODES other than "parts"): version 5 plus a load list per render frame (render_frame_loads,
+#    load_lists, load_entries; their counts and offsets follow the header) and pieces that count tiles from a slot.
+#    Exports that keep every tile in video memory still write version 5.
 BLOB_VERSION = 5
+STREAMED_BLOB_VERSION = 6
 BLOB_COUNT_FIELDS = 23
 BLOB_SECTION_COUNT = 36
 BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
+STREAM_HEADER_SIZE = 2 + 4 + 3 * 4  # load list count, load entry count, the three sections' offsets
+MODES = ("parts", "parts_streamed", "frames_streamed")  # export_modes' keys this exporter and its runtime do
 TILE = 8
 MD_PALETTE = consoles.MEGA_DRIVE.palette  # every palette entry is a CRAM line: transparent + 15 colours
 
@@ -90,15 +102,80 @@ def merged_resources(existing: Optional[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# What a streamed export adds to the generated header and parser (MS_STREAMED; nothing in other exports).
+STREAM_DECLARATIONS = """/* A streamed export (docs/EXPORT_MODES.md): video memory holds only what is on screen. Every render frame names a load
+   list, the tile runs a slot takes for it (from ms_tiles, one after the other from the slot's first tile), and its
+   pieces count their tiles from that slot; modsprite.c uploads a list when it draws a render frame through a slot that
+   holds another one. */
+#define MS_STREAMED 1
+#define MS_SLOT_TILES {slot}u        /* the most tiles a module, frame or animation step needs: a player's slot */
+#define MS_SCENE_SLOT_TILES {scene}u  /* the most a scene sample needs: a scene's slot */
+
+typedef struct MS_RECORD
+{{
+    u32 first_entry;  /* its runs: ms_load_entries[first_entry .. + entry_count - 1] */
+    u16 entry_count;
+    u16 tile_count;   /* the tiles they take in the slot */
+}} MS_LoadList;
+
+typedef struct MS_RECORD
+{{
+    u16 first_tile;   /* in ms_tiles */
+    u16 tile_count;
+}} MS_LoadEntry;
+
+extern u16 ms_load_list_count;
+extern u32 ms_load_entry_count;
+extern const u16 *ms_render_frame_loads;  /* each render frame's load list */
+extern const MS_LoadList *ms_load_lists;
+extern const MS_LoadEntry *ms_load_entries;
+
+"""
+STREAM_GLOBALS = """u16 ms_load_list_count = 0;
+u32 ms_load_entry_count = 0;
+const u16 *ms_render_frame_loads = NULL;
+const MS_LoadList *ms_load_lists = NULL;
+const MS_LoadEntry *ms_load_entries = NULL;
+"""
+STREAM_RESET = """    ms_load_list_count = 0;
+    ms_load_entry_count = 0;
+    ms_render_frame_loads = NULL;
+    ms_load_lists = NULL;
+    ms_load_entries = NULL;
+"""
+STREAM_HEADER = """    ptr += 4;
+    ms_load_list_count = ms_read_be16(ptr); ptr += 2;
+    ms_load_entry_count = ms_read_be32(ptr); ptr += 4;
+    ms_render_frame_loads = (const u16 *)(g_blob + ms_read_be32(ptr)); ptr += 4;
+    ms_load_lists = (const MS_LoadList *)(g_blob + ms_read_be32(ptr)); ptr += 4;
+    ms_load_entries = (const MS_LoadEntry *)(g_blob + ms_read_be32(ptr));
+"""
+
+
 class MegaDriveBakeContext(ConsoleBake):
     """The Mega Drive (SGDK) half of the export: ConsoleBake's parts as VDP tiles and hardware sprites (variants and
     their pieces, one list per flip), the palettes as CRAM words, and all of it in one blob with its C record types and
     parser."""
 
-    def __init__(self, project: Project, mappings: List[Optional[ModuleMapping]], output_dir: Path) -> None:
+    def __init__(self, project: Project, mappings: List[Optional[ModuleMapping]], output_dir: Path,
+                 mode: str = "parts") -> None:
         super().__init__(project, mappings)
+        if mode not in MODES:
+            raise ValueError(f"Unknown export mode '{mode}': {', '.join(MODES)}")
         self.output_dir = output_dir
         self.output_gen_dir = output_dir / "res" / "gen"
+        self.mode = mode
+        self.streamed = mode != "parts"
+        self.whole_frames = mode == "frames_streamed"
+        # Streamed exports (_stream): each render frame's load list, the lists (first entry, entries, tiles), their
+        # entries (first tile in the blob, tiles), the pieces that count tiles from the slot and each part's of them.
+        self.render_frame_loads: List[int] = []
+        self.load_lists: List[Tuple[int, int, int]] = []
+        self.load_entries: List[Tuple[int, int]] = []
+        self.stream_pieces: List[PieceEntry] = []
+        self.stream_part_pieces: List[Tuple[int, int]] = []
+        self.slot_tiles = 0  # the most tiles a module, frame or step shows: a player's slot
+        self.scene_slot_tiles = 0  # the most a scene sample shows: a scene's slot
 
         self.variant_lookup: Dict[Tuple[int, int, str], int] = {}
         self.variants: List[VariantMeta] = []
@@ -113,6 +190,8 @@ class MegaDriveBakeContext(ConsoleBake):
         self._prepare_output_dirs()
         super().bake()
         self._finalize_pieces()
+        if self.streamed:
+            self._stream()
 
     def _prepare_output_dirs(self) -> None:
         """Create res/gen and remove older exporters' sprite sheets from it; the game's own files there stay."""
@@ -157,6 +236,16 @@ class MegaDriveBakeContext(ConsoleBake):
         self.variant_blocks.append(blocks)
         return idx
 
+    def _stored_part(self, stored: int) -> StoredPart:
+        """ConsoleBake's measuring hook: a variant's padded size and hardware sprites; a piece's tiles are one block,
+        named by the tile they start at."""
+        meta = self.variants[stored]
+        sprites = []
+        for bx, by, size_code, offset, _entry in self.variant_blocks[stored]:
+            w, h = (((size_code >> 2) & 3) + 1) * TILE, ((size_code & 3) + 1) * TILE
+            sprites.append((bx, by, w, h, offset, (w // TILE) * (h // TILE)))
+        return StoredPart(meta.tile_w * TILE, meta.tile_h * TILE, tuple(sprites))
+
     def _piece_list(self, variant_index: int, hflip: bool, vflip: bool) -> Tuple[int, int]:
         """The variant's hardware sprites for one flip combination: a flip mirrors the whole padded
         variant, so the pieces swap places inside it. Each combination is laid out once, the runtime
@@ -186,6 +275,83 @@ class MegaDriveBakeContext(ConsoleBake):
         for variant_index, _x, _y, hflip, vflip in self.parts:
             self._piece_list(variant_index, bool(hflip), bool(vflip))
 
+    def _stream_layout(self) -> None:
+        """A streamed export's tiles in the order frames first use them (then steps, scene samples, modules on their
+        own): a frame's tiles mostly lie together, so its load list has fewer runs, and every run is a DMA the runtime
+        queues (about four scanlines of 68000 time each, docs/EXPORT_MODES.md). Pieces and variants follow."""
+        sizes = {offset: (((size_code >> 2) & 3) + 1) * ((size_code & 3) + 1)
+                 for blocks in self.variant_blocks for _bx, _by, size_code, offset, _entry in blocks}
+        order: List[int] = []
+        placed = set()
+        for renders in (self.frame_render_frames, [step[0] for step in self.anim_steps], self.scene_samples,
+                        self.module_render_frames, range(len(self.render_frames))):
+            for index in renders:
+                span = self.render_frames[index]
+                for variant, *_placement in self.parts[span.first_part:span.first_part + span.part_count]:
+                    for _bx, _by, _size, offset, _entry in self.variant_blocks[variant]:
+                        if offset not in placed:
+                            placed.add(offset)
+                            order.append(offset)
+        order += [offset for offset in sorted(sizes) if offset not in placed]
+        moved: Dict[int, int] = {}
+        tiles = bytearray()
+        for offset in order:
+            moved[offset] = len(tiles) // 32
+            tiles.extend(self.tile_data[offset * 32:(offset + sizes[offset]) * 32])
+        self.tile_data = tiles
+        self.pieces = [(dx, dy, size, moved[offset], entry) for dx, dy, size, offset, entry in self.pieces]
+        self.variant_blocks = [[(bx, by, size, moved[offset], entry) for bx, by, size, offset, entry in blocks]
+                               for blocks in self.variant_blocks]
+        self.piece_tiles_lookup = {data: moved[offset] for data, offset in self.piece_tiles_lookup.items()}
+
+    def _stream(self) -> None:
+        """Streamed exports: each render frame's load list (its tile runs in the blob's order, neighbouring runs merged,
+        identical lists once) and its parts' pieces with tiles counted from the slot that holds the list."""
+        self._stream_layout()
+        lists: Dict[Tuple[Tuple[int, int], ...], int] = {}
+        piece_lists: Dict[Tuple[PieceEntry, ...], Tuple[int, int]] = {}
+        first_stream_piece = len(self.pieces)  # after the variants' and the parts' own pieces
+        scene_renders = set(self.scene_samples)
+        other_renders = set(self.module_render_frames) | set(self.frame_render_frames) | {s[0] for s in self.anim_steps}
+        self.stream_part_pieces = [(0, 0)] * len(self.parts)
+        for index, span in enumerate(self.render_frames):
+            parts = self.parts[span.first_part:span.first_part + span.part_count]
+            blocks: Dict[int, int] = {}  # a piece's first tile in the blob -> its tiles
+            for variant, *_placement in parts:
+                for _bx, _by, size_code, offset, _entry in self.variant_blocks[variant]:
+                    blocks[offset] = (((size_code >> 2) & 3) + 1) * ((size_code & 3) + 1)
+            runs: List[List[int]] = []
+            for offset in sorted(blocks):
+                if runs and runs[-1][0] + runs[-1][1] == offset:
+                    runs[-1][1] += blocks[offset]
+                else:
+                    runs.append([offset, blocks[offset]])
+            in_slot: Dict[int, int] = {}
+            tiles = 0
+            for start, count in runs:
+                for offset in range(start, start + count):
+                    in_slot[offset] = tiles + offset - start
+                tiles += count
+            key = tuple((start, count) for start, count in runs)
+            if key not in lists:
+                lists[key] = len(self.load_lists)
+                self.load_lists.append((len(self.load_entries), len(key), tiles))
+                self.load_entries.extend(key)
+            self.render_frame_loads.append(lists[key])
+            if index in scene_renders:
+                self.scene_slot_tiles = max(self.scene_slot_tiles, tiles)
+            if index in other_renders:
+                self.slot_tiles = max(self.slot_tiles, tiles)
+            for k, (variant, _x, _y, hflip, vflip) in enumerate(parts):
+                first, count = self._piece_list(variant, bool(hflip), bool(vflip))
+                pieces = tuple((dx, dy, size_code, in_slot[offset], entry)
+                               for dx, dy, size_code, offset, entry in self.pieces[first:first + count])
+                found = piece_lists.get(pieces)
+                if found is None:
+                    found = piece_lists[pieces] = (first_stream_piece + len(self.stream_pieces), len(pieces))
+                    self.stream_pieces.extend(pieces)
+                self.stream_part_pieces[span.first_part + k] = found
+
     def render_frame_extent(self, span: RenderFrameSpan) -> Tuple[int, int, int, int, int]:
         """(hardware sprite count, min x, min y, max x, max y) of a render frame's pieces, relative to the
         position it is drawn at; the runtime skips its per-sprite tests when all of it is on screen."""
@@ -205,12 +371,20 @@ class MegaDriveBakeContext(ConsoleBake):
         return count, min_x, min_y, max_x, max_y
 
     def packed_parts(self) -> List[Tuple[int, int, int, int, int]]:
-        """Parts as the runtime reads them: (first piece, piece count, flip bits, x, y)."""
+        """Parts as the runtime reads them: (first piece, piece count, flip bits, x, y); a streamed export's point at
+        pieces whose tiles count from the slot."""
         out = []
-        for variant_index, x, y, hflip, vflip in self.parts:
-            first, count = self._piece_list(variant_index, bool(hflip), bool(vflip))
+        for index, (variant_index, x, y, hflip, vflip) in enumerate(self.parts):
+            if self.streamed:
+                first, count = self.stream_part_pieces[index]
+            else:
+                first, count = self._piece_list(variant_index, bool(hflip), bool(vflip))
             out.append((first, count, (1 if hflip else 0) | (2 if vflip else 0), x, y))
         return out
+
+    def packed_pieces(self) -> List[PieceEntry]:
+        """Every piece the blob holds: the variants' and the parts' own, then (streamed) those counted from a slot."""
+        return self.pieces + self.stream_pieces
 
     def _entry_cycles(self, entry: palettes.Entry) -> List[Any]:
         visible = MD_PALETTE.visible
@@ -361,8 +535,9 @@ class MegaDriveBakeContext(ConsoleBake):
         for v in self.variants:
             variants_raw.extend(struct.pack(">HHBB", int(v.first_piece), int(v.piece_count), int(v.tile_w), int(v.tile_h)))
 
+        pieces = self.packed_pieces()
         pieces_raw = bytearray()
-        for dx, dy, size_code, tile_offset, entry in self.pieces:
+        for dx, dy, size_code, tile_offset, entry in pieces:
             pieces_raw.extend(struct.pack(">hhBBH", int(dx), int(dy), int(size_code), int(entry), int(tile_offset)))
 
         palette_raw = bytearray()
@@ -440,7 +615,7 @@ class MegaDriveBakeContext(ConsoleBake):
             )
 
         blob = bytearray()
-        header_size = BLOB_HEADER_SIZE
+        header_size = BLOB_HEADER_SIZE + (STREAM_HEADER_SIZE if self.streamed else 0)
         blob.extend(b"\0" * header_size)
 
         def append_section(name: str, data: bytes, align: int = 2) -> None:
@@ -493,10 +668,14 @@ class MegaDriveBakeContext(ConsoleBake):
         append_section("swap_ids", build_string_offset_section(swap_ids_rel))
         append_section("swap_names", build_string_offset_section(swap_names_rel))
         append_section("palette_names", build_string_offset_section(palette_names_rel))
+        if self.streamed:
+            append_section("render_frame_loads", b"".join(self._be16(index) for index in self.render_frame_loads))
+            append_section("load_lists", b"".join(struct.pack(">IHH", *record) for record in self.load_lists))
+            append_section("load_entries", b"".join(struct.pack(">HH", *entry) for entry in self.load_entries))
 
         header = bytearray()
         header.extend(b"MSB1")
-        header.extend(self._be16(BLOB_VERSION))
+        header.extend(self._be16(STREAMED_BLOB_VERSION if self.streamed else BLOB_VERSION))
         header.extend(self._be16(len(self.palette_entries)))  # palette entries (one line each when loaded)
         header.extend(self._be16(len(self.variants)))
         header.extend(self._be16(len(self.project.modules)))
@@ -512,7 +691,7 @@ class MegaDriveBakeContext(ConsoleBake):
         header.extend(self._be16(len(self.project.event_types)))
         header.extend(self._be16(len(self.step_events)))
         header.extend(self._be16(len(self.tile_data) // 32))
-        header.extend(self._be16(len(self.pieces)))
+        header.extend(self._be16(len(pieces)))
         header.extend(self._be16(len(self.boxes)))
         header.extend(self._be16(len(self.points)))
         header.extend(self._be16(len(self.project.collision_types)))
@@ -527,9 +706,15 @@ class MegaDriveBakeContext(ConsoleBake):
             header.extend(self._be32(section_offsets.get(section, 0)))
 
         header.extend(self._be32(len(strings_blob)))
+        if self.streamed:
+            header.extend(self._be16(len(self.load_lists)))
+            header.extend(self._be32(len(self.load_entries)))
+            for section in ("render_frame_loads", "load_lists", "load_entries"):
+                header.extend(self._be32(section_offsets[section]))
 
-        for limit, count, what in ((0xFFFF, len(self.pieces), "hardware sprite pieces"), (0xFFFF, len(self.boxes), "hitboxes"),
-                                   (0xFFFF, len(self.points), "points"), (0xFFFF, len(self.render_frames), "render frames")):
+        for limit, count, what in ((0xFFFF, len(pieces), "hardware sprite pieces"), (0xFFFF, len(self.boxes), "hitboxes"),
+                                   (0xFFFF, len(self.points), "points"), (0xFFFF, len(self.render_frames), "render frames"),
+                                   (0xFFFF, len(self.load_lists), "load lists")):
             if count > limit:
                 raise RuntimeError(f"Too many {what} for the blob: {count} > {limit}")
         if len(header) != header_size:
@@ -751,6 +936,7 @@ extern const u16 *ms_scene_samples;
 extern const MS_Scene *ms_scenes;
 extern const MS_StepEvent *ms_step_events;
 
+@STREAM_DECLARATIONS@
 void ms_data_init(void);
 u8 ms_data_is_ready(void);
 
@@ -786,6 +972,8 @@ const char *ms_palette_entry_name_data(u16 index);
         def define_lines(symbols: Sequence[str]) -> str:
             return "\n".join(f"#define {symbol} {i}u" for i, symbol in enumerate(symbols)) or "/* none */"
 
+        text = text.replace("@STREAM_DECLARATIONS@\n", STREAM_DECLARATIONS.format(
+            slot=self.slot_tiles, scene=self.scene_slot_tiles) if self.streamed else "")
         text = text.replace("@EVENT_DEFINES@", define_lines(self.event_symbols))
         text = text.replace("@TYPE_DEFINES@", define_lines(self.box_type_symbols) + "\n" + define_lines(self.point_type_symbols))
         text = text.replace("@ROLE_DEFINES@", define_lines(self.role_symbols))
@@ -806,8 +994,8 @@ const char *ms_palette_entry_name_data(u16 index);
 #include "resources.h"
 
 #define MS_BLOB_MAGIC 0x4D534231u
-#define MS_BLOB_VERSION {BLOB_VERSION}u
-#define MS_BLOB_HEADER_SIZE {BLOB_HEADER_SIZE}u
+#define MS_BLOB_VERSION {STREAMED_BLOB_VERSION if self.streamed else BLOB_VERSION}u
+#define MS_BLOB_HEADER_SIZE {BLOB_HEADER_SIZE + (STREAM_HEADER_SIZE if self.streamed else 0)}u
 
 enum
 {{
@@ -894,7 +1082,7 @@ const MS_Animation *ms_animations = NULL;
 const u16 *ms_scene_samples = NULL;
 const MS_Scene *ms_scenes = NULL;
 const MS_StepEvent *ms_step_events = NULL;
-
+@STREAM_GLOBALS@
 static const u8 *g_blob = NULL;
 static u32 g_blob_size = 0;
 static u8 g_data_ready = FALSE;
@@ -976,7 +1164,7 @@ static void ms_reset_data(void)
     ms_scene_samples = NULL;
     ms_scenes = NULL;
     ms_step_events = NULL;
-
+@STREAM_RESET@
     g_mapping_id_offsets = NULL;
     g_mapping_name_offsets = NULL;
     g_module_id_offsets = NULL;
@@ -1069,7 +1257,7 @@ void ms_data_init(void)
         ptr += 4;
     }}
     g_strings_size = ms_read_be32(ptr);
-
+@STREAM_HEADER@
     ms_parts = (const MS_Part *)(g_blob + g_section_offsets[MS_SEC_PARTS]);
     ms_render_frames = (const MS_RenderFrame *)(g_blob + g_section_offsets[MS_SEC_RENDER_FRAMES]);
     ms_module_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_MODULE_RENDER_FRAMES]);
@@ -1141,6 +1329,8 @@ const char *ms_palette_swap_id(u16 index) {{ return ms_lookup_string(g_swap_id_o
 const char *ms_palette_swap_name_data(u16 index) {{ return ms_lookup_string(g_swap_name_offsets, ms_palette_swap_count, index); }}
 const char *ms_palette_entry_name_data(u16 index) {{ return ms_lookup_string(g_palette_name_offsets, ms_palette_entry_count, index); }}
 """
+        for name, code in (("GLOBALS", STREAM_GLOBALS), ("RESET", STREAM_RESET), ("HEADER", STREAM_HEADER)):
+            text = text.replace(f"@STREAM_{name}@\n", (code if self.streamed else "") + "\n")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
@@ -1158,14 +1348,16 @@ def export_project(
     mapping_selector: str = "all",
     project_path: Optional[Path] = None,
     copy_assets: bool = False,
+    mode: str = "parts",
 ) -> ExportResult:
     """Bake a project into an SGDK project folder (its res/, inc/ and src/ get the data files) and report what the
-    game will see: Check Project's errors and warnings, merged colours and how the tiles fit in video memory."""
+    game will see: Check Project's errors and warnings, merged colours and how the tiles fit in video memory (or, in a
+    streamed ``mode``, its slots)."""
     output_dir = Path(output_dir).resolve()
     mappings = resolve_mappings(project, mapping_selector)
     issues = [issue for issue in project_check.check_project(project) if issue.level != project_check.INFO]
 
-    bake = MegaDriveBakeContext(project=project, mappings=mappings, output_dir=output_dir)
+    bake = MegaDriveBakeContext(project=project, mappings=mappings, output_dir=output_dir, mode=mode)
     bake.bake()
     files = [output_dir / BLOB_FILE, output_dir / HEADER_FILE, output_dir / DATA_C_FILE,
              output_dir / RESOURCE_FILE]
@@ -1181,7 +1373,11 @@ def export_project(
     if console is not None:
         issues.append(console)
     tiles = len(bake.tile_data) // 32
-    issues.append(project_check.megadrive_tile_issue(tiles))
+    if bake.streamed:
+        issues.extend(project_check.megadrive_stream_issues(bake.slot_tiles, bake.scene_slot_tiles,
+                                                            max(bake.slot_tiles, bake.scene_slot_tiles) * 32))
+    else:
+        issues.append(project_check.megadrive_tile_issue(tiles))
     lines = project_check.megadrive_palette_issue(len(bake.palette_entries))
     if lines is not None:
         issues.append(lines)
@@ -1206,23 +1402,37 @@ def export_project(
         "scene_samples": len(bake.scene_samples),
         "blob_size_bytes": bake.blob_size_bytes,
     }
+    if bake.streamed:
+        summary.update(mode=mode, slot_tiles=bake.slot_tiles, scene_slot_tiles=bake.scene_slot_tiles,
+                       load_lists=len(bake.load_lists), load_entries=len(bake.load_entries))
     order = project_check.LEVEL_ORDER
     return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
 
 
+def bake_context(project: Project, mappings: List[Optional[ModuleMapping]], setup_key: str = "") -> MegaDriveBakeContext:
+    """The bake as export_modes measures it (ConsoleBake.bake: nothing is written). Every Mega Drive setup stores
+    the same tiles."""
+    return MegaDriveBakeContext(project, mappings, Path())
+
+
 def report_line(summary: Dict[str, Any]) -> str:
     """The editor's export report: what the game gets in video memory and data."""
+    if "slot_tiles" in summary:
+        return (f"Streamed: {summary.get('tiles', 0)} tiles in the cartridge, a slot of {summary['slot_tiles']} tiles "
+                f"a player and {summary.get('scene_slot_tiles', 0)} a scene, {summary.get('blob_size_bytes', 0) / 1024:.0f}"
+                " KB of data")
     return (f"{summary.get('tiles', 0)} tiles of video memory, {summary.get('hardware_sprite_pieces', 0)} hardware "
             f"sprite pieces, {summary.get('blob_size_bytes', 0) / 1024:.0f} KB of data")
 
 
 def main() -> int:
     parser = export_arguments("Mega Drive", REPO_ROOT / "examples" / "pop" / "PoP_WW.json",
-                              REPO_ROOT / "examples" / "megadrive" / "megadrive_demo")
+                              REPO_ROOT / "examples" / "megadrive" / "megadrive_demo", MODES)
     args = parser.parse_args()
     project_json_path = Path(args.project_json).resolve()
     project = Project.from_json(str(project_json_path))
-    result = export_project(project, Path(args.output_dir), args.mapping, project_json_path, args.copy_assets)
+    result = export_project(project, Path(args.output_dir), args.mapping, project_json_path, args.copy_assets,
+                            args.mode)
     return print_result(result, args.strict)
 
 

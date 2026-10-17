@@ -19,6 +19,11 @@ examples/megadrive/tools/export_megadrive.py: VDP tiles, the hardware sprite cut
 of a ROM bank). They also share what their command lines and the editor's export dialogs choose: the mappings
 (``resolve_mappings``), the copy of the sources (``copy_sources``) and the options every console's exporter takes
 (``export_arguments``, ``print_result``). docs/CONSOLES.md lists what full support of a console means.
+
+For measuring other ways to export (export_modes.py, docs/EXPORT_MODES.md) a bake can store whole frames
+(``whole_frames``: each frame flattened into one picture per palette instead of a picture per part), and the console's
+exporter says what a stored part is in hardware sprites and tiles (``_stored_part``), from which every render frame's
+sprites (``render_frame_sprites``) and the tiles it shows (``load_list``: what a streamed export would upload) follow.
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ import math
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from PIL import Image
 
@@ -46,6 +51,16 @@ Matrix2x3 = Tuple[float, float, float, float, float, float]
 PartEntry = Tuple[int, int, int, int, int]  # (stored part number, x, y, hflip, vflip)
 BoxEntry = Tuple[int, int, int, int, int, int]  # (type, role, x, y, w, h)
 PointEntry = Tuple[int, int, int, int]  # (type, role, x, y)
+Layer = Tuple[Image.Image, int, int, str]  # a whole frame's picture of one palette, where it goes, the palette
+
+
+class StoredPart(NamedTuple):
+    """A stored part as its console draws it (``ConsoleBake._stored_part``): its picture padded to whole tiles, which
+    a hardware flip mirrors, and its hardware sprites, unflipped, as (x, y, width, height, tile block, tiles); the same
+    tiles stored once are one block."""
+    width: int
+    height: int
+    sprites: Tuple[Tuple[int, int, int, int, int, int], ...]
 
 # A part's palette entry: the entry's index, FIXED_ENTRY set when its colours stay as they are (a scene object's own
 # swap or "original"), not recoloured by the swap the game draws with.
@@ -112,8 +127,10 @@ def copy_sources(project: Project, project_path: Optional[Path], folder: Path) -
             shutil.copy2(source, target / source.name)
 
 
-def export_arguments(console: str, default_project: Path, default_folder: Path) -> argparse.ArgumentParser:
-    """The command line every console's exporter takes (a console adds its own options, such as the SNES's --setup)."""
+def export_arguments(console: str, default_project: Path, default_folder: Path,
+                     modes: Sequence[str] = ()) -> argparse.ArgumentParser:
+    """The command line every console's exporter takes (a console adds its own options, such as the SNES's --setup);
+    ``modes``: the ways it can store the sprites (export_modes), --mode when there is more than one."""
     parser = argparse.ArgumentParser(description=f"Export a modular sprite project for the {console}: the data a game "
                                                  "with the runtime draws, plays and checks its sprites with.")
     parser.add_argument("--project-json", default=str(default_project), help="The project file.")
@@ -125,6 +142,9 @@ def export_arguments(console: str, default_project: Path, default_folder: Path) 
     parser.add_argument("--copy-assets", action="store_true",
                         help="Also copy the project file and its images into the folder's source/.")
     parser.add_argument("--strict", action="store_true", help="Exit with 1 when Check Project finds errors.")
+    if len(modes) > 1:
+        parser.add_argument("--mode", choices=list(modes), default=modes[0],
+                            help=f"How the sprites are stored (docs/EXPORT_MODES.md); default: {modes[0]}.")
     return parser
 
 
@@ -182,6 +202,10 @@ class ConsoleBake:
         self.scene_samples: List[int] = []
         self.scene_records: List[SceneRecord] = []
 
+        # Whole frames instead of parts (set before bake(); the exports store parts): export_modes measures them.
+        self.whole_frames = False
+        self.upright_layers: Dict[Tuple[str, str], Tuple[Layer, ...]] = {}  # (mapping, frame) -> its layers
+
         self.mapping_ids: List[str] = [m.id if m else "" for m in self.mappings]
         self.mapping_names: List[str] = [m.name if m else "<none>" for m in self.mappings]
 
@@ -206,6 +230,56 @@ class ConsoleBake:
         ``entry``) as its hardware draws it and returns its number (the same picture with the same entry gets the same
         number)."""
         raise NotImplementedError("a console's exporter stores the parts")
+
+    def _stored_part(self, stored: int) -> StoredPart:
+        """The console's exporter: a stored part's padded size and hardware sprites, for measuring (export_modes)."""
+        raise NotImplementedError("a console's exporter knows its hardware sprites")
+
+    # ---------------------------------------------------------------- measuring
+    def render_frame_parts(self, index: int) -> List[PartEntry]:
+        span = self.render_frames[index]
+        return self.parts[span.first_part:span.first_part + span.part_count]
+
+    def sprites_of(self, parts: Sequence[PartEntry]) -> List[Tuple[int, int, int, int]]:
+        """The parts' hardware sprites as (x, y, width, height), relative to where they are drawn: a flipped part's
+        sprites swap places inside its padded picture."""
+        out: List[Tuple[int, int, int, int]] = []
+        for stored, x, y, hflip, vflip in parts:
+            part = self._stored_part(stored)
+            for sx, sy, w, h, _block, _tiles in part.sprites:
+                out.append((x + (part.width - sx - w if hflip else sx), y + (part.height - sy - h if vflip else sy), w, h))
+        return out
+
+    def blocks_of(self, parts: Sequence[PartEntry]) -> Dict[int, int]:
+        """The tile blocks the parts show, each once, in the order they first need them: {block: tiles}."""
+        blocks: Dict[int, int] = {}
+        for stored, *_placement in parts:
+            for *_box, block, tiles in self._stored_part(stored).sprites:
+                blocks.setdefault(block, tiles)
+        return blocks
+
+    def render_frame_sprites(self, index: int) -> List[Tuple[int, int, int, int]]:
+        return self.sprites_of(self.render_frame_parts(index))
+
+    def load_list(self, index: int) -> Dict[int, int]:
+        """The tile blocks a render frame shows ({block: tiles}): what a streamed export would upload into the slot of
+        whatever draws it."""
+        return self.blocks_of(self.render_frame_parts(index))
+
+    def stream_slots(self) -> Tuple[int, int]:
+        """A streamed export's slots in tiles of video memory: a player's (the most tiles a module, frame or animation
+        step shows) and a scene's (the most one of its samples shows). A console whose slots hold more than the tiles
+        (the SNES's: whole rows of its sprite tables) works them out its way."""
+        tiles = lambda render: sum(self.load_list(render).values())  # noqa: E731
+        players = set(self.module_render_frames) | set(self.frame_render_frames) | {step[0] for step in self.anim_steps}
+        return (max((tiles(render) for render in players), default=0),
+                max((tiles(render) for render in set(self.scene_samples)), default=0))
+
+    def stream_upload_cost(self, tile_bytes: int) -> int:
+        """What filling a slot costs at most in vertical blank, in bytes of DMA: the most tiles a render frame shows
+        (a console whose runtime spends noticeable time per DMA run counts that in too, the SNES's)."""
+        tiles = (sum(self.load_list(render).values()) for render in range(len(self.render_frames)))
+        return max(tiles, default=0) * tile_bytes
 
     @staticmethod
     def _identity_matrix() -> Matrix2:
@@ -615,6 +689,8 @@ class ConsoleBake:
         mod = self._resolve_module(module_id)
         if not mod:
             return tuple()
+        if self.whole_frames:
+            return self._whole_frame_parts(None, mod, offset, rotation_degrees, flip_x, flip_y)
 
         a_mat = compositor.mat_mul(
             compositor.rotation_matrix(rotation_degrees),
@@ -654,6 +730,10 @@ class ConsoleBake:
         cached = self.transformed_frame_parts_cache.get(key)
         if cached is not None:
             return cached
+        if self.whole_frames:
+            baked_frame = self._whole_frame_parts(frame, None, offset, rotation_degrees, flip_x, flip_y)
+            self.transformed_frame_parts_cache[key] = baked_frame
+            return baked_frame
 
         parent_a = compositor.mat_mul(
             compositor.rotation_matrix(rotation_degrees),
@@ -704,6 +784,74 @@ class ConsoleBake:
         baked = tuple(out_parts)
         self.transformed_frame_parts_cache[key] = baked
         return baked
+
+    def _whole_frame_parts(
+        self, frame: Optional[Frame], mod: Optional[Module], offset: Vec2, rotation_degrees: float, flip_x: bool,
+        flip_y: bool,
+    ) -> Tuple[PartEntry, ...]:
+        """Whole frames: a frame's layers (or a module's own, drawn on its own) placed like parts. Moved or mirrored,
+        it shows its upright layers with hardware flips (mirrored about its origin, each in its picture padded to whole
+        tiles); turned, it is drawn into layers of its own."""
+        a_mat = compositor.mat_mul(compositor.rotation_matrix(rotation_degrees), compositor.flip_matrix(flip_x, flip_y))
+        geom = self._extract_geom_axis_flip(a_mat)
+        if geom is None:
+            layers = self._whole_frame_layers(frame, mod, a_mat, (float(offset[0]), float(offset[1])))
+            return tuple((self._store_part(image, palette, self._entry_byte(palette)), x, y, 0, 0)
+                         for image, x, y, palette in layers)
+        hflip, vflip = geom
+        key = ("module", mod.id) if mod is not None else (self.mapping_key, frame.id)  # a module is resolved already
+        upright = self.upright_layers.get(key)
+        if upright is None:
+            upright = self._whole_frame_layers(frame, mod, self._identity_matrix(), self._identity_offset())
+            self.upright_layers[key] = upright
+        ox, oy = int(round(float(offset[0]))), int(round(float(offset[1])))
+        parts: List[PartEntry] = []
+        for image, x, y, palette in upright:
+            pad_w = max(8, ((image.width + 7) // 8) * 8)
+            pad_h = max(8, ((image.height + 7) // 8) * 8)
+            parts.append((self._store_part(image, palette, self._entry_byte(palette)),
+                          ox - x - pad_w if hflip else ox + x, oy - y - pad_h if vflip else oy + y, int(hflip), int(vflip)))
+        return tuple(parts)
+
+    def _whole_frame_layers(self, frame: Optional[Frame], mod: Optional[Module], a_mat: Matrix2,
+                            b_vec: Vec2) -> Tuple[Layer, ...]:
+        """The frame (or the module on its own) under a transform, drawn as the editor draws it
+        (``compositor.render_instance``, parts in order), as one picture per palette and where it goes. Each pixel is in
+        the layer of the part on top, so the layers never overlap and draw the frame in any order (the consoles draw no
+        partly transparent pixels)."""
+        instances: List[Tuple[Module, Matrix2, Vec2, float, bool, bool, bool, bool]] = []
+        if mod is not None:
+            instances.append((mod, a_mat, b_vec, 0.0, False, False, False, False))
+        elif frame is not None:
+            self._collect_leaf_instances_canvas_like(frame.id, a_mat, b_vec, 0.0, False, False, instances, 0, set())
+        rendered: List[Tuple[Image.Image, int, int, str]] = []
+        for mod, leaf_a, leaf_b, _rot, _flip_x, _flip_y, local_flip_x, local_flip_y in instances:
+            piece = compositor.render_instance(self.project, mod, leaf_a, leaf_b, self.full_image_cache,
+                                               self.module_cache, local_flip_x, local_flip_y)
+            if piece is not None:
+                rendered.append((piece[0], piece[1], piece[2], self._palette_of_module(mod)))
+        if not rendered:
+            return ()
+        left = min(x for _image, x, _y, _palette in rendered)
+        top = min(y for _image, _x, y, _palette in rendered)
+        size = (max(x + image.width for image, x, _y, _palette in rendered) - left,
+                max(y + image.height for image, _x, y, _palette in rendered) - top)
+        layers: Dict[str, Image.Image] = {}
+        for image, x, y, palette in rendered:
+            at = (x - left, y - top)
+            covered = image.getchannel("A").point(lambda value: 255 if value else 0)
+            for other, layer in layers.items():
+                if other != palette:
+                    layer.paste((0, 0, 0, 0), at, covered)
+            if palette not in layers:
+                layers[palette] = Image.new("RGBA", size, (0, 0, 0, 0))
+            layers[palette].alpha_composite(image, at)
+        out: List[Layer] = []
+        for palette, layer in layers.items():
+            box = layer.getbbox()
+            if box:
+                out.append((layer.crop(box), left + box[0], top + box[1], palette))
+        return tuple(out)
 
     @staticmethod
     def _build_local_matrix(state: Dict[str, Any]) -> Matrix2x3:

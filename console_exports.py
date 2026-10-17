@@ -13,11 +13,13 @@ named after the console's key in consoles.py (docs/CONSOLES.md, Names), and test
 is there:
 
 - the exporter, ``examples/<key>/tools/export_<key>.py``: ``export_project(project, folder, mapping_selector)`` (with
-  ``setup_key=`` when the export has setups), ``report_line(summary)`` (the editor's report) and ``main()`` (the
-  command line, through ``console_bake.export_arguments``);
+  ``setup_key=`` when the export has setups), ``report_line(summary)`` (the editor's report), ``main()`` (the
+  command line, through ``console_bake.export_arguments``) and ``bake_context(project, mappings, setup_key)`` (its
+  bake without writing, whose ``_stored_part`` tells export_modes what a part is in hardware sprites and tiles);
 - its spec, ``build_<key>_exporter.spec`` (the command-line download);
 - the demo, ``examples/<key>/<key>_demo`` (with the runtime), and ``examples/<key>/README.md``;
-- the checks ``project_check.<key>_tile_issue(tiles)`` and ``project_check.<key>_palette_issue(entries)``;
+- the checks ``project_check.<key>_tile_issue(tiles)`` and ``project_check.<key>_palette_issue(entries)``, and for a
+  console that streams (``modes``) ``project_check.<key>_stream_issues(slot_tiles, scene_slot_tiles)``;
 - the Windows kit's ``packaging/windows_kit/export_to_<key>.bat`` and ``build_<key>_demo.bat``.
 
 Only the standard library and consoles.py are imported at the top: the build specs import this module.
@@ -51,6 +53,7 @@ class ConsoleExport:
     sdk_in_git: bool = False  # the SDK is in the repository; else the Windows kit is given it unpacked (--sdk KEY=DIR)
     sdk_keep: Tuple[str, ...] = ()  # what the Windows kit takes of the SDK: its paths that start so
     sdk_needs: Tuple[str, ...] = ()  # what the SDK must have for the demo to build (the kit checks)
+    modes: Tuple[str, ...] = ("parts",)  # the ways its exporter and runtime store the sprites (export_modes' keys)
 
     @property
     def key(self) -> str:
@@ -119,11 +122,20 @@ class ConsoleExport:
             sys.path.insert(0, tools)
         return importlib.import_module(self.module)
 
-    def export(self, project: Any, folder: str, mapping_selector: str = "all", setup_key: str = "") -> Any:
+    def export(self, project: Any, folder: str, mapping_selector: str = "all", setup_key: str = "",
+               mode: str = "parts") -> Any:
         """Bake the project into a game's folder: the exporter's result (summary, issues, files). ``setup_key`` (one of
-        the console's setups) goes to an export with setups; the exporter raises what it cannot export."""
-        options = {"setup_key": setup_key} if self.setups else {}
+        the console's setups) goes to an export with setups, ``mode`` (one of ``modes``) to one with several ways to
+        store the sprites; the exporter raises what it cannot export."""
+        options: Dict[str, Any] = {"setup_key": setup_key} if self.setups else {}
+        if len(self.modes) > 1:
+            options["mode"] = mode
         return self.load().export_project(project, Path(folder), mapping_selector, **options)
+
+    def bake_context(self, project: Any, mappings: List[Any], setup_key: str = "") -> Any:
+        """The exporter's bake (a console_bake.ConsoleBake) for measuring, with the same cut and tiles as its export:
+        ``bake_context(project, mappings, setup_key)`` in the exporter (export_modes)."""
+        return self.load().bake_context(project, mappings, setup_key)
 
     def report_line(self, summary: Dict[str, Any]) -> str:
         """The export report's line about the console: video memory, the data (the exporter's ``report_line``)."""
@@ -134,6 +146,14 @@ class ConsoleExport:
         import project_check
 
         return getattr(project_check, f"{self.key}_tile_issue")(tiles)
+
+    def stream_issues(self, slot_tiles: int, scene_slot_tiles: int, largest_upload: int = 0) -> List[Any]:
+        """A streamed export's slots on the console: ``project_check.<key>_stream_issues`` (consoles whose runtime
+        streams, ``modes`` beyond "parts"); ``largest_upload``: what filling a slot costs at most in vertical blank, in
+        bytes of DMA (0: its tiles' bytes)."""
+        import project_check
+
+        return getattr(project_check, f"{self.key}_stream_issues")(slot_tiles, scene_slot_tiles, largest_upload)
 
     def palette_issue(self, entries: int) -> Any:
         """How the export's palette entries fit the console: ``project_check.<key>_palette_issue``, an Issue or None."""
@@ -156,6 +176,7 @@ MEGA_DRIVE = ConsoleExport(
     sdk_keep=("bin/", "inc/", "lib/", "src/", "res/", "common.mk", "makefile.gen", "makelib.gen", "md.ld",
               "license.txt", "COPYING.RUNTIME", "readme.md", "changelog.txt"),
     sdk_needs=("lib/",),  # the prebuilt libraries
+    modes=("parts", "parts_streamed", "frames_streamed"),  # export_megadrive.MODES, MS_STREAMED in its runtime
 )
 
 SNES = ConsoleExport(
@@ -163,8 +184,9 @@ SNES = ConsoleExport(
     runtime=("src/modsprite.c", "src/modsprite_draw.asm", "inc/modsprite.h"),
     intro=("The data goes into the game's PVSnesLib project folder: res/ms_chunk_NN.bin (a ROM bank each), "
            "modsprite_chunks.asm, inc/modsprite_data.h, src/modsprite_data.c and modsprite_rom.mk (the ROM size, for "
-           "the Makefile). The folder needs the runtime, {runtime}; the SNES demo in the source code has it. Every "
-           "sprite tile stays in video memory: the sizes show what each pair needs with every mapping."),
+           "the Makefile). The folder needs the runtime, {runtime}; the SNES demo in the source code has it. Stored as "
+           "parts kept in video memory, every sprite tile must fit: the sizes show what each pair needs with every "
+           "mapping."),
     preference="SNESExport",
     setups="Sprite sizes",  # the six pairs (OBSEL), each with the tiles the project needs with it
     sdk_folder="third_party/pvsneslib",  # PVSnesLib's Windows release, unpacked (not in git)
@@ -174,6 +196,7 @@ SNES = ConsoleExport(
               "pvsneslib/pvsneslib_snesmod.txt", "pvsneslib/pvsneslib_version.txt"),
     sdk_needs=("devkitsnes/bin/816-tcc.exe", "devkitsnes/bin/wla-65816.exe", "devkitsnes/bin/wlalink.exe",
                "devkitsnes/tools/816-opt.exe", "devkitsnes/include/hdr.asm.in", "pvsneslib/lib/LoROM_FastROM"),
+    modes=("parts", "parts_streamed", "frames_streamed"),  # export_snes.MODES, MS_STREAMED in its runtime
 )
 
 EXPORTS: Tuple[ConsoleExport, ...] = (MEGA_DRIVE, SNES)  # File ▸ Export's order

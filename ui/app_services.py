@@ -17,6 +17,7 @@ _images_changed: Optional[Callable[[], None]] = None
 _revision: Optional[Callable[[], Optional[str]]] = None
 _swap_changed: Optional[Callable[[], None]] = None
 _go_to: Optional[Callable[[Tuple[str, str]], None]] = None
+_export_mode: Optional[Callable[[], str]] = None
 
 
 def install(
@@ -28,8 +29,10 @@ def install(
     revision: Optional[Callable[[], Optional[str]]] = None,
     swap_changed: Optional[Callable[[], None]] = None,
     go_to: Optional[Callable[[Tuple[str, str]], None]] = None,
+    export_mode: Optional[Callable[[], str]] = None,
 ) -> None:
     global _checkpoint, _status, _zoom, _mapping_changed, _images_changed, _revision, _swap_changed, _go_to
+    global _export_mode
     _checkpoint = checkpoint
     _status = status
     _zoom = zoom
@@ -38,6 +41,7 @@ def install(
     _revision = revision
     _swap_changed = swap_changed
     _go_to = go_to
+    _export_mode = export_mode
 
 
 def text_entry_has_focus() -> bool:
@@ -90,6 +94,12 @@ def go_to(target: Tuple[str, str]) -> None:
     """Show an item in its tab, as Check Project's Go to does: (kind, id), e.g. ("palette", id)."""
     if _go_to:
         _go_to(target)
+
+
+def export_mode() -> str:
+    """How the export for the project's console stores the sprites, as chosen last for this project (export_modes'
+    keys: "parts", "parts_streamed", ...); "parts" without a main window."""
+    return _export_mode() if _export_mode else "parts"
 
 
 def notify_images_changed() -> bool:

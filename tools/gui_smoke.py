@@ -1889,8 +1889,10 @@ def run():
         setups and the tiles each needs, where the export has setups), the export into a game folder with the runtime,
         the report, and the choices remembered for the next export."""
         import consoles
+        import export_modes
         import hardware_budget as hb
         from ui.canvas import BUDGET
+        from ui.check_dialog import memory_issues
         from ui.console_export_dialog import ConsoleExportDialog, ExportReportDialog
 
         project = frame.project
@@ -1920,6 +1922,7 @@ def run():
         def answer_dialog(dialog):
             seen["title"] = dialog.GetTitle()
             seen["offered"] = dialog.values()
+            seen["measured"] = (dialog.values()[2], list(dialog.costs), [cell.GetLabel() for cell in dialog.mode_cells[0]])
             dialog.folder.SetPath(folder)
             if dialog.setup is not None:
                 dialog.setup.SetSelection([s.key for s in export.console.budgets].index(setup))
@@ -1947,10 +1950,27 @@ def run():
             check(export.has_runtime(folder), f"a game folder with the {export.name} runtime")
             frame.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.wxEVT_MENU, item.GetId()))
             check(seen.get("title") == f"Export for the {export.title}", f"the menu item opens the {export.name} dialog")
+            measured_setup, costs, first_row = seen.get("measured", ("", [], []))
+            check(len(costs) == len(export_modes.MODES) and all(first_row)
+                  and costs[0].video_tiles == (tiles[measured_setup] if export.setups else need),
+                  "the dialog measures each way to store the sprites, the parts as the budget counts them")
             if export.setups:
                 check(str(need) in seen.get("setup", ""), f"the {export.setups.lower()} show the tiles each needs")
+
+            def streamed_exports():
+                for mode in export.modes[1:]:  # the ways a runtime that streams can store the sprites
+                    streamed = real_export(export, folder, "all", setup, mode)
+                    header = os.path.join(folder, "inc", "modsprite_data.h")
+                    with open(header, encoding="utf-8") as handle:
+                        check(streamed is not None and "#define MS_STREAMED 1" in handle.read()
+                              and "Streamed" in export.report_line(streamed.summary), f"the {export.name} export, {mode}")
+                    issues = memory_issues(project, mode)
+                    check(all(issue.code in ("slots", "uploads", "too-many-tiles") for issue in issues),
+                          f"Check Project counts the slots of a {mode} export")
+
             if not fits:
-                print(f"     ({export.name}: {need} tiles do not fit, not exported)")
+                print(f"     ({export.name}: {need} tiles do not fit, not exported; streamed instead)")
+                streamed_exports()
                 return
             result = results[0] if results else None
             check(result is not None and result.summary["tiles"] == need,
@@ -1965,7 +1985,8 @@ def run():
             expected = (project_setup.key if console is export.console else setup) if export.setups else ""
             ConsoleExportDialog.ShowModal = lambda dialog: (seen.__setitem__("offered", dialog.values()), wx.ID_CANCEL)[1]
             frame.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.wxEVT_MENU, item.GetId()))
-            check(seen.get("offered") == (folder, "all", expected), "the next export offers the same choices")
+            check(seen.get("offered") == (folder, "all", expected, "parts"), "the next export offers the same choices")
+            streamed_exports()
         finally:
             ConsoleExportDialog.ShowModal, ExportReportDialog.ShowModal = real
             del frame.export_console

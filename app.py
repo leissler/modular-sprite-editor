@@ -352,6 +352,7 @@ class MainFrame(wx.Frame):
             revision=lambda: self.history.fingerprint,
             swap_changed=self.sync_palette_swap_controls,
             go_to=self.go_to,
+            export_mode=self.project_export_mode,
         )
 
         self.history.reset(self.project)
@@ -1457,7 +1458,7 @@ class MainFrame(wx.Frame):
         self.set_status(message)
 
     def on_check_project(self, _event: Optional[wx.CommandEvent] = None) -> None:
-        with CheckProjectDialog(self, self.project, self._after_fix) as dlg:
+        with CheckProjectDialog(self, self.project, self._after_fix, self.project_export_mode()) as dlg:
             dlg.ShowModal()
             target = dlg.target
         if target:
@@ -1516,12 +1517,22 @@ class MainFrame(wx.Frame):
         old = export.old_preference + key[len(export.preference):]
         return self.config.Read(key, self.config.Read(old, default))
 
-    def export_console(self, export: ConsoleExport, folder: str, selector: str, setup_key: str = ""):
+    def project_export_mode(self) -> str:
+        """How the export for the project's console stores the sprites, as chosen last for this project ("parts" when
+        its console has one way)."""
+        export = console_exports.for_console(self.project.console)
+        if export is None or len(export.modes) < 2:
+            return "parts"
+        mode = self.config.Read(self._export_preference(export) + "Mode", "parts")
+        return mode if mode in export.modes else "parts"
+
+    def export_console(self, export: ConsoleExport, folder: str, selector: str, setup_key: str = "",
+                       mode: str = "parts"):
         """Bake the project into a game's project folder for the console; the exporter's result, or None when it
         failed."""
         try:
             with wx.BusyCursor():
-                result = export.export(self.project, folder, selector, setup_key)
+                result = export.export(self.project, folder, selector, setup_key, mode)
         except Exception as exc:  # the exporters report bad data and what does not fit as exceptions; keep running
             wx.MessageBox(f"The export failed: {exc}", f"Export for the {export.name}", wx.OK | wx.ICON_ERROR, self)
             return None
@@ -1549,10 +1560,11 @@ class MainFrame(wx.Frame):
         if export.setups:
             setup_key = default_setup(export, self.project, self.config.Read(key + "Setup", ""))
             tiles = self.setup_tiles(export)
-        with ConsoleExportDialog(self, export, self.project, folder, selector, setup_key, tiles) as dlg:
+        mode = self.config.Read(key + "Mode", "parts")
+        with ConsoleExportDialog(self, export, self.project, folder, selector, setup_key, tiles, mode) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
                 return
-            folder, selector, setup_key = dlg.values()
+            folder, selector, setup_key, mode = dlg.values()
         if not folder or not os.path.isdir(folder):
             wx.MessageBox("Choose a folder that exists.", title, wx.OK | wx.ICON_WARNING, self)
             return
@@ -1566,8 +1578,10 @@ class MainFrame(wx.Frame):
         self.config.Write(key + "Mapping", selector)
         if export.setups:
             self.config.Write(key + "Setup", setup_key)
+        if len(export.modes) > 1:
+            self.config.Write(key + "Mode", mode)
         self.config.Flush()
-        result = self.export_console(export, folder, selector, setup_key)
+        result = self.export_console(export, folder, selector, setup_key, mode)
         if result is None:
             return
         with ExportReportDialog(self, export, folder, result) as report:

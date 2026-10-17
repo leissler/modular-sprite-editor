@@ -28,6 +28,12 @@ LEVEL_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
 # first 16 tiles and the font's 96 tiles below the maps, so 1424 tiles are left for sprites and backgrounds together.
 MD_TILE_CAPACITY = consoles.MEGA_DRIVE.sprites.tiles
 SNES_TILE_CAPACITY = consoles.SNES.sprites.tiles
+# What SGDK's DMA queue sends to video memory in an NTSC vertical blank (DMA_TRANSFER_CAPACITY_NTSC; PAL carries more).
+MD_UPLOAD_CAPACITY = 7200
+# What the SNES runtime uploads into its slots in one NTSC vertical blank by default (bytes of DMA, with its runs' set-up
+# counted in; MS_UPLOAD_BUDGET): PVSnesLib's interrupt sends the sprite table first (scanlines 225 to 230 of 262), so 31
+# scanlines are left, about 29 once ms_upload_tiles itself and a margin are paid.
+SNES_UPLOAD_CAPACITY = 4864
 
 Target = Tuple[str, str]  # (kind, id), kind: image / module / frame / animation / mapping / scene / palette / palette_swap
 
@@ -608,6 +614,67 @@ def megadrive_tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
     level = WARNING if tiles > capacity * 3 // 4 else INFO
     return Issue(level, "tiles", f"The sprites need {tiles} of about {capacity} tiles of video memory, leaving "
                                  f"{capacity - tiles} for backgrounds and everything else.")
+
+
+def _players(count: int) -> str:
+    """How many players a vertical blank's uploads let change steps at once, when each fills its whole slot."""
+    return "one player can" if count == 1 else f"{count} players can"
+
+
+def _scene_slot(tiles: int) -> str:
+    return f", a scene's {tiles}" if tiles else ""
+
+
+def megadrive_stream_issues(slot_tiles: int, scene_slot_tiles: int, largest_upload: int = 0,
+                            capacity: int = MD_TILE_CAPACITY, upload: int = MD_UPLOAD_CAPACITY) -> List[Issue]:
+    """A streamed Mega Drive export: the slots video memory needs (a player's: the largest module, frame or step; a
+    scene's: its largest sample) and what filling one uploads (``largest_upload`` bytes, else its tiles' bytes),
+    against a vertical blank."""
+    largest = max(slot_tiles, scene_slot_tiles)
+    if largest > capacity:
+        return [Issue(ERROR, "too-many-tiles",
+                      f"A slot needs {largest} tiles, but only about {capacity} fit in video memory: the runtime would "
+                      "refuse to draw (ms_tiles_fit() is false). Make the largest frames or scenes smaller.")]
+    issues = [Issue(INFO, "slots",
+                    f"Streamed: a player's slot takes {slot_tiles} tiles of video memory"
+                    f"{_scene_slot(scene_slot_tiles)}. "
+                    "Give everything drawn at the same time a slot of its own (ms_slot_init, ms_set_slot); "
+                    f"{_players(upload // max(1, slot_tiles * 32))} change steps in one frame.")]
+    uploads = largest_upload or largest * 32
+    if uploads > upload:
+        what = "A scene sample" if scene_slot_tiles >= slot_tiles else "A step"
+        issues.append(Issue(WARNING, "uploads",
+                            f"{what} uploads up to {uploads} bytes when it changes, more than a vertical blank "
+                            f"carries ({upload}): the upload runs into the picture and can show broken sprites for a "
+                            "frame. Fewer objects changing at once, or smaller frames, help."))
+    return issues
+
+
+def snes_stream_issues(slot_tiles: int, scene_slot_tiles: int, largest_upload: int = 0,
+                       capacity: int = SNES_TILE_CAPACITY, upload: int = SNES_UPLOAD_CAPACITY) -> List[Issue]:
+    """A streamed SNES export: the slots video memory needs (whole rows of 16 tiles: a player's for the largest
+    module, frame or step, a scene's for its largest sample) and what filling one costs at most in vertical blank
+    (``largest_upload``, bytes of DMA with its runs counted in; else its tiles' bytes), against what the runtime sends
+    in one."""
+    largest = max(slot_tiles, scene_slot_tiles)
+    if largest > capacity:
+        return [Issue(ERROR, "too-many-tiles",
+                      f"A slot needs {largest} tiles, but the SNES's two sprite tables hold {capacity}. Make the "
+                      "largest frames or scenes smaller, or try other sprite sizes (Console, above the tabs).")]
+    issues = [Issue(INFO, "slots",
+                    f"Streamed: a player's slot takes {slot_tiles} of the {capacity} sprite tiles"
+                    f"{_scene_slot(scene_slot_tiles)}. Give everything drawn at the same time a slot of its own "
+                    "(ms_slot_init, ms_set_slot) and call ms_upload_tiles() after WaitForVBlank(); "
+                    f"{_players(upload // max(1, slot_tiles * 32))} change steps in one frame.")]
+    uploads = largest_upload or largest * 32
+    if uploads > upload:
+        what = "A scene sample" if scene_slot_tiles >= slot_tiles else "A step"
+        issues.append(Issue(WARNING, "uploads",
+                            f"{what} takes up to {uploads} bytes of DMA to upload when it changes, more than the "
+                            f"runtime sends in a vertical blank ({upload}): what else changes in that frame shows a frame "
+                            "late, and a vertical blank too short for it shows broken sprites. Fewer objects changing at "
+                            "once, or smaller frames, help."))
+    return issues
 
 
 def snes_tile_issue(tiles: int, capacity: int = SNES_TILE_CAPACITY) -> Issue:

@@ -43,6 +43,44 @@ sprite at x = -128 would hide the sprites behind it). `ms_end_frame()` queues on
 `SYS_doVBlankProcess()` sends. The runtime does not use SGDK's `SPR_*` sprite engine; add sprites of your own
 to the same list with `ms_add_hw_sprite()`.
 
+### Streamed exports
+
+By default every tile stays in video memory. The export can instead keep there only what is on screen
+(`--mode parts_streamed` or `--mode frames_streamed`; in the editor the export dialog's **Store as**, remembered per
+project); [docs/EXPORT_MODES.md](../../docs/EXPORT_MODES.md) compares the three ways on the example projects:
+
+- **`parts_streamed`**: the same parts and tiles in the cartridge as the default export. PoP needs a slot of 39 tiles
+  a player instead of 305 resident.
+- **`frames_streamed`**: each frame flattened into one picture per palette and cut into hardware sprites like a part,
+  so overlapping parts cost nothing (PoP: 1.2 hardware sprites a step instead of 9.3, 2 on the busiest line instead of
+  14), but the cartridge holds every frame's picture (PoP: 6209 tiles instead of 305) and each mapping is baked again.
+
+The blob (version 6) then gives every render frame a load list: the runs of tiles it needs, one after the other from a
+slot's first tile (identical lists stored once); its pieces count their tiles from the slot. The tiles are laid out in
+the order frames first use them, so a frame's tiles mostly lie together, in few runs. The generated header defines
+`MS_STREAMED`, `MS_SLOT_TILES` (a player's slot) and `MS_SCENE_SLOT_TILES` (a scene's).
+
+`ms_init()` then loads no tiles: it makes a default slot at its tile index, as big as the largest module, frame, step
+or scene sample. Drawing a render frame whose list the slot does not hold queues one DMA per run
+(`DMA_queueDmaFast`), which `SYS_doVBlankProcess()` sends with the sprite table, so the tiles and the sprites that use
+them arrive in the same vertical blank; drawing what the slot holds already uploads nothing. A run SGDK refuses (its
+DMA queue is full) leaves the slot holding nothing, and the next draw through it queues the list again.
+
+Everything drawn at the same time needs a slot of its own, set before drawing like the mapping:
+
+```c
+static MS_Slot guard_slot;
+ms_slot_init(&guard_slot, ms_tile_base() + ms_tiles_used());  /* after the default slot, ms_slot_tiles() tiles */
+
+ms_draw_anim_player(&hero, hero_x, hero_y);                   /* through the default slot */
+ms_set_slot(&guard_slot);
+ms_draw_anim_player_mapped(&guard, guard_mapping, guard_x, guard_y);
+ms_set_slot(NULL);                                            /* the default slot again */
+```
+
+A scene streams through one slot, a sample's tiles at a time, so a sample that only moves its objects uploads nothing.
+In a resident export the slot functions do nothing (`ms_slot_tiles()` is 0), so the same game code builds with either.
+
 ### Performance
 
 Measured in BlastEm 0.6.2 (`PoP_WW.json`, every animation for one cycle and every frame, scanline-accurate
@@ -55,6 +93,18 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 | dropped frames | 20 | 0 |
 | DMA per frame | up to 1400 bytes of tiles | 168 bytes (sprite table) |
 
+Streamed exports, with the demo playing PoP's Swordfight (600 frames in BlastEm, drawing only):
+
+| | drawing, average | frames that upload | at most |
+|---|---|---|---|
+| parts, resident | 32.2 lines | none | 42 lines |
+| `parts_streamed` | 36.9 lines | 67.8 lines (one frame in nine) | 88 lines |
+| `frames_streamed` | 11.2 lines | 16.5 lines | 21 lines |
+
+The uploads themselves go in the vertical blank (up to 2 KB here; a vertical blank carries about 7 KB, NTSC). The
+68000 spends its time queueing them: about 2.3 lines for each run of tiles, and a Swordfight sample of two characters in
+parts has 12.8 runs on average (21 at most), whole frames one to four.
+
 ### Limits
 
 - **VRAM**: all tiles stay resident. `PoP_WW` needs 305 tiles, `sonic` 620; they must fit between the tile
@@ -63,6 +113,12 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
   warns above three quarters of that and reports an error above it; the editor shows the same count in the
   Budget readout (MD modes) and in Check Project. `ms_tiles_fit()` reports at runtime whether they fit; use
   `ms_init_ex(tile_index, palette)` to put them after a game's own tiles or to start at another palette line.
+  A streamed export keeps only its slots there (PoP: 39 tiles a player, 65 a scene): `ms_tiles_fit()` checks the
+  default slot, the game places the others.
+- **Uploads** (streamed exports): SGDK sends the whole DMA queue at the next vertical blank, which carries about
+  7200 bytes, the sprite table included (NTSC); more runs into the picture and can show broken sprites for a frame. The
+  export and Check Project say how many players can change steps in one frame (PoP: five) and warn when one slot's
+  tiles alone take more. SGDK's queue holds 80 transfers, one per run of tiles (`DMA_setMaxQueueSize` for more).
 - **Palettes**: 15 colours plus transparent each, in the order of the editor's slots. The runtime loads the palette
   entries (palettes, then palette swaps' versions) into consecutive lines; `ms_palettes_fit()` is false when they
   would run past `PAL3` (start at `PAL0` with `ms_init_ex(tile_index, PAL0)` for one more). With more entries than
@@ -87,7 +143,7 @@ timing with the VDP V counter; one NTSC frame has 262 lines):
 - `megadrive_demo/` - self-contained SGDK project
   - `inc/modsprite.h` - runtime API
   - `inc/modsprite_data.h` - generated record types, counts and `MS_EVENT_*` / `MS_HITBOX_*` / `MS_POINT_*` /
-    `MS_ROLE_*` constants
+    `MS_ROLE_*` constants (a streamed export's also `MS_STREAMED` and the slot sizes)
   - `src/modsprite.c` - renderer and players
   - `src/modsprite_data.c` - generated blob parser and accessors
   - `src/main.c` - demo browser for modules, frames, animations and scenes with live profiling
@@ -108,7 +164,9 @@ python3 examples/megadrive/tools/export_megadrive.py \
   --mapping all
 ```
 
-`--mapping all` bakes one data set per mapping plus index `0` as `<none>` (no mapping).
+`--mapping all` bakes one data set per mapping plus index `0` as `<none>` (no mapping). `--mode parts_streamed` or
+`--mode frames_streamed` writes a streamed export ([Streamed exports](#streamed-exports)); the default, `--mode parts`,
+keeps every tile in video memory.
 
 Both write `res/gen/modsprite_blob.bin`, `inc/modsprite_data.h` and `src/modsprite_data.c`, and put one line,
 `BIN MS_BLOB ...`, into `res/resources.res`. The game's other resources, in that file and in `res/gen`, stay
@@ -121,9 +179,11 @@ Both then list what the game would get differently from the editor, the same iss
 (it looks or behaves differently, e.g. more than 15 colours) and a note on video memory. `--strict` makes the
 command fail (exit code 1) when there are errors, for build scripts.
 
-Blob version 5 (2026-10-14): palette entries (the palettes in slot order, then each palette swap's version of the
-palettes it changes) with their colour cycles, the palette entry of every piece (bit 7 set: a scene object's own
-swap, not remapped at draw time) and the swaps' entry tables. Version 4 (2026-10-13): several palettes (the
+Blob version 6 (2026-10-17), streamed exports only (a resident export still writes version 5): each render frame's
+load list, the lists and their runs of tiles; pieces count their tiles from the slot. Version 5 (2026-10-14): palette
+entries (the palettes in slot order, then each palette swap's version of the palettes it changes) with their colour
+cycles, the palette entry of every piece (bit 7 set: a scene object's own swap, not remapped at draw time) and the
+swaps' entry tables. Version 4 (2026-10-13): several palettes (the
 header's spare field counts them, 16 colours each follow in the palette section) and the palette bits in the
 pieces' tile offsets. Version 3 (2026-10-11): tiles, pieces and
 palette in the blob (no SGDK sprite resources), hitboxes and points, type and role names, sprite count and bounds
@@ -151,6 +211,8 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
 ## Runtime API summary (`inc/modsprite.h`)
 
 - `ms_init()` / `ms_init_ex(tile_index, palette)`, `ms_tiles_fit()`, `ms_tiles_used()`, `ms_palettes_fit()`
+- Streamed exports: `ms_slot_init(&slot, tile_index)`, `ms_set_slot(&slot)` (`NULL`: the default slot) before drawing
+  through it, `ms_slot_tiles()` / `ms_scene_slot_tiles()` (a player's and a scene's slot; 0 in a resident export)
 - Palettes: `ms_set_palette_swap(index)` recolours everything drawn afterwards (0 = the palettes as they are),
   like the mapping; `ms_load_palette(entry, line)` / `ms_palette_line(entry)` when there are more entries than
   lines; `ms_palette_tick()` once per video frame turns the colour cycles of the loaded entries
@@ -190,7 +252,8 @@ outside Windows). `make release` can fail with an SGDK `libmd.a` LTO-version mis
   ms_draw_anim_player_mapped(&guard, guard_mapping, guard_x, guard_y);    /* active one stays */
   ms_draw_anim_player_as(&guard, guard_mapping, blue_swap, guard_x, guard_y);  /* re-skinned and recoloured */
   ```
-- `ms_get_frame_profile()`: render calls, parts, hardware sprites used and dropped this frame
+- `ms_get_frame_profile()`: render calls, parts, hardware sprites used and dropped this frame, tiles uploaded
+  (streamed exports)
 
 ## Demo controls
 
@@ -211,7 +274,9 @@ The screen shows what plays and its look; a step's events appear under it as the
 `START` adds the frame rate, the CPU load, the time drawing and queueing the sprite table take (measured with the
 V counter, so in steps of one scanline, about 64 µs), parts, hardware sprites (and dropped ones), tiles and, with
 `B`, the hitboxes and points shown. Text is redrawn one line per frame at most, because drawing many lines in one
-frame drops it; with the panel closed only the title, the look and the events are drawn.
+frame drops it; with the panel closed only the title, the look and the events are drawn. Built from a streamed
+export, the panel also shows the most tiles one frame uploaded, and the side-by-side look draws its second character
+through a slot of its own.
 
 ## Tests
 
@@ -222,6 +287,10 @@ frame drops it; with the panel closed only the title, the look and the events ar
   table (`ms_draw_anim_player_mapped`), and once with a palette swap (`ms_draw_anim_player_as`: the guard's sprites
   take the swap's palette line, the tiles are the same), scene objects with a swap of their own, and colour cycles
   turned by `ms_palette_tick()` against the editor's preview.
+- `tests/test_megadrive_streaming.py` does the same with streamed exports, rasterising from the video memory the
+  runtime uploaded into: every frame of the testbeds through the default slot (uploads only when the list changes),
+  two players in two slots, every module and the Swordfight in every mapping as the resident export draws them, a run
+  the DMA queue refuses queued again, and the version 6 header as the generated parser reads it.
 - `tests/test_megadrive_scenes.py` checks that scene objects are placed like on the Timeline stage (root motion
   mirrored and turned with the object, objects that follow a point of their parent's frames) and keep a mapping of
   their own in every baked mapping.
@@ -238,4 +307,5 @@ frame drops it; with the panel closed only the title, the look and the events ar
   (`make debug CONVSYM=true`) and run the fresh `out/debug/rom.bin`.
 - `Error: tiles do not fit in VRAM`: the project needs more tiles than there is room for between the tile base
   and SGDK's font. Reduce the images: every module, every rotation of a module and every mapping target is
-  baked as its own image (the export reports the tile count; exporting fewer mappings also helps).
+  baked as its own image (the export reports the tile count; exporting fewer mappings also helps). Or export
+  streamed (`--mode parts_streamed`): video memory then holds only the slots.

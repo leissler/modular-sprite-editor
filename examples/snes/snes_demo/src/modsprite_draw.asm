@@ -1,7 +1,8 @@
-; The SNES runtime's hot loops in 65816 assembly: a render frame's sprites into the OAM buffer, a game's own sprite, and
-; the end of a frame (hiding what is not drawn any more, packing the high table). Exactly ms_put_render_frame,
-; ms_add_hw_sprite and ms_finish_oam in modsprite.c (the C versions the host tests run, which tools/check_snes_rom.py
-; compares with these in an emulator); 816-tcc's code for them was several to ten times slower.
+; The SNES runtime's hot loops in 65816 assembly: a render frame's sprites into the OAM buffer, a game's own sprite, the
+; end of a frame (hiding what is not drawn any more, packing the high table) and a streamed export's uploads into its
+; slots. Exactly ms_put_render_frame, ms_add_hw_sprite, ms_finish_oam and ms_send_uploads in modsprite.c (the C versions
+; the host tests run, which tools/check_snes_rom.py compares with these in an emulator); 816-tcc's code for them was
+; several to ten times slower.
 ;
 ; Calling convention (816-tcc): arguments on the stack, 16 bits each (a u8 one byte), a pointer as its address then
 ; its bank (after jsl's 3 bytes the first argument is at 4,s); 16-bit A, X and Y; direct page 0 with tcc's scratch registers
@@ -20,9 +21,10 @@
 ;   The render frame's record (ms_rf_pages[index >> 10] + (index & 1023) * 22), the profile (a render call, its parts),
 ;   then its sprites: run_count runs of a palette entry (byte) and a sprite count (byte), each followed by that many
 ;   sprites (x, y, tile, attribute, size bit, 0: 8 bytes), in OAM order. Each sprite goes to OAM entry ms_hw_count with
-;   its run's palette bits and priority 2, unless it lies off the screen (256 x 224) or the limit is reached
-;   (ms_dropped counts those). When the frame's box is on the screen with X >= 0 and all its sprites fit under the
-;   limit, nothing is tested per sprite (the fast loop). The caller checked render_index.
+;   its run's palette bits and priority 2 and its tile counted from ms_slot_base (a streamed export's slot, else 0),
+;   unless it lies off the screen (256 x 224) or the limit is reached (ms_dropped counts those). When the frame's box is
+;   on the screen with X >= 0 and all its sprites fit under the limit, nothing is tested per sprite (the fast loop). The
+;   caller checked render_index.
 ms_put_render_frame:
     lda 6,s
     sta.b tcc__r9               ; ox
@@ -159,7 +161,9 @@ ms_pr_run:
     lda.l ms_swap_bits,x        ; the entry's palette bits
     xba
     and.w #$FF00
-    ora.w #$2000                ; and priority 2: the attribute's bits, ORed into each sprite's tile word
+    ora.w #$2000                ; and priority 2: the attribute's bits, added to each sprite's tile word
+    clc
+    adc.l ms_slot_base          ; with the slot's first tile (the sum stays below 512: no carry into the palette)
     sta.b tcc__r4
     pla
     xba
@@ -178,7 +182,8 @@ ms_pr_run:
 
 ms_pr_fast:
     lda [tcc__r2],y             ; the tile, the attribute (flips, tile bit 8)
-    ora.b tcc__r4
+    clc
+    adc.b tcc__r4
     sta.l oamMemory+2,x
     sep #$20
 .accu 8
@@ -250,7 +255,8 @@ ms_pr_sized:
     cmp.l ms_sprite_limit
     bcs ms_pr_dropped
     lda [tcc__r2],y             ; the tile, the attribute
-    ora.b tcc__r4
+    clc
+    adc.b tcc__r4
     sta.l oamMemory+2,x
     lda.b tcc__r10
     sta.l oamMemory,x           ; x (its high byte lands on y, written next)
@@ -481,6 +487,139 @@ ms_fo_zero:
 ms_fo_done:
     rep #$20
 .accu 16
+    rtl
+
+; u16 ms_send_uploads(const MS_LoadList *lists)
+;   lists 4,s (address) and 6,s (bank): the load lists' records (8 bytes: their runs' offset, chunk, group count, ...).
+;   A streamed export's load lists queued this frame (ms_upload_lists, ms_upload_count) into their slots (ms_upload_vram:
+;   a slot's VRAM word address): a list is group_count groups, each the chunk its runs read (a byte) and their count (a
+;   byte), then the runs (6 bytes: a VRAM word offset in the slot, an offset in the chunk, bytes), a DMA each on channel
+;   0 (two registers, VMDATAL and VMDATAH, VMAIN 0x80). Before each list and after it HVBJOY says whether the vertical
+;   blank still lasts: the lists from the first that did not arrive whole are not counted. Returns the lists sent (in
+;   tcc__r0). Exactly ms_send_uploads in modsprite.c. The runs are read through the data bank (their chunk's), the
+;   registers with long addressing.
+ms_send_uploads:
+    lda 4,s
+    sta.b tcc__r1               ; the records: address,
+    lda 6,s
+    sta.b tcc__r1h              ; bank
+    phb
+    stz.b tcc__r0               ; lists sent
+    sep #$20
+.accu 8
+    lda #$80
+    sta.l $002115               ; VMAIN: the address goes up a word after VMDATAH
+    lda #$01
+    sta.l $004300               ; DMAP0: A to B, two registers once, the source going up
+    lda #$18
+    sta.l $004301               ; BBAD0: VMDATAL
+    rep #$20
+.accu 16
+ms_su_list:
+    lda.b tcc__r0
+    cmp.l ms_upload_count
+    bcc ms_su_vblank
+    jmp ms_su_done
+ms_su_vblank:
+    sep #$20
+.accu 8
+    lda.l $004212               ; HVBJOY: bit 7 while the vertical blank lasts
+    rep #$20
+.accu 16
+    bmi ms_su_start
+    jmp ms_su_done
+ms_su_start:
+    lda.b tcc__r0
+    asl a
+    tax
+    lda.l ms_upload_vram,x
+    sta.b tcc__r5               ; the slot's VRAM word address
+    lda.l ms_upload_lists,x
+    asl a
+    asl a
+    asl a
+    tay                         ; the list's record: index * 8
+    lda [tcc__r1],y             ; its runs' offset
+    sta.b tcc__r2
+    iny
+    iny
+    lda [tcc__r1],y             ; their chunk (low byte), the group count (high byte)
+    sta.b tcc__r3
+    xba
+    and.w #$00FF
+    sta.b tcc__r10              ; groups left
+    lda.b tcc__r3
+    and.w #$00FF
+    asl a
+    asl a
+    tax
+    lda.l ms_chunks,x
+    clc
+    adc.b tcc__r2
+    tay                         ; Y: the first group, in the data bank
+    sep #$20
+.accu 8
+    lda.l ms_chunks+2,x
+    pha
+    plb                         ; the data bank: the runs' chunk's
+    rep #$20
+.accu 16
+ms_su_group:
+    lda.w $0000,y               ; the group's chunk (low byte), its run count (high byte)
+    iny
+    iny
+    sta.b tcc__r3
+    xba
+    and.w #$00FF
+    sta.b tcc__r9h              ; runs left in the group
+    lda.b tcc__r3
+    and.w #$00FF
+    asl a
+    asl a
+    tax
+    lda.l ms_chunks,x
+    sta.b tcc__r9               ; the chunk's address
+    sep #$20
+.accu 8
+    lda.l ms_chunks+2,x
+    sta.l $004304               ; A1B0: its bank
+    rep #$20
+.accu 16
+ms_su_run:
+    lda.w $0000,y               ; the run's place in the slot (VRAM words)
+    clc
+    adc.b tcc__r5
+    sta.l $002116               ; VMADD
+    lda.w $0002,y               ; its offset in the chunk
+    clc
+    adc.b tcc__r9
+    sta.l $004302               ; A1T0
+    lda.w $0004,y               ; its bytes
+    sta.l $004305               ; DAS0
+    sep #$20
+.accu 8
+    lda #$01
+    sta.l $00420B               ; MDMAEN: channel 0 (the CPU waits until it is done)
+    rep #$20
+.accu 16
+    tya
+    clc
+    adc.w #6
+    tay
+    dec.b tcc__r9h
+    bne ms_su_run
+    dec.b tcc__r10
+    bne ms_su_group
+    sep #$20
+.accu 8
+    lda.l $004212               ; did the vertical blank last the whole list?
+    rep #$20
+.accu 16
+    bpl ms_su_done
+    inc.b tcc__r0
+    jmp ms_su_list
+ms_su_done:
+    plb
     rtl
 
 .ENDS
