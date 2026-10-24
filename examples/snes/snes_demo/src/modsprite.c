@@ -1351,12 +1351,19 @@ static void ms_module_flip_offset(u16 module_index, u8 flip, s16 *x, s16 *y)
 
 void ms_draw_module_flipped(u16 module_index, s16 x, s16 y, u8 flip)
 {
+    u16 at;
+
     if (module_index >= MS_MODULE_COUNT)
         return;
     flip &= 3;
-    if (flip)
-        ms_module_flip_offset(module_index, flip, &x, &y);
-    ms_draw_render(ms_module_render_frames[ms_mapping_module_base() + module_index], x, y, flip);
+    at = ms_mapping_module_base() + module_index;
+    /* (as ms_module_flip_offset, without taking x's and y's addresses: PVSnesLib 4.6.0's Linux build drops the frame
+       size of a function without locals that takes a parameter's address, and the ROM does not link) */
+    if (flip & 1)
+        x += ms_module_flip_offsets[at << 1];
+    if (flip & 2)
+        y += ms_module_flip_offsets[(at << 1) + 1];
+    ms_draw_render(ms_module_render_frames[at], x, y, flip);
 }
 
 void ms_draw_frame_flipped(u16 frame_index, s16 x, s16 y, u8 flip)

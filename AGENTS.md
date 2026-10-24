@@ -533,7 +533,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `tools/check_snes_rom.py` builds the
   assembly into a ROM and compares every OAM with the host build in Mesen 2 (run it after touching the runtime). 816-tcc:
   never step a far pointer in a loop (reach records by index), assembly reaches globals with long addressing
-  (initialised ones live in bank $7F), a `u8` argument is pushed as one byte. PVSnesLib's start-up code clears no RAM:
+  (initialised ones live in bank $7F), a `u8` argument is pushed as one byte, a function without locals takes no
+  parameter's address (PVSnesLib's Linux build then drops its frame size: the probe ROM failed to link in CI, though
+  it links on macOS). PVSnesLib's start-up code clears no RAM:
   a global without an initial value is not zero, give it one before reading it (`ms_init_ex` does for the runtime's). CGRAM can only be written in vertical
   blank: `ms_palette_tick()` uploads what it prepared one call earlier, then prepares the next. Measure in Mesen 2 with
   the PPU's V counter (and Lua `exec` callbacks on single addresses for a breakdown), not by eye.

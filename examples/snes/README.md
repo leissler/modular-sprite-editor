@@ -349,6 +349,9 @@ quirks the runtime works around:
   a give-way draw): the per-draw work of give-way levels and the slot cache's lookup are in the assembly, the C keeps
   the rare paths (making room, resolving a frame that waits).
 - A ternary choosing between an array and a pointer argument crashed the compiler (`ICE 2`).
+- A function without locals must not take a parameter's address (`&x`): PVSnesLib 4.6.0's Linux build drops such a
+  function's frame size (`__name_locals`), and the ROM does not link ("Unresolved reference"); the macOS build links it.
+  `ms_draw_module_flipped` adds its flip offset in place for that reason.
 - PVSnesLib's start-up code clears no RAM: a global without an initial value starts with whatever the console's RAM
   held at power-on, not zero (initialised globals are copied from the ROM). The runtime gives everything it reads a
   value in `ms_init_ex`; a game must do the same with its own (the demo's text rows once took their state from it).
