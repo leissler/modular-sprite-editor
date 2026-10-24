@@ -122,7 +122,9 @@ class SNESRuntimeTest(unittest.TestCase):
 
     def test_every_module_as_it_is_and_mirrored(self):
         """ms_draw_module_flipped draws each module with its pivot where it is drawn, as it is (flip 0: ms_draw_module)
-        and mirrored around that point each way, in the middle of the screen and across the top-left edge."""
+        and mirrored in place each way, as the editor mirrors a part (its picture stays where it is), in the middle of
+        the screen and across the top-left edge; with every mapping, the module each one draws in its place."""
+        import compositor
         from ui.frame_render import FrameRenderer
 
         renderer = FrameRenderer()
@@ -130,21 +132,25 @@ class SNESRuntimeTest(unittest.TestCase):
             project = Project.from_json(str(path))
             with self.subTest(project=path.name), tempfile.TemporaryDirectory() as tmp:
                 folder = Path(tmp)
-                ctx, exe = _export_and_build(project, folder, "none")
-                draws = [(m, flip, x, y) for m in range(len(project.modules)) for flip in range(4)
-                         for x, y in POSITIONS[:2]]
-                head, lines = snes_host.run(exe, folder, [f"module {m} 0 {flip} {x} {y}" for m, flip, x, y in draws])
+                ctx, exe = _export_and_build(project, folder)
+                draws = [(mapping, m, flip, x, y) for mapping in range(len(ctx.mappings))
+                         for m in range(len(project.modules)) for flip in range(4) for x, y in POSITIONS[:2]]
+                head, lines = snes_host.run(exe, folder, [f"module {m} {mapping} {flip} {x} {y}"
+                                                          for mapping, m, flip, x, y in draws])
                 vram = snes_host.vram_bytes(head)
                 self.assertEqual(len(lines), len(draws))
-                for (m, flip, x, y), line in zip(draws, lines):
-                    module = project.modules[m]
+                for (mapping, m, flip, x, y), line in zip(draws, lines):
+                    module = compositor.resolve_module(project, project.modules[m].id, ctx.mappings[mapping])
                     draw = snes_host.parse_draw(line)
                     self.assertEqual((draw["what"], draw["dropped"]), ("module", 0))
-                    image, hx, hy = _mirrored(renderer.module(project, module), -int(module.pivot[0]),
-                                              -int(module.pivot[1]), flip)
                     shown = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
-                    self.assertEqual(shown, _editor_pixels(ctx, image, hx, hy, x, y),
-                                     f"{path.name}: module '{module.name}' mirrored {flip} at {x},{y}")
+                    if module is None or module.rect[2] <= 0 or module.rect[3] <= 0:
+                        self.assertEqual(shown, {}, f"{path.name}: module {m} hidden by mapping {mapping}")
+                        continue
+                    image, _hx, _hy = _mirrored(renderer.module(project, module), 0, 0, flip)
+                    self.assertEqual(shown, _editor_pixels(ctx, image, -int(module.pivot[0]), -int(module.pivot[1]),
+                                                           x, y),
+                                     f"{path.name}: module '{module.name}' (mapping {mapping}) mirrored {flip} at {x},{y}")
 
     def test_frames_stored_whole(self):
         """Frames stored whole are drawn as their pictures, the others as parts: PoP with its turns stored whole, every
@@ -281,6 +287,153 @@ class SNESRuntimeTest(unittest.TestCase):
                 shown = palettes.rotate(colours, palette.cycles, frame)
                 expected = [0] + [palettes.snes_word(shown[s]) if s < len(shown) else 0 for s in range(15)]
                 self.assertEqual([int(v) for v in line.split()[1:17]], expected, f"frame {frame}")
+
+
+def _snes_sprites(ctx, render: int):
+    """A render frame's sprites as the runtime reads them: (x, y, size in pixels)."""
+    import export_snes
+
+    data, runs = ctx.sprite_runs(ctx.render_frames[render], ctx.render_frame_slot_tiles[render] if ctx.streamed
+                                 else None)
+    out, at = [], 0
+    for _run in range(runs):
+        count = data[at + 1]
+        at += export_snes.RUN.size
+        for _sprite in range(count):
+            x, y, _tile, _attribute, size, _zero = export_snes.SPRITE.unpack_from(data, at)
+            out.append((x, y, ctx.large if size else ctx.small))
+            at += export_snes.SPRITE.size
+    return out
+
+
+def _snes_cost(ctx, render: int, ox: int, oy: int, flip: int) -> int:
+    """The hardware sprites a render frame puts on the screen drawn at (ox, oy) with flip."""
+    cost = 0
+    for x, y, size in _snes_sprites(ctx, render):
+        x, y = ox + (-x - size if flip & 1 else x), oy + (-y - size if flip & 2 else y)
+        cost += -size < x < SCREEN_W and -size < y < SCREEN_H
+    return cost
+
+
+def _snes_draw_costs(ctx, draws):
+    """Each crowd draw's sprites on the screen (runtime_models.crowd_draws: modules mirrored in place, a sprite's index
+    odd for a large one)."""
+    frames, modules = len(ctx.project.frames), len(ctx.project.modules)
+    offsets = ctx.module_flip_offsets()
+    costs = []
+    for kind, index, mapping, flip, _level, x, y in draws:
+        if kind == "sprite":
+            size = ctx.large if index & 1 else ctx.small
+            costs.append(int(-size < x < SCREEN_W and -size < y < SCREEN_H))
+        elif kind == "frame":
+            costs.append(_snes_cost(ctx, ctx.frame_render_frames[mapping * frames + index], x, y, flip))
+        else:
+            dx, dy = offsets[mapping * modules + index]
+            costs.append(_snes_cost(ctx, ctx.module_render_frames[mapping * modules + index],
+                                    x + (dx if flip & 1 else 0), y + (dy if flip & 2 else 0), flip))
+    return costs
+
+
+def _put(draw, level: int) -> str:
+    """A crowd draw as snes_host's put command."""
+    kind, index, mapping, flip, _level, x, y = draw
+    if kind == "sprite":
+        return f"put sprite {x} {y} {0x100 + index} {0x20 | ((index & 3) << 1)} {index & 1} {level}"
+    return f"put {kind} {index} {mapping} {flip} {level} {x} {y}"
+
+
+@unittest.skipUnless(snes_host.have_compiler(), "no C compiler")
+class SNESRuntimePlansAndGivesWay(unittest.TestCase):
+    def test_sprites_and_bounds_before_drawing(self):
+        """ms_frame_sprites / ms_module_sprites and ms_frame_bounds / ms_module_bounds tell, under each mapping and for
+        each flip, what a draw asks for: the render frame's sprites and box (mirrored around the origin, a module in
+        place); drawn in the middle of the screen it puts exactly that many sprites into the OAM buffer, all inside the
+        box. Out of range: nothing."""
+        project = Project.from_json(str(PROJECTS[0]))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder)
+            mappings = len(ctx.mappings)
+            frames, modules = len(project.frames), len(project.modules)
+            commands = [f"counts {m}" for m in range(mappings)]
+            draws = [(m, kind, index, flip) for m in range(mappings) for kind, count in (("frame", frames),
+                                                                                    ("module", modules))
+                     for index in range(count) for flip in range(4)]
+            commands += [f"flipped {i} {m} {flip} 128 112" if kind == "frame" else f"module {i} {m} {flip} 128 112"
+                         for m, kind, i, flip in draws]
+            _head, lines = snes_host.run(exe, folder, commands)
+        offsets = ctx.module_flip_offsets()
+        bounds = {}
+        for m, line in enumerate(lines[:mappings]):
+            _what, frame_items, module_items, beyond = line.split(" ")
+            self.assertEqual(beyond, "0:0")
+            for kind, items, renders, count in (("frame", frame_items, ctx.frame_render_frames, frames),
+                                                ("module", module_items, ctx.module_render_frames, modules)):
+                for index, item in enumerate(items.split(",")):
+                    sprites, boxes = item.split(":")
+                    count_, min_x, min_y, max_x, max_y = ctx.render_frame_extent(ctx.render_frames[renders[m * count + index]])
+                    self.assertEqual(int(sprites), count_, f"{kind} {index}: its sprites")
+                    dx, dy = offsets[m * count + index] if kind == "module" else (0, 0)
+                    for flip, box in enumerate(boxes.split(";")):
+                        shows, *got = (int(v) for v in box.split("/"))
+                        want = [dx - max_x if flip & 1 else min_x, dy - max_y if flip & 2 else min_y,
+                                dx - min_x if flip & 1 else max_x, dy - min_y if flip & 2 else max_y]
+                        self.assertEqual((shows, got), (1, want) if count_ else (0, [0, 0, 0, 0]),
+                                         f"{kind} {index} flip {flip}: its bounds")
+                        bounds[(m, kind, index, flip)] = (count_, got)
+        for (m, kind, index, flip), line in zip(draws, lines[mappings:]):
+            draw = snes_host.parse_draw(line)
+            count_, (min_x, min_y, max_x, max_y) = bounds[(m, kind, index, flip)]
+            self.assertEqual((draw["sprites"], draw["dropped"]), (count_, 0), f"{kind} {index} flip {flip}: drawn")
+            for x, y, _tile, _attribute, large in snes_host.decode_oam(draw["oam"])[:count_]:
+                size = ctx.large if large else ctx.small
+                y = y - 256 if y >= 224 else y  # above the top it wraps from line 255
+                self.assertTrue(min_x <= x - 128 and x - 128 + size <= max_x and min_y <= y - 112
+                                and y - 112 + size <= max_y, f"{kind} {index} flip {flip}: a sprite outside its bounds")
+
+    def test_draws_give_way_farthest_first(self):
+        """Crowds of frames, modules and the game's own sprites, some with give-way levels, across the screen and its
+        edges, mirrored and re-skinned: a picture that asks for more than 128 sprites leaves out the draws with a
+        level, level 1 first and within it the farthest first, as many as the excess, and then holds exactly the
+        sprites the runtime draws without levels from the draws that stay (their entries, high bits, what still
+        drops), every entry after them hidden; a picture that fits is as it would be without levels."""
+        from runtime_models import crowd_draws, given_way
+
+        project = Project.from_json(str(PROJECTS[0]))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder)
+            frames, modules = len(project.frames), len(project.modules)
+            pictures = [crowd_draws(seed, 8 + seed % 24, frames, modules, len(ctx.mappings), SCREEN_W, SCREEN_H,
+                                    own_sprites=seed % 5 * 4) for seed in range(60)]
+            costs = [_snes_draw_costs(ctx, draws) for draws in pictures]
+            given = [given_way(c, [d[4] for d in draws], 128) for c, draws in zip(costs, pictures)]
+            commands = []  # every picture first with only the draws that stay, before any level is set
+            for draws, gone in zip(pictures, given):
+                commands += ["begin"] + [_put(d, 0) for n, d in enumerate(draws) if n not in gone] + ["end"]
+            for draws in pictures:
+                commands += ["begin"] + [_put(d, d[4]) for d in draws] + ["end"]
+            _head, lines = snes_host.run(exe, folder, commands)
+        self.assertEqual(len(lines), 2 * len(pictures))
+        hidden = 240 if ctx.small <= 16 else 224
+        for p, (plain_line, levels_line) in enumerate(zip(lines[:len(pictures)], lines[len(pictures):])):
+            plain, levels = plain_line.split(" "), levels_line.split(" ")
+            self.assertEqual(int(levels[1]), len(given[p]), f"picture {p}: draws that gave way")
+            self.assertEqual((plain[1], levels[2]), ("0", "0"), f"picture {p}: nothing left out")
+            a, b = snes_host.parse_draw(" ".join(plain[4:])), snes_host.parse_draw(" ".join(levels[4:]))
+            self.assertEqual((b["sprites"], b["dropped"]), (a["sprites"], a["dropped"]), f"picture {p}")
+            count = b["sprites"]
+            self.assertEqual(snes_host.decode_oam(b["oam"])[:count], snes_host.decode_oam(a["oam"])[:count],
+                             f"picture {p} ({sum(costs[p])} asked): the sprites")
+            self.assertTrue(all(y == hidden for _x, y, *_rest in snes_host.decode_oam(b["oam"])[count:]),
+                            f"picture {p}: every entry after them hidden")
+        firsts = [next((n for n in range(len(c)) if sum(c[:n + 1]) > 128), len(c)) for c in costs]
+        self.assertGreater(sum(1 for c in costs if sum(c) > 128), 10, "enough pictures ask for too much")
+        self.assertTrue(any(n < first for g, first in zip(given, firsts) for n in g), "written ones gave way")
+        self.assertTrue(any(n >= first for g, first in zip(given, firsts) for n in g), "waiting ones gave way")
+        self.assertTrue(any(pictures[p][n][0] == "sprite" for p, g in enumerate(given) for n in g), "own sprites too")
+        self.assertTrue(any(snes_host.parse_draw(" ".join(line.split(" ")[4:]))["dropped"] for line in lines),
+                        "some still drop the farthest sprites")
 
 
 if __name__ == "__main__":

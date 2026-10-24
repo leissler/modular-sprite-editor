@@ -8,7 +8,7 @@ palettes, the blob and its C side.
 Modes (docs/EXPORT_MODES.md): "parts" (the default) keeps every tile in video memory. "parts_streamed" and
 "frames_streamed" (whole frames, flattened per palette) keep only what is on screen: each render frame gets a load list
 (the tile runs a slot takes, in the blob's order) and pieces whose tiles count from the slot, and the runtime uploads a
-render frame's tiles into the slot it is drawn through when that slot holds another list (MS_STREAMED, blob version 6).
+render frame's tiles into the slot it is drawn through when that slot holds another list (MS_STREAMED, blob version 8).
 """
 
 from __future__ import annotations
@@ -67,10 +67,13 @@ PieceEntry = Tuple[int, int, int, int, int]
 # 6: streamed exports (MODES other than "parts"): version 5 plus a load list per render frame (render_frame_loads,
 #    load_lists, load_entries; their counts and offsets follow the header) and pieces that count tiles from a slot.
 #    Exports that keep every tile in video memory still write version 5.
-BLOB_VERSION = 5
-STREAMED_BLOB_VERSION = 6
+# 7: version 5 plus each module's flip offset under each mapping (module_flip_offsets: two s16, its width less twice its
+#    pivot's x, its height less twice its pivot's y), which ms_draw_module_flipped mirrors in place with.
+# 8: streamed exports: version 6 with the flip offsets of version 7.
+BLOB_VERSION = 7
+STREAMED_BLOB_VERSION = 8
 BLOB_COUNT_FIELDS = 23
-BLOB_SECTION_COUNT = 36
+BLOB_SECTION_COUNT = 37
 BLOB_HEADER_SIZE = 4 + 2 + 2 + BLOB_COUNT_FIELDS * 2 + 4 + BLOB_SECTION_COUNT * 4 + 4
 STREAM_HEADER_SIZE = 2 + 4 + 3 * 4  # load list count, load entry count, the three sections' offsets
 MODES = ("parts", "parts_streamed", "frames_streamed")  # export_modes' keys this exporter and its runtime do
@@ -490,6 +493,7 @@ class MegaDriveBakeContext(ConsoleBake):
             "swap_ids",
             "swap_names",
             "palette_names",
+            "module_flip_offsets",
         ]
         if len(section_names) != BLOB_SECTION_COUNT:
             raise RuntimeError("Internal SGDK blob section list mismatch")
@@ -668,6 +672,8 @@ class MegaDriveBakeContext(ConsoleBake):
         append_section("swap_ids", build_string_offset_section(swap_ids_rel))
         append_section("swap_names", build_string_offset_section(swap_names_rel))
         append_section("palette_names", build_string_offset_section(palette_names_rel))
+        append_section("module_flip_offsets", b"".join(struct.pack(">hh", *offset)
+                                                       for offset in self.module_flip_offsets()))
         if self.streamed:
             append_section("render_frame_loads", b"".join(self._be16(index) for index in self.render_frame_loads))
             append_section("load_lists", b"".join(struct.pack(">IHH", *record) for record in self.load_lists))
@@ -929,6 +935,9 @@ extern const MS_Point *ms_points;
 extern const MS_Part *ms_parts;
 extern const MS_RenderFrame *ms_render_frames;
 extern const u16 *ms_module_render_frames;
+/* Each module under each mapping (as ms_module_render_frames): its width less twice its pivot's x, its height less
+   twice its pivot's y. Mirrored around its pivot at a position moved by them, a module is mirrored in place. */
+extern const s16 *ms_module_flip_offsets;
 extern const u16 *ms_frame_render_frames;
 extern const MS_AnimStep *ms_anim_steps;
 extern const MS_Animation *ms_animations;
@@ -1035,7 +1044,8 @@ enum
     MS_SEC_SWAP_IDS = 33,
     MS_SEC_SWAP_NAMES = 34,
     MS_SEC_PALETTE_NAMES = 35,
-    MS_SEC_COUNT = 36
+    MS_SEC_MODULE_FLIP_OFFSETS = 36,
+    MS_SEC_COUNT = 37
 }};
 
 u16 ms_variant_count = 0;
@@ -1076,6 +1086,7 @@ const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL;
 const MS_RenderFrame *ms_render_frames = NULL;
 const u16 *ms_module_render_frames = NULL;
+const s16 *ms_module_flip_offsets = NULL;
 const u16 *ms_frame_render_frames = NULL;
 const MS_AnimStep *ms_anim_steps = NULL;
 const MS_Animation *ms_animations = NULL;
@@ -1158,6 +1169,7 @@ static void ms_reset_data(void)
     ms_parts = NULL;
     ms_render_frames = NULL;
     ms_module_render_frames = NULL;
+    ms_module_flip_offsets = NULL;
     ms_frame_render_frames = NULL;
     ms_anim_steps = NULL;
     ms_animations = NULL;
@@ -1261,6 +1273,7 @@ void ms_data_init(void)
     ms_parts = (const MS_Part *)(g_blob + g_section_offsets[MS_SEC_PARTS]);
     ms_render_frames = (const MS_RenderFrame *)(g_blob + g_section_offsets[MS_SEC_RENDER_FRAMES]);
     ms_module_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_MODULE_RENDER_FRAMES]);
+    ms_module_flip_offsets = (const s16 *)(g_blob + g_section_offsets[MS_SEC_MODULE_FLIP_OFFSETS]);
     ms_frame_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_FRAME_RENDER_FRAMES]);
     ms_anim_steps = (const MS_AnimStep *)(g_blob + g_section_offsets[MS_SEC_ANIM_STEPS]);
     ms_animations = (const MS_Animation *)(g_blob + g_section_offsets[MS_SEC_ANIMATIONS]);

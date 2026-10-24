@@ -27,6 +27,21 @@ load lists it queued and, when it uploaded, video memory from tile 0 to the seco
                                              "animation:step:finished:event type 0 started:event type 1's value:
                                              hitboxes|points" (no OAM)
     markers FRAME                            a frame's "hitboxes|points" (no OAM)
+    counts MAPPING                           each frame's and each module's hardware sprites and bounds under the
+                                             mapping ("sprites:ok/min_x/min_y/max_x/max_y" for flips 0 to 3, ";"
+                                             between the flips, "," between the items: the frames, then the modules)
+                                             (no OAM)
+    begin                                    ms_begin_frame: a picture drawn by the commands up to "end"
+    put frame INDEX MAPPING FLIP LEVEL X Y   ms_draw_frame_flipped with that mapping and give-way level
+    put module INDEX MAPPING FLIP LEVEL X Y  ms_draw_module_flipped
+    put sprite X Y TILE ATTRIBUTE LARGE LEVEL  ms_add_hw_sprite with that give-way level
+    end                                      ms_end_frame, then "given GAVE_WAY LEFT_OUT SLOTS_USED" before the draw
+    cache TILE COUNT                         ms_slot_cache_init (streamed): draws take slots from the cache
+    usecache                                 ms_use_slot_cache: the cache again (streamed)
+    uncached                                 ms_set_slot(NULL): the default slot again
+    checksum                                 a sum of every frame's and module's sprites and bounds under every
+                                             mapping and flip ("sum N"), then an empty frame drawn
+    vramdump TILES                           a streamed draw's line shows video memory up to that tile (0: as above)
 
 Hitboxes print as "type,role,x,y,w,h" and points as "type,role,x,y", separated by ";".
 """
@@ -106,6 +121,7 @@ static void print_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Point 
 #ifdef MS_STREAMED
 static MS_Slot g_second_slot;
 static u16 g_vblank_checks = 0xFFFF;
+static u16 g_vram_dump_tiles = 0;
 u8 ms_host_in_vblank(void)
 {
     if (g_vblank_checks == 0xFFFF)
@@ -141,12 +157,48 @@ static void dump(const char *what)
         printf("%s%u", i ? "," : "", queued[i]);
     printf("%s ", count ? "" : "-");
     if (profile.tiles_uploaded)
-        for (i = 0; i < (unsigned)(ms_tiles_end() + ms_slot_tiles()) * 16u; i++)
+        for (i = 0; i < (unsigned)(g_vram_dump_tiles ? g_vram_dump_tiles : ms_tiles_end() + ms_slot_tiles()) * 16u; i++)
             printf("%04x", g_vram[i]);
     else
         printf("-");
 #endif
     printf("\n");
+}
+
+/* What tools/check_snes_rom.py's probe sums too: every frame's and module's sprites and bounds, every mapping and flip
+   (the active mapping left at 0). */
+static u16 query_sum(void)
+{
+    u16 m, n, flip, sum = 0;
+    MS_Bounds box;
+
+    for (m = 0; m < MS_MAPPING_COUNT; m++)
+    {
+        ms_set_mapping(m);
+        for (n = 0; n < MS_FRAME_COUNT + MS_MODULE_COUNT; n++)
+            for (flip = 0; flip < 4; flip++)
+            {
+                u8 shows = n < MS_FRAME_COUNT ? ms_frame_bounds(n, (u8)flip, &box)
+                                              : ms_module_bounds(n - MS_FRAME_COUNT, (u8)flip, &box);
+                sum = (u16)(sum * 31u + (n < MS_FRAME_COUNT ? ms_frame_sprites(n) : ms_module_sprites(n - MS_FRAME_COUNT))
+                            + shows + (u16)box.min_x * 3u + (u16)box.min_y * 5u + (u16)box.max_x * 7u
+                            + (u16)box.max_y * 11u);
+            }
+    }
+    ms_set_mapping(0);
+    return sum;
+}
+
+static void print_bounds(u16 sprites, u8 (*bounds)(u16, u8, MS_Bounds *), u16 index)
+{
+    unsigned flip;
+    printf("%u:", sprites);
+    for (flip = 0; flip < 4; flip++)
+    {
+        MS_Bounds box;
+        u8 ok = bounds(index, (u8)flip, &box);
+        printf("%s%u/%d/%d/%d/%d", flip ? ";" : "", ok ? 1 : 0, box.min_x, box.min_y, box.max_x, box.max_y);
+    }
 }
 
 int main(int argc, char **argv)
@@ -284,6 +336,58 @@ int main(int argc, char **argv)
             }
             printf("\n");
         }
+        else if (sscanf(line, "counts %u", &mapping) == 1)
+        {
+            ms_set_mapping(mapping);
+            printf("counts %s", MS_FRAME_COUNT ? "" : "-");
+            for (t = 0; t < MS_FRAME_COUNT; t++)
+            {
+                printf("%s", t ? "," : "");
+                print_bounds(ms_frame_sprites(t), ms_frame_bounds, t);
+            }
+            printf(" %s", MS_MODULE_COUNT ? "" : "-");
+            for (t = 0; t < MS_MODULE_COUNT; t++)
+            {
+                printf("%s", t ? "," : "");
+                print_bounds(ms_module_sprites(t), ms_module_bounds, t);
+            }
+            printf(" %u:%u\n", ms_frame_sprites(MS_FRAME_COUNT), ms_module_sprites(MS_MODULE_COUNT));
+        }
+        else if (strncmp(line, "begin", 5) == 0)
+            ms_begin_frame();
+        else if (strncmp(line, "checksum", 8) == 0)
+        {
+            printf("sum %u ", query_sum());
+            ms_begin_frame();
+            ms_end_frame();
+            dump("checksum");
+        }
+        else if (sscanf(line, "put frame %u %u %u %u %d %d", &index, &mapping, &swap, &ticks, &x, &y) == 6)
+        {
+            ms_set_mapping(mapping);
+            ms_set_give_way((u8)ticks);
+            ms_draw_frame_flipped(index, x, y, (u8)swap);
+        }
+        else if (sscanf(line, "put module %u %u %u %u %d %d", &index, &mapping, &swap, &ticks, &x, &y) == 6)
+        {
+            ms_set_mapping(mapping);
+            ms_set_give_way((u8)ticks);
+            ms_draw_module_flipped(index, x, y, (u8)swap);
+        }
+        else if (sscanf(line, "put sprite %d %d %u %u %u %u", &x, &y, &index, &mapping, &swap, &ticks) == 6)
+        {
+            ms_set_give_way((u8)ticks);
+            ms_add_hw_sprite(x, y, index, (u8)mapping, (u8)swap);
+        }
+        else if (strncmp(line, "end", 3) == 0)
+        {
+            MS_FrameProfile profile;
+            ms_set_give_way(0);
+            ms_end_frame();
+            ms_get_frame_profile(&profile);
+            printf("given %u %u %u ", profile.draws_given_way, profile.draws_left_out, profile.slots_used);
+            dump("picture");
+        }
         else if (sscanf(line, "markers %u", &index) == 1)
         {
             const MS_Hitbox *boxes;
@@ -297,6 +401,14 @@ int main(int argc, char **argv)
             printf("\n");
         }
 #ifdef MS_STREAMED
+        else if (sscanf(line, "cache %u %u", &index, &ticks) == 2)
+            ms_slot_cache_init((u16)index, (u16)ticks);
+        else if (strncmp(line, "uncached", 8) == 0)
+            ms_set_slot(NULL);
+        else if (strncmp(line, "usecache", 8) == 0)
+            ms_use_slot_cache();
+        else if (sscanf(line, "vramdump %u", &index) == 1)
+            g_vram_dump_tiles = (u16)index;
         else if (sscanf(line, "budget %u", &index) == 1)
             ms_set_upload_budget((u16)index);
         else if (sscanf(line, "vblank %u", &index) == 1)
@@ -318,6 +430,38 @@ int main(int argc, char **argv)
 
 def have_compiler() -> bool:
     return shutil.which("cc") is not None
+
+
+_FLIP_OFFSETS: Dict[int, List[Tuple[int, int]]] = {}  # a bake's module flip offsets, worked out once
+
+
+def draw_cost(ctx: export_snes.SNESBakeContext, kind: str, index: int, mapping: int, flip: int, x: int, y: int) -> int:
+    """The hardware sprites a draw puts on the screen: a frame or module (ms_draw_frame_flipped,
+    ms_draw_module_flipped: a module mirrored in place) or a game's own sprite (index its tile, flip 1 when large)."""
+    if kind == "sprite":
+        size = ctx.large if flip else ctx.small
+        return int(-size < x < SCREEN_W and -size < y < SCREEN_H)
+    count = len(ctx.project.frames if kind == "frame" else ctx.project.modules)
+    render = (ctx.frame_render_frames if kind == "frame" else ctx.module_render_frames)[mapping * count + index]
+    if kind == "module":
+        offsets = _FLIP_OFFSETS.get(id(ctx))
+        if offsets is None:
+            offsets = _FLIP_OFFSETS[id(ctx)] = ctx.module_flip_offsets()
+        dx, dy = offsets[mapping * count + index]
+        x, y = x + (dx if flip & 1 else 0), y + (dy if flip & 2 else 0)
+    data, runs = ctx.sprite_runs(ctx.render_frames[render], ctx.render_frame_slot_tiles[render] if ctx.streamed
+                                 else None)
+    cost = at = 0
+    for _run in range(runs):
+        sprites = data[at + 1]
+        at += export_snes.RUN.size
+        for _sprite in range(sprites):
+            sx, sy, _tile, _attribute, large, _zero = export_snes.SPRITE.unpack_from(data, at)
+            at += export_snes.SPRITE.size
+            size = ctx.large if large else ctx.small
+            sx, sy = x + (-sx - size if flip & 1 else sx), y + (-sy - size if flip & 2 else sy)
+            cost += -size < sx < SCREEN_W and -size < sy < SCREEN_H
+    return cost
 
 
 def export(project: Project, folder: Path, mappings: str = "all", mode: str = "parts") -> export_snes.SNESBakeContext:

@@ -23,7 +23,7 @@ import export_modes  # noqa: E402
 import export_snes  # noqa: E402
 import snes_host  # noqa: E402
 from models import Project  # noqa: E402
-from test_snes_runtime_draw import POSITIONS, _editor_pixels  # noqa: E402
+from test_snes_runtime_draw import POSITIONS, _editor_pixels, _mirrored  # noqa: E402
 
 PROJECTS = [REPO_ROOT / "examples" / "pop" / "PoP_WW.json", REPO_ROOT / "examples" / "sonic" / "sonic.json",
             REPO_ROOT / "examples" / "adventurer" / "adventurer.json"]
@@ -114,8 +114,9 @@ class TestStreamedRuntime(unittest.TestCase):
     def test_load_lists_for_a_game_of_its_own_slots(self):
         """A game that keeps its own slots asks each frame's and module's load list and its tiles (a list drawn by
         several actors is loaded once): ms_frame_load_list, ms_module_load_list and ms_load_list_tiles name the
-        export's lists under the active mapping; out of range, and in an export that keeps every tile in video memory,
-        they name none."""
+        export's lists under the active mapping, the tiles as the rows of a slot the list takes (its squares sit
+        aligned to their size, with gaps); out of range, and in an export that keeps every tile in video memory, they
+        name none."""
         project = Project.from_json(str(PROJECTS[0]))
         mappings = 1 + len(project.mappings)
         for mode in ("parts",) + STREAMED:
@@ -132,7 +133,8 @@ class TestStreamedRuntime(unittest.TestCase):
                         got = [tuple(int(v) for v in item.split(":")) for item in field.split(",")]
                         if ctx.streamed:
                             listed = [ctx.render_frame_loads[render] for render in renders[m * count:(m + 1) * count]]
-                            expected = [(n, 0 if n == export_snes.NO_LIST else ctx.load_lists[n][1]) for n in listed]
+                            expected = [(n, 0 if n == export_snes.NO_LIST
+                                         else ctx.load_list_rows(ctx.load_lists[n][0]) * 16) for n in listed]
                         else:
                             expected = [(0xFFFF, 0)] * count
                         self.assertEqual(got, expected, f"{mode}, mapping {m}: the {kind}s' load lists")
@@ -247,6 +249,162 @@ class TestStreamedRuntime(unittest.TestCase):
         self.assertEqual([draw["uploaded"] for draw in draws], [tiles, tiles, 0],
                          "cut off after the list, queued again, then held")
         self.assertEqual(_shown(ctx, draws[1]), _shown(ctx, draws[2]))
+
+
+def _actor_frames(project, ticks: int):
+    """Five actors over ``ticks`` frames, each showing the frames of an animation in turn (a hold of their own), two of
+    them the same at the same time elsewhere: per tick (frame, mapping, flip, x, y) front to back."""
+    names = ["C34 Attack", "C46 quick attack", "C21 multi stab throw enemy", "C34 Attack", "C21 multi stab throw enemy"]
+    index = {f.id: n for n, f in enumerate(project.frames)}
+    actors = []
+    for k, name in enumerate(names):
+        anim = next(a for a in project.animations if a.name == name)
+        actors.append(([index[af.frame_id] for af in anim.aframes], k % 2, k % 3 == 2, (3, 4, 5, 4, 5)[k],
+                       (40, 100, 160, 210, 120)[k], (150, 150, 150, 90, 60)[k]))
+    return [[(frames[(t // hold) % len(frames)], mapping, int(flip), x, y)
+             for frames, mapping, flip, hold, x, y in actors] for t in range(ticks)]
+
+
+@unittest.skipUnless(snes_host.have_compiler(), "no C compiler")
+class TestSlotCache(unittest.TestCase):
+    def _check(self, mode: str, pool_share: float, ticks: int = 160):
+        """The actors through one slot cache: each frame against the reference cache (what it uploads, the slots it
+        uses, the draws it leaves out) and the editor (what shows, from the video memory the runtime uploaded to)."""
+        from runtime_models import SlotCache
+        from ui.frame_render import FrameRenderer
+
+        project = Project.from_json(str(PROJECTS[0]))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder, mode)
+            frames = len(project.frames)
+            pictures = _actor_frames(project, ticks)
+            rows = lambda render: ctx.load_list_rows(ctx.load_lists[ctx.render_frame_loads[render]][0])  # noqa: E731
+            busiest = max(sum(rows(ctx.frame_render_frames[m * frames + f]) for f, m, *_rest in picture)
+                          for picture in pictures) * 16
+            pool = max(ctx.slot_align, int(busiest * pool_share) // ctx.slot_align * ctx.slot_align)
+            commands = ["budget 65535", "vramdump 512", f"cache 0 {pool}"]
+            for t, picture in enumerate(pictures):
+                if t == ticks // 2:
+                    commands.append(f"cache 0 {pool}")  # the cache again: it holds nothing
+                commands += ["begin"] + [f"put frame {f} {m} {flip} 0 {x} {y}" for f, m, flip, x, y in picture] + ["end"]
+            _head, lines = snes_host.run(exe, folder, commands)
+        self.assertEqual(len(lines), ticks)
+        model = SlotCache(0, pool, 48, ctx.slot_align, 512)
+        renderer, vram, left_out = FrameRenderer(), b"", 0
+        for t, (picture, line) in enumerate(zip(pictures, lines)):
+            fields = line.split(" ")
+            gave, left, used = (int(v) for v in fields[1:4])
+            draw = snes_host.parse_draw(" ".join(fields[4:]))
+            if draw["vram"]:
+                vram = draw["vram"]
+            if t == ticks // 2:
+                model.clear()
+            model.begin()
+            drawn = []
+            for f, m, flip, x, y in picture:
+                render = ctx.frame_render_frames[m * frames + f]
+                listed = ctx.render_frame_loads[render]
+                if listed == export_snes.NO_LIST:
+                    continue
+                runs, tiles, _cost = ctx.load_lists[listed]
+                if model.draw(listed, ctx.load_list_rows(runs) * 16, tiles) is not None:
+                    drawn.append((f, m, flip, x, y))
+            self.assertEqual((draw["uploaded"], used, left, gave, draw["waiting"]),
+                             (model.uploaded, model.slots_used, model.left_out, 0, 0),
+                             f"{mode}, frame {t}: tiles uploaded, slots used, draws left out")
+            expected = {}
+            for f, m, flip, x, y in reversed(drawn):  # the first in front
+                image, hx, hy = renderer.render(project, project.frames[f], ctx.mappings[m])
+                image, hx, hy = _mirrored(image, int(hx), int(hy), flip)
+                expected.update(_editor_pixels(ctx, image, hx, hy, x, y))
+            entries = snes_host.decode_oam(draw["oam"])[:draw["sprites"]]
+            self.assertEqual(snes_host.rasterise(entries, vram + bytes(0x4000), ctx.small, ctx.large), expected,
+                             f"{mode}, frame {t}")
+            left_out += left
+        self.assertGreater(model.evicted, 0, "slots made room")
+        return left_out
+
+    def test_one_cache_for_every_actor(self):
+        """Five actors through one slot cache with room for about two thirds of their busiest frame: a frame is
+        uploaded once and every actor showing it draws from that slot (whole rows of the sprite tables, from a
+        multiple of MS_SLOT_ALIGN), the slots drawn longest ago make room, the cache set up again halfway holds
+        nothing; each frame shows what the editor shows, with what the reference cache uploads, uses and leaves out."""
+        for mode in STREAMED:
+            with self.subTest(mode=mode):
+                self._check(mode, 0.7)
+
+    def test_a_full_cache_leaves_draws_out(self):
+        """With room for less than a frame's slots, the draws that find none are left out, the others still show right."""
+        self.assertGreater(self._check("parts_streamed", 0.3), 0)
+
+    def test_an_upload_that_waits_shows_nothing(self):
+        """Through the cache a draw whose upload has no room in this vertical blank's budget shows nothing (the slot
+        holds nothing yet) and goes the frame after: the first list of a frame always goes."""
+        project = Project.from_json(str(PROJECTS[0]))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder, "parts_streamed")
+            frames = [f for f in range(len(project.frames))
+                      if ctx.render_frame_loads[ctx.frame_render_frames[f]] != export_snes.NO_LIST][:3]
+            picture = ["begin"] + [f"put frame {f} 0 0 0 {40 + 80 * k} 120" for k, f in enumerate(frames)] + ["end"]
+            _head, lines = snes_host.run(exe, folder, ["budget 1", "cache 0 512"] + picture * 3)
+        draws = [snes_host.parse_draw(" ".join(line.split(" ")[4:])) for line in lines]
+        self.assertEqual([d["waiting"] for d in draws], [2, 1, 0], "one upload a frame, the others wait")
+        self.assertEqual([len(d["queued"]) for d in draws], [1, 1, 1])
+        counts = [ctx.render_frame_extent(ctx.render_frames[ctx.frame_render_frames[f]])[0] for f in frames]
+        self.assertEqual([d["sprites"] for d in draws], [counts[0], counts[0] + counts[1], sum(counts)],
+                         "a draw whose tiles wait shows nothing")
+
+    def test_draws_give_way_through_the_cache(self):
+        """Crowds of six large frames drawn through the slot cache with give-way levels: the draws that stay show what
+        the editor shows, their tiles from the slots the cache gave them (a waiting draw keeps its slot until it is
+        drawn)."""
+        from runtime_models import crowd_draws, given_way
+        from test_snes_runtime_draw import _put, _snes_draw_costs
+        from ui.frame_render import FrameRenderer
+
+        project = Project.from_json(str(PROJECTS[0]))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder, "parts_streamed", "none")
+            sizes = [ctx.render_frame_extent(ctx.render_frames[r])[0] for r in ctx.frame_render_frames]
+            large = sorted(range(len(sizes)), key=lambda f: -sizes[f])[:6]
+            pictures, given = [], []
+            for seed in range(300):
+                draws = [(k, large[i], m, f, lv, x, y) for k, i, m, f, lv, x, y in
+                         crowd_draws(seed, 8 + seed % 16, 6, 0, 1, snes_host.SCREEN_W, snes_host.SCREEN_H)]
+                costs = _snes_draw_costs(ctx, draws)
+                gone = given_way(costs, [d[4] for d in draws], 128)
+                if sum(costs) > 128 and sum(costs) - sum(costs[n] for n in gone) <= 128:  # what stays fits
+                    pictures.append(draws)
+                    given.append(gone)
+                if len(pictures) == 20:
+                    break
+            commands = ["budget 65535", "vramdump 512", "cache 0 512"]
+            for draws in pictures:  # twice: the first time uploads, the second draws from what the cache holds
+                commands += (["begin"] + [_put(d, d[4]) for d in draws] + ["end"]) * 2
+            _head, lines = snes_host.run(exe, folder, commands)
+        self.assertEqual(len(pictures), 20)
+        renderer, vram = FrameRenderer(), b""
+        for p, draws in enumerate(pictures):
+            for line in lines[2 * p:2 * p + 2]:
+                fields = line.split(" ")
+                draw = snes_host.parse_draw(" ".join(fields[4:]))
+                if draw["vram"]:
+                    vram = draw["vram"]
+                self.assertEqual((int(fields[1]), int(fields[2]), draw["waiting"]), (len(given[p]), 0, 0))
+            self.assertEqual(draw["uploaded"], 0, "the second time all of it is cached")
+            expected = {}
+            for n in reversed(range(len(draws))):
+                _kind, f, _m, flip, _level, x, y = draws[n]
+                if n not in given[p]:
+                    image, hx, hy = renderer.render(project, project.frames[f], None)
+                    image, hx, hy = _mirrored(image, int(hx), int(hy), flip)
+                    expected.update(_editor_pixels(ctx, image, hx, hy, x, y))
+            entries = snes_host.decode_oam(draw["oam"])[:draw["sprites"]]
+            self.assertEqual(snes_host.rasterise(entries, vram + bytes(0x4000), ctx.small, ctx.large), expected,
+                             f"picture {p}")
 
 
 class TestStreamedExport(unittest.TestCase):

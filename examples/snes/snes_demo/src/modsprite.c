@@ -13,6 +13,19 @@
 #define MS_HIDDEN_Y (MS_SMALL_SIZE <= 16 ? 240u : 224u)
 #define MS_PRIORITY (2u << 4)  /* in front of every background (modsprite_draw.asm has it too) */
 #define MS_CYCLE_SLOTS (MS_COLOUR_CYCLE_COUNT > 0 ? MS_COLOUR_CYCLE_COUNT : 1)
+#define MS_SPRITE_TILES 512u   /* both sprite tables */
+#ifndef MS_CACHE_SLOTS
+#define MS_CACHE_SLOTS 48      /* the slot cache's slots (ms_slot_cache_init); 0 leaves the cache out */
+#endif
+#ifndef MS_GIVE_WAY_DRAWS
+#define MS_GIVE_WAY_DRAWS 32   /* give-way draws a frame writes that can still make room (ms_set_give_way) */
+#endif
+#ifndef MS_QUEUED_DRAWS
+#define MS_QUEUED_DRAWS 32     /* draws a frame keeps waiting from its first that did not fit; 0 leaves the levels out */
+#endif
+#if MS_CACHE_SLOTS > 254 || MS_GIVE_WAY_DRAWS > 128
+#error "MS_CACHE_SLOTS goes up to 254, MS_GIVE_WAY_DRAWS to 128"
+#endif
 
 static u8 g_initialized = FALSE;
 static u8 g_palettes_fit = FALSE;
@@ -67,18 +80,85 @@ u16 ms_slot_base = 0;
 u16 ms_upload_count = 0;
 u16 ms_upload_lists[MS_MAX_UPLOADS];
 u16 ms_upload_vram[MS_MAX_UPLOADS];
+/* Shared with modsprite_draw.asm (ms_cache_hit), in every build (as small as can be where a resident export or no
+   cache leaves them unused): the slot drawn through, the frame number (a slot shows one thing a frame) and the slot
+   cache (ms_slot_cache_init): a slot per load list in one pool of whole sprite-table rows, each entry in the bucket of
+   its list's low bits (found in a step or two) and in tile order (where first fit looks for room), or free; 16 bytes,
+   so 816-tcc and the asm reach one with a shift. */
+#define MS_CACHE_BUCKETS 64u
+#define MS_NO_ENTRY 0xFFu
+typedef struct
+{
+    MS_Slot slot;  /* its first tile, and what video memory holds there */
+    u16 list;      /* the load list it is kept for; MS_NOTHING_LOADED: a free entry */
+    u16 tiles;     /* the tiles its list's rows take from slot.tile_index */
+    u16 drawn;     /* the frame it was drawn in last */
+    u8 next;       /* the next entry in its bucket (a free entry: the next free one) */
+    u8 after;      /* the entry after it in tile order */
+} MS_CachedSlot;
+#if defined(MS_STREAMED) && MS_CACHE_SLOTS > 0
+#define MS_CACHE_ROOM MS_CACHE_SLOTS
+#else
+#define MS_CACHE_ROOM 1
+#endif
+MS_Slot *ms_slot;
+u16 ms_frame_number = 0;
+MS_CachedSlot ms_cache[MS_CACHE_ROOM];
+u8 ms_cache_buckets[MS_CACHE_BUCKETS];
 #ifdef MS_STREAMED
-/* A streamed export: the slots (the default one unless the game sets its own), the frame number (a slot shows one thing
-   a frame), the queued lists' slots and what they cost of the vertical blank's budget. */
+/* A streamed export: the slots (the default one unless the game sets its own), the queued lists' slots and what they
+   cost of the vertical blank's budget. */
 #define MS_DEFAULT_SLOT_TILES (MS_SLOT_TILES > MS_SCENE_SLOT_TILES ? MS_SLOT_TILES : MS_SCENE_SLOT_TILES)
 #define MS_NOTHING_SHOWN 0xFFFFu
 static MS_Slot g_default_slot;
-static MS_Slot *g_slot;
-static u16 g_frame_number;
 static u16 g_upload_used;
 static u16 g_upload_budget;
 static MS_Slot *g_upload_slots[MS_MAX_UPLOADS];
+#if MS_CACHE_SLOTS > 0
+static u8 g_cache_first = MS_NO_ENTRY;  /* the first entry in tile order */
+static u8 g_cache_free = MS_NO_ENTRY;   /* the first free entry */
+static u16 g_cache_start = 0;           /* the pool: tiles g_cache_start .. g_cache_end - 1 */
+static u16 g_cache_end = 0;
+static u8 g_cache_on = FALSE;           /* draws take their slots from the cache */
 #endif
+#endif
+/* Give-way levels (ms_set_give_way): once one was set, every draw is looked at against the limit. Give-way draws that
+   fit are written and noted; from the first draw that does not fit, the rest of the frame waits for ms_end_frame.
+   Shared with modsprite_draw.asm (ms_put_watched, ms_set_give_way): the level draws take now, whether a level was set
+   (draws are looked at from then on; never without the queue), the give-way draws written this frame (their sprites
+   first .. end - 1 in the OAM buffer, their levels; room for ms_give_way_room of them), the entries written this frame
+   (a draw taken back or out leaves some behind, which ms_end_frame hides), whether the frame waits, and the waiting
+   draws (room for ms_queue_room), 16 bytes each so 816-tcc and the asm reach one with shifts. */
+#define MS_MAX_LEVEL 63u
+#define MS_OWN_SPRITE 0xFFFFu  /* a waiting draw that is a game's own sprite (ms_add_hw_sprite) */
+#define MS_GAVE_WAY 0xFFFEu    /* a waiting draw that gave way */
+#define MS_GAVE_WAY_LEVEL 0xFFu  /* a written give-way draw's level once it gave way */
+typedef struct
+{
+    u16 render;     /* its render frame; MS_OWN_SPRITE, MS_GAVE_WAY */
+    s16 x;
+    s16 y;
+    u16 base;       /* ms_slot_base it was drawn with; an own sprite: its tile */
+    u16 cost;       /* the sprites it puts on the screen */
+    u8 flip;        /* its flips (bits 0-1; an own sprite: 1 large) and its level (bits 2-7) */
+    u8 attribute;   /* an own sprite's attribute */
+    u16 swap_at;    /* ms_swap_bits_at it was drawn with (its palette swap) */
+    u16 reserved;
+} MS_QueuedDraw;
+#define MS_GIVE_WAY_ROOM (MS_GIVE_WAY_DRAWS > 0 && MS_QUEUED_DRAWS > 0 ? MS_GIVE_WAY_DRAWS : 0)
+u8 ms_give_way = 0;
+u8 ms_levels = FALSE;
+u8 ms_levels_possible = MS_QUEUED_DRAWS > 0 ? TRUE : FALSE;
+u16 ms_give_way_room = MS_GIVE_WAY_ROOM;
+u16 ms_give_way_count = 0;
+u8 ms_give_way_first[MS_GIVE_WAY_ROOM > 0 ? MS_GIVE_WAY_ROOM : 1];
+u8 ms_give_way_end[MS_GIVE_WAY_ROOM > 0 ? MS_GIVE_WAY_ROOM : 1];
+u8 ms_give_way_level[MS_GIVE_WAY_ROOM > 0 ? MS_GIVE_WAY_ROOM : 1];
+u16 ms_written_end = 0;
+u8 ms_waiting = FALSE;
+u16 ms_queue_room = MS_QUEUED_DRAWS;
+u16 ms_queued_count = 0;
+MS_QueuedDraw ms_queued_draws[MS_QUEUED_DRAWS > 0 ? MS_QUEUED_DRAWS : 1];
 
 static u16 ms_mapping_module_base(void)
 {
@@ -131,7 +211,7 @@ static u8 ms_push_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
 
 /* A render frame's sprites (run_count runs: an MS_Run, then its sprites), in OAM order: the first in front, their tiles
    counted from ms_slot_base. The SNES build runs modsprite_draw.asm instead, which does exactly this, with no tests per
-   sprite when the frame lies on the screen with X >= 0 and all its sprites fit (see ms_draw_render_frame). Records are
+   sprite when the frame lies on the screen with X >= 0 and all its sprites fit (see ms_draw_render). Records are
    reached by offset: 816-tcc does not step far pointers reliably. */
 void ms_put_render_frame(u16 render_index, s16 ox, s16 oy)
 {
@@ -227,12 +307,149 @@ void ms_finish_oam(u8 *high_table, u16 count, u16 shown)
         high_table[n] = 0;
 }
 
-u8 ms_add_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
+/* A game's own sprite (ms_add_hw_sprite, which looks at give-way levels first). modsprite_draw.asm on the SNES. */
+u8 ms_push_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
 {
     u8 added = ms_push_sprite(x, y, tile, attribute, large);
     ms_frame_profile.hw_sprites = ms_hw_count;
     ms_frame_profile.sprites_dropped = ms_dropped;
     return added;
+}
+
+/* A draw with give-way levels, as it is or mirrored (flip 0 or not). While the frame does not wait and it fitted, it
+   stays (a give-way draw, ms_give_way not 0, noted among the written ones); else it is taken back (ms_hw_count and
+   ms_dropped as they were, its entries remembered in ms_written_end), the frame waits from it on and it goes into the
+   queue with the sprites it asked for (on the screen; past the queue's room it is left out, its sprites dropped).
+   modsprite_draw.asm on the SNES. */
+void ms_put_watched(u16 render_index, s16 ox, s16 oy, u16 flip)
+{
+    u16 first = ms_hw_count, dropped = ms_dropped, cost;
+
+    ms_put_render_frame_flipped(render_index, ox, oy, flip);
+    if (!ms_waiting && ms_dropped == dropped)
+    {
+        if (ms_give_way && ms_hw_count != first && ms_give_way_count < ms_give_way_room)
+        {
+            ms_give_way_first[ms_give_way_count] = (u8)first;
+            ms_give_way_end[ms_give_way_count] = (u8)ms_hw_count;
+            ms_give_way_level[ms_give_way_count] = ms_give_way;
+            ms_give_way_count++;
+        }
+        return;
+    }
+    if (ms_hw_count > ms_written_end)
+        ms_written_end = ms_hw_count;
+    cost = ms_hw_count - first + ms_dropped - dropped;
+    ms_hw_count = first;
+    ms_dropped = dropped;
+    ms_frame_profile.hw_sprites = first;
+    ms_frame_profile.sprites_dropped = dropped;
+    ms_waiting = TRUE;
+    if (!cost)
+        return;
+    if (ms_queued_count < ms_queue_room)
+    {
+        MS_QueuedDraw *queued = &ms_queued_draws[ms_queued_count++];
+
+        queued->render = render_index;
+        queued->x = ox;
+        queued->y = oy;
+        queued->base = ms_slot_base;
+        queued->cost = cost;
+        queued->flip = (u8)((flip & 3) | (ms_give_way << 2));
+        queued->attribute = 0;
+        queued->swap_at = ms_swap_bits_at;
+        return;
+    }
+    ms_frame_profile.draws_left_out++;
+    ms_dropped += cost;
+    ms_frame_profile.sprites_dropped = ms_dropped;
+}
+
+/* A render frame into the OAM buffer: as it is (or mirrored) without give-way levels, watched with them.
+   modsprite_draw.asm on the SNES. */
+void ms_draw_put(u16 render_index, s16 ox, s16 oy, u16 flip)
+{
+    if (ms_levels)
+        ms_put_watched(render_index, ox, oy, flip);
+    else
+        ms_put_render_frame_flipped(render_index, ox, oy, flip);
+}
+
+/* A game's own sprite: pushed without give-way levels; with them a sprite on the screen waits for ms_end_frame when the
+   frame waits or the buffer is full (past the queue's room it is left out, its sprite dropped), else it is pushed and,
+   a give-way sprite, noted. modsprite_draw.asm on the SNES. */
+u8 ms_add_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
+{
+    u16 first = ms_hw_count, size1 = (large ? ms_large_size : ms_small_size) - 1;
+    u8 added;
+
+    if (!ms_levels || (u16)(x + size1) >= (u16)(size1 + MS_SCREEN_W) || (u16)(y + size1) >= (u16)(size1 + MS_SCREEN_H))
+        return ms_push_hw_sprite(x, y, tile, attribute, large);
+    if (ms_waiting || ms_hw_count >= ms_sprite_limit)
+    {
+        ms_waiting = TRUE;
+        if (ms_queued_count < ms_queue_room)
+        {
+            MS_QueuedDraw *queued = &ms_queued_draws[ms_queued_count++];
+
+            queued->render = MS_OWN_SPRITE;
+            queued->x = x;
+            queued->y = y;
+            queued->base = tile;
+            queued->cost = 1;
+            queued->flip = (u8)((large ? 1 : 0) | (ms_give_way << 2));
+            queued->attribute = attribute;
+        }
+        else
+        {
+            ms_frame_profile.draws_left_out++;
+            ms_dropped++;
+            ms_frame_profile.sprites_dropped = ms_dropped;
+        }
+        return TRUE;
+    }
+    added = ms_push_hw_sprite(x, y, tile, attribute, large);
+    if (ms_give_way && ms_hw_count != first && ms_give_way_count < ms_give_way_room)
+    {
+        ms_give_way_first[ms_give_way_count] = (u8)first;
+        ms_give_way_end[ms_give_way_count] = (u8)ms_hw_count;
+        ms_give_way_level[ms_give_way_count] = ms_give_way;
+        ms_give_way_count++;
+    }
+    return added;
+}
+
+/* With the slot cache: when it holds the render frame's load list (loads: each render frame's), the slot drawn through
+   from here (ms_slot; the entry drawn this frame, counted once) and TRUE; TRUE too when the render frame shows nothing
+   (no slot needed); else FALSE: the C takes a new slot. modsprite_draw.asm on the SNES. */
+u8 ms_cache_hit(u16 render_index, const u16 *loads)
+{
+    u16 list = loads[render_index];
+    u8 n;
+
+    if (list == 0xFFFFu)
+        return TRUE;
+    n = ms_cache_buckets[list & (MS_CACHE_BUCKETS - 1)];
+    while (n != MS_NO_ENTRY && ms_cache[n].list != list)
+        n = ms_cache[n].next;
+    if (n == MS_NO_ENTRY)
+        return FALSE;
+    if (ms_cache[n].drawn != ms_frame_number)
+    {
+        ms_cache[n].drawn = ms_frame_number;
+        ms_frame_profile.slots_used++;
+    }
+    ms_slot = &ms_cache[n].slot;
+    return TRUE;
+}
+
+/* OAM entries from .. from + count - 1 to to .. (to < from): their four bytes and their high bits. modsprite_draw.asm
+   (block moves) on the SNES. */
+void ms_move_sprites(u16 to, u16 from, u16 count)
+{
+    memmove(&oamMemory[to << 2], &oamMemory[from << 2], (size_t)count << 2);
+    memmove(&ms_high_bits[to << 2], &ms_high_bits[from << 2], (size_t)count << 2);
 }
 
 #ifdef MS_STREAMED
@@ -275,10 +492,14 @@ u16 ms_send_uploads(const MS_LoadList *lists)
 }
 #endif
 #else
-/* modsprite_draw.asm (ms_add_hw_sprite too) */
+/* modsprite_draw.asm */
 void ms_put_render_frame(u16 render_index, s16 ox, s16 oy);
 void ms_put_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u16 flip);
 void ms_finish_oam(u8 *high_table, u16 count, u16 shown);
+u8 ms_push_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large);
+void ms_draw_put(u16 render_index, s16 ox, s16 oy, u16 flip);
+u8 ms_cache_hit(u16 render_index, const u16 *loads);
+void ms_move_sprites(u16 to, u16 from, u16 count);
 #ifdef MS_STREAMED
 u16 ms_send_uploads(const MS_LoadList *lists);
 #endif
@@ -315,7 +536,7 @@ static const MS_Scene *ms_current_scene(u16 scene_index)
    the same frame is not drawn. */
 static u16 ms_slot_render(u16 render_index)
 {
-    MS_Slot *slot = g_slot;
+    MS_Slot *slot = ms_slot;
     u16 list = ms_render_frame_loads[render_index];
     u16 cost;
 
@@ -324,15 +545,15 @@ static u16 ms_slot_render(u16 render_index)
     if (list == slot->load_list)
     {
         slot->render = render_index;
-        slot->frame = g_frame_number;
+        slot->frame = ms_frame_number;
         return render_index;
     }
-    if (slot->frame == g_frame_number)
+    if (slot->frame == ms_frame_number)
     {
         ms_frame_profile.uploads_waiting++;
         return MS_NOTHING_SHOWN;
     }
-    slot->frame = g_frame_number;
+    slot->frame = ms_frame_number;
     cost = ms_load_lists[list].cost;
     /* the first list of a frame goes whatever it costs: a list above the budget would never go otherwise */
     if (ms_upload_count >= MS_MAX_UPLOADS
@@ -353,37 +574,262 @@ static u16 ms_slot_render(u16 render_index)
 }
 #endif
 
-/* The SNES build skips the tests per sprite when the frame's box lies on the screen with X >= 0 (ox + min_x >= 0,
-   ox + max_x < 256 + small, oy + min_y > -small, oy + max_y < 224 + small: every sprite then has 0 <= x < 256 and
-   -size < y < 224) and all its sprites fit under the limit; what it draws is the same. */
-static void ms_draw_render_frame(u16 render_index, s16 ox, s16 oy)
+#if defined(MS_STREAMED) && MS_CACHE_SLOTS > 0
+static void ms_cache_reset(void)
 {
-    if (render_index >= MS_RENDER_FRAME_COUNT)
-        return;
-#ifdef MS_STREAMED
-    render_index = ms_slot_render(render_index);
-    if (render_index == MS_NOTHING_SHOWN)
-        return;
-    ms_slot_base = g_slot->tile_index;
-#endif
-    ms_put_render_frame(render_index, ox, oy);
+    u16 n;
+
+    for (n = 0; n < MS_CACHE_BUCKETS; n++)
+        ms_cache_buckets[n] = MS_NO_ENTRY;
+    for (n = 0; n < MS_CACHE_SLOTS; n++)
+    {
+        ms_cache[n].list = MS_NOTHING_LOADED;
+        ms_cache[n].next = (u8)(n + 1 < MS_CACHE_SLOTS ? n + 1 : MS_NO_ENTRY);
+    }
+    g_cache_first = MS_NO_ENTRY;
+    g_cache_free = 0;
 }
 
-/* A render frame mirrored around the point it is drawn at (flip: bit 0 left-right, bit 1 top-bottom), as a mirrored
-   animation step or nested frame part is: each hardware sprite at its mirror image, its flip bits toggled (flip 0:
-   ms_put_render_frame_flipped draws it as ms_draw_render_frame does). The SNES build's fast loop takes the mirrored
-   box (on a mirrored axis from -max to -min). */
-static void ms_draw_render_frame_flipped(u16 render_index, s16 ox, s16 oy, u16 flip)
+/* The first place of `tiles` tiles in the pool, from a multiple of MS_SLOT_ALIGN, in one walk along the entries in tile
+   order (*before: the entry it follows, MS_NO_ENTRY at the pool's start); 0xFFFF when there is none. */
+static u16 ms_cache_room(u16 tiles, u8 *before)
+{
+    u16 at = g_cache_start;
+    u8 prev = MS_NO_ENTRY, n = g_cache_first;
+
+    for (;;)
+    {
+        u16 end = n == MS_NO_ENTRY ? g_cache_end : ms_cache[n].slot.tile_index;
+
+        at = (at + (MS_SLOT_ALIGN - 1)) & ~(MS_SLOT_ALIGN - 1);
+        if (end >= at && end - at >= tiles)
+        {
+            *before = prev;
+            return at;
+        }
+        if (n == MS_NO_ENTRY)
+            return 0xFFFFu;
+        at = ms_cache[n].slot.tile_index + ms_cache[n].tiles;
+        prev = n;
+        n = ms_cache[n].after;
+    }
+}
+
+/* Room: the entry drawn longest ago goes (of equals the last in tile order), its tiles and its record free; FALSE when
+   every entry was drawn this frame. One walk along the entries in tile order, which finds the one before it too. */
+static u8 ms_cache_evict(void)
+{
+    u16 age = 0;
+    u8 n, prev = MS_NO_ENTRY, oldest = MS_NO_ENTRY, before = MS_NO_ENTRY, *link;
+
+    for (n = g_cache_first; n != MS_NO_ENTRY; prev = n, n = ms_cache[n].after)
+        if (ms_cache[n].drawn != ms_frame_number && (u16)(ms_frame_number - ms_cache[n].drawn) >= age)
+        {
+            age = (u16)(ms_frame_number - ms_cache[n].drawn);
+            oldest = n;
+            before = prev;
+        }
+    if (oldest == MS_NO_ENTRY)
+        return FALSE;
+    for (link = &ms_cache_buckets[ms_cache[oldest].list & (MS_CACHE_BUCKETS - 1)]; *link != oldest;
+         link = &ms_cache[*link].next)
+        ;
+    *link = ms_cache[oldest].next;
+    if (before == MS_NO_ENTRY)
+        g_cache_first = ms_cache[oldest].after;
+    else
+        ms_cache[before].after = ms_cache[oldest].after;
+    ms_cache[oldest].list = MS_NOTHING_LOADED;
+    ms_cache[oldest].next = g_cache_free;
+    g_cache_free = oldest;
+    return TRUE;
+}
+
+/* A new entry for a load list: room for its rows at the first place they fit (the entries drawn longest ago making
+   room while there is none) and a record; MS_NO_ENTRY when what is in the way was all drawn this frame. */
+static u8 ms_cache_take(u16 list)
+{
+    u16 tiles = (u16)ms_load_list_rows[list] << 4, at;
+    u8 n, before;
+
+    if (tiles > g_cache_end - g_cache_start)
+        return MS_NO_ENTRY;
+    if (g_cache_free == MS_NO_ENTRY && !ms_cache_evict())
+        return MS_NO_ENTRY;
+    while ((at = ms_cache_room(tiles, &before)) == 0xFFFFu)
+        if (!ms_cache_evict())
+            return MS_NO_ENTRY;
+    n = g_cache_free;
+    g_cache_free = ms_cache[n].next;
+    ms_cache[n].list = list;
+    ms_cache[n].tiles = tiles;
+    ms_cache[n].drawn = MS_NOTHING_SHOWN;
+    ms_slot_init(&ms_cache[n].slot, at);  /* holds nothing yet: the draw queues its tiles */
+    ms_cache[n].next = ms_cache_buckets[list & (MS_CACHE_BUCKETS - 1)];
+    ms_cache_buckets[list & (MS_CACHE_BUCKETS - 1)] = n;
+    if (before == MS_NO_ENTRY)
+    {
+        ms_cache[n].after = g_cache_first;
+        g_cache_first = n;
+    }
+    else
+    {
+        ms_cache[n].after = ms_cache[before].after;
+        ms_cache[before].after = n;
+    }
+    return n;
+}
+
+/* With the slot cache: the slot kept for the render frame's load list, or a new one, drawn through from here; FALSE
+   (the draw is left out) when the cache has no room for it. A render frame that shows nothing needs none. */
+static u8 ms_cache_slot(u16 render_index)
+{
+    u8 n;
+
+    if (ms_cache_hit(render_index, ms_render_frame_loads))
+        return TRUE;  /* the cache holds it (ms_slot set), or it shows nothing */
+    n = ms_cache_take(ms_render_frame_loads[render_index]);
+    if (n == MS_NO_ENTRY)
+    {
+        ms_frame_profile.draws_left_out++;
+        return FALSE;
+    }
+    ms_cache[n].drawn = ms_frame_number;
+    ms_frame_profile.slots_used++;
+    ms_slot = &ms_cache[n].slot;
+    return TRUE;
+}
+#endif
+
+#if MS_QUEUED_DRAWS > 0
+/* The written draws that gave way leave the OAM buffer (the ones from `first` on): the sprites after them move up. */
+static void ms_take_out_given_way(u16 first)
+{
+#if MS_GIVE_WAY_DRAWS > 0
+    u16 n, read = first, write = first;
+
+    for (n = 0; n < ms_give_way_count; n++)
+    {
+        if (ms_give_way_level[n] != MS_GAVE_WAY_LEVEL)
+            continue;
+        if (ms_give_way_first[n] > read)
+        {
+            ms_move_sprites(write, read, ms_give_way_first[n] - read);
+            write += ms_give_way_first[n] - read;
+        }
+        read = ms_give_way_end[n];
+    }
+    if (ms_hw_count > read)
+    {
+        ms_move_sprites(write, read, ms_hw_count - read);
+        write += ms_hw_count - read;
+    }
+    ms_hw_count = write;
+#else
+    (void)first;
+#endif
+}
+
+/* The frame asked for more sprites than the limit and its draws wait from the first that did not fit: the draws with
+   a level give way, level 1 first, within a level the last drawn first, as many as the frame asks too much; written
+   ones leave the buffer, the waiting ones that stay are drawn behind what is left, as they would have been. */
+static void ms_resolve_waiting(void)
+{
+    s16 excess = (s16)ms_hw_count - (s16)ms_sprite_limit;
+    u16 n, level, top = 0, given = 0, first_out = 0xFFFFu, base = ms_slot_base, swap_at = ms_swap_bits_at;
+    u16 calls = ms_frame_profile.render_calls, parts = ms_frame_profile.parts_submitted;
+
+    for (n = 0; n < ms_queued_count; n++)
+    {
+        excess += (s16)ms_queued_draws[n].cost;
+        if ((ms_queued_draws[n].flip >> 2) > top)
+            top = ms_queued_draws[n].flip >> 2;
+    }
+#if MS_GIVE_WAY_DRAWS > 0
+    for (n = 0; n < ms_give_way_count; n++)
+        if (ms_give_way_level[n] > top)
+            top = ms_give_way_level[n];
+#endif
+    for (level = 1; level <= top && excess > 0; level++)
+    {
+        for (n = ms_queued_count; n-- > 0 && excess > 0;)
+        {
+            MS_QueuedDraw *queued = &ms_queued_draws[n];
+
+            if ((queued->flip >> 2) == level)
+            {
+                queued->render = MS_GAVE_WAY;
+                excess -= (s16)queued->cost;
+                given++;
+            }
+        }
+#if MS_GIVE_WAY_DRAWS > 0
+        for (n = ms_give_way_count; n-- > 0 && excess > 0;)
+        {
+            if (ms_give_way_level[n] == level)
+            {
+                ms_give_way_level[n] = MS_GAVE_WAY_LEVEL;
+                excess -= (s16)(ms_give_way_end[n] - ms_give_way_first[n]);
+                given++;
+                if (ms_give_way_first[n] < first_out)
+                    first_out = ms_give_way_first[n];
+            }
+        }
+#endif
+    }
+    if (first_out != 0xFFFFu)
+        ms_take_out_given_way(first_out);
+    for (n = 0; n < ms_queued_count; n++)
+    {
+        const MS_QueuedDraw *queued = &ms_queued_draws[n];
+
+        if (queued->render == MS_GAVE_WAY)
+            continue;
+        if (queued->render == MS_OWN_SPRITE)
+        {
+            ms_push_hw_sprite(queued->x, queued->y, queued->base, queued->attribute,
+                              (u8)((queued->flip & 1) ? TRUE : FALSE));
+            continue;
+        }
+        ms_slot_base = queued->base;
+        ms_swap_bits_at = queued->swap_at;
+        if (queued->flip & 3)
+            ms_put_render_frame_flipped(queued->render, queued->x, queued->y, queued->flip & 3);
+        else
+            ms_put_render_frame(queued->render, queued->x, queued->y);
+    }
+    ms_slot_base = base;
+    ms_swap_bits_at = swap_at;
+    ms_frame_profile.render_calls = calls;
+    ms_frame_profile.parts_submitted = parts;
+    ms_frame_profile.hw_sprites = ms_hw_count;
+    ms_frame_profile.sprites_dropped = ms_dropped;
+    ms_frame_profile.draws_given_way = given;
+}
+#endif
+
+/* Draw a render frame (flip: mirrored around the point drawn at, as a mirrored animation step or nested frame part is,
+   bit 0 left-right, bit 1 top-bottom; 0 as it is) through its slot (streamed: the cache's when it is on; nothing when
+   the slot shows nothing this frame), into the OAM buffer or, while give-way levels make it wait, the queue. The SNES
+   build skips the tests per sprite when the frame's box lies on the screen with X >= 0 (ox + min_x >= 0,
+   ox + max_x < 256 + small, oy + min_y > -small, oy + max_y < 224 + small: every sprite then has 0 <= x < 256 and
+   -size < y < 224; mirrored, the box from -max to -min on a mirrored axis) and all its sprites fit under the limit;
+   what it draws is the same. */
+static void ms_draw_render(u16 render_index, s16 ox, s16 oy, u16 flip)
 {
     if (render_index >= MS_RENDER_FRAME_COUNT)
         return;
 #ifdef MS_STREAMED
+#if MS_CACHE_SLOTS > 0
+    if (g_cache_on && !ms_cache_slot(render_index))
+        return;
+#endif
     render_index = ms_slot_render(render_index);
     if (render_index == MS_NOTHING_SHOWN)
         return;
-    ms_slot_base = g_slot->tile_index;
+    ms_slot_base = ms_slot->tile_index;
 #endif
-    ms_put_render_frame_flipped(render_index, ox, oy, flip);
+    ms_draw_put(render_index, ox, oy, flip);  /* with give-way levels watched: modsprite_draw.asm */
 }
 
 static void ms_anim_apply_step(MS_AnimPlayer *player, u16 step_index)
@@ -592,8 +1038,8 @@ void ms_init_ex(u16 vram_address, u16 first_palette)
     ms_slot_base = 0;
 #ifdef MS_STREAMED
     ms_slot_init(&g_default_slot, 0);
-    g_slot = &g_default_slot;
-    g_frame_number = 0;
+    ms_slot = &g_default_slot;
+    ms_frame_number = 0;
     g_upload_used = 0;
     g_upload_budget = MS_UPLOAD_BUDGET;
     ms_upload_count = 0;
@@ -696,9 +1142,41 @@ void ms_slot_init(MS_Slot *slot, u16 tile_index)
 void ms_set_slot(MS_Slot *slot)
 {
 #ifdef MS_STREAMED
-    g_slot = slot ? slot : &g_default_slot;
+    ms_slot = slot ? slot : &g_default_slot;
+#if MS_CACHE_SLOTS > 0
+    g_cache_on = FALSE;
+#endif
 #else
     (void)slot;
+#endif
+}
+
+void ms_slot_cache_init(u16 tile_index, u16 tile_count)
+{
+#if defined(MS_STREAMED) && MS_CACHE_SLOTS > 0
+    u16 end = tile_count < MS_SPRITE_TILES ? tile_index + tile_count : MS_SPRITE_TILES;
+
+    g_cache_start = (tile_index + (MS_SLOT_ALIGN - 1)) & ~(MS_SLOT_ALIGN - 1);
+    g_cache_end = end < MS_SPRITE_TILES ? end : MS_SPRITE_TILES;
+    ms_cache_reset();
+    g_cache_on = g_cache_end > g_cache_start;
+#else
+    (void)tile_index;
+    (void)tile_count;
+#endif
+}
+
+void ms_use_slot_cache(void)
+{
+#if defined(MS_STREAMED) && MS_CACHE_SLOTS > 0
+    g_cache_on = g_cache_end > g_cache_start;
+#endif
+}
+
+void ms_slot_cache_clear(void)
+{
+#if defined(MS_STREAMED) && MS_CACHE_SLOTS > 0
+    ms_cache_reset();
 #endif
 }
 
@@ -780,36 +1258,69 @@ void ms_begin_frame(void)
     ms_frame_profile.sprites_dropped = 0;
     ms_frame_profile.tiles_uploaded = 0;
     ms_frame_profile.uploads_waiting = 0;
+    ms_frame_profile.slots_used = 0;
+    ms_frame_profile.draws_left_out = 0;
+    ms_frame_profile.draws_given_way = 0;
     ms_hw_count = 0;
     ms_dropped = 0;
+    ms_written_end = 0;
 #ifdef MS_STREAMED
-    if (++g_frame_number == 0xFFFFu)
-        g_frame_number = 0;
+    if (++ms_frame_number == 0xFFFFu)
+        ms_frame_number = 0;
+#endif
+#if MS_QUEUED_DRAWS > 0
+    ms_waiting = FALSE;
+    ms_give_way_count = 0;
+    ms_queued_count = 0;
 #endif
 }
 
 void ms_end_frame(void)
 {
-    /* The entries this frame did not use go below the screen (small, X below 256), the ones hidden before stay hidden;
-       the entries from the limit on are the game's. */
+    /* The entries this frame did not use go below the screen (small, X below 256), the ones hidden before stay hidden
+       (and the ones written before draws that gave way left the buffer); the entries from the limit on are the
+       game's. */
     u16 shown = g_shown_last < ms_sprite_limit ? g_shown_last : ms_sprite_limit;
 
+    if (ms_hw_count > shown)
+        shown = ms_hw_count;
+    if (ms_written_end > shown)
+        shown = ms_written_end;
+#if MS_QUEUED_DRAWS > 0
+    if (ms_waiting)
+        ms_resolve_waiting();
+#endif
     ms_finish_oam(&oamMemory[512], ms_hw_count, shown > ms_hw_count ? shown : ms_hw_count);
     g_shown_last = ms_hw_count;
+}
+
+#ifdef MS_PUT_FRAME_C
+/* modsprite_draw.asm on the SNES */
+void ms_set_give_way(u8 level)
+{
+    ms_give_way = level < 63u ? level : 63u;
+    if (level && ms_levels_possible)
+        ms_levels = TRUE;
+}
+#endif
+
+u8 ms_get_give_way(void)
+{
+    return ms_give_way;
 }
 
 void ms_draw_module(u16 module_index, s16 x, s16 y)
 {
     if (module_index >= MS_MODULE_COUNT)
         return;
-    ms_draw_render_frame(ms_module_render_frames[ms_mapping_module_base() + module_index], x, y);
+    ms_draw_render(ms_module_render_frames[ms_mapping_module_base() + module_index], x, y, 0);
 }
 
 void ms_draw_frame(u16 frame_index, s16 x, s16 y)
 {
     if (frame_index >= MS_FRAME_COUNT)
         return;
-    ms_draw_render_frame(ms_frame_render_frames[ms_mapping_frame_base() + frame_index], x, y);
+    ms_draw_render(ms_frame_render_frames[ms_mapping_frame_base() + frame_index], x, y, 0);
 }
 
 static u16 ms_module_render_index(u16 module_index)
@@ -826,18 +1337,84 @@ static u16 ms_frame_render_index(u16 frame_index)
     return ms_frame_render_frames[ms_mapping_frame_base() + frame_index];
 }
 
+/* Where a module mirrored in place is drawn mirrored around its pivot: moved by its width less twice its pivot's x (and
+   the same for y) of the module the active mapping draws. */
+static void ms_module_flip_offset(u16 module_index, u8 flip, s16 *x, s16 *y)
+{
+    u16 at = (ms_mapping_module_base() + module_index) << 1;
+
+    if (flip & 1)
+        *x += ms_module_flip_offsets[at];
+    if (flip & 2)
+        *y += ms_module_flip_offsets[at + 1];
+}
+
 void ms_draw_module_flipped(u16 module_index, s16 x, s16 y, u8 flip)
 {
     if (module_index >= MS_MODULE_COUNT)
         return;
-    ms_draw_render_frame_flipped(ms_module_render_frames[ms_mapping_module_base() + module_index], x, y, flip);
+    flip &= 3;
+    if (flip)
+        ms_module_flip_offset(module_index, flip, &x, &y);
+    ms_draw_render(ms_module_render_frames[ms_mapping_module_base() + module_index], x, y, flip);
 }
 
 void ms_draw_frame_flipped(u16 frame_index, s16 x, s16 y, u8 flip)
 {
     if (frame_index >= MS_FRAME_COUNT)
         return;
-    ms_draw_render_frame_flipped(ms_frame_render_frames[ms_mapping_frame_base() + frame_index], x, y, flip);
+    ms_draw_render(ms_frame_render_frames[ms_mapping_frame_base() + frame_index], x, y, flip);
+}
+
+/* The box of a render frame's hardware sprites drawn with flip, mirrored around (dx / 2, dy / 2). */
+static u8 ms_render_bounds(u16 render_index, u8 flip, s16 dx, s16 dy, MS_Bounds *out)
+{
+    const MS_RenderFrame *frame;
+
+    if (!out)
+        return FALSE;
+    out->min_x = 0;
+    out->min_y = 0;
+    out->max_x = 0;
+    out->max_y = 0;
+    if (render_index >= MS_RENDER_FRAME_COUNT)
+        return FALSE;
+    frame = ms_render_frame(render_index);
+    if (!frame->sprite_count)
+        return FALSE;
+    out->min_x = (flip & 1) ? dx - frame->max_x : frame->min_x;
+    out->max_x = (flip & 1) ? dx - frame->min_x : frame->max_x;
+    out->min_y = (flip & 2) ? dy - frame->max_y : frame->min_y;
+    out->max_y = (flip & 2) ? dy - frame->min_y : frame->max_y;
+    return TRUE;
+}
+
+u16 ms_frame_sprites(u16 frame_index)
+{
+    u16 render = ms_frame_render_index(frame_index);
+
+    return render < MS_RENDER_FRAME_COUNT ? ms_render_frame(render)->sprite_count : 0;
+}
+
+u16 ms_module_sprites(u16 module_index)
+{
+    u16 render = ms_module_render_index(module_index);
+
+    return render < MS_RENDER_FRAME_COUNT ? ms_render_frame(render)->sprite_count : 0;
+}
+
+u8 ms_frame_bounds(u16 frame_index, u8 flip, MS_Bounds *out)
+{
+    return ms_render_bounds(ms_frame_render_index(frame_index), flip, 0, 0, out);
+}
+
+u8 ms_module_bounds(u16 module_index, u8 flip, MS_Bounds *out)
+{
+    s16 dx = 0, dy = 0;
+
+    if (module_index < MS_MODULE_COUNT)
+        ms_module_flip_offset(module_index, flip, &dx, &dy);
+    return ms_render_bounds(ms_module_render_index(module_index), flip, dx, dy, out);
 }
 
 static u16 ms_render_load_list(u16 render_index)
@@ -865,7 +1442,7 @@ u16 ms_load_list_tiles(u16 load_list)
 {
 #ifdef MS_STREAMED
     if (load_list < MS_LOAD_LIST_COUNT)
-        return ms_load_lists[load_list].tile_count;
+        return (u16)ms_load_list_rows[load_list] << 4;  /* its rows: the squares sit aligned to their size in them */
 #else
     (void)load_list;
 #endif
@@ -1075,7 +1652,7 @@ void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y)
     const MS_AnimStep *step = ms_anim_current_step(player);
 
     if (step)
-        ms_draw_render_frame(step->frame_index, x, y);
+        ms_draw_render(step->frame_index, x, y, 0);
 }
 
 void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y)
@@ -1288,7 +1865,7 @@ void ms_draw_scene_player(const MS_ScenePlayer *player, s16 x, s16 y)
         sample_index = scene->sample_count - 1;
     if (sample_index >= scene->sample_count)
         sample_index = 0;
-    ms_draw_render_frame(ms_scene_samples[scene->first_sample + sample_index], x, y);
+    ms_draw_render(ms_scene_samples[scene->first_sample + sample_index], x, y, 0);
 }
 
 const char *ms_module_name(u16 module_index)

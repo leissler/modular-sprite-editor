@@ -1118,3 +1118,23 @@ class ConsoleBake:
                     )
                 )
 
+    def module_flip_offsets(self) -> List[Tuple[int, int]]:
+        """Each module under each mapping (in module_render_frames' order): how far the picture of the module the
+        mapping draws moves when it is mirrored around its pivot instead of in place, its width less twice its pivot's
+        x and its height less twice its pivot's y ((0, 0) for one that shows nothing). The runtimes mirror a module in
+        place, as the editor mirrors a part, with it: a draw mirrored around the pivot at the position moved by it."""
+        offsets: List[Tuple[int, int]] = []
+        mapping, key = self.mapping, self.mapping_key
+        for each in self.mappings:
+            self._set_current_mapping(each)
+            for mod in self.project.modules:
+                drawn = self._resolve_module(mod.id)
+                if drawn is None:
+                    offsets.append((0, 0))
+                    continue
+                image = compositor.load_module_rgba(project=self.project, mod=drawn,
+                                                    full_image_cache=self.full_image_cache,
+                                                    module_cache=self.module_cache)
+                offsets.append((image.width - 2 * int(drawn.pivot[0]), image.height - 2 * int(drawn.pivot[1])))
+        self.mapping, self.mapping_key = mapping, key
+        return offsets

@@ -47,6 +47,7 @@ def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int 
     positions = ", ".join(f"{{{x}, {y}}}" for x, y in POSITIONS)
     frame_render = ", ".join(str(i) for i in ctx.frame_render_frames) or "0"
     module_render = ", ".join(str(i) for i in ctx.module_render_frames) or "0"
+    module_flips = ", ".join(f"{dx}, {dy}" for dx, dy in ctx.module_flip_offsets()) or "0"
     samples = ", ".join(str(i) for i in ctx.scene_samples) or "0"
     scenes = rows(ctx.scene_records, lambda r: f"{r.first_sample}, {r.sample_count}, {r.fps}, {r.duration_ticks}, "
                   f"{r.loop}, 0, 0, 0")
@@ -102,6 +103,7 @@ static const MS_StepEvent g_events[] = {{
 }};
 static const u16 g_frame_render[] = {{ {frame_render} }};
 static const u16 g_module_render[] = {{ {module_render} }};
+static const s16 g_module_flips[] = {{ {module_flips} }};
 static const u16 g_samples[] = {{ {samples} }};
 static const MS_Scene g_scenes[] = {{
 {scenes}
@@ -134,6 +136,7 @@ const MS_Variant *ms_variants = g_variants; const MS_Piece *ms_pieces = g_pieces
 const u16 *ms_palette = g_palette; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = g_parts; const MS_RenderFrame *ms_render_frames = g_frames;
 const u16 *ms_module_render_frames = g_module_render; const u16 *ms_frame_render_frames = g_frame_render;
+const s16 *ms_module_flip_offsets = g_module_flips;
 const MS_AnimStep *ms_anim_steps = g_steps; const MS_Animation *ms_animations = g_records;
 const u16 *ms_scene_samples = g_samples; const MS_Scene *ms_scenes = g_scenes; const MS_StepEvent *ms_step_events = g_events;
 void ms_data_init(void) {{}}
@@ -690,6 +693,316 @@ int main(void)
                 shown = palettes.rotate(colours, palette.cycles, frame)
                 expected = [0] + [palettes.md_word(shown[s]) if s < len(shown) else 0 for s in range(15)]
                 self.assertEqual([int(v) for v in line.split()[1:]], expected, f"frame {frame}")
+
+
+def _md_cost(ctx, render: int, ox: int, oy: int, flip: int) -> int:
+    """The hardware sprites a render frame puts on the screen drawn at (ox, oy) with flip, from the export's pieces."""
+    span = ctx.render_frames[render]
+    pieces = ctx.packed_pieces()
+    count = 0
+    for first, n, _flip, px, py in ctx.packed_parts()[span.first_part:span.first_part + span.part_count]:
+        for dx, dy, size, _tile, _entry in pieces[first:first + n]:
+            w, h = (((size >> 2) & 3) + 1) * 8, ((size & 3) + 1) * 8
+            x, y = px + dx, py + dy
+            x, y = ox + (-x - w if flip & 1 else x), oy + (-y - h if flip & 2 else y)
+            count += x < SCREEN_W and y < SCREEN_H and x + w > 0 and y + h > 0
+    return count
+
+
+def _md_draw_costs(ctx, draws, frame_count: int, module_count: int):
+    """Each crowd draw's sprites on the screen (runtime_models.crowd_draws: modules mirrored in place, a sprite's index
+    its size code)."""
+    offsets = ctx.module_flip_offsets()
+    costs = []
+    for kind, index, mapping, flip, _level, x, y in draws:
+        if kind == "sprite":
+            w, h = (((index >> 2) & 3) + 1) * 8, ((index & 3) + 1) * 8
+            costs.append(int(x < SCREEN_W and y < SCREEN_H and x + w > 0 and y + h > 0))
+        elif kind == "frame":
+            costs.append(_md_cost(ctx, ctx.frame_render_frames[mapping * frame_count + index], x, y, flip))
+        else:
+            dx, dy = offsets[mapping * module_count + index]
+            costs.append(_md_cost(ctx, ctx.module_render_frames[mapping * module_count + index],
+                                  x + (dx if flip & 1 else 0), y + (dy if flip & 2 else 0), flip))
+    return costs
+
+
+# Draws a crowd draw (seven values: kind 0 frame, 1 module, 2 a sprite of the game's own, index, mapping, flip, level,
+# x, y), with its give-way level or as it is, and prints a finished frame.
+CROWD_C = r"""
+static void draw_one(const s16 *d, u8 levels)
+{
+    ms_set_mapping((u16)d[2]);
+    ms_set_palette_swap((u16)d[2] < ms_palette_swap_count ? (u16)d[2] : 0);  /* the guard in his own colours */
+    if (levels)
+        ms_set_give_way((u8)d[4]);
+    if (d[0] == 0)
+        ms_draw_frame_flipped((u16)d[1], d[5], d[6], (u8)d[3]);
+    else if (d[0] == 1)
+        ms_draw_module_flipped((u16)d[1], d[5], d[6], (u8)d[3]);
+    else
+        ms_add_hw_sprite(d[5], d[6], (u8)d[1], TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, 20 + d[1]));
+    if (levels)
+        ms_set_give_way(0);
+}
+
+static void print_picture(const char *what, u16 picture)
+{
+    MS_FrameProfile profile;
+    u16 i;
+    ms_end_frame();
+    ms_get_frame_profile(&profile);
+    printf("%s %u %u %u %u %u", what, picture, profile.hw_sprites, profile.sprites_dropped, profile.draws_given_way,
+           profile.draws_left_out);
+    for (i = 0; i < profile.hw_sprites; i++)
+        printf(" %d,%d,%u,%u,%u", vdpSpriteCache[i].x - 0x80, vdpSpriteCache[i].y - 0x80, vdpSpriteCache[i].size,
+               vdpSpriteCache[i].attribut, vdpSpriteCache[i].link);
+    printf("\n");
+}
+"""
+
+KINDS = {"frame": 0, "module": 1, "sprite": 2}
+
+
+def _crowd_harness(ctx, pictures, kept, counts) -> str:
+    """Every picture drawn first with only the draws expected to stay, before any give-way level is set (the runtime as
+    it draws without levels), then whole with the levels."""
+    values = ",\n".join("    " + ", ".join(str(v) for v in (KINDS[k], i, m, f, lv, x, y))
+                        for draws in pictures for k, i, m, f, lv, x, y in draws)
+    starts, at = [], 0
+    for draws in pictures:
+        starts.append(f"{at}, {len(draws)}")
+        at += len(draws)
+    keep = ", ".join("1" if n in keeps else "0" for draws, keeps in zip(pictures, kept) for n in range(len(draws)))
+    return _tables(ctx, **counts) + CROWD_C + f"""
+static const s16 g_draws[] = {{
+{values}
+}};
+static const u16 g_pictures[] = {{ {", ".join(starts)} }};
+static const u8 g_kept[] = {{ {keep} }};
+
+int main(void)
+{{
+    u16 p, n;
+    ms_init();
+    for (p = 0; p < {len(pictures)}; p++)
+    {{
+        ms_begin_frame();
+        for (n = g_pictures[2 * p]; n < g_pictures[2 * p] + g_pictures[2 * p + 1]; n++)
+            if (g_kept[n])
+                draw_one(&g_draws[7 * n], 0);
+        print_picture("plain", p);
+    }}
+    for (p = 0; p < {len(pictures)}; p++)
+    {{
+        ms_begin_frame();
+        for (n = g_pictures[2 * p]; n < g_pictures[2 * p] + g_pictures[2 * p + 1]; n++)
+            draw_one(&g_draws[7 * n], 1);
+        print_picture("levels", p);
+    }}
+    return 0;
+}}
+"""
+
+
+@unittest.skipIf(shutil.which("cc") is None, "no C compiler")
+class TestRuntimePlansAndGivesWay(unittest.TestCase):
+    def test_every_module_mirrored_in_place(self):
+        """ms_draw_module_flipped mirrors each module in place, as the editor mirrors a part: its pivot where it is
+        drawn, its picture mirrored where it is; with every mapping, the module each one draws in its place (its own
+        size and pivot), in the middle of the screen and across the top-left edge."""
+        import compositor
+        import export_megadrive as sg
+        from PIL import Image
+        from ui.frame_render import FrameRenderer
+
+        renderer = FrameRenderer()
+        for project_path in PROJECTS:
+            project = Project.from_json(str(project_path))
+            mappings = [None] + list(project.mappings)
+            with self.subTest(project=project_path.name), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                ctx = sg.MegaDriveBakeContext(project, mappings, tmp_path)
+                ctx.bake()
+                body = f"""
+int main(void)
+{{
+    u16 m, f, p, flip, i;
+    ms_init();
+    for (m = 0; m < ms_mapping_count; m++)
+        for (f = 0; f < ms_module_count; f++)
+            for (flip = 0; flip < 4; flip++)
+                for (p = 0; p < 2; p++)
+                {{
+                    MS_FrameProfile profile;
+                    ms_set_mapping(m);
+                    ms_begin_frame();
+                    ms_draw_module_flipped(f, g_positions[p][0], g_positions[p][1], (u8)flip);
+                    ms_get_frame_profile(&profile);
+                    ms_end_frame();
+                    printf("module %u", profile.sprites_dropped);
+                    for (i = 0; i < profile.hw_sprites; i++)
+                        printf(" %d,%d,%u,%u", vdpSpriteCache[i].x - 0x80, vdpSpriteCache[i].y - 0x80,
+                               vdpSpriteCache[i].size, vdpSpriteCache[i].attribut);
+                    printf("\\n");
+                }}
+    return 0;
+}}
+"""
+                lines = iter(_build_and_run(self, ctx, tmp_path, _tables(
+                    ctx, len(project.frames), mapping_count=len(mappings), module_count=len(project.modules)) + body))
+                tiles = bytes(ctx.tile_data)
+                for mapping in mappings:
+                    for module in project.modules:
+                        drawn = compositor.resolve_module(project, module.id, mapping)
+                        for flip in range(4):
+                            for draw_x, draw_y in POSITIONS[:2]:
+                                fields = next(lines).split()
+                                self.assertEqual(fields[1], "0", "sprites dropped")
+                                sprites = [tuple(int(v) for v in item.split(",")) for item in fields[2:]]
+                                if drawn is None or drawn.rect[2] <= 0 or drawn.rect[3] <= 0:
+                                    self.assertEqual(sprites, [], f"{module.name} hidden by its mapping")
+                                    continue
+                                image = renderer.module(project, drawn)
+                                if flip & 1:
+                                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                                if flip & 2:
+                                    image = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+                                entry = ctx.entry_of[(ctx._palette_of_module(drawn), None)]
+                                expected = _palette_pixels(ctx, image, -int(drawn.pivot[0]), -int(drawn.pivot[1]),
+                                                           draw_x, draw_y, palette_at=lambda x, y, e=entry: e)
+                                self.assertEqual(_rasterise(sprites, tiles), expected,
+                                                 f"{project_path.name}: module '{module.name}' "
+                                                 f"({mapping.name if mapping else 'no mapping'}) mirrored {flip} "
+                                                 f"at {draw_x},{draw_y}")
+
+    def test_sprites_and_bounds_before_drawing(self):
+        """ms_frame_sprites / ms_module_sprites and ms_frame_bounds / ms_module_bounds tell, under each mapping and for
+        each flip, what a draw asks for: the render frame's sprites and box (mirrored around the origin, a module in
+        place); drawn in the middle of the screen it puts exactly that many sprites into the table, all inside the
+        box. Out of range: nothing."""
+        import export_megadrive as sg
+
+        project = Project.from_json(str(PROJECTS[0]))
+        mappings = [None] + list(project.mappings)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ctx = sg.MegaDriveBakeContext(project, mappings, tmp_path)
+            ctx.bake()
+            body = r"""
+static void report(const char *what, u16 index, u16 sprites, u8 (*bounds)(u16, u8, MS_Bounds *), u8 module)
+{
+    u16 flip, i;
+    printf("%s %u %u", what, index, sprites);
+    for (flip = 0; flip < 4; flip++)
+    {
+        MS_Bounds box;
+        MS_FrameProfile profile;
+        u8 shows = bounds(index, (u8)flip, &box);
+        ms_begin_frame();
+        if (module)
+            ms_draw_module_flipped(index, 160, 112, (u8)flip);
+        else
+            ms_draw_frame_flipped(index, 160, 112, (u8)flip);
+        ms_get_frame_profile(&profile);
+        ms_end_frame();
+        printf(" %u/%d/%d/%d/%d/%u", shows, box.min_x, box.min_y, box.max_x, box.max_y, profile.hw_sprites);
+        for (i = 0; i < profile.hw_sprites; i++)
+            printf(":%d,%d,%u", vdpSpriteCache[i].x - 0x80 - 160, vdpSpriteCache[i].y - 0x80 - 112, vdpSpriteCache[i].size);
+    }
+    printf("\n");
+}
+
+int main(void)
+{
+    u16 m, f;
+    MS_Bounds box;
+    ms_init();
+    for (m = 0; m < ms_mapping_count; m++)
+    {
+        ms_set_mapping(m);
+        for (f = 0; f < ms_frame_count; f++)
+            report("frame", f, ms_frame_sprites(f), ms_frame_bounds, 0);
+        for (f = 0; f < ms_module_count; f++)
+            report("module", f, ms_module_sprites(f), ms_module_bounds, 1);
+    }
+    printf("beyond %u %u %u %u\n", ms_frame_sprites(ms_frame_count), ms_module_sprites(ms_module_count),
+           ms_frame_bounds(ms_frame_count, 0, &box), ms_module_bounds(ms_module_count, 1, &box));
+    return 0;
+}
+"""
+            lines = _build_and_run(self, ctx, tmp_path, _tables(
+                ctx, len(project.frames), mapping_count=len(mappings), module_count=len(project.modules)) + body)
+        offsets = ctx.module_flip_offsets()
+        rows = iter(lines)
+        for m in range(len(mappings)):
+            for kind, renders, count in (("frame", ctx.frame_render_frames, len(project.frames)),
+                                         ("module", ctx.module_render_frames, len(project.modules))):
+                for index in range(count):
+                    fields = next(rows).split()
+                    self.assertEqual(fields[:2], [kind, str(index)])
+                    sprites, min_x, min_y, max_x, max_y = ctx.render_frame_extent(
+                        ctx.render_frames[renders[m * count + index]])
+                    self.assertEqual(int(fields[2]), sprites, f"{kind} {index}: its sprites")
+                    dx, dy = offsets[m * count + index] if kind == "module" else (0, 0)
+                    for flip, field in enumerate(fields[3:]):
+                        head, *drawn = field.split(":")
+                        shows, *box, put = (int(v) for v in head.split("/"))
+                        want = [dx - max_x if flip & 1 else min_x, dy - max_y if flip & 2 else min_y,
+                                dx - min_x if flip & 1 else max_x, dy - min_y if flip & 2 else max_y]
+                        self.assertEqual((shows, box), (1, want) if sprites else (0, [0, 0, 0, 0]),
+                                         f"{kind} {index} flip {flip}: its bounds")
+                        self.assertEqual(put, sprites, f"{kind} {index} flip {flip}: drawn in the middle")
+                        for item in drawn:
+                            x, y, size = (int(v) for v in item.split(","))
+                            w, h = (((size >> 2) & 3) + 1) * 8, ((size & 3) + 1) * 8
+                            self.assertTrue(box[0] <= x and x + w <= box[2] and box[1] <= y and y + h <= box[3],
+                                            f"{kind} {index} flip {flip}: a sprite outside its bounds")
+        self.assertEqual(next(rows).split(), ["beyond", "0", "0", "0", "0"])
+
+    def test_draws_give_way_farthest_first(self):
+        """Crowds of frames, modules and the game's own sprites, some of them with give-way levels, across the screen
+        and its edges, mirrored and re-skinned: a picture that asks for more than 80 sprites leaves out the draws with
+        a level, level 1 first and within it the farthest first, as many as the excess, and then is exactly the
+        sprite table the runtime draws without levels from the draws that stay (their sprites, order, links, colours
+        and what still drops); a picture that fits is as it would be without levels."""
+        import export_megadrive as sg
+        from runtime_models import crowd_draws, given_way
+
+        project = Project.from_json(str(PROJECTS[0]))
+        mappings = [None, next(m for m in project.mappings if m.name == "Normal")]
+        frames, modules = len(project.frames), len(project.modules)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ctx = sg.MegaDriveBakeContext(project, mappings, tmp_path)
+            ctx.bake()
+            pictures = [crowd_draws(seed, 6 + seed % 20, frames, modules, len(mappings), SCREEN_W, SCREEN_H,
+                                    own_sprites=seed % 5 * 3) for seed in range(60)]
+            costs = [_md_draw_costs(ctx, draws, frames, modules) for draws in pictures]
+            given = [given_way(c, [d[4] for d in draws], 80) for c, draws in zip(costs, pictures)]
+            kept = [set(range(len(draws))) - g for draws, g in zip(pictures, given)]
+            counts = dict(frame_count=frames, mapping_count=len(mappings), module_count=modules)
+            lines = _build_and_run(self, ctx, tmp_path, _crowd_harness(ctx, pictures, kept, counts))
+        plain = {int(f[1]): f for f in (line.split() for line in lines) if f[0] == "plain"}
+        levels = {int(f[1]): f for f in (line.split() for line in lines) if f[0] == "levels"}
+        over = 0
+        for p, draws in enumerate(pictures):
+            asked = sum(costs[p])
+            over += asked > 80
+            self.assertEqual(int(levels[p][4]), len(given[p]), f"picture {p}: draws that gave way")
+            self.assertEqual(int(levels[p][5]), 0, f"picture {p}: nothing left out")
+            self.assertEqual(levels[p][2:4], plain[p][2:4], f"picture {p}: sprites and the ones that dropped")
+            self.assertEqual(levels[p][6:], plain[p][6:], f"picture {p} ({asked} asked): the sprite table")
+            if asked <= 80:
+                self.assertEqual(given[p], set(), "a picture that fits gives nothing")
+        self.assertGreater(over, 10, "enough pictures ask for too much")
+        self.assertGreater(sum(1 for g in given if g), 10, "and give way")
+        self.assertTrue(any(int(levels[p][3]) for p in range(len(pictures))), "some still drop the farthest pieces")
+        # Draws written before the first one that did not fit, taken out of the table again, and draws that waited.
+        firsts = [next((n for n in range(len(c)) if sum(c[:n + 1]) > 80), len(c)) for c in costs]
+        self.assertTrue(any(n < first for g, first in zip(given, firsts) for n in g), "written ones gave way")
+        self.assertTrue(any(n >= first for g, first in zip(given, firsts) for n in g), "waiting ones gave way")
+        self.assertTrue(any(pictures[p][n][0] == "sprite" for p, g in enumerate(given) for n in g), "own sprites too")
 
 
 if __name__ == "__main__":

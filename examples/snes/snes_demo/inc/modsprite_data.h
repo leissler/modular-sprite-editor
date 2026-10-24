@@ -5,7 +5,7 @@
 #include <snes.h>
 
 /* SNES, 8×8 and 16×16 sprites: OBSEL's size select is MS_OBJ_SIZE. */
-#define MS_DATA_VERSION 2
+#define MS_DATA_VERSION 4
 #define MS_CHUNK_COUNT 8
 #define MS_MODULE_COUNT 165
 #define MS_FRAME_COUNT 207
@@ -85,6 +85,9 @@ extern const u8 *const ms_chunks[];
 extern const u8 *ms_tile_tables[2];
 extern const u8 *ms_rf_pages[];  /* render frames in pages of 1 << MS_RF_PAGE_SHIFT */
 extern const u16 *ms_module_render_frames;
+/* each module under each mapping (as ms_module_render_frames): its width less twice its pivot's x, its height less
+   twice its pivot's y; mirrored around its pivot at a position moved by them, a module is mirrored in place */
+extern const s16 *ms_module_flip_offsets;
 extern const u16 *ms_frame_render_frames;
 extern const MS_AnimStep *ms_anim_steps;
 extern const MS_Animation *ms_animations;

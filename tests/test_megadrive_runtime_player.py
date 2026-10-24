@@ -155,7 +155,7 @@ u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0
 const MS_Variant *ms_variants = NULL; const MS_Piece *ms_pieces = NULL; const u32 *ms_tiles = NULL;
 const u16 *ms_palette = NULL; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL; const MS_RenderFrame *ms_render_frames = NULL;
-const u16 *ms_module_render_frames = NULL; const u16 *ms_frame_render_frames = NULL;
+const u16 *ms_module_render_frames = NULL; const u16 *ms_frame_render_frames = NULL; const s16 *ms_module_flip_offsets = NULL;
 const MS_AnimStep *ms_anim_steps = g_steps; const MS_Animation *ms_animations = g_records;
 const u16 *ms_scene_samples = NULL; const MS_Scene *ms_scenes = NULL; const MS_StepEvent *ms_step_events = g_events;
 void ms_data_init(void) {{}}

@@ -1,8 +1,12 @@
-; The SNES runtime's hot loops in 65816 assembly: a render frame's sprites into the OAM buffer (as it is or mirrored), a
-; game's own sprite, the end of a frame (hiding what is not drawn any more, packing the high table) and a streamed
-; export's uploads into its slots. Exactly ms_put_render_frame, ms_put_render_frame_flipped, ms_add_hw_sprite,
-; ms_finish_oam and ms_send_uploads in modsprite.c (the C versions the host tests run, which tools/check_snes_rom.py
-; compares with these in an emulator); 816-tcc's code for them was several to ten times slower.
+; The SNES runtime's hot loops in 65816 assembly: a render frame's sprites into the OAM buffer (as it is or mirrored;
+; with give-way levels taken back when it does not fit, and then waiting), a game's own sprite (with give-way levels
+; waiting when it does not fit), the give-way level, sprites moved up in the buffer (draws that gave way taken out), the
+; end of a frame (hiding what is not drawn any more, packing the high table) and a streamed export's uploads into its
+; slots (and the slot cache's lookup). Exactly ms_put_render_frame, ms_put_render_frame_flipped, ms_draw_put,
+; ms_put_watched, ms_push_hw_sprite, ms_add_hw_sprite, ms_set_give_way, ms_move_sprites, ms_finish_oam,
+; ms_send_uploads and ms_cache_hit in modsprite.c (the C versions
+; the host tests run, which tools/check_snes_rom.py compares with these in an emulator); 816-tcc's code for them was
+; several to ten times slower.
 ;
 ; Calling convention (816-tcc): arguments on the stack, 16 bits each (a u8 one byte), a pointer as its address then
 ; its bank (after jsl's 3 bytes the first argument is at 4,s); 16-bit A, X and Y; direct page 0 with tcc's scratch registers
@@ -708,12 +712,12 @@ ms_pf_done:
     sta.l ms_frame_profile+6    ; sprites_dropped
     rtl
 
-; u8 ms_add_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
+; u8 ms_push_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
 ;   x 4,s, y 6,s, tile 8,s, then attribute 10,s and large 11,s (816-tcc pushes a u8 argument as one byte). A game's
 ;   own sprite at OAM entry ms_hw_count, unless it lies off the screen (TRUE, nothing drawn) or the limit is reached
-;   (FALSE, ms_dropped counts it); the profile's sprite counts follow. Exactly ms_push_sprite and ms_add_hw_sprite in
-;   modsprite.c.
-ms_add_hw_sprite:
+;   (FALSE, ms_dropped counts it); the profile's sprite counts follow (ms_add_hw_sprite in modsprite.c calls it, after
+;   looking at give-way levels). Exactly ms_push_sprite and ms_push_hw_sprite in modsprite.c.
+ms_push_hw_sprite:
     lda 11,s
     and.w #$00FF
     beq ms_ah_small
@@ -788,6 +792,455 @@ ms_ah_profile:
     sta.l ms_frame_profile+4    ; hw_sprites
     lda.l ms_dropped
     sta.l ms_frame_profile+6    ; sprites_dropped
+    rtl
+
+; u8 ms_add_hw_sprite(s16 x, s16 y, u16 tile, u8 attribute, u8 large)
+;   x 4,s, y 6,s, tile 8,s, attribute 10,s, large 11,s. Without give-way levels (ms_levels 0) ms_push_hw_sprite. With
+;   them a sprite on the screen waits for ms_end_frame (queued as a game's own sprite, TRUE) when the frame waits or the
+;   buffer is full (the frame waits from then on; past ms_queue_room it is left out and dropped); else it is pushed,
+;   and noted among the give-way draws when ms_give_way is set. Exactly ms_add_hw_sprite in modsprite.c.
+ms_add_hw_sprite:
+    sep #$20
+.accu 8
+    lda.l ms_levels
+    rep #$20
+.accu 16
+    and.w #$00FF
+    bne ms_as_watched
+    jmp ms_push_hw_sprite       ; its arguments are where it takes them
+ms_as_watched:
+    lda 11,s
+    and.w #$00FF
+    beq ms_as_small
+    lda.l ms_large_size
+    bra ms_as_sized
+ms_as_small:
+    lda.l ms_small_size
+ms_as_sized:
+    dec a
+    sta.b tcc__r2h              ; size - 1
+    ; on the screen: -size < x < 256 and -size < y < 224, as ms_push_hw_sprite tests it (off it, nothing is drawn)
+    clc
+    adc.w #256
+    sta.b tcc__r1
+    lda.b tcc__r2h
+    clc
+    adc 4,s
+    cmp.b tcc__r1
+    bcs ms_as_push
+    lda.b tcc__r2h
+    clc
+    adc.w #224
+    sta.b tcc__r1
+    lda.b tcc__r2h
+    clc
+    adc 6,s
+    cmp.b tcc__r1
+    bcs ms_as_push
+    sep #$20
+.accu 8
+    lda.l ms_waiting
+    rep #$20
+.accu 16
+    and.w #$00FF
+    bne ms_as_wait              ; the frame waits
+    lda.l ms_hw_count
+    cmp.l ms_sprite_limit
+    bcc ms_as_room
+ms_as_wait:
+    jmp ms_as_queue             ; the buffer is full: it waits
+ms_as_push:
+    jmp ms_push_hw_sprite
+ms_as_room:
+    pha                         ; first: the arguments from 6,s on now
+    sep #$20
+.accu 8
+    lda 13,s
+    pha                         ; large
+    lda 13,s
+    pha                         ; attribute
+    rep #$20
+.accu 16
+    lda 12,s
+    pha                         ; tile
+    lda 12,s
+    pha                         ; y
+    lda 12,s
+    pha                         ; x
+    jsl ms_push_hw_sprite       ; (its TRUE or FALSE in tcc__r0)
+    tsc
+    clc
+    adc.w #8
+    tcs                         ; first at 1,s
+    sep #$20
+.accu 8
+    lda.l ms_give_way
+    rep #$20
+.accu 16
+    and.w #$00FF
+    beq ms_as_done
+    lda.l ms_hw_count
+    cmp 1,s
+    beq ms_as_done
+    lda.l ms_give_way_count
+    cmp.l ms_give_way_room
+    bcs ms_as_done
+    tax
+    inc a
+    sta.l ms_give_way_count
+    sep #$20
+.accu 8
+    lda 1,s
+    sta.l ms_give_way_first,x
+    lda.l ms_hw_count
+    sta.l ms_give_way_end,x
+    lda.l ms_give_way
+    sta.l ms_give_way_level,x
+    rep #$20
+.accu 16
+ms_as_done:
+    pla
+    rtl
+ms_as_queue:
+    sep #$20
+.accu 8
+    lda #$FF
+    sta.l ms_waiting
+    rep #$20
+.accu 16
+    lda.w #$00FF
+    sta.b tcc__r0               ; TRUE: it waits
+    lda.l ms_queued_count
+    cmp.l ms_queue_room
+    bcs ms_as_left_out
+    inc a
+    sta.l ms_queued_count
+    dec a
+    asl a
+    asl a
+    asl a
+    asl a
+    tax                         ; its entry
+    lda.w #$FFFF
+    sta.l ms_queued_draws,x     ; a game's own sprite
+    lda 4,s
+    sta.l ms_queued_draws+2,x   ; x
+    lda 6,s
+    sta.l ms_queued_draws+4,x   ; y
+    lda 8,s
+    sta.l ms_queued_draws+6,x   ; its tile
+    lda.w #1
+    sta.l ms_queued_draws+8,x   ; a sprite
+    lda.l ms_give_way
+    and.w #$00FF
+    asl a
+    asl a
+    sta.b tcc__r1
+    lda 11,s
+    and.w #$00FF
+    beq ms_as_small_queued
+    inc.b tcc__r1               ; large
+ms_as_small_queued:
+    lda 10,s
+    xba
+    and.w #$FF00                ; its attribute in the high byte
+    ora.b tcc__r1
+    sta.l ms_queued_draws+10,x  ; large | level << 2, then the attribute
+    rtl
+ms_as_left_out:
+    lda.l ms_frame_profile+14   ; draws_left_out
+    inc a
+    sta.l ms_frame_profile+14
+    lda.l ms_dropped
+    inc a
+    sta.l ms_dropped
+    sta.l ms_frame_profile+6
+    rtl
+
+; u8 ms_cache_hit(u16 render_index, const u16 *loads)
+;   render_index 4,s, loads 6,s (address) and 8,s (bank): each render frame's load list. With the slot cache (streamed
+;   exports): TRUE when the render frame shows nothing (MS_NO_LIST: no slot needed) or the cache holds its list (the
+;   entry in the bucket of the list's low six bits, ms_cache_buckets, along their next links; 16-byte entries: list at 8,
+;   drawn at 12, next at 14): then the entry's slot is drawn through (ms_slot) and the entry marked drawn this frame
+;   (ms_frame_number; MS_FrameProfile's slots_used counts it once a frame). FALSE when it does not hold it. Exactly
+;   ms_cache_hit in modsprite.c.
+ms_cache_hit:
+    lda 6,s
+    sta.b tcc__r1
+    lda 8,s
+    sta.b tcc__r1h
+    lda 4,s
+    asl a
+    tay
+    lda [tcc__r1],y             ; the list
+    cmp.w #$FFFF
+    beq ms_ch_yes               ; it shows nothing
+    sta.b tcc__r2
+    and.w #$003F
+    tax
+    sep #$20
+.accu 8
+    lda.l ms_cache_buckets,x    ; the bucket's first entry
+    rep #$20
+.accu 16
+ms_ch_walk:
+    and.w #$00FF
+    cmp.w #$00FF
+    beq ms_ch_no                ; not in the cache
+    asl a
+    asl a
+    asl a
+    asl a
+    tax                         ; the entry
+    lda.l ms_cache+8,x          ; its list
+    cmp.b tcc__r2
+    beq ms_ch_found
+    lda.l ms_cache+14,x         ; the next in the bucket (low byte)
+    bra ms_ch_walk
+ms_ch_found:
+    lda.l ms_cache+12,x         ; drawn
+    cmp.l ms_frame_number
+    beq ms_ch_slot
+    lda.l ms_frame_number
+    sta.l ms_cache+12,x
+    lda.l ms_frame_profile+12   ; slots_used
+    inc a
+    sta.l ms_frame_profile+12
+ms_ch_slot:
+    txa
+    clc
+    adc.w #loword(ms_cache)
+    sta.l ms_slot               ; the entry's slot: its address,
+    lda.w #:ms_cache
+    sta.l ms_slot+2             ; its bank
+ms_ch_yes:
+    lda.w #$00FF
+    sta.b tcc__r0               ; TRUE
+    rtl
+ms_ch_no:
+    stz.b tcc__r0               ; FALSE
+    rtl
+
+; void ms_set_give_way(u8 level)
+;   level 4,s (one byte): the level draws take from now on, at most 63; a level other than 0 turns the watching on
+;   (ms_levels, where the runtime has its queue: ms_levels_possible). Exactly ms_set_give_way in modsprite.c.
+ms_set_give_way:
+    sep #$20
+.accu 8
+    lda 4,s
+    cmp #63
+    bcc ms_sg_level
+    lda #63
+ms_sg_level:
+    sta.l ms_give_way
+    cmp #0
+    beq ms_sg_done              ; level 0: nothing more
+    lda.l ms_levels_possible
+    beq ms_sg_done
+    sta.l ms_levels
+ms_sg_done:
+    rep #$20
+.accu 16
+    rtl
+
+; void ms_draw_put(u16 render_index, s16 ox, s16 oy, u16 flip)
+;   A render frame into the OAM buffer for ms_draw_render in modsprite.c: without give-way levels (ms_levels 0)
+;   ms_put_render_frame_flipped (flip 0: ms_put_render_frame), with them watched (below). Exactly ms_draw_put in
+;   modsprite.c.
+ms_draw_put:
+    sep #$20
+.accu 8
+    lda.l ms_levels
+    rep #$20
+.accu 16
+    and.w #$00FF
+    bne ms_put_watched
+    jmp ms_put_render_frame_flipped  ; as it is (its arguments are where it takes them)
+
+; void ms_put_watched(u16 render_index, s16 ox, s16 oy, u16 flip)
+;   A draw with give-way levels: ms_put_render_frame_flipped (flip 0: as it is). While
+;   the frame does not wait (ms_waiting) and it dropped nothing, it stays: a give-way draw (ms_give_way not 0) that put
+;   sprites into the buffer is noted in ms_give_way_first, _end and _level while there is room (ms_give_way_room).
+;   Else it is taken back (ms_hw_count, ms_dropped and the profile's counts as they were, ms_written_end the highest
+;   entry it wrote), the frame waits from it on, and when it asked for sprites on the screen (its own plus the dropped
+;   ones) it goes into ms_queued_draws (16 bytes: render frame, x, y, ms_slot_base, the sprites, flips | level << 2, 0,
+;   ms_swap_bits_at), or past ms_queue_room it is left out (the profile's draws_left_out, its sprites dropped). Exactly
+;   ms_put_watched in modsprite.c.
+ms_put_watched:
+    lda.l ms_hw_count
+    pha                         ; first
+    lda.l ms_dropped
+    pha                         ; dropped: the arguments are 4 bytes further now
+    lda 14,s
+    pha                         ; flip
+    lda 14,s
+    pha                         ; oy
+    lda 14,s
+    pha                         ; ox
+    lda 14,s
+    pha                         ; render_index
+    jsl ms_put_render_frame_flipped
+    pla
+    pla
+    pla
+    pla                         ; first at 3,s, dropped at 1,s, the arguments from 8,s on again
+    sep #$20
+.accu 8
+    lda.l ms_waiting
+    rep #$20
+.accu 16
+    and.w #$00FF
+    bne ms_pw_back              ; the frame waits: so does every draw
+    lda.l ms_dropped
+    cmp 1,s
+    bne ms_pw_back              ; it did not fit
+    sep #$20
+.accu 8
+    lda.l ms_give_way
+    rep #$20
+.accu 16
+    and.w #$00FF
+    beq ms_pw_done              ; not a give-way draw
+    lda.l ms_hw_count
+    cmp 3,s
+    beq ms_pw_done              ; nothing on the screen
+    lda.l ms_give_way_count
+    cmp.l ms_give_way_room
+    bcs ms_pw_done              ; no room to note it: it stays
+    tax
+    inc a
+    sta.l ms_give_way_count
+    sep #$20
+.accu 8
+    lda 3,s
+    sta.l ms_give_way_first,x
+    lda.l ms_hw_count
+    sta.l ms_give_way_end,x
+    lda.l ms_give_way
+    sta.l ms_give_way_level,x
+    rep #$20
+.accu 16
+ms_pw_done:
+    pla
+    pla
+    rtl
+ms_pw_back:
+    lda.l ms_hw_count
+    cmp.l ms_written_end
+    bcc ms_pw_cost
+    sta.l ms_written_end
+ms_pw_cost:
+    sec
+    sbc 3,s                     ; the sprites it wrote,
+    clc
+    adc.l ms_dropped
+    sec
+    sbc 1,s                     ; and the ones it dropped
+    sta.b tcc__r0               ; what it asks for
+    lda 3,s
+    sta.l ms_hw_count
+    sta.l ms_frame_profile+4    ; hw_sprites
+    lda 1,s
+    sta.l ms_dropped
+    sta.l ms_frame_profile+6    ; sprites_dropped
+    sep #$20
+.accu 8
+    lda #$FF
+    sta.l ms_waiting
+    rep #$20
+.accu 16
+    lda.b tcc__r0
+    beq ms_pw_end               ; nothing on the screen: nothing waits
+    lda.l ms_queued_count
+    cmp.l ms_queue_room
+    bcs ms_pw_left_out
+    inc a
+    sta.l ms_queued_count
+    dec a
+    asl a
+    asl a
+    asl a
+    asl a
+    tax                         ; its entry
+    lda 8,s
+    sta.l ms_queued_draws,x     ; the render frame
+    lda 10,s
+    sta.l ms_queued_draws+2,x   ; x
+    lda 12,s
+    sta.l ms_queued_draws+4,x   ; y
+    lda.l ms_slot_base
+    sta.l ms_queued_draws+6,x   ; its tiles' first
+    lda.b tcc__r0
+    sta.l ms_queued_draws+8,x   ; its sprites
+    lda.l ms_give_way
+    and.w #$00FF
+    asl a
+    asl a
+    sta.b tcc__r1
+    lda 14,s
+    and.w #$0003
+    ora.b tcc__r1
+    sta.l ms_queued_draws+10,x  ; its flips and level (and the attribute byte 0)
+    lda.l ms_swap_bits_at
+    sta.l ms_queued_draws+12,x  ; its palette swap
+ms_pw_end:
+    pla
+    pla
+    rtl
+ms_pw_left_out:
+    lda.l ms_frame_profile+14   ; draws_left_out
+    inc a
+    sta.l ms_frame_profile+14
+    lda.l ms_dropped
+    clc
+    adc.b tcc__r0
+    sta.l ms_dropped
+    sta.l ms_frame_profile+6
+    bra ms_pw_end
+
+; void ms_move_sprites(u16 to, u16 from, u16 count)
+;   to 4,s, from 6,s, count 8,s: the OAM entries from .. from + count - 1 to to .. (to < from), their four bytes in
+;   oamMemory and their high bits in ms_high_bits (at the same offset), each a block move upwards (MVN: 7 cycles a byte,
+;   the overlap copied in order). Exactly ms_move_sprites in modsprite.c.
+ms_move_sprites:
+    lda 8,s
+    bne ms_mv_go
+    rtl
+ms_mv_go:
+    asl a
+    asl a
+    dec a
+    sta.b tcc__r0               ; the bytes less one
+    lda 6,s
+    asl a
+    asl a
+    sta.b tcc__r0h              ; from's offset
+    lda 4,s
+    asl a
+    asl a
+    sta.b tcc__r1               ; to's offset
+    phb
+    lda.b tcc__r0h
+    clc
+    adc.w #loword(oamMemory)
+    tax
+    lda.b tcc__r1
+    clc
+    adc.w #loword(oamMemory)
+    tay
+    lda.b tcc__r0
+    mvn :oamMemory, :oamMemory
+    lda.b tcc__r0h
+    clc
+    adc.w #loword(ms_high_bits)
+    tax
+    lda.b tcc__r1
+    clc
+    adc.w #loword(ms_high_bits)
+    tay
+    lda.b tcc__r0
+    mvn :ms_high_bits, :ms_high_bits
+    plb
     rtl
 
 ; void ms_finish_oam(u8 *high_table, u16 count, u16 shown)

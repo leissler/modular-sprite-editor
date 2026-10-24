@@ -4,8 +4,8 @@
 #include "resources.h"
 
 #define MS_BLOB_MAGIC 0x4D534231u
-#define MS_BLOB_VERSION 5u
-#define MS_BLOB_HEADER_SIZE 206u
+#define MS_BLOB_VERSION 7u
+#define MS_BLOB_HEADER_SIZE 210u
 
 enum
 {
@@ -45,7 +45,8 @@ enum
     MS_SEC_SWAP_IDS = 33,
     MS_SEC_SWAP_NAMES = 34,
     MS_SEC_PALETTE_NAMES = 35,
-    MS_SEC_COUNT = 36
+    MS_SEC_MODULE_FLIP_OFFSETS = 36,
+    MS_SEC_COUNT = 37
 };
 
 u16 ms_variant_count = 0;
@@ -86,6 +87,7 @@ const MS_Point *ms_points = NULL;
 const MS_Part *ms_parts = NULL;
 const MS_RenderFrame *ms_render_frames = NULL;
 const u16 *ms_module_render_frames = NULL;
+const s16 *ms_module_flip_offsets = NULL;
 const u16 *ms_frame_render_frames = NULL;
 const MS_AnimStep *ms_anim_steps = NULL;
 const MS_Animation *ms_animations = NULL;
@@ -168,6 +170,7 @@ static void ms_reset_data(void)
     ms_parts = NULL;
     ms_render_frames = NULL;
     ms_module_render_frames = NULL;
+    ms_module_flip_offsets = NULL;
     ms_frame_render_frames = NULL;
     ms_anim_steps = NULL;
     ms_animations = NULL;
@@ -271,6 +274,7 @@ void ms_data_init(void)
     ms_parts = (const MS_Part *)(g_blob + g_section_offsets[MS_SEC_PARTS]);
     ms_render_frames = (const MS_RenderFrame *)(g_blob + g_section_offsets[MS_SEC_RENDER_FRAMES]);
     ms_module_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_MODULE_RENDER_FRAMES]);
+    ms_module_flip_offsets = (const s16 *)(g_blob + g_section_offsets[MS_SEC_MODULE_FLIP_OFFSETS]);
     ms_frame_render_frames = (const u16 *)(g_blob + g_section_offsets[MS_SEC_FRAME_RENDER_FRAMES]);
     ms_anim_steps = (const MS_AnimStep *)(g_blob + g_section_offsets[MS_SEC_ANIM_STEPS]);
     ms_animations = (const MS_Animation *)(g_blob + g_section_offsets[MS_SEC_ANIMATIONS]);

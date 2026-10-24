@@ -37,7 +37,20 @@ typedef struct
     u16 hw_sprites;       /* hardware sprites used this frame */
     u16 sprites_dropped;  /* pieces that did not fit into the sprite table */
     u16 tiles_uploaded;   /* tiles queued for upload this frame (streamed exports) */
+    u16 slots_used;       /* the slot cache's slots drawn this frame (streamed exports, ms_slot_cache_init) */
+    u16 draws_left_out;   /* draws the slot cache had no room for, or the draw queue (MS_QUEUED_DRAWS) */
+    u16 draws_given_way;  /* draws left out to make room for the others (ms_set_give_way) */
 } MS_FrameProfile;
+
+/* Where a frame or module draws, relative to the point it is drawn at: its hardware sprites lie in
+   min_x <= x < max_x, min_y <= y < max_y. */
+typedef struct
+{
+    s16 min_x;
+    s16 min_y;
+    s16 max_x;
+    s16 max_y;
+} MS_Bounds;
 
 /* Streamed exports (MS_STREAMED in modsprite_data.h, docs/EXPORT_MODES.md) keep only what is on screen in video
    memory. Whatever is drawn takes its tiles from a slot: ms_slot_tiles() tiles for a player (ms_scene_slot_tiles() for
@@ -69,11 +82,33 @@ void ms_slot_init(MS_Slot *slot, u16 tile_index);
 void ms_set_slot(MS_Slot *slot);  /* draw through this slot from now on; NULL: the default slot */
 u16 ms_slot_tiles(void);          /* a player's slot: the most tiles a module, frame or animation step needs */
 u16 ms_scene_slot_tiles(void);    /* a scene's slot: the most a scene sample needs */
+/* A slot cache instead (streamed exports): tile_count tiles from tile_index shared by everything drawn from now on. A
+   load list gets a slot there the first time it is drawn, at the first place in tile order where it fits, and every
+   draw of the same frame or module under the same mapping uses it, whoever draws it, until its room is needed: the
+   slots drawn longest ago make room (never one drawn this frame). A draw finds no room only when the slots in the way
+   were all drawn this frame; it is left out (MS_FrameProfile's draws_left_out, slots_used and tiles_uploaded tell how
+   the cache does). MS_CACHE_SLOTS slots at most (48 unless the game defines another number when it compiles
+   modsprite.c; 0 leaves the cache out). ms_set_slot() goes back to slots of the game's own, ms_use_slot_cache() to
+   the cache; ms_slot_cache_clear() forgets what it holds when its video memory was used for something else. */
+void ms_slot_cache_init(u16 tile_index, u16 tile_count);
+void ms_use_slot_cache(void);
+void ms_slot_cache_clear(void);
 void ms_set_sprite_limit(u16 limit);  /* 80 in H40 (default), 64 in H32 */
 void ms_begin_frame(void);
 void ms_end_frame(void);
 /* Add a sprite of your own to this frame's list (drawn above what is added later). */
 u8 ms_add_hw_sprite(s16 x, s16 y, u8 size, u16 attribute);
+
+/* What gives way when a frame asks for more hardware sprites than the limit: what is drawn while a level from 1 to 63
+   is set (shadows, decorations, effects; 0, the default: nothing) is left out to make room, level 1 first, then 2 and
+   so on, within a level what was drawn last (the farthest) first, as much as the frame asks too much; the pieces drawn
+   last drop only after that, as they do without levels. The level stays set until it is set again, like the mapping.
+   Draws go into the sprite table as they come while they fit; from the first one that does not, the rest of the frame
+   waits in a queue (MS_QUEUED_DRAWS draws, 32 unless the game defines another number) that ms_end_frame() resolves:
+   a frame that fits is drawn as without levels, each draw only looked at. MS_GIVE_WAY_DRAWS give-way draws (32) can make room from before that draw, the later
+   ones stay. While a frame waits, the profile counts the sprites drawn before it, and ms_add_hw_sprite() returns TRUE. */
+void ms_set_give_way(u8 level);
+u8 ms_get_give_way(void);
 
 /* The mapping re-skins everything drawn afterwards; set it per character before drawing it (a guard drawn
    from the hero's animations), the way AuroraGT games do. The players keep no mapping of their own. */
@@ -93,10 +128,19 @@ void ms_palette_tick(void);
 void ms_draw_module(u16 module_index, s16 x, s16 y);
 void ms_draw_frame(u16 frame_index, s16 x, s16 y);
 
-/* Mirrored (flip: bit 0 left-right, bit 1 top-bottom) around the point drawn at (a frame's origin, a module's pivot),
-   like a mirrored animation step: a character facing either way needs its frames stored once. */
+/* Mirrored (flip: bit 0 left-right, bit 1 top-bottom): a frame around the point drawn at (its origin), like a mirrored
+   animation step, so a character facing either way needs its frames stored once; a module in place, like a part
+   mirrored in a frame (its pivot drawn at x, y, its picture mirrored where it is). */
 void ms_draw_module_flipped(u16 module_index, s16 x, s16 y, u8 flip);
 void ms_draw_frame_flipped(u16 frame_index, s16 x, s16 y, u8 flip);
+/* What a draw would ask for, without drawing it: the hardware sprites a frame or module takes under the active
+   mapping (a draw puts only those on screen into the table), and where they lie drawn with flip (0 as it is; mirrored
+   as ms_draw_frame_flipped / ms_draw_module_flipped mirror it). The bounds are FALSE, and all 0, when it shows
+   nothing. All read from the export's records: a game can plan a picture before it draws it. */
+u16 ms_frame_sprites(u16 frame_index);
+u16 ms_module_sprites(u16 module_index);
+u8 ms_frame_bounds(u16 frame_index, u8 flip, MS_Bounds *out);
+u8 ms_module_bounds(u16 module_index, u8 flip, MS_Bounds *out);
 /* For a game that keeps its own slots (streamed exports): the load list a frame or module draws with under the active
    mapping (MS_NOTHING_LOADED if none, and in resident exports), and the tiles a load list takes in a slot. Actors that
    show the same frame can share one slot that holds it. */

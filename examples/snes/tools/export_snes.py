@@ -62,8 +62,12 @@ GRID = 16
 SPRITE_TILES = 2 * TABLE_TILES
 SPRITE_PALETTES = 8  # CGRAM 128-255
 RF_PAGE_SHIFT = 10  # render frames per page: 1024
-DATA_VERSION = 2
-STREAMED_DATA_VERSION = 3  # load lists, sprites counted from a slot (a resident export stays version 2)
+# 2: the records below; 3: streamed exports (load lists, sprites counted from a slot); 4: version 2 plus each module's
+# flip offset under each mapping (ms_module_flip_offsets: its width less twice its pivot's x, its height less twice its
+# pivot's y, which ms_draw_module_flipped mirrors in place with); 5: streamed exports, version 3 with the flip offsets
+# and the rows each load list takes in a slot (ms_load_list_rows).
+DATA_VERSION = 4
+STREAMED_DATA_VERSION = 5
 DEFAULT_SETUP = "snes_8_16"
 MODES = ("parts", "parts_streamed", "frames_streamed")
 # What a load list costs to upload in vertical blank, in bytes of DMA (8 master cycles each, about 170 a scanline): its
@@ -420,6 +424,11 @@ class SNESBakeContext(ConsoleBake):
             self._stream()
         return max((cost for _runs, _tiles, cost in self.load_lists), default=0)
 
+    @staticmethod
+    def load_list_rows(runs: Sequence[Tuple[int, int, int, int]]) -> int:
+        """The rows of a sprite table (16 tiles each) a load list's runs take in a slot: up to its last tile."""
+        return -(-max((tile + count for _chunk, _source, tile, count in runs), default=0) // GRID)
+
     def _slot_layout(self, blocks: Sequence[int], strip_of: Dict[int, Tuple[int, int]], strip_at: List[Tuple[int, int]]
                      ) -> Tuple[Tuple[Tuple[int, int, int, int], ...], Dict[int, int], int]:
         """Where a render frame's squares go in a slot: the neighbouring squares of a strip it shows (a segment) stay
@@ -525,6 +534,7 @@ class SNESBakeContext(ConsoleBake):
 
         u16s = lambda values: b"".join(struct.pack("<H", int(v) & 0xFFFF) for v in values)  # noqa: E731
         table("module_render_frames", u16s(self.module_render_frames))
+        table("module_flip_offsets", b"".join(struct.pack("<hh", dx, dy) for dx, dy in self.module_flip_offsets()))
         table("frame_render_frames", u16s(self.frame_render_frames))
         table("anim_steps", b"".join(STEP.pack(f, t, e, n, 0) for f, t, e, n in self.anim_steps))
         table("animations", b"".join(ANIMATION.pack(r.first_step, r.step_count, r.fps, r.playback, 0, r.loop_start,
@@ -567,6 +577,7 @@ class SNESBakeContext(ConsoleBake):
                 at = chunks.place(bytes(data), "a load list")
                 list_records.append(LOAD_LIST.pack(at[1], at[0], groups, tiles, cost))
             table("load_lists", b"".join(list_records))
+            table("load_list_rows", bytes(self.load_list_rows(runs) for runs, _tiles, _cost in self.load_lists))
             table("render_frame_loads", u16s(self.render_frame_loads))
         # Names and ids: one string table with a list of offsets each.
         lists = self.name_lists()
@@ -766,6 +777,11 @@ class SNESBakeContext(ConsoleBake):
             "extern const u8 *ms_tile_tables[2];",
             "extern const u8 *ms_rf_pages[];  /* render frames in pages of 1 << MS_RF_PAGE_SHIFT */",
             "extern const u16 *ms_module_render_frames;",
+            "/* each module under each mapping (as ms_module_render_frames): its width less twice its pivot's x, its "
+            "height less",
+            "   twice its pivot's y; mirrored around its pivot at a position moved by them, a module is mirrored in "
+            "place */",
+            "extern const s16 *ms_module_flip_offsets;",
             "extern const u16 *ms_frame_render_frames;",
             "extern const MS_AnimStep *ms_anim_steps;",
             "extern const MS_Animation *ms_animations;",
@@ -778,7 +794,9 @@ class SNESBakeContext(ConsoleBake):
             "extern const u8 *ms_swap_entries;",
         ]
         if self.streamed:
-            lines += ["extern const MS_LoadList *ms_load_lists;", "extern const u16 *ms_render_frame_loads;"]
+            lines += ["extern const MS_LoadList *ms_load_lists;",
+                      "extern const u8 *ms_load_list_rows;  /* the sprite-table rows each load list takes in a slot */",
+                      "extern const u16 *ms_render_frame_loads;"]
         lines += [
             "",
             "void ms_data_init(void);",
@@ -800,6 +818,7 @@ class SNESBakeContext(ConsoleBake):
         lines += ["};", "", "const u8 *ms_tile_tables[2];", "const u8 *ms_rf_pages[MS_RF_PAGE_COUNT];",
                   "static const u8 *g_names;"]
         tables = [("ms_module_render_frames", "const u16 *", "module_render_frames"),
+                  ("ms_module_flip_offsets", "const s16 *", "module_flip_offsets"),
                   ("ms_frame_render_frames", "const u16 *", "frame_render_frames"),
                   ("ms_anim_steps", "const MS_AnimStep *", "anim_steps"), ("ms_animations", "const MS_Animation *", "animations"),
                   ("ms_step_events", "const MS_StepEvent *", "step_events"), ("ms_scene_samples", "const u16 *", "scene_samples"),
@@ -809,6 +828,7 @@ class SNESBakeContext(ConsoleBake):
                   ("ms_swap_entries", "const u8 *", "swap_entries")]
         if self.streamed:
             tables += [("ms_load_lists", "const MS_LoadList *", "load_lists"),
+                       ("ms_load_list_rows", "const u8 *", "load_list_rows"),
                        ("ms_render_frame_loads", "const u16 *", "render_frame_loads")]
         lines += [f"{ctype}{name};" for name, ctype, _key in tables]
         lines += ["", "void ms_data_init(void)", "{"]

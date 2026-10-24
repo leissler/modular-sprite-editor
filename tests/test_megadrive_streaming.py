@@ -324,6 +324,246 @@ int main(void)
         self.assertEqual(result.summary["slot_tiles"], ctx.slot_tiles)
 
 
+# Prints a frame drawn through the slot cache: the profile, each actor's animation and step, the sprites and, when the
+# frame uploaded tiles, video memory from TILE_BASE (`tiles` tiles).
+PRINT_CACHED = r"""
+extern u8 g_stub_vram[0x10000];
+static void print_cached(u16 t, const MS_AnimPlayer *players, u16 count, u16 tiles)
+{
+    MS_FrameProfile profile;
+    u16 i;
+    ms_end_frame();
+    ms_get_frame_profile(&profile);
+    printf("cache %u %u %u %u %u %u", t, profile.hw_sprites, profile.sprites_dropped, profile.tiles_uploaded,
+           profile.slots_used, profile.draws_left_out);
+    for (i = 0; i < count; i++)
+        printf(" a%u", players[i].animation_index * 1000u + players[i].step_index);
+    for (i = 0; i < profile.hw_sprites; i++)
+        printf(" %d,%d,%u,%u", vdpSpriteCache[i].x - 0x80, vdpSpriteCache[i].y - 0x80, vdpSpriteCache[i].size,
+               vdpSpriteCache[i].attribut);
+    printf(" |");
+    if (profile.tiles_uploaded)
+        for (i = 0; i < tiles * 32u; i++)
+            printf("%02x", g_stub_vram[TILE_BASE * 32u + i]);
+    printf("\n");
+}
+"""
+
+# Actors for the cache: (animation, mapping, x, y); the last one shows the same as the third, elsewhere.
+CACHE_ACTORS = [("C34 Attack", 0, 60, 150), ("C46 quick attack", 1, 140, 150), ("C21 multi stab throw enemy", 1, 220, 150),
+                ("C34 Attack", 1, 290, 100), ("C21 multi stab throw enemy", 1, 100, 60)]
+
+
+def _cache_harness(ctx, actors, frames: int, pool: int, clear_at: int, counts) -> str:
+    table = ", ".join(f"{a}, {m}, {x}, {y}" for a, m, x, y in actors)
+    return (_tables(ctx, **counts) + f"\n#define TILE_BASE {TILE_BASE}u\n" + PRINT_CACHED + f"""
+static const s16 g_actors[] = {{ {table} }};
+
+int main(void)
+{{
+    static MS_AnimPlayer players[{len(actors)}];
+    static MS_Slot own;
+    u16 k, t;
+    ms_init();
+    ms_slot_init(&own, TILE_BASE + {pool});
+    ms_slot_cache_init(TILE_BASE, {pool});
+    for (k = 0; k < {len(actors)}; k++)
+        ms_anim_player_init(&players[k], (u16)g_actors[4 * k]);
+    for (t = 0; t < {frames}; t++)
+    {{
+        if (t == {clear_at})
+            ms_slot_cache_clear();  /* the cache's video memory used for something else */
+        ms_begin_frame();
+        for (k = 0; k < {len(actors)}; k++)
+        {{
+            ms_set_mapping((u16)g_actors[4 * k + 1]);
+            ms_draw_anim_player(&players[k], g_actors[4 * k + 2], g_actors[4 * k + 3]);
+        }}
+        ms_set_slot(&own);  /* a slot of the game's own in between: the cache stays as it is */
+        ms_use_slot_cache();
+        print_cached(t, players, {len(actors)}, {pool});
+        for (k = 0; k < {len(actors)}; k++)
+            ms_anim_player_tick(&players[k]);
+    }}
+    return 0;
+}}
+""")
+
+
+@unittest.skipIf(shutil.which("cc") is None, "no C compiler")
+class TestSlotCache(unittest.TestCase):
+    def _play(self, mode: str, pool_share: float, frames: int = 240):
+        """Five actors (two of them showing the same steps elsewhere) drawn through one slot cache; returns the
+        project, the bake, the actors (animation index, mapping, x, y), the printed frames and the pool's tiles."""
+        project = Project.from_json(str(PROJECTS[0]))
+        mappings = [None, next(m for m in project.mappings if m.name == "Normal")]
+        names = {a.name: i for i, a in enumerate(project.animations)}
+        actors = [(names[a], m, x, y) for a, m, x, y in CACHE_ACTORS]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        ctx = _bake(project, mappings, mode, Path(tmp.name))
+        need = max(sum(ctx.load_lists[ctx.render_frame_loads[s[0]]][2] for s in ctx.anim_steps[
+            ctx.anim_records[m * len(project.animations) + a].first_step:][:1]) for a, m, _x, _y in actors)
+        busiest = sum(max(ctx.load_lists[ctx.render_frame_loads[s[0]]][2] for s in ctx.anim_steps[
+            r.first_step:r.first_step + r.step_count]) for r in (ctx.anim_records[m * len(project.animations) + a]
+                                                                 for a, m, _x, _y in actors))
+        pool = max(need, int(busiest * pool_share))
+        counts = dict(frame_count=len(project.frames), mapping_count=len(mappings),
+                      animation_count=len(project.animations))
+        lines = _build_and_run(self, ctx, Path(tmp.name), _cache_harness(ctx, actors, frames, pool, frames // 2, counts))
+        return project, mappings, ctx, actors, lines, pool
+
+    def _check(self, mode: str, pool_share: float):
+        from runtime_models import SlotCache
+        from ui.frame_render import FrameRenderer, transform
+
+        project, mappings, ctx, actors, lines, pool = self._play(mode, pool_share)
+        model = SlotCache(TILE_BASE, pool, 48)
+        renderer, vram = FrameRenderer(), b""
+        uploads = left_out = 0
+        self.assertEqual(len(lines), 240)
+        for t, line in enumerate(lines):
+            head, _bar, dump = line.partition(" |")
+            fields = head.split()
+            hw, dropped, uploaded, used, left = (int(v) for v in fields[2:7])
+            steps = [int(f[1:]) for f in fields[7:7 + len(actors)]]
+            sprites = [tuple(int(v) for v in item.split(",")) for item in fields[7 + len(actors):]]
+            if dump:
+                vram = bytes.fromhex(dump)
+            if t == len(lines) // 2:
+                model.clear()
+            model.begin()
+            drawn = []
+            for (anim, mapping, x, y), code in zip(actors, steps):
+                self.assertEqual(code // 1000, anim)
+                record = ctx.anim_records[mapping * len(project.animations) + anim]
+                render = ctx.anim_steps[record.first_step + code % 1000][0]
+                listed = ctx.render_frame_loads[render]
+                tiles = ctx.load_lists[listed][2]
+                if tiles and model.draw(listed, tiles) is not None:
+                    drawn.append((anim, mapping, x, y, code % 1000))
+            self.assertEqual((uploaded, used, left), (model.uploaded, model.slots_used, model.left_out),
+                             f"{mode}, frame {t}: tiles uploaded, slots used, draws left out")
+            self.assertEqual((len(sprites), dropped), (hw, 0))
+            expected = {}
+            for anim, mapping, x, y, step in reversed(drawn):  # the first actor in front
+                af = project.animations[anim].aframes[step]
+                a, b = transform(af.flip_x, af.flip_y, af.rotation_degrees, af.offset)
+                image, hx, hy = renderer.render(project, project.get_frame(af.frame_id), mappings[mapping], a, b)
+                expected.update(_palette_pixels(ctx, image, hx, hy, x, y))
+            self.assertEqual(_rasterise(sprites, vram), expected, f"{mode}, frame {t}")
+            uploads += uploaded > 0
+            left_out += left
+        self.assertGreater(model.evicted, 0, "slots made room")
+        return uploads, left_out
+
+    def test_one_cache_for_every_actor(self):
+        """Five actors through one slot cache with room for about two thirds of what they show at their busiest: a step
+        is uploaded once and every actor that shows it draws from that slot (two show the same), the slots drawn
+        longest ago make room (first fit in tile order), the cache cleared halfway uploads again; a slot of the
+        game's own in between leaves it alone. Each frame shows what the editor shows, with what the reference cache
+        uploads, uses and leaves out."""
+        for mode in STREAMED:
+            with self.subTest(mode=mode):
+                uploads, left_out = self._check(mode, 0.75)
+                self.assertGreater(uploads, 20)
+                self.assertLess(uploads, 200, "steps that stay cached upload nothing")
+
+    def test_a_full_cache_leaves_draws_out(self):
+        """With room for less than a frame's slots, the draws that find none (everything in the way drawn this frame)
+        are left out and the others still show right."""
+        _uploads, left_out = self._check("parts_streamed", 0.3)
+        self.assertGreater(left_out, 0)
+
+    def test_draws_give_way_through_the_cache(self):
+        """Crowds drawn through the slot cache with give-way levels: the draws that stay show what the editor shows,
+        their tiles from the slots the cache gave them (a waiting draw keeps its slot until it is drawn)."""
+        import compositor
+        from PIL import Image
+        from runtime_models import crowd_draws, given_way
+        from test_megadrive_runtime_draw import CROWD_C, KINDS, _md_draw_costs
+        from ui.frame_render import FrameRenderer
+
+        project = Project.from_json(str(PROJECTS[0]))
+        mappings = [None, next(m for m in project.mappings if m.name == "Normal")]
+        frames, modules = len(project.frames), len(project.modules)
+        pool = 1200
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _bake(project, mappings, "parts_streamed", Path(tmp))
+            pictures, given = [], []
+            for seed in range(200):
+                draws = crowd_draws(seed, 6 + seed % 20, frames, modules, len(mappings), 320, 224)
+                costs = _md_draw_costs(ctx, draws, frames, modules)
+                gone = given_way(costs, [d[4] for d in draws], 80)
+                if sum(costs) - sum(costs[n] for n in gone) <= 80:  # what stays fits: no piece drops
+                    pictures.append(draws)
+                    given.append(gone)
+                if len(pictures) == 30:
+                    break
+            values = ",\n".join("    " + ", ".join(str(v) for v in (KINDS[k], i, m, f, lv, x, y))
+                                for draws in pictures for k, i, m, f, lv, x, y in draws)
+            starts = ", ".join(f"{sum(len(d) for d in pictures[:p])}, {len(pictures[p])}" for p in range(len(pictures)))
+            body = CROWD_C + f"""
+extern u8 g_stub_vram[0x10000];
+static const s16 g_draws[] = {{
+{values}
+}};
+static const u16 g_pictures[] = {{ {starts} }};
+
+int main(void)
+{{
+    u16 p, n, i;
+    ms_init();
+    ms_slot_cache_init({TILE_BASE}, {pool});
+    for (p = 0; p < {len(pictures)}; p++)
+    {{
+        ms_begin_frame();
+        for (n = g_pictures[2 * p]; n < g_pictures[2 * p] + g_pictures[2 * p + 1]; n++)
+            draw_one(&g_draws[7 * n], 1);
+        print_picture("levels", p);
+        printf("vram ");
+        for (i = 0; i < {pool} * 32u; i++)
+            printf("%02x", g_stub_vram[{TILE_BASE} * 32u + i]);
+        printf("\\n");
+    }}
+    return 0;
+}}
+"""
+            lines = _build_and_run(self, ctx, Path(tmp), _tables(
+                ctx, frame_count=frames, mapping_count=len(mappings), module_count=modules) + body)
+        self.assertGreater(sum(1 for g in given if g), 10)
+        renderer = FrameRenderer()
+        offsets = ctx.module_flip_offsets()
+        for p, draws in enumerate(pictures):
+            fields, vram = lines[2 * p].split(), bytes.fromhex(lines[2 * p + 1].split()[1])
+            self.assertEqual((int(fields[3]), int(fields[4]), int(fields[5])), (0, len(given[p]), 0))
+            sprites = [tuple(int(v) for v in item.split(",")[:4]) for item in fields[6:]]
+            expected = {}
+            for n in reversed(range(len(draws))):
+                kind, index, mapping, flip, _level, x, y = draws[n]
+                if n in given[p]:
+                    continue
+                if kind == "frame":
+                    image, hx, hy = renderer.render(project, project.frames[index], mappings[mapping])
+                    if flip & 1:
+                        image, hx = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT), -hx - image.width
+                    if flip & 2:
+                        image, hy = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM), -hy - image.height
+                else:
+                    drawn = compositor.resolve_module(project, project.modules[index].id, mappings[mapping])
+                    if drawn is None or drawn.rect[2] <= 0 or drawn.rect[3] <= 0:
+                        continue
+                    image, hx, hy = renderer.module(project, drawn), -int(drawn.pivot[0]), -int(drawn.pivot[1])
+                    if flip & 1:
+                        image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                    if flip & 2:
+                        image = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+                entry = 1 if mapping and ctx.palette_entries[1:] else 0  # the guard in the Blue guard's colours
+                expected.update(_palette_pixels(ctx, image, int(hx), int(hy), x, y,
+                                                palette_at=lambda px, py, e=entry: e))
+            self.assertEqual(_rasterise(sprites, vram), expected, f"picture {p}")
+
+
 class TestStreamedExport(unittest.TestCase):
     def test_the_default_export_is_resident(self):
         import export_megadrive as sg
