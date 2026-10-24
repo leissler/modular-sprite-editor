@@ -302,6 +302,32 @@ def _palette_pixels(ctx, image, hx: int, hy: int, draw_x: int, draw_y: int, pale
     return pixels
 
 
+def compositor_identity():
+    import compositor
+
+    return compositor.IDENTITY, (0.0, 0.0)
+
+
+def _palette_of_pixels(project, frame, mapping, transform):
+    """palette_at for _palette_pixels: the palette entry (its palette's place in the project) of the part on top at
+    each pixel of the frame's render (the editor draws later parts over earlier ones)."""
+    import compositor
+
+    a, b = transform
+    instances = []
+    compositor.collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set())
+    index = {palette.id: n for n, palette in enumerate(project.palettes)}
+    owner = {}
+    for image, x, y, palette in compositor.palette_layers(project, instances, {}, {},
+                                                          lambda mod: project.image_palette(project.get_image(mod.image_id)).id):
+        alpha = image.getchannel("A")
+        for py in range(image.height):
+            for px in range(image.width):
+                if alpha.getpixel((px, py)):
+                    owner[(x + px, y + py)] = index[palette]
+    return lambda x, y: owner[(x, y)]
+
+
 @unittest.skipIf(shutil.which("cc") is None, "no C compiler")
 class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
     def test_every_frame(self):
@@ -380,6 +406,102 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                                              _palette_pixels(ctx, mirrored, mx, my, draw_x, draw_y),
                                              f"{project_path.name}: frame '{frame.name}' mirrored {flip} at "
                                              f"{draw_x},{draw_y} differs on the console")
+
+    def test_frames_stored_whole(self):
+        """Frames stored whole are drawn as their pictures, the others as parts: PoP's frames as they are and
+        mirrored, its mirroring animations for the hero and the guard (whose mapping changes the pictures); frames of
+        two palettes stored whole, nested in parts, mirrored and turned, and an animation that turns them."""
+        import export_megadrive as sg
+        import mixed_frames
+        from PIL import Image
+        from ui.frame_render import FrameRenderer, transform
+
+        renderer = FrameRenderer()
+        project = mixed_frames.pop_mixed()
+        guard_mapping = next(m for m in project.mappings if m.name == "Normal")
+        animations = [i for i, a in enumerate(project.animations) if a.name in mixed_frames.MIRRORING]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ctx = sg.MegaDriveBakeContext(project, [None, guard_mapping], tmp_path)
+            ctx.bake()
+            tiles = bytes(ctx.tile_data)
+            lines = iter(_build_and_run(self, ctx, tmp_path, _harness(ctx, len(project.frames)))[1:])
+            for frame in project.frames:
+                image, hx, hy = renderer.render(project, frame, None)
+                for draw_x, draw_y in POSITIONS:
+                    fields = next(lines).split()
+                    sprites = [tuple(int(v) for v in item.split(",")[:4]) for item in fields[4:]]
+                    self.assertEqual((len(sprites), int(fields[3])), (int(fields[2]), 0))
+                    self.assertEqual(_rasterise(sprites, tiles), _palette_pixels(ctx, image, hx, hy, draw_x, draw_y),
+                                     f"frame '{frame.name}' at {draw_x},{draw_y}")
+            lines = iter(_build_and_run(self, ctx, tmp_path, _mirrored_harness(ctx, len(project.frames))))
+            for frame in project.frames:
+                image, hx, hy = renderer.render(project, frame, None)
+                for flip in (1, 2, 3):
+                    mirrored, mx, my = image, hx, hy
+                    if flip & 1:
+                        mirrored, mx = mirrored.transpose(Image.Transpose.FLIP_LEFT_RIGHT), -hx - image.width
+                    if flip & 2:
+                        mirrored, my = mirrored.transpose(Image.Transpose.FLIP_TOP_BOTTOM), -hy - image.height
+                    for draw_x, draw_y in POSITIONS[:2]:
+                        fields = next(lines).split()
+                        sprites = [tuple(int(v) for v in item.split(",")[:4]) for item in fields[5:]]
+                        self.assertEqual(_rasterise(sprites, tiles), _palette_pixels(ctx, mirrored, mx, my, draw_x, draw_y),
+                                         f"frame '{frame.name}' mirrored {flip} at {draw_x},{draw_y}")
+            lines = _build_and_run(self, ctx, tmp_path, _versus_harness(
+                ctx, len(project.frames), len(project.animations), animations, ticks=150))
+            shown = set()
+            for line in lines:
+                fields = line.split()
+                anim = project.animations[int(fields[1])]
+                step, _guard_step, _active, count, dropped = (int(v) for v in fields[2:7])
+                sprites = [tuple(int(v) for v in item.split(",")) for item in fields[7:]]
+                af = anim.aframes[step]
+                a, b = transform(af.flip_x, af.flip_y, af.rotation_degrees, af.offset)
+                expected = {}
+                for mapping, (draw_x, draw_y) in reversed(list(zip((None, guard_mapping), VERSUS))):
+                    image, hx, hy = renderer.render(project, project.get_frame(af.frame_id), mapping, a, b)
+                    expected.update(_palette_pixels(ctx, image, hx, hy, draw_x, draw_y))
+                self.assertEqual((len(sprites), dropped), (count, 0))
+                self.assertEqual(_rasterise(sprites, tiles), expected, f"'{anim.name}' step {step}")
+                shown.add((anim.name, step))
+            self.assertEqual(len(shown), sum(len(project.animations[i].aframes) for i in animations))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            project = mixed_frames.nested_project(tmp_path)
+            ctx = sg.MegaDriveBakeContext(project, [None], tmp_path / "out")
+            ctx.bake()
+            tiles = bytes(ctx.tile_data)
+            lines = iter(_build_and_run(self, ctx, tmp_path, _harness(ctx, len(project.frames)))[1:])
+            for frame in project.frames:
+                image, hx, hy = renderer.render(project, frame, None)
+                palette_at = _palette_of_pixels(project, frame, None, compositor_identity())
+                for draw_x, draw_y in POSITIONS:
+                    fields = next(lines).split()
+                    sprites = [tuple(int(v) for v in item.split(",")[:4]) for item in fields[4:]]
+                    self.assertEqual(_rasterise(sprites, tiles),
+                                     _palette_pixels(ctx, image, hx, hy, draw_x, draw_y, palette_at),
+                                     f"frame '{frame.name}' at {draw_x},{draw_y}")
+            anim = project.animations[0]
+            lines = _build_and_run(self, ctx, tmp_path, _versus_harness(
+                ctx, len(project.frames), 1, [0], ticks=100, guard_draw="ms_draw_anim_player(&guard, {x}, {y})"))
+            shown = set()
+            for line in lines:
+                fields = line.split()
+                step = int(fields[2])
+                sprites = [tuple(int(v) for v in item.split(",")) for item in fields[7:]]
+                af = anim.aframes[step]
+                a, b = transform(af.flip_x, af.flip_y, af.rotation_degrees, af.offset)
+                frame = project.get_frame(af.frame_id)
+                image, hx, hy = renderer.render(project, frame, None, a, b)
+                palette_at = _palette_of_pixels(project, frame, None, (a, b))
+                expected = {}
+                for draw_x, draw_y in reversed(VERSUS):
+                    expected.update(_palette_pixels(ctx, image, hx, hy, draw_x, draw_y, palette_at))
+                self.assertEqual(_rasterise(sprites, tiles), expected, f"step {step}")
+                shown.add(step)
+            self.assertEqual(shown, set(range(len(anim.aframes))))
 
     def test_images_in_two_palettes(self):
         """A frame with a part from an image in each palette: each sprite carries its palette line, the blob holds

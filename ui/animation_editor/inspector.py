@@ -101,7 +101,8 @@ class AnimationInspector(wx.ScrolledWindow):
         row(grid, p, "Used in", self.usage)
         self.budget_info = wx.StaticText(p, label="")
         self.budget_info.SetToolTip(
-            "The step that needs the most hardware sprites, and the tiles of video memory all steps need together "
+            "The step that needs the most hardware sprites; how many characters playing it fit side by side before "
+            "sprites drop (their busiest lines add up); and the tiles of video memory all steps need together "
             "(each part image once, also when it is flipped or used again) (view bar ▸ Budget)"
         )
         self.budget_label = row(grid, p, "Budget", self.budget_info)

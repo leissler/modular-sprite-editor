@@ -1,5 +1,5 @@
 {
-  "format_version": 8,
+  "format_version": 9,
   "name": "Adventurer",
   "images": [
     {
@@ -1597,7 +1597,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_b60d2261",
@@ -1618,7 +1619,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_5ff07c86",
@@ -1639,7 +1641,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_7c9f6bfc",
@@ -1660,7 +1663,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_6ee0993c",
@@ -1681,7 +1685,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_13d34fb9",
@@ -1702,7 +1707,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_e3eecd99",
@@ -1723,7 +1729,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_f5b945a7",
@@ -1744,7 +1751,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_9acf7458",
@@ -1765,7 +1773,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_80450303",
@@ -1786,7 +1795,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_2e664be0",
@@ -1807,7 +1817,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_9b415aa6",
@@ -1828,7 +1839,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_bc16a6ee",
@@ -1849,7 +1861,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_37d4cd63",
@@ -1870,7 +1883,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "frm_84613c95",
@@ -1891,7 +1905,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     }
   ],
   "animations": [],

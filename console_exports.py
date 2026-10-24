@@ -18,7 +18,7 @@ is there:
   bake without writing, whose ``_stored_part`` tells export_modes what a part is in hardware sprites and tiles);
 - its spec, ``build_<key>_exporter.spec`` (the command-line download);
 - the demo, ``examples/<key>/<key>_demo`` (with the runtime), and ``examples/<key>/README.md``;
-- the checks ``project_check.<key>_tile_issue(tiles)`` and ``project_check.<key>_palette_issue(entries)``, and for a
+- the checks ``project_check.<key>_tile_issue(tiles, whole=0)`` and ``project_check.<key>_palette_issue(entries)``, and for a
   console that streams (``modes``) ``project_check.<key>_stream_issues(slot_tiles, scene_slot_tiles)``;
 - the Windows kit's ``packaging/windows_kit/export_to_<key>.bat`` and ``build_<key>_demo.bat``.
 
@@ -141,11 +141,12 @@ class ConsoleExport:
         """The export report's line about the console: video memory, the data (the exporter's ``report_line``)."""
         return self.load().report_line(summary)
 
-    def tile_issue(self, tiles: int) -> Any:
-        """How the export's sprite tiles fit the console: ``project_check.<key>_tile_issue``, an Issue."""
+    def tile_issue(self, tiles: int, whole: int = 0) -> Any:
+        """How the export's sprite tiles fit the console: ``project_check.<key>_tile_issue``, an Issue (``whole``: the
+        frames it stores whole)."""
         import project_check
 
-        return getattr(project_check, f"{self.key}_tile_issue")(tiles)
+        return getattr(project_check, f"{self.key}_tile_issue")(tiles, whole=whole)
 
     def stream_issues(self, slot_tiles: int, scene_slot_tiles: int, largest_upload: int = 0) -> List[Any]:
         """A streamed export's slots on the console: ``project_check.<key>_stream_issues`` (consoles whose runtime

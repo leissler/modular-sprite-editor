@@ -290,12 +290,16 @@ class Frame:
     collision_rects: List[CollisionRect] = field(default_factory=list)
     control_points: List[ControlPoint] = field(default_factory=list)
     group: str = ""  # where the frame sits in long lists ("" = no group)
+    # Console exports store the frame as one picture per palette, cut into the fewest hardware sprites, instead of
+    # its parts (console_bake, hardware_budget): fewer sprites on screen for more tiles in the cartridge.
+    store_whole: bool = False
 
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
             "name": self.name,
             "group": self.group,
+            "store_whole": self.store_whole,
             "fmodules": [fm.to_dict() for fm in self.fmodules],
             "collision_rects": [cr.to_dict() for cr in self.collision_rects],
             "control_points": [cp.to_dict() for cp in self.control_points],
@@ -346,6 +350,7 @@ class Frame:
             collision_rects=collision_rects,
             control_points=control_points,
             group=str(data.get("group", "") or ""),
+            store_whole=bool(data.get("store_whole", False)),
         )
 
 

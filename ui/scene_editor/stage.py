@@ -14,7 +14,7 @@ from models import (
 from hardware_budget import Budget, HwPart
 from ui import first_steps
 from ui.base_canvas import BACKDROP_COLOUR, DEFAULT_BACKDROP_COLOUR
-from ui.canvas import BUDGET, FrameCanvas
+from ui.canvas import BUDGET, FrameCanvas, whole_frames_shown
 from ui.scene_editor import ops
 from ui.dpi import px
 
@@ -247,6 +247,7 @@ class StageCanvas(FrameCanvas):
             states = ops.evaluate_states(self.project, self.scene, self.time_value)
         cache: Dict[str, ops.Matrix] = {}
         parts: List[HwPart] = []
+        whole = whole_frames_shown(self.project, self.budget_profile)
         for obj, _depth, _kids in ops.tree_rows(self.scene, set()):
             state = states.get(obj.id)
             if not state_shows(state) or self._is_hidden(obj):
@@ -258,11 +259,11 @@ class StageCanvas(FrameCanvas):
             frame_id = state.get("frame_id") or source_id
             mapping = self.object_mapping(obj.id)
             if source_type == "module" and source_id:
-                parts += BUDGET.module_parts(self.project, str(source_id), mapping, self.budget_profile, a, b)
+                parts += BUDGET.module_parts(self.project, str(source_id), mapping, self.budget_profile, a, b, whole)
             elif source_type in ("frame", "animation") and frame_id:
                 frame = self.project.get_frame(str(frame_id))
                 if frame:
-                    parts += BUDGET.frame_parts(self.project, frame, mapping, self.budget_profile, a, b)
+                    parts += BUDGET.frame_parts(self.project, frame, mapping, self.budget_profile, a, b, whole)
         return Budget(self.budget_profile, parts)
 
     def object_mapping(self, object_id: str) -> Optional[ModuleMapping]:

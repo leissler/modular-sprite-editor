@@ -74,6 +74,17 @@ class ProjectHistoryTest(unittest.TestCase):
         self.history.undo(self.project)
         self.assertEqual([t.name for t in self.project.event_types], before)
 
+    def test_storing_a_frame_whole_is_undone(self) -> None:
+        """Frame.store_whole is saved with the frame, so undo and redo bring it back."""
+        frame = self.project.frames[0]
+        self.assertFalse(frame.store_whole)
+        frame.store_whole = True
+        self.history.checkpoint(self.project)
+        self.history.undo(self.project)
+        self.assertFalse(self.project.get_frame(frame.id).store_whole)
+        self.history.redo(self.project)
+        self.assertTrue(self.project.get_frame(frame.id).store_whole)
+
     def test_checkpoint_after_undo_keeps_the_redo_steps(self) -> None:
         self.project.event_types[0].name = "renamed"
         self.history.checkpoint(self.project)

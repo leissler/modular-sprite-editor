@@ -1,20 +1,24 @@
 """The reference compositor (Pillow, wx-free): a frame's parts flattened into module instances with their
 transforms, and pixel-exact images of frames, as the editor canvas draws them. Previews (ui/frame_render.py), the
-hardware budget, Optimize Sprite Sheet and the exporters all render through it."""
+hardware budget, Optimize Sprite Sheet and the exporters all render through it. A frame the console exports store
+whole is flattened into one picture per palette here too (``palette_layers``), for the exports and the budget alike."""
 
 from __future__ import annotations
 
 import math
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from models import Frame, Module, ModuleMapping, PaletteSwap, Project
 
 Matrix = Tuple[Tuple[float, float], Tuple[float, float]]
 Vector = Tuple[float, float]
-# (module, matrix, anchor, rotation, flip_x, flip_y, local_flip_x, local_flip_y), see collect_leaf_instances
+# (module, matrix, anchor, rotation, flip_x, flip_y, local_flip_x, local_flip_y), see collect_leaf_instances; with
+# ``whole`` a nested frame stored whole stands in the module's place
 LeafInstance = Tuple["Module", Matrix, Vector, float, bool, bool, bool, bool]
+# A whole frame's picture of one palette: (image, left, top, palette id), see palette_layers
+Layer = Tuple[Any, int, int, str]
 
 IDENTITY: Matrix = ((1.0, 0.0), (0.0, 1.0))
 
@@ -275,6 +279,7 @@ def collect_leaf_instances(
     out: List[LeafInstance],
     depth: int,
     stack: set[str],
+    whole: bool = False,
 ) -> None:
     """
     Flatten a frame into leaf module instances.
@@ -284,6 +289,9 @@ def collect_leaf_instances(
     texture centre, bounds unchanged), so it is *not* part of the matrix; the renderer mirrors the
     texture first. Flips of nested frames and animation steps are geometric mirrors and stay in
     the matrix.
+
+    With ``whole`` (what the console exports store), a nested frame stored whole (``Frame.store_whole``) is one
+    entry, the frame in the module's place, instead of its leaves: the exports draw its pictures (``palette_layers``).
     """
     if depth > 48:
         return
@@ -315,6 +323,11 @@ def collect_leaf_instances(
                     (mod, a_next, b_next, rot_next, flip_x_next, flip_y_next, local_flip_x, local_flip_y)
                 )
         elif fm.ref_type == "frame":
+            child = project.get_frame(fm.ref_id) if whole else None
+            if child is not None and child.store_whole:
+                if child.id not in stack and depth < 48:  # a cycle draws nothing, as below
+                    out.append((child, a_next, b_next, rot_next, flip_x_next, flip_y_next, local_flip_x, local_flip_y))
+                continue
             collect_leaf_instances(
                 project=project,
                 frame_id=fm.ref_id,
@@ -327,6 +340,7 @@ def collect_leaf_instances(
                 out=out,
                 depth=depth + 1,
                 stack=stack,
+                whole=whole,
             )
     stack.remove(frame_id)
 
@@ -404,6 +418,51 @@ def render_instance(
         return None
 
     return transformed, min_x, min_y
+
+
+def palette_layers(
+    project: "Project",
+    instances: List[LeafInstance],
+    full_image_cache: Dict[Any, Any],
+    module_cache: Dict[Any, Any],
+    palette_of: Callable[["Module"], str],
+) -> Tuple[Layer, ...]:
+    """Module instances (``collect_leaf_instances``) drawn as the editor draws them, in order, as one picture per
+    palette (``palette_of``: a module's palette id) and where it goes, each cropped to what shows: how the console
+    exports store a frame whole. Each pixel is in the layer of the part on top, so the layers never overlap and draw
+    the frame in any order (the consoles draw no partly transparent pixels). Modules without an area are hidden, as the
+    exports hide them."""
+    from PIL import Image as PILImage
+
+    rendered: List[Layer] = []
+    for mod, a_mat, b_vec, _rot, _flip_x, _flip_y, local_flip_x, local_flip_y in instances:
+        if int(mod.rect[2]) <= 0 or int(mod.rect[3]) <= 0:
+            continue
+        piece = render_instance(project, mod, a_mat, b_vec, full_image_cache, module_cache, local_flip_x, local_flip_y)
+        if piece is not None:
+            rendered.append((piece[0], piece[1], piece[2], palette_of(mod)))
+    if not rendered:
+        return ()
+    left = min(x for _image, x, _y, _palette in rendered)
+    top = min(y for _image, _x, y, _palette in rendered)
+    size = (max(x + image.width for image, x, _y, _palette in rendered) - left,
+            max(y + image.height for image, _x, y, _palette in rendered) - top)
+    layers: Dict[str, Any] = {}
+    for image, x, y, palette in rendered:
+        at = (x - left, y - top)
+        covered = image.getchannel("A").point(lambda value: 255 if value else 0)
+        for other, layer in layers.items():
+            if other != palette:
+                layer.paste((0, 0, 0, 0), at, covered)
+        if palette not in layers:
+            layers[palette] = PILImage.new("RGBA", size, (0, 0, 0, 0))
+        layers[palette].alpha_composite(image, at)
+    out: List[Layer] = []
+    for palette, layer in layers.items():
+        box = layer.getbbox()
+        if box:
+            out.append((layer.crop(box), left + box[0], top + box[1], palette))
+    return tuple(out)
 
 
 def render_frame(

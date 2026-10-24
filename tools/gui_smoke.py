@@ -859,6 +859,62 @@ def run():
 
     step("frames + animations: groups and sort order", groups_and_order)
 
+    def store_whole():
+        """Store whole in the Frames inspector and for a group (the list's menu): the budget counts the frame as its
+        pictures, the list row says so, the export needs more tiles, and undo takes it back."""
+        import hardware_budget as hb
+        from ui.canvas import BUDGET
+
+        fe = frame.frame_editor
+        project = frame.project
+        frame.select_tab(1)
+        pump()
+        frame.history_checkpoint()
+        target = max(project.frames, key=lambda f: len(f.fmodules))
+        fe.select_frame_by_id(target.id)
+        fe.set_selected([])
+        pump()
+        box = fe.inspector.store_whole
+        check(box.IsShownOnScreen() and not box.GetValue(), "the inspector shows Store whole, off")
+        check("hardware sprites as parts" in " ".join(fe.inspector.whole_info.GetLabel().split()),
+              "the inspector compares the frame as parts and whole")
+        fe.canvas_controls._set_budget("md_h40", persist=False)
+        as_parts = fe.canvas.compute_budget()
+        tiles = BUDGET.export_tiles(project, [None] + project.mappings, hb.MEGA_DRIVE_H40)
+        box.SetValue(True)
+        event = wx.CommandEvent(wx.wxEVT_CHECKBOX, box.GetId())
+        event.SetEventObject(box)
+        event.SetInt(1)
+        box.GetEventHandler().ProcessEvent(event)
+        pump()
+        whole = fe.canvas.compute_budget()
+        check(target.store_whole, "the checkbox stores the frame whole")
+        check(whole.sprite_count < as_parts.sprite_count, f"fewer hardware sprites whole ({whole.sprite_count} < "
+                                                          f"{as_parts.sprite_count})")
+        check(BUDGET.export_tiles(project, [None] + project.mappings, hb.MEGA_DRIVE_H40) > tiles,
+              "its pictures add tiles to the export")
+        row = next(r for r in fe.browser.list.rows if r.id == target.id)
+        check("whole" in row.meta, "the list row says whole")
+        fe.canvas.Refresh()
+        fe.canvas.Update()
+        fe.canvas_controls._set_budget("", persist=False)
+        others = [f for f in project.frames if f is not target][:2]
+        for member in [target] + others:
+            member.group = "Smoke whole"
+        fe.select_frame_by_id(target.id)
+        fe._store_group_whole(True)
+        pump()
+        check(all(f.store_whole for f in [target] + others), "Store Every Frame of the group Whole")
+        fe._store_group_whole(False)
+        pump()
+        check(not any(f.store_whole for f in [target] + others), "... and as Parts")
+        for _ in range(3):
+            frame.on_undo(None)
+        pump()
+        check(not any(f.store_whole or f.group for f in frame.project.frames), "undo stores every frame as parts again")
+
+    step("frames: store whole", store_whole)
+
 
     # ---- Timeline (scene editor)
     te = frame.timeline_editor
@@ -1263,6 +1319,7 @@ def run():
             check(ae.stage.budget_profile is hb.MEGA_DRIVE_H32, "animations: budget profile")
             label = " ".join(ae.inspector.budget_info.GetLabel().split())  # the label wraps
             check(ae.inspector.budget_info.IsShown() and "worst step" in label, "animations: worst step shown")
+            check("side by side:" in label, "animations: how many fit side by side")
             ae.stage.Refresh()
             ae.stage.Update()
             ae.canvas_controls._set_budget("", persist=False)

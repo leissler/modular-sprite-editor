@@ -13,9 +13,13 @@ too:
   into the console's hardware sprites like a part: the fewest sprites and the most tiles in the cartridge, and a
   mapping is baked again rather than swapped when it is drawn.
 
+Between them, the frames marked so (``Frame.store_whole``: a platform, a crusher, a torch) are stored whole in the
+parts modes too, and every other frame stays parts: the fewest sprites where a frame of many parts shows often, parts
+where frames share them (characters, their mappings).
+
 ``measure`` bakes the project with the console's own exporter (``ConsoleExport.bake_context``: the same cut and the
-same tiles as its export, nothing written), once with parts and once with whole frames. Modules drawn on their own stay
-parts in every mode.
+same tiles as its export, nothing written), once with parts (the marked frames whole) and once with every frame whole.
+Modules drawn on their own stay parts in the parts modes.
 """
 
 from __future__ import annotations

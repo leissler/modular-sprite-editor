@@ -141,6 +141,10 @@ class ConsoleExportDialog(wx.Dialog):
         how = ("Streamed, video memory holds only what each player shows, and a step uploads its tiles when it starts; "
                "the game draws each thing on screen through a slot of its own (modsprite.h). Whole frames need the "
                "fewest hardware sprites and the most cartridge space.")
+        marked = sum(1 for frame in project.frames if frame.store_whole)
+        if marked:
+            how += (f" The {marked} frame{'s' if marked != 1 else ''} marked Store whole (Frames tab) "
+                    f"{'are' if marked != 1 else 'is'} stored whole in every way.")
         note = wx.StaticText(self, label=(
             ("Measured on this project. " if self._modes else
              "Measured on this project, for comparison: the export stores parts and keeps every tile in video "
@@ -211,10 +215,12 @@ def short_path(path: str) -> str:
 
 def summary_lines(export: ConsoleExport, folder: str, summary: Dict[str, Any]) -> List[str]:
     steps = summary.get("anim_steps", 0)
+    whole = summary.get("frames_stored_whole", 0)
     return [
         f"Written to {short_path(folder)}",
-        f"{summary.get('animations', 0)} animations ({steps} steps), {summary.get('frames', 0)} frames, "
-        f"{summary.get('scenes', 0)} scenes; mappings: {summary.get('mappings', '')}",
+        f"{summary.get('animations', 0)} animations ({steps} steps), {summary.get('frames', 0)} frames"
+        f"{f' ({whole} stored whole)' if whole else ''}, {summary.get('scenes', 0)} scenes; "
+        f"mappings: {summary.get('mappings', '')}",
         export.report_line(summary),
     ]
 

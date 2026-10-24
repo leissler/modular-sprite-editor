@@ -243,8 +243,9 @@ class SNESBakeContext(ConsoleBake):
         self.tables = bytearray(SPRITE_TILES * 32)
         need = sum(size * size for size, _pixels in self.blocks)
         if need > SPRITE_TILES:
+            hint = project_check.whole_hint(self.marked_whole())
             raise ExportError(f"The sprites need {need} tiles, more than the SNES's {SPRITE_TILES} sprite tiles "
-                              "(two tables of 256, 16 KB of video memory)")
+                              "(two tables of 256, 16 KB of video memory)" + ("." + hint if hint else ""))
         highest = -1
         for block in sorted(range(len(self.blocks)), key=lambda b: (-self.blocks[b][0], b)):
             size, pixels = self.blocks[block]
@@ -896,7 +897,7 @@ def export_project(project: Project, project_dir: Path, mapping_selector: str = 
         issues.extend(project_check.snes_stream_issues(bake.slot_tiles, bake.scene_slot_tiles,
                                                        bake.stream_upload_cost()))
     else:
-        issues.append(project_check.snes_tile_issue(tiles, SPRITE_TILES))
+        issues.append(project_check.snes_tile_issue(tiles, SPRITE_TILES, whole=bake.marked_whole()))
     palette_entries = project_check.snes_palette_issue(len(bake.palette_entries), SPRITE_PALETTES)
     if palette_entries:
         issues.append(palette_entries)
@@ -912,6 +913,8 @@ def export_project(project: Project, project_dir: Path, mapping_selector: str = 
     if bake.streamed:
         summary.update(mode=mode, slot_tiles=bake.slot_tiles, scene_slot_tiles=bake.scene_slot_tiles,
                        load_lists=len(bake.load_lists))
+    if bake.marked_whole():
+        summary["frames_stored_whole"] = bake.marked_whole()
     order = project_check.LEVEL_ORDER
     return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
 

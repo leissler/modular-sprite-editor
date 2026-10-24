@@ -20,10 +20,14 @@ of a ROM bank). They also share what their command lines and the editor's export
 (``resolve_mappings``), the copy of the sources (``copy_sources``) and the options every console's exporter takes
 (``export_arguments``, ``print_result``). docs/CONSOLES.md lists what full support of a console means.
 
-For measuring other ways to export (export_modes.py, docs/EXPORT_MODES.md) a bake can store whole frames
-(``whole_frames``: each frame flattened into one picture per palette instead of a picture per part), and the console's
-exporter says what a stored part is in hardware sprites and tiles (``_stored_part``), from which every render frame's
-sprites (``render_frame_sprites``) and the tiles it shows (``load_list``: what a streamed export would upload) follow.
+A frame marked so (``Frame.store_whole``) is stored whole: flattened into one picture per palette
+(``compositor.palette_layers``, the part on top owning each pixel), which the console's exporter cuts into the fewest
+hardware sprites like any part. It is drawn that way wherever it shows: on its own, as an animation step, in a scene,
+nested in a frame of parts. Moved or mirrored it shows its upright pictures with hardware flips; turned, pictures of
+its own. The export mode that stores every frame whole sets ``whole_frames`` (export_modes.py, docs/EXPORT_MODES.md).
+The console's exporter says what a stored part is in hardware sprites and tiles (``_stored_part``), from which every
+render frame's sprites (``render_frame_sprites``) and the tiles it shows (``load_list``: what a streamed export would
+upload) follow.
 """
 
 from __future__ import annotations
@@ -202,7 +206,8 @@ class ConsoleBake:
         self.scene_samples: List[int] = []
         self.scene_records: List[SceneRecord] = []
 
-        # Whole frames instead of parts (set before bake(); the exports store parts): export_modes measures them.
+        # Every frame whole instead of its parts (set before bake(): the frames_streamed mode); otherwise the frames
+        # marked store_whole only.
         self.whole_frames = False
         self.upright_layers: Dict[Tuple[str, str], Tuple[Layer, ...]] = {}  # (mapping, frame) -> its layers
 
@@ -234,6 +239,15 @@ class ConsoleBake:
     def _stored_part(self, stored: int) -> StoredPart:
         """The console's exporter: a stored part's padded size and hardware sprites, for measuring (export_modes)."""
         raise NotImplementedError("a console's exporter knows its hardware sprites")
+
+    def stored_whole(self, frame: Frame) -> bool:
+        """Whether the frame is stored as its pictures: every frame in the whole frames mode, else those marked so."""
+        return self.whole_frames or frame.store_whole
+
+    def marked_whole(self) -> int:
+        """How many frames are marked to be stored whole, outside the mode that stores them all whole (for the
+        export's summary: ``frames_stored_whole``)."""
+        return 0 if self.whole_frames else sum(1 for frame in self.project.frames if frame.store_whole)
 
     # ---------------------------------------------------------------- measuring
     def render_frame_parts(self, index: int) -> List[PartEntry]:
@@ -631,7 +645,10 @@ class ConsoleBake:
         ],
         depth: int,
         stack: set[str],
+        whole: bool = False,
     ) -> None:
+        """The frame's module parts through nested frames, as ``compositor.collect_leaf_instances`` (hidden modules
+        left out); with ``whole`` a nested frame stored whole is one entry, the frame in the module's place."""
         if depth > 48:
             return
         frame = self.project.get_frame(frame_id)
@@ -665,6 +682,12 @@ class ConsoleBake:
                 if mod:
                     out.append((mod, a_next, b_next, rot_next, flip_x_next, flip_y_next, local_flip_x, local_flip_y))
             elif fm.ref_type == "frame":
+                child = self.project.get_frame(fm.ref_id) if whole else None
+                if child is not None and child.store_whole:
+                    if child.id not in stack and depth < 48:  # a cycle draws nothing, as below
+                        out.append((child, a_next, b_next, rot_next, flip_x_next, flip_y_next, local_flip_x,
+                                    local_flip_y))
+                    continue
                 self._collect_leaf_instances_canvas_like(
                     frame_id=fm.ref_id,
                     parent_a=a_next,
@@ -675,6 +698,7 @@ class ConsoleBake:
                     out=out,
                     depth=depth + 1,
                     stack=stack,
+                    whole=whole,
                 )
         stack.remove(frame_id)
 
@@ -689,13 +713,13 @@ class ConsoleBake:
         mod = self._resolve_module(module_id)
         if not mod:
             return tuple()
-        if self.whole_frames:
-            return self._whole_frame_parts(None, mod, offset, rotation_degrees, flip_x, flip_y)
-
         a_mat = compositor.mat_mul(
             compositor.rotation_matrix(rotation_degrees),
             compositor.flip_matrix(flip_x, flip_y),
         )
+        if self.whole_frames:
+            return self._whole_frame_parts(None, mod, a_mat, (float(offset[0]), float(offset[1])))
+
         part = self._render_leaf_part(
             mod=mod,
             a_mat=a_mat,
@@ -730,16 +754,15 @@ class ConsoleBake:
         cached = self.transformed_frame_parts_cache.get(key)
         if cached is not None:
             return cached
-        if self.whole_frames:
-            baked_frame = self._whole_frame_parts(frame, None, offset, rotation_degrees, flip_x, flip_y)
-            self.transformed_frame_parts_cache[key] = baked_frame
-            return baked_frame
-
         parent_a = compositor.mat_mul(
             compositor.rotation_matrix(rotation_degrees),
             compositor.flip_matrix(flip_x, flip_y),
         )
         parent_b = (float(offset[0]), float(offset[1]))
+        if self.stored_whole(frame):
+            baked_frame = self._whole_frame_parts(frame, None, parent_a, parent_b)
+            self.transformed_frame_parts_cache[key] = baked_frame
+            return baked_frame
 
         instances: List[
             Tuple[
@@ -763,10 +786,14 @@ class ConsoleBake:
             out=instances,
             depth=0,
             stack=set(),
+            whole=True,
         )
 
         out_parts: List[PartEntry] = []
         for mod, a_mat, b_vec, rot_deg, part_flip_x, part_flip_y, local_flip_x, local_flip_y in instances:
+            if isinstance(mod, Frame):  # a nested frame stored whole: its pictures in its place
+                out_parts.extend(self._whole_frame_parts(mod, None, a_mat, b_vec))
+                continue
             part = self._render_leaf_part(
                 mod=mod,
                 a_mat=a_mat,
@@ -786,16 +813,15 @@ class ConsoleBake:
         return baked
 
     def _whole_frame_parts(
-        self, frame: Optional[Frame], mod: Optional[Module], offset: Vec2, rotation_degrees: float, flip_x: bool,
-        flip_y: bool,
+        self, frame: Optional[Frame], mod: Optional[Module], a_mat: Matrix2, b_vec: Vec2,
     ) -> Tuple[PartEntry, ...]:
-        """Whole frames: a frame's layers (or a module's own, drawn on its own) placed like parts. Moved or mirrored,
-        it shows its upright layers with hardware flips (mirrored about its origin, each in its picture padded to whole
-        tiles); turned, it is drawn into layers of its own."""
-        a_mat = compositor.mat_mul(compositor.rotation_matrix(rotation_degrees), compositor.flip_matrix(flip_x, flip_y))
+        """A frame stored whole: its layers (or, in the whole frames mode, a module's own, drawn on its own) placed
+        like parts, under the transform ``a_mat`` about the point ``b_vec``. Moved or mirrored, it shows its upright
+        layers with hardware flips (mirrored about its origin, each in its picture padded to whole tiles); turned, it is
+        drawn into layers of its own."""
         geom = self._extract_geom_axis_flip(a_mat)
         if geom is None:
-            layers = self._whole_frame_layers(frame, mod, a_mat, (float(offset[0]), float(offset[1])))
+            layers = self._whole_frame_layers(frame, mod, a_mat, (float(b_vec[0]), float(b_vec[1])))
             return tuple((self._store_part(image, palette, self._entry_byte(palette)), x, y, 0, 0)
                          for image, x, y, palette in layers)
         hflip, vflip = geom
@@ -804,7 +830,7 @@ class ConsoleBake:
         if upright is None:
             upright = self._whole_frame_layers(frame, mod, self._identity_matrix(), self._identity_offset())
             self.upright_layers[key] = upright
-        ox, oy = int(round(float(offset[0]))), int(round(float(offset[1])))
+        ox, oy = int(round(float(b_vec[0]))), int(round(float(b_vec[1])))
         parts: List[PartEntry] = []
         for image, x, y, palette in upright:
             pad_w = max(8, ((image.width + 7) // 8) * 8)
@@ -815,43 +841,16 @@ class ConsoleBake:
 
     def _whole_frame_layers(self, frame: Optional[Frame], mod: Optional[Module], a_mat: Matrix2,
                             b_vec: Vec2) -> Tuple[Layer, ...]:
-        """The frame (or the module on its own) under a transform, drawn as the editor draws it
-        (``compositor.render_instance``, parts in order), as one picture per palette and where it goes. Each pixel is in
-        the layer of the part on top, so the layers never overlap and draw the frame in any order (the consoles draw no
-        partly transparent pixels)."""
+        """The frame (or the module on its own) under a transform, drawn as the editor draws it, as one picture per
+        palette and where it goes (``compositor.palette_layers``: the part on top owns each pixel, so the layers never
+        overlap). Every leaf, nested frames stored whole included."""
         instances: List[Tuple[Module, Matrix2, Vec2, float, bool, bool, bool, bool]] = []
         if mod is not None:
             instances.append((mod, a_mat, b_vec, 0.0, False, False, False, False))
         elif frame is not None:
             self._collect_leaf_instances_canvas_like(frame.id, a_mat, b_vec, 0.0, False, False, instances, 0, set())
-        rendered: List[Tuple[Image.Image, int, int, str]] = []
-        for mod, leaf_a, leaf_b, _rot, _flip_x, _flip_y, local_flip_x, local_flip_y in instances:
-            piece = compositor.render_instance(self.project, mod, leaf_a, leaf_b, self.full_image_cache,
-                                               self.module_cache, local_flip_x, local_flip_y)
-            if piece is not None:
-                rendered.append((piece[0], piece[1], piece[2], self._palette_of_module(mod)))
-        if not rendered:
-            return ()
-        left = min(x for _image, x, _y, _palette in rendered)
-        top = min(y for _image, _x, y, _palette in rendered)
-        size = (max(x + image.width for image, x, _y, _palette in rendered) - left,
-                max(y + image.height for image, _x, y, _palette in rendered) - top)
-        layers: Dict[str, Image.Image] = {}
-        for image, x, y, palette in rendered:
-            at = (x - left, y - top)
-            covered = image.getchannel("A").point(lambda value: 255 if value else 0)
-            for other, layer in layers.items():
-                if other != palette:
-                    layer.paste((0, 0, 0, 0), at, covered)
-            if palette not in layers:
-                layers[palette] = Image.new("RGBA", size, (0, 0, 0, 0))
-            layers[palette].alpha_composite(image, at)
-        out: List[Layer] = []
-        for palette, layer in layers.items():
-            box = layer.getbbox()
-            if box:
-                out.append((layer.crop(box), left + box[0], top + box[1], palette))
-        return tuple(out)
+        return compositor.palette_layers(self.project, instances, self.full_image_cache, self.module_cache,
+                                         self._palette_of_module)
 
     @staticmethod
     def _build_local_matrix(state: Dict[str, Any]) -> Matrix2x3:

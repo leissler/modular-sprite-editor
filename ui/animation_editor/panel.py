@@ -379,19 +379,22 @@ class AnimationEditorPanel(wx.Panel):
         profile = self.stage.budget_profile
         if profile is None or not anim or not anim.aframes:
             return None
-        from hardware_budget import line_summary, vram_tiles
+        from hardware_budget import line_summary, side_by_side, vram_tiles
         from ui.animation_editor.render import step_affine
-        from ui.canvas import BUDGET
+        from ui.canvas import BUDGET, whole_frames_shown
 
         worst = None
         parts = []
+        budgets = []
+        whole = whole_frames_shown(self.project, profile)
         for index, af in enumerate(anim.aframes):
             frame = self.project.get_frame(af.frame_id)
             if frame is None:
                 continue
             a, b = step_affine(af)
-            budget = BUDGET.frame_budget(self.project, frame, self.project.active_mapping, profile, a, b)
+            budget = BUDGET.frame_budget(self.project, frame, self.project.active_mapping, profile, a, b, whole)
             parts += budget.parts
+            budgets.append(budget)
             rank = (budget.over_budget(), budget.sprite_count, budget.tile_count)
             if worst is None or rank > worst[0]:
                 worst = (rank, index, budget)
@@ -400,6 +403,12 @@ class AnimationEditorPanel(wx.Panel):
         _rank, index, budget = worst
         count, pixels = budget.worst_line()
         text = f"worst step {index + 1}: {budget.sprite_count} sprites; " + line_summary(profile, count, pixels)
+        copies, limit = side_by_side(budgets)
+        if copies:  # none: one is over the limit already
+            what = (f"a line's {profile.sprites_per_line} sprites" + (f", {profile.pixels_per_line} px"
+                                                                     if profile.pixels_per_line else "")
+                    if limit == "line" else f"the screen's {profile.sprites_per_screen} sprites")
+            text += f"\nside by side: {copies} fit{'s' if copies == 1 else ''} before sprites drop ({what})"
         if profile.vram_tiles:
             text += f"\nvideo memory: {vram_tiles(parts)} tiles for the animation"
         return text, budget.over_budget()

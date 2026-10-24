@@ -78,6 +78,14 @@ class ExportTiles:
 EXPORT_TILES = ExportTiles()
 
 
+def whole_frames_shown(project: Project, profile: Optional[HardwareProfile]) -> bool:
+    """Whether the budget counts every frame whole: the profile is the project's console's and its export stores
+    whole frames (the export mode chosen last, app_services.export_mode). Frames marked Store whole count whole
+    always."""
+    return (profile is not None and bool(profile.vram_model) and profile.vram_model == project.console
+            and app_services.export_mode() == "frames_streamed")
+
+
 def memory_text(here: int, total: int, capacity: int, about: bool = True) -> str:
     """The budget readout's video memory line (``about``: the capacity depends on the game's layout)."""
     left = f"{capacity - total} left" if total <= capacity else f"{total - capacity} too many"
@@ -477,7 +485,8 @@ class FrameCanvas(BaseCanvas):
         from ui.frame_render import transform
 
         a, b = transform(self.render_flip_x, self.render_flip_y, self.render_rotation, self.frame_offset)
-        return BUDGET.frame_budget(self.project, self.frame, self.mapping, self.budget_profile, a, b)
+        return BUDGET.frame_budget(self.project, self.frame, self.mapping, self.budget_profile, a, b,
+                                   whole_frames_shown(self.project, self.budget_profile))
 
     def _draw_budget(self, gc: wx.GraphicsContext, budget: Optional[Budget]) -> None:
         """Overlay (red scanlines, hardware sprite outlines); the readout follows in _draw_budget_hud."""

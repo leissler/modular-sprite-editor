@@ -131,6 +131,15 @@ class TestMatchesSgdkExporter(unittest.TestCase):
     def test_pop_testbed(self):
         self.assertGreater(self._check(Project.from_json(os.path.join(REPO_ROOT, "examples", "pop", "PoP_WW.json"))), 500)
 
+    def test_frames_stored_whole(self):
+        """Frames stored whole are their pictures, placed and flipped like the export's: on their own, as steps that
+        move, mirror and turn them, nested in frames of parts two levels deep, with two palettes."""
+        import mixed_frames
+
+        self.assertGreater(self._check(mixed_frames.pop_mixed()), 500)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self._check(mixed_frames.nested_project(Path(tmp))), 12)
+
 
 class TestVideoMemory(unittest.TestCase):
     """Tiles the Mega Drive export keeps in video memory: each stored block once, the project's total as exported."""
@@ -205,6 +214,26 @@ class TestVideoMemory(unittest.TestCase):
             project = Project.from_json(os.path.join(REPO_ROOT, path))
             mappings = [None] + project.mappings
             self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings), self._exported_tiles(project, mappings), path)
+
+    def test_frames_stored_whole_match_the_export(self):
+        """Some frames stored whole (each mapping's pictures, the Swordfight's guard in his own mapping), and every
+        frame whole as the frames_streamed mode stores them: the budget's total is the exporter's."""
+        import export_megadrive as sg
+        import mixed_frames
+
+        project = mixed_frames.pop_mixed()
+        mappings = [None] + project.mappings
+        calc = hb.BudgetCalculator()
+        tiles = calc.export_tiles(project, mappings)
+        self.assertEqual(tiles, self._exported_tiles(project, mappings))
+        self.assertGreater(tiles, calc.export_tiles(Project.from_json(str(mixed_frames.POP)), mappings),
+                           "the pictures cost tiles")
+        nested = mixed_frames.nested_project(self.folder)
+        self.assertEqual(calc.export_tiles(nested, [None]), self._exported_tiles(nested, [None]))
+        for project in (nested, Project.from_json(str(mixed_frames.POP))):
+            ctx = sg.MegaDriveBakeContext(project, [None], self.folder / "streamed", mode="frames_streamed")
+            ctx.bake()
+            self.assertEqual(calc.export_tiles(project, [None], whole_frames=True), len(ctx.tile_data) // 32)
 
     def test_the_palette_decides_which_blocks_match(self):
         project = Project()
@@ -282,6 +311,28 @@ class TestSnes(unittest.TestCase):
                     ConsoleBake.bake(bake)  # the parts' squares, before they are packed (16x16 / 32x32 do not fit)
                     self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings, hb.profile_by_key(key)),
                                      bake.tiles_used())
+
+    def test_frames_stored_whole_like_the_snes_export(self):
+        """Frames stored whole: their pictures' squares, for any pair of sizes; every frame whole as the frames_streamed
+        mode stores them."""
+        sys.path.insert(0, os.path.join(REPO_ROOT, "examples", "snes", "tools"))
+        import export_snes
+        import mixed_frames
+        from console_bake import ConsoleBake
+
+        projects = [mixed_frames.pop_mixed(), mixed_frames.nested_project(Path(self.tmp.name))]
+        for project in projects:
+            mappings = [None] + project.mappings
+            for key in ("snes_8_16", "snes_8_32", "snes_16_32"):
+                with self.subTest(project=project.frames[0].name, setup=key):
+                    profile = hb.profile_by_key(key)
+                    bake = export_snes.SNESBakeContext(project, mappings, key)
+                    ConsoleBake.bake(bake)
+                    self.assertEqual(hb.BudgetCalculator().export_tiles(project, mappings, profile), bake.tiles_used())
+                    whole = export_snes.SNESBakeContext(project, [None], key, mode="frames_streamed")
+                    ConsoleBake.bake(whole)
+                    self.assertEqual(hb.BudgetCalculator().export_tiles(project, [None], profile, whole_frames=True),
+                                     whole.tiles_used())
 
 
 

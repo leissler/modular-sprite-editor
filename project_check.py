@@ -4,9 +4,9 @@ Tools ▸ Check Project lists the issues, every console's export shows them in i
 them. Each issue says in plain words what happens and points at the item it is about; many have a fix that repairs them
 in one go (``fix``), which the editor runs as one undoable step.
 
-A console with an export (console_exports.py) adds its own checks, named after its key: ``<key>_tile_issue(tiles)``
-(how the export's tiles fit; Check Project shows it for the project's console) and ``<key>_palette_issue(entries)``
-(how its palette entries fit), which its exporter reports too.
+A console with an export (console_exports.py) adds its own checks, named after its key: ``<key>_tile_issue(tiles,
+whole=0)`` (how the export's tiles fit, ``whole`` the frames it stores whole; Check Project shows it for the project's
+console) and ``<key>_palette_issue(entries)`` (how its palette entries fit), which its exporter reports too.
 """
 
 from __future__ import annotations
@@ -602,18 +602,29 @@ def check_project(project: Project, pixels: bool = True) -> List[Issue]:
     return sorted(issues, key=lambda issue: LEVEL_ORDER[issue.level])
 
 
-def megadrive_tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY) -> Issue:
-    """How the exported tiles fit the Mega Drive's video memory (SGDK's default layout)."""
+def whole_hint(whole: int) -> str:
+    """What frames stored whole add to a tile count (" The 12 frames stored whole ..."; "" for none)."""
+    if not whole:
+        return ""
+    if whole == 1:
+        return " The frame stored whole takes tiles of its own (Frames tab, Store whole)."
+    return f" The {whole} frames stored whole take tiles of their own (Frames tab, Store whole)."
+
+
+def megadrive_tile_issue(tiles: int, capacity: int = MD_TILE_CAPACITY, whole: int = 0) -> Issue:
+    """How the exported tiles fit the Mega Drive's video memory (SGDK's default layout); ``whole``: the frames the
+    export stores whole."""
     if tiles > capacity:
         return Issue(
             ERROR, "too-many-tiles",
             f"The sprites need {tiles} tiles, but only about {capacity} fit in video memory: the runtime would refuse "
             "to load them (ms_tiles_fit() is false) and draw nothing. Share more parts (Auto Modularize) or split the "
-            "project.",
+            "project." + whole_hint(whole),
         )
     level = WARNING if tiles > capacity * 3 // 4 else INFO
     return Issue(level, "tiles", f"The sprites need {tiles} of about {capacity} tiles of video memory, leaving "
-                                 f"{capacity - tiles} for backgrounds and everything else.")
+                                 f"{capacity - tiles} for backgrounds and everything else."
+                                 + (whole_hint(whole) if level == WARNING else ""))
 
 
 def _players(count: int) -> str:
@@ -677,18 +688,19 @@ def snes_stream_issues(slot_tiles: int, scene_slot_tiles: int, largest_upload: i
     return issues
 
 
-def snes_tile_issue(tiles: int, capacity: int = SNES_TILE_CAPACITY) -> Issue:
-    """How the exported tiles fit the SNES's two sprite tables (the SNES export keeps every one in video memory)."""
+def snes_tile_issue(tiles: int, capacity: int = SNES_TILE_CAPACITY, whole: int = 0) -> Issue:
+    """How the exported tiles fit the SNES's two sprite tables (the SNES export keeps every one in video memory);
+    ``whole``: the frames the export stores whole."""
     if tiles > capacity:
         return Issue(
             ERROR, "too-many-tiles",
             f"The sprites need {tiles} tiles, but the SNES's two sprite tables hold {capacity}: the SNES export cannot "
             "keep them in video memory. Share more parts (Auto Modularize), try other sprite sizes (Console, above "
-            "the tabs) or split the project.",
+            "the tabs) or split the project." + whole_hint(whole),
         )
     level = WARNING if tiles > capacity * 3 // 4 else INFO
     return Issue(level, "tiles", f"The sprites need {tiles} of the {capacity} sprite tiles, leaving {capacity - tiles} "
-                                 "for the game's own sprites.")
+                                 "for the game's own sprites." + (whole_hint(whole) if level == WARNING else ""))
 
 
 def console_issue(project: Project, target: consoles.Console, detail: str = "") -> Optional[Issue]:

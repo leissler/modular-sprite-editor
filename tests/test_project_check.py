@@ -257,6 +257,9 @@ class ImagesTest(unittest.TestCase):
         self.assertEqual(pc.snes_tile_issue(300).level, pc.INFO)
         self.assertEqual(pc.snes_tile_issue(400).level, pc.WARNING, "three quarters of the two sprite tables")
         self.assertEqual(pc.snes_tile_issue(pc.SNES_TILE_CAPACITY + 1).level, pc.ERROR, "the export cannot hold them")
+        self.assertIn("The 2 frames stored whole take tiles of their own", pc.megadrive_tile_issue(2000, whole=2).text)
+        self.assertIn("The frame stored whole takes tiles of its own", pc.snes_tile_issue(400, whole=1).text)
+        self.assertNotIn("stored whole", pc.megadrive_tile_issue(309, whole=2).text, "a note names no cause")
 
 
 if __name__ == "__main__":

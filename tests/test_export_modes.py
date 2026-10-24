@@ -11,6 +11,7 @@ from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import compositor  # noqa: E402
 import console_bake  # noqa: E402
@@ -146,6 +147,110 @@ class WholeFramesTest(unittest.TestCase):
         """PoP's frames are many parts drawn over each other; whole, each is one picture of its one palette."""
         frame_parts = [self.bake.render_frame_parts(r) for r in self.bake.frame_render_frames]
         self.assertTrue(all(len(parts) <= 1 for parts in frame_parts))
+
+
+class StoredWholeTest(unittest.TestCase):
+    """Frames marked store_whole are their pictures wherever they show, every other frame its parts: every frame,
+    module, step and scene sample of each mapping draws what the editor draws."""
+
+    def assertDraws(self, bake, render, expected, what, whole):
+        image, left, top, twice = _rebuild(bake, bake.render_frame_parts(render))
+        if whole:
+            self.assertEqual(twice, 0, f"{what}: a whole frame's pictures overlap")
+        got, at = _opaque(image) if image is not None else (None, (0, 0))
+        want, want_at = _opaque(expected[0]) if expected is not None else (None, (0, 0))
+        if want is None:
+            self.assertIsNone(got, what)
+            return
+        self.assertIsNotNone(got, what)
+        self.assertEqual((left + at[0], top + at[1]), (expected[1] + want_at[0], expected[2] + want_at[1]), what)
+        self.assertEqual(got.size, want.size, what)
+        self.assertIsNone(ImageChops.difference(got, want).getbbox(), f"{what}: other pixels")
+
+    def check(self, project, mappings):
+        from ui.frame_render import FrameRenderer
+
+        bake = PictureBake(project, mappings)
+        bake.bake()
+        renderer, frames = FrameRenderer(), project.frames
+        step = sample = 0
+        for m, mapping in enumerate(mappings):
+            for i, frame in enumerate(frames):
+                render = bake.frame_render_frames[m * len(frames) + i]
+                self.assertDraws(bake, render, renderer.render(project, frame, mapping), f"{frame.name}, {m}",
+                                 frame.store_whole)
+                if frame.store_whole:
+                    parts = bake.render_frame_parts(render)
+                    self.assertEqual(len(parts), len({bake.palettes_of[stored] for stored, *_rest in parts}),
+                                     f"{frame.name}: a picture per palette")
+            for anim in project.animations:
+                for af in anim.aframes:
+                    frame = project.get_frame(af.frame_id)
+                    a = compositor.mat_mul(compositor.rotation_matrix(float(af.rotation_degrees)),
+                                           compositor.flip_matrix(bool(af.flip_x), bool(af.flip_y)))
+                    b = (float(af.offset[0]), float(af.offset[1]))
+                    self.assertDraws(bake, bake.anim_steps[step][0], renderer.render(project, frame, mapping, a, b),
+                                     f"{anim.name} step, {m}", frame.store_whole)
+                    step += 1
+            for scene in project.timeline_scenes:
+                for index in range(max(1, scene.duration_in_frames())):
+                    pieces = [renderer.render(project, frame, use_mapping, a, b)
+                              for frame, use_mapping, a, b in _scene_objects(project, scene, mapping, index)]
+                    self.assertDraws(bake, bake.scene_samples[sample], _composite(pieces), f"{scene.name} {index}",
+                                     False)
+                    sample += 1
+        self.assertEqual((step, sample), (len(bake.anim_steps), len(bake.scene_samples)))
+        return bake
+
+    def test_pop_with_frames_stored_whole(self):
+        from mixed_frames import pop_mixed
+
+        project = pop_mixed()
+        bake = self.check(project, [None] + list(project.mappings))
+        whole = [frame for frame in project.frames if frame.store_whole]
+        self.assertEqual(len(whole), 50)
+        self.assertTrue(any(hflip for _s, _x, _y, hflip, _v in bake.parts), "mirrored steps flip the pictures")
+
+    def test_nested_mirrored_and_turned(self):
+        from mixed_frames import nested_project
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = nested_project(Path(tmp))
+            bake = self.check(project, [None])
+            both = bake.render_frame_parts(bake.frame_render_frames[0])
+            self.assertEqual(sorted(bake.palettes_of[stored] for stored, *_rest in both), ["cool", "warm"])
+            nests = bake.render_frame_parts(bake.frame_render_frames[2])
+            self.assertEqual(len(nests), 2 + 4 * 2, "two module parts and the whole frame's two pictures four times")
+
+
+def _scene_objects(project, scene, mapping, index):
+    """(frame, mapping, a, b) of each object a scene sample shows, in the order the bake draws them (later on top)."""
+    from models import state_shows
+    from ui.scene_editor import ops as scene_ops
+
+    states = scene_ops.evaluate_states(project, scene, float(index) / float(max(1, int(scene.fps))))
+    cache = {}
+    for obj in sorted(scene.objects, key=lambda item: (item.draw_order, item.name.lower(), item.id)):
+        state = states.get(obj.id)
+        if state_shows(state):
+            offset, rotation, flip_x, flip_y = hardware_budget._decompose(scene_ops.world_matrix(scene, states, obj.id,
+                                                                                               cache))
+            a, b = hardware_budget.frame_transform(offset, rotation, flip_x, flip_y)
+            frame = project.get_frame(str(state.get("frame_id") or state.get("source_id")))
+            yield frame, scene.object_mapping(project, obj.id, mapping), a, b
+
+
+def _composite(pieces):
+    """Pictures (image, left, top) drawn in order, later ones on top: (image, left, top), or None."""
+    pieces = [(image, x, y) for image, x, y in pieces if image.getbbox()]
+    if not pieces:
+        return None
+    left, top = min(x for _i, x, _y in pieces), min(y for _i, _x, y in pieces)
+    size = (max(x + i.width for i, x, _y in pieces) - left, max(y + i.height for i, _x, y in pieces) - top)
+    canvas = Image.new("RGBA", size, (0, 0, 0, 0))
+    for image, x, y in pieces:
+        canvas.alpha_composite(image.convert("RGBA"), (x - left, y - top))
+    return canvas, left, top
 
 
 class LayersTest(unittest.TestCase):

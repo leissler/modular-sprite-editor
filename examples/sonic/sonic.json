@@ -1,5 +1,5 @@
 {
-  "format_version": 8,
+  "format_version": 9,
   "name": "New Project",
   "images": [
     {
@@ -1024,7 +1024,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2006",
@@ -1057,7 +1058,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2001",
@@ -1102,7 +1104,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x203B",
@@ -1147,7 +1150,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x203F",
@@ -1192,7 +1196,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x204F",
@@ -1237,7 +1242,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2040",
@@ -1282,7 +1288,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20DF",
@@ -1339,7 +1346,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2041",
@@ -1384,7 +1392,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2043",
@@ -1441,7 +1450,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2017",
@@ -1498,7 +1508,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x201A",
@@ -1567,7 +1578,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2018",
@@ -1612,7 +1624,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x201C",
@@ -1669,7 +1682,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2024",
@@ -1714,7 +1728,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2061",
@@ -1759,7 +1774,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x206E",
@@ -1792,7 +1808,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2077",
@@ -1837,7 +1854,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20D9",
@@ -1894,7 +1912,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20DA",
@@ -1963,7 +1982,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2029",
@@ -1996,7 +2016,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x202A",
@@ -2029,7 +2050,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2035",
@@ -2098,7 +2120,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2036",
@@ -2167,7 +2190,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x0207",
@@ -2212,7 +2236,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2086",
@@ -2245,7 +2270,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2085",
@@ -2290,7 +2316,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20D1",
@@ -2323,7 +2350,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20D3",
@@ -2380,7 +2408,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20D4",
@@ -2425,7 +2454,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2098",
@@ -2482,7 +2512,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x209A",
@@ -2575,7 +2606,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2027",
@@ -2620,7 +2652,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x202D",
@@ -2653,7 +2686,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x202E",
@@ -2698,7 +2732,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20BB",
@@ -2755,7 +2790,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x20BC",
@@ -2812,7 +2848,8 @@
         }
       ],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     },
     {
       "id": "0x2002",
@@ -2833,7 +2870,8 @@
       ],
       "collision_rects": [],
       "control_points": [],
-      "group": ""
+      "group": "",
+      "store_whole": false
     }
   ],
   "animations": [

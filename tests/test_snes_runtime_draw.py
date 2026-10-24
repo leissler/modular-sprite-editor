@@ -146,6 +146,93 @@ class SNESRuntimeTest(unittest.TestCase):
                     self.assertEqual(shown, _editor_pixels(ctx, image, hx, hy, x, y),
                                      f"{path.name}: module '{module.name}' mirrored {flip} at {x},{y}")
 
+    def test_frames_stored_whole(self):
+        """Frames stored whole are drawn as their pictures, the others as parts: PoP with its turns stored whole, every
+        frame as it is and mirrored and the turns for the hero and the guard (whose mapping changes the pictures);
+        frames of two palettes stored whole, nested in parts, mirrored and turned, and an animation that turns them."""
+        import mixed_frames
+        from ui.frame_render import FrameRenderer, transform
+
+        sys.path.insert(0, str(REPO_ROOT / "tests"))
+        from test_megadrive_runtime_draw import _palette_of_pixels
+
+        renderer = FrameRenderer()
+        project = mixed_frames.pop_mixed(mixed_frames.TURNS, every=0)
+        guard = next(m for m in project.mappings if m.name == "Normal")
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder)
+            self.assertEqual(ctx.mapping_ids[1], guard.id)
+            frames = range(len(project.frames))
+            draws = [(f, 0, x, y) for f in frames for x, y in POSITIONS] + \
+                    [(f, flip, x, y) for f in frames for flip in (1, 2, 3) for x, y in POSITIONS[:2]]
+            turns = [i for i, a in enumerate(project.animations) if a.name in mixed_frames.TURNS]
+            plays = [(anim, tick) for anim in turns for tick in range(0, 90, 3)]
+            commands = [f"flipped {f} 0 {flip} {x} {y}" if flip else f"frame {f} 0 {x} {y}" for f, flip, x, y in draws]
+            commands += [f"versus {anim} 1 0 {tick} 80 160 176 160" for anim, tick in plays]
+            head, lines = snes_host.run(exe, folder, commands)
+            vram = snes_host.vram_bytes(head)
+            for (f, flip, x, y), line in zip(draws, lines):
+                draw = snes_host.parse_draw(line)
+                self.assertEqual(draw["dropped"], 0)
+                image, hx, hy = _mirrored(*renderer.render(project, project.frames[f], None)[:3], flip)
+                shown = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
+                self.assertEqual(shown, _editor_pixels(ctx, image, int(hx), int(hy), x, y),
+                                 f"'{project.frames[f].name}' mirrored {flip} at {x},{y}")
+            steps = set()
+            for (anim, _tick), line in zip(plays, lines[len(draws):]):
+                _label, step, mapping, swap, _what, sprites, dropped, oam = line.split(" ")
+                self.assertEqual((mapping, swap, dropped), ("0", "0", "0"))
+                af = project.animations[anim].aframes[int(step)]
+                a, b = transform(af.flip_x, af.flip_y, af.rotation_degrees, af.offset)
+                expected = {}
+                for mapping, (x, y) in ((guard, (176, 160)), (None, (80, 160))):  # the hero is drawn first: in front
+                    image, hx, hy = renderer.render(project, project.get_frame(af.frame_id), mapping, a, b)
+                    expected.update(_editor_pixels(ctx, image, int(hx), int(hy), x, y))
+                shown = snes_host.rasterise(snes_host.decode_oam(oam)[:int(sprites)], vram, ctx.small, ctx.large)
+                self.assertEqual(shown, expected, f"{project.animations[anim].name} step {step}")
+                steps.add((anim, int(step)))
+            self.assertEqual(len(steps), sum(len(project.animations[a].aframes) for a in turns))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            project = mixed_frames.nested_project(folder)
+            project.console, project.console_setup = "snes", "snes_16_32"  # twice in one sprite table: under 128
+            ctx, exe = _export_and_build(project, folder / "out", "none")
+            self.assertEqual((ctx.small, ctx.large), (16, 32))
+            anim = project.animations[0]
+            draws = [(f, x, y) for f in range(len(project.frames)) for x, y in POSITIONS]
+            commands = [f"frame {f} 0 {x} {y}" for f, x, y in draws] + \
+                       [f"versus 0 0 0 {tick} 60 120 180 100" for tick in range(0, 84, 4)]
+            head, lines = snes_host.run(exe, folder / "out", commands)
+            vram = snes_host.vram_bytes(head)
+            identity = ((1.0, 0.0), (0.0, 1.0)), (0.0, 0.0)
+            for (f, x, y), line in zip(draws, lines):
+                frame = project.frames[f]
+                image, hx, hy = renderer.render(project, frame, None)
+                draw = snes_host.parse_draw(line)
+                self.assertEqual(draw["dropped"], 0)
+                shown = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
+                self.assertEqual(shown, _editor_pixels(ctx, image, int(hx), int(hy), x, y,
+                                                       _palette_of_pixels(project, frame, None, identity)),
+                                 f"'{frame.name}' at {x},{y}")
+            steps = set()
+            for line in lines[len(draws):]:
+                _label, step, _mapping, _swap, _what, sprites, dropped, oam = line.split(" ")
+                self.assertEqual(dropped, "0")
+                af = anim.aframes[int(step)]
+                a, b = transform(af.flip_x, af.flip_y, af.rotation_degrees, af.offset)
+                frame = project.get_frame(af.frame_id)
+                image, hx, hy = renderer.render(project, frame, None, a, b)
+                palette_at = _palette_of_pixels(project, frame, None, (a, b))
+                expected = {}
+                for x, y in ((180, 100), (60, 120)):
+                    expected.update(_editor_pixels(ctx, image, int(hx), int(hy), x, y, palette_at))
+                shown = snes_host.rasterise(snes_host.decode_oam(oam)[:int(sprites)], vram, ctx.small, ctx.large)
+                self.assertEqual(shown, expected, f"step {step}")
+                steps.add(int(step))
+            self.assertEqual(steps, set(range(len(anim.aframes))))
+
     def test_the_swordfight_and_a_recoloured_guard(self):
         """The scene draws its objects with their own mapping and swap; ms_draw_anim_player_as recolours one draw and
         leaves the active mapping and swap as they were."""

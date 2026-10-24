@@ -334,6 +334,8 @@ class FrameEditorPanel(wx.Panel):
             used = bool(anims.get(f.id) or nested.get(f.id))
             if not used:
                 bits = [bits[0], "unused"]
+            if f.store_whole:
+                bits.insert(1, "whole")
             if f.group and show_group:
                 bits.append(f.group)
             rows.append(Row(f.id, f.name, " · ".join(bits), dim=not used))
@@ -597,6 +599,17 @@ class FrameEditorPanel(wx.Panel):
         add("Copy Points to All Frames…", lambda: self._markers_to_all("points"), bool(frame.control_points))
         menu.AppendSeparator()
         group_menu(self, menu, self.project.frames, frame.group, lambda name: self._on_frame_field("group", name))
+        menu.AppendSeparator()
+        whole = menu.AppendCheckItem(wx.ID_ANY, "Store Whole")
+        whole.Check(frame.store_whole)
+        self.Bind(wx.EVT_MENU, lambda e: self._on_frame_field("store_whole", not frame.store_whole), whole)
+        if frame.group:
+            members = ops.group_frames(self.project, frame.group)
+            name = frame.group.replace("&", "&&")
+            add(f"Store Every Frame of '{name}' Whole", lambda: self._store_group_whole(True),
+                any(not member.store_whole for member in members))
+            add(f"Store Every Frame of '{name}' as Parts", lambda: self._store_group_whole(False),
+                any(member.store_whole for member in members))
         self.browser.list.PopupMenu(menu)
         menu.Destroy()
 
@@ -642,6 +655,22 @@ class FrameEditorPanel(wx.Panel):
             self._commit()
             app_services.show_status(f"'{frame.name}' is in the group '{frame.group}'" if frame.group
                                      else f"'{frame.name}' has no group")
+        elif frame is not None and field == "store_whole" and bool(value) != frame.store_whole:
+            ops.store_whole([frame], bool(value))
+            self._commit()
+            app_services.show_status(f"Console exports store '{frame.name}' whole: a picture per palette"
+                                     if frame.store_whole else f"Console exports store '{frame.name}' as its parts")
+
+    def _store_group_whole(self, whole: bool) -> None:
+        """Every frame of the selected frame's group stored whole, or as parts."""
+        frame = self.frame()
+        if frame is None or not frame.group:
+            return
+        changed = ops.store_whole(ops.group_frames(self.project, frame.group), whole)
+        if changed:
+            self._commit()
+        app_services.show_status(f"{changed} frame{'s' if changed != 1 else ''} of '{frame.group}' now stored "
+                                 f"{'whole' if whole else 'as parts'}")
 
     def _on_frame_tool(self, name: str) -> None:
         frame = self.frame()

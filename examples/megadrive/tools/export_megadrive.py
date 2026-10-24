@@ -1377,7 +1377,7 @@ def export_project(
         issues.extend(project_check.megadrive_stream_issues(bake.slot_tiles, bake.scene_slot_tiles,
                                                             max(bake.slot_tiles, bake.scene_slot_tiles) * 32))
     else:
-        issues.append(project_check.megadrive_tile_issue(tiles))
+        issues.append(project_check.megadrive_tile_issue(tiles, whole=bake.marked_whole()))
     lines = project_check.megadrive_palette_issue(len(bake.palette_entries))
     if lines is not None:
         issues.append(lines)
@@ -1405,6 +1405,8 @@ def export_project(
     if bake.streamed:
         summary.update(mode=mode, slot_tiles=bake.slot_tiles, scene_slot_tiles=bake.scene_slot_tiles,
                        load_lists=len(bake.load_lists), load_entries=len(bake.load_entries))
+    if bake.marked_whole():
+        summary["frames_stored_whole"] = bake.marked_whole()
     order = project_check.LEVEL_ORDER
     return ExportResult(summary, sorted(issues, key=lambda issue: order[issue.level]), files)
 

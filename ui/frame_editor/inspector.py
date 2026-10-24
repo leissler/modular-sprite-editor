@@ -57,6 +57,17 @@ class FrameInspector(wx.ScrolledWindow):
         row(grid, p, "Size", self.size)
         self.used_by = dim_text(p)
         row(grid, p, "Used by", self.used_by)
+        self.store_whole = wx.CheckBox(p, label="Store whole")
+        self.store_whole.SetToolTip("Console exports store this frame as one picture per palette, cut into the fewest "
+                                    "hardware sprites, instead of its parts: fewer sprites on screen for a frame of "
+                                    "many parts (a platform, a torch), more tiles in the cartridge and video memory, "
+                                    "and each mapping that changes its modules stores its pictures again. Right-click "
+                                    "the frame in the list to store its whole group.")
+        self.whole_info = dim_text(p)
+        export_box = wx.BoxSizer(wx.VERTICAL)
+        export_box.Add(self.store_whole, 0)
+        export_box.Add(self.whole_info, 0, wx.TOP, 2)
+        row(grid, p, "Export", export_box)
         self.btn_mirror_h = small_button(p, "Mirror H", "Mirror the whole frame left ↔ right about its origin (parts, hitboxes, points)", lambda: self._frame_tool("mirror_x"))
         self.btn_mirror_v = small_button(p, "Mirror V", "Mirror the whole frame top ↕ bottom about its origin", lambda: self._frame_tool("mirror_y"))
         row(grid, p, "Whole frame", hbox(self.btn_mirror_h, self.btn_mirror_v))
@@ -166,6 +177,12 @@ class FrameInspector(wx.ScrolledWindow):
         self.group.Bind(wx.EVT_TEXT_ENTER, frame_group)
         self.group.Bind(wx.EVT_KILL_FOCUS, lambda e: (e.Skip(), frame_group()))
 
+        def frame_whole(_event=None) -> None:
+            if not self._updating and self.frame and self.on_frame_field:
+                self.on_frame_field("store_whole", self.store_whole.GetValue())
+
+        self.store_whole.Bind(wx.EVT_CHECKBOX, frame_whole)
+
         def part(field: str, value: Any) -> None:
             if not self._updating and self.on_part_field:
                 self.on_part_field(field, value)
@@ -239,6 +256,9 @@ class FrameInspector(wx.ScrolledWindow):
         self.size.SetLabel(f"{size[0]} × {size[1]} px" if size else "—")
         self.used_by.SetLabel(ops.describe_references(ops.frame_references(project, frame.id)))
         self.used_by.Wrap(px(190))
+        self.store_whole.SetValue(frame.store_whole)
+        self.whole_info.SetLabel(_whole_info(project, frame))
+        self.whole_info.Wrap(px(190))
         has_parts = bool(frame.fmodules)
         self.btn_feet.Enable(has_parts)
         self.btn_centre.Enable(has_parts)
@@ -339,6 +359,16 @@ class FrameInspector(wx.ScrolledWindow):
             if dlg.ShowModal() == wx.ID_OK:
                 c = dlg.GetColourData().GetColour()
                 self._type("colour", type_id, (c.Red(), c.Green(), c.Blue()))
+
+
+def _whole_info(project: Project, frame: Frame) -> str:
+    """The frame's hardware sprites as parts and whole on the project's console (Store whole's trade)."""
+    if not frame.fmodules:
+        return ""
+    import hardware_budget
+    from ui.canvas import BUDGET
+
+    return ops.whole_comparison(project, frame, project.active_mapping, BUDGET, hardware_budget.project_profile(project))
 
 
 def _short(text: str, limit: int) -> str:

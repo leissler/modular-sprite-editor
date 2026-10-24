@@ -218,13 +218,26 @@ class TestFormatMigration(unittest.TestCase):
                                ("gameboy", "gb_8x8"), ("no such console", "md_h40")):
             with self.subTest(console=console):
                 migrated, notes = migrate_project_dict({"format_version": 7, "console": console, "frames": []})
-                self.assertEqual((migrated["format_version"], migrated["console_setup"]), (8, setup))
+                self.assertEqual((migrated["format_version"], migrated["console_setup"]), (PROJECT_FORMAT_VERSION, setup))
                 self.assertEqual(notes, [])
         kept, _ = migrate_project_dict({"format_version": 7, "console": "snes", "console_setup": "snes_16_32"})
         self.assertEqual(kept["console_setup"], "snes_16_32")
         project = Project.from_dict({"format_version": 8, "console": "snes", "console_setup": "snes_32_64"})
         self.assertEqual((project.console, project.console_setup), ("snes", "snes_32_64"))
         self.assertEqual(Project.from_dict(project.to_dict()).console_setup, "snes_32_64", "saved as it is")
+
+    def test_v8_to_v9_every_frame_stays_parts(self):
+        frames = [{"id": "f1", "name": "parts", "fmodules": []}, {"id": "f2", "name": "kept", "store_whole": True}]
+        migrated, notes = migrate_project_dict({"format_version": 8, "console": "megadrive", "frames": frames})
+        self.assertEqual(migrated["format_version"], 9)
+        self.assertEqual([f["store_whole"] for f in migrated["frames"]], [False, True])
+        self.assertEqual(notes, [])
+        project = Project.from_dict(migrated)
+        self.assertEqual([f.store_whole for f in project.frames], [False, True])
+        project.frames[0].store_whole = True
+        again = Project.from_dict(json.loads(json.dumps(project.to_dict())))
+        self.assertEqual([f.store_whole for f in again.frames], [True, True], "saved and loaded")
+        self.assertTrue(again.frames[0].clone().store_whole, "a duplicate keeps it")
 
     def test_current_version_is_idempotent(self):
         migrated, _ = migrate_project_dict(_legacy_project_dict())

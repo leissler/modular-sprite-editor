@@ -36,6 +36,11 @@ baked, and video memory is not counted:
   sprite tiles for 128 sprites): guillotine cuts of the cell, every piece one shape (which may stick out past the
   pixels) or two smaller pieces. A line has 1210 drawing cycles, one per pixel of an ordinary sprite.
 
+A frame stored whole (``Frame.store_whole``, or every frame in the export mode that stores them whole) is counted as the
+exports store it: one picture per palette (``compositor.palette_layers``), each a part of its own, cut and stored like
+any part; moved or mirrored, its upright pictures with hardware flips, turned, pictures of its own
+(``ConsoleBake._whole_frame_parts``). Nested in a frame of parts it is drawn that way in its place.
+
 The cuts themselves live in ``sprite_cut`` (shared with the console exporters and Auto Modularize).
 
 No wx here: the editor draws the result, tests check it.
@@ -43,6 +48,7 @@ No wx here: the editor draws the result, tests check it.
 
 from __future__ import annotations
 
+import hashlib
 import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -132,6 +138,28 @@ def line_summary(profile: HardwareProfile, count: int, pixels: int) -> str:
     consoles whose lines only count sprites)."""
     text = f"busiest line {count}/{profile.sprites_per_line} sprites"
     return text + (f", {pixels}/{profile.pixels_per_line} px" if profile.pixels_per_line else "")
+
+
+def side_by_side(budgets: Iterable["Budget"]) -> Tuple[int, str]:
+    """How many copies of what these budgets show (an animation's steps, each copy at any of them) fit side by side
+    before sprites drop: (copies, the limit that stops more: "line" or "screen"). Copies side by side add up on the
+    lines they share: the busiest line's sprites and pixels against a line's, every copy's sprites against the
+    screen's. A game's real limit is a few characters at once, not one frame."""
+    budgets = list(budgets)
+    if not budgets:
+        return 0, "line"
+    profile = budgets[0].profile
+    count = pixels = most = 0
+    for budget in budgets:
+        line_count, line_pixels = budget.worst_line()
+        count, pixels, most = max(count, line_count), max(pixels, line_pixels), max(most, budget.sprite_count)
+    if not most:
+        return 0, "line"
+    on_line = profile.sprites_per_line // max(1, count)
+    if profile.pixels_per_line and pixels:
+        on_line = min(on_line, profile.pixels_per_line // pixels)
+    on_screen = profile.sprites_per_screen // most
+    return (on_line, "line") if on_line <= on_screen else (on_screen, "screen")
 
 
 @dataclass
@@ -247,6 +275,8 @@ class BudgetCalculator:
         self._nearest: Dict[str, Dict[palettes.RGB, int]] = {}
         self._vram: Dict[Any, Tuple[Tuple[int, int], ...]] = {}
         self._block_ids: Dict[bytes, int] = {}
+        # Frames stored whole: their pictures per palette, by what they are drawn from (see _layers).
+        self._layers: Dict[Any, Tuple[compositor.Layer, ...]] = {}
 
     def clear(self) -> None:
         self.generation += 1
@@ -260,6 +290,7 @@ class BudgetCalculator:
         self._nearest.clear()
         self._vram.clear()
         self._block_ids.clear()
+        self._layers.clear()
 
     # ------------------------------------------------------------------ public
     def frame_budget(
@@ -270,8 +301,10 @@ class BudgetCalculator:
         profile: HardwareProfile,
         a: Matrix = IDENTITY,
         b: Tuple[float, float] = (0.0, 0.0),
+        whole_frames: bool = False,
     ) -> Budget:
-        return Budget(profile, self.frame_parts(project, frame, mapping, profile, a, b) if frame else [])
+        parts = self.frame_parts(project, frame, mapping, profile, a, b, whole_frames) if frame else []
+        return Budget(profile, parts)
 
     def frame_parts(
         self,
@@ -281,12 +314,35 @@ class BudgetCalculator:
         profile: HardwareProfile,
         a: Matrix = IDENTITY,
         b: Tuple[float, float] = (0.0, 0.0),
+        whole_frames: bool = False,
     ) -> List[HwPart]:
+        """The frame's parts as the export draws them: module parts through nested frames, a frame stored whole as its
+        pictures (``whole_frames``: every frame, as the export mode that stores them whole)."""
         self._sync_palettes(project)
+        if whole_frames or frame.store_whole:
+            return self._whole_parts(project, frame, None, mapping, profile, a, b)
+        return self._parts(project, frame, mapping, profile, a, b)
+
+    def whole_or_parts(self, project: Project, frame: Frame, mapping: Optional[ModuleMapping],
+                       profile: HardwareProfile) -> Tuple[Budget, Budget]:
+        """The frame stored as its parts (frames it nests that are stored whole stay so) and stored whole, whichever
+        it is marked: what Store whole changes (the Frames inspector)."""
+        self._sync_palettes(project)
+        return (Budget(profile, self._parts(project, frame, mapping, profile, IDENTITY, (0.0, 0.0))),
+                Budget(profile, self._whole_parts(project, frame, None, mapping, profile, IDENTITY, (0.0, 0.0))))
+
+    def _parts(self, project: Project, frame: Frame, mapping: Optional[ModuleMapping], profile: HardwareProfile,
+               a: Matrix, b: Tuple[float, float]) -> List[HwPart]:
+        """A frame stored as its parts: module parts through nested frames, a nested frame stored whole as its
+        pictures in its place."""
         instances: List[Any] = []
-        compositor.collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set())
+        compositor.collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set(),
+                                          whole=True)
         parts: List[HwPart] = []
         for mod, a_mat, b_vec, _rot, _fx, _fy, local_fx, local_fy in instances:
+            if isinstance(mod, Frame):
+                parts += self._whole_parts(project, mod, None, mapping, profile, a_mat, b_vec)
+                continue
             part = self._leaf_part(project, mod, a_mat, b_vec, local_fx, local_fy, profile)
             if part is not None:
                 parts.append(part)
@@ -300,19 +356,25 @@ class BudgetCalculator:
         profile: HardwareProfile,
         a: Matrix = IDENTITY,
         b: Tuple[float, float] = (0.0, 0.0),
+        whole_frames: bool = False,
     ) -> List[HwPart]:
+        """A module drawn on its own: one part (in the export mode that stores frames whole, its picture cropped to
+        what shows, like a frame's)."""
         self._sync_palettes(project)
         mod = compositor.resolve_module(project, module_id, mapping)
         if mod is None:
             return []
+        if whole_frames:
+            return self._whole_parts(project, None, mod, mapping, profile, a, b)
         part = self._leaf_part(project, mod, a, b, False, False, profile)
         return [part] if part else []
 
     def export_tiles(self, project: Project, mappings: Sequence[Optional[ModuleMapping]],
-                     profile: Optional[HardwareProfile] = None) -> int:
+                     profile: Optional[HardwareProfile] = None, whole_frames: bool = False) -> int:
         """Tiles of video memory the export for the profile's console (the Mega Drive's by default) needs for the whole
         project: every module, frame, animation step and scene sample for each mapping, as ``ConsoleBake.bake``
-        stores them."""
+        stores them (frames stored whole as their pictures; ``whole_frames``: every frame, the cartridge's tiles in
+        the export mode that stores them whole)."""
         if profile is None or not profile.vram_model:
             profile = MEGA_DRIVE_H40  # the stored blocks do not depend on the screen mode
         blocks: Dict[int, int] = {}
@@ -325,14 +387,15 @@ class BudgetCalculator:
             key = (frame.id, mapping.id if mapping else None, a) if whole else None
             found = seen.get(key) if key is not None else None
             if found is None:
-                found = tuple(pair for part in self.frame_parts(project, frame, mapping, profile, a, b) for pair in part.vram)
+                found = tuple(pair for part in self.frame_parts(project, frame, mapping, profile, a, b, whole_frames)
+                              for pair in part.vram)
                 if key is not None:
                     seen[key] = found
             blocks.update(found)
 
         for mapping in mappings:
             for mod in project.modules:
-                for part in self.module_parts(project, mod.id, mapping, profile):
+                for part in self.module_parts(project, mod.id, mapping, profile, whole_frames=whole_frames):
                     blocks.update(part.vram)
             for frame in project.frames:
                 add_frame(frame, mapping)
@@ -346,7 +409,7 @@ class BudgetCalculator:
                 for uses in scene_uses(project, scene, mapping):
                     for kind, source, use_mapping, a, b in uses:
                         if kind == "module":
-                            for part in self.module_parts(project, source, use_mapping, profile, a, b):
+                            for part in self.module_parts(project, source, use_mapping, profile, a, b, whole_frames):
                                 blocks.update(part.vram)
                         else:
                             add_frame(source, use_mapping, a, b)
@@ -475,6 +538,55 @@ class BudgetCalculator:
                       self._image_blocks(key, image, profile))
         if profile.vram_model:
             part.vram = self._stored_blocks(key, image, self._palette_of(mod), profile)
+        return part
+
+    def _whole_parts(self, project: Project, frame: Optional[Frame], mod: Any, mapping: Optional[ModuleMapping],
+                     profile: HardwareProfile, a: Matrix, b: Tuple[float, float]) -> List[HwPart]:
+        """A frame stored whole (or, in the export mode that stores frames whole, a module drawn on its own) as the
+        exports place its pictures (``ConsoleBake._whole_frame_parts``): moved or mirrored, its upright pictures with
+        hardware flips, mirrored about its origin; turned, pictures of their own."""
+        geom = _axis_flip(a)
+        if geom is None:
+            return [self._layer_part(image, x, y, False, False, palette, profile)
+                    for image, x, y, palette in self._whole_layers(project, frame, mod, mapping, a, b)]
+        hflip, vflip = geom
+        ox, oy = int(round(b[0])), int(round(b[1]))
+        parts: List[HwPart] = []
+        for image, x, y, palette in self._whole_layers(project, frame, mod, mapping, IDENTITY, (0.0, 0.0)):
+            pad_w, pad_h = _pad(image.width, profile), _pad(image.height, profile, 1)
+            parts.append(self._layer_part(image, ox - x - pad_w if hflip else ox + x, oy - y - pad_h if vflip else oy + y,
+                                          hflip, vflip, palette, profile))
+        return parts
+
+    def _whole_layers(self, project: Project, frame: Optional[Frame], mod: Any, mapping: Optional[ModuleMapping],
+                      a: Matrix, b: Tuple[float, float]) -> Tuple[compositor.Layer, ...]:
+        """The frame's (or the module's) pictures per palette under a transform (``compositor.palette_layers``), kept
+        while its leaves, their modules and palettes stay the same."""
+        instances: List[Any] = []
+        if mod is not None:
+            instances.append((mod, a, b, 0.0, False, False, False, False))
+        elif frame is not None:
+            compositor.collect_leaf_instances(project, frame.id, mapping, a, b, 0.0, False, False, instances, 0, set())
+        for leaf in instances:
+            self._module_image(project, leaf[0])  # forgets the picture of a module edited since
+        key = tuple((leaf[0].id, self._module_keys.get(leaf[0].id), self._palette_of(leaf[0]), leaf[1], leaf[2],
+                     leaf[6], leaf[7]) for leaf in instances)
+        found = self._layers.get(key)
+        if found is None:
+            if len(self._layers) > 1024:
+                self._layers.clear()  # pictures of frames as they were while being edited
+            found = self._layers[key] = compositor.palette_layers(project, instances, self._images, self._modules,
+                                                                  self._palette_of)
+        return found
+
+    def _layer_part(self, image: Any, x: int, y: int, hflip: bool, vflip: bool, palette: str,
+                    profile: HardwareProfile) -> HwPart:
+        """One picture of a frame stored whole, as a part: padded, cut and stored like a module's picture."""
+        key = ("layer", image.size, hashlib.sha1(image.tobytes()).digest())
+        part = _place(x, y, _pad(image.width, profile), _pad(image.height, profile, 1), hflip, vflip,
+                      self._image_blocks(key, image, profile))
+        if profile.vram_model:
+            part.vram = self._stored_blocks(key, image, palette, profile)
         return part
 
     def _image_blocks(self, key: Any, image: Any, profile: HardwareProfile) -> List[Tuple[int, int, int, int]]:

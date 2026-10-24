@@ -23,7 +23,9 @@ from typing import Any, Dict, List, Tuple
 #     from the images when the project opens, with that format's rules (palettes.build_missing).
 # 8 = the target console's setup (console_setup: a consoles.BudgetSetup key such as "md_h40" or "snes_16_32", the
 #     screen mode and, where games pick them, the sprite sizes). Additive: the console's first setup.
-PROJECT_FORMAT_VERSION = 8
+# 9 = frames a console export stores whole (store_whole: one picture per palette, cut into the fewest hardware sprites,
+#     instead of the frame's parts). Additive: every frame stays parts.
+PROJECT_FORMAT_VERSION = 9
 
 
 def _legacy_duration_ms_to_frames(ms_value: Any) -> int:
@@ -184,6 +186,12 @@ def _migrate_v7_to_v8(data: Dict[str, Any], notes: List[str]) -> None:
         data["console_setup"] = consoles.target(data.get("console"))[1].key
 
 
+def _migrate_v8_to_v9(data: Dict[str, Any], notes: List[str]) -> None:
+    """Additive: the exports store every frame as its parts, as before."""
+    for frame in data.get("frames", []) or []:
+        frame.setdefault("store_whole", False)
+
+
 def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """
     Upgrade a native project dict to PROJECT_FORMAT_VERSION.
@@ -219,6 +227,8 @@ def migrate_project_dict(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str
         _migrate_v6_to_v7(migrated, notes)
     if version < 8:
         _migrate_v7_to_v8(migrated, notes)
+    if version < 9:
+        _migrate_v8_to_v9(migrated, notes)
 
     migrated.pop("format_version", None)
     return {"format_version": PROJECT_FORMAT_VERSION, **migrated}, notes

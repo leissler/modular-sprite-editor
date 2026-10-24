@@ -50,7 +50,8 @@ def memory_issues(project: Project, mode: str = "parts") -> List[pc.Issue]:
         return [issue for issue in export.stream_issues(costs.video_tiles, costs.scene_video_tiles,
                                                         costs.upload_cost_max)
                 if issue.level != pc.INFO]
-    issue = export.tile_issue(BUDGET.export_tiles(project, [None] + list(project.mappings), profile))
+    issue = export.tile_issue(BUDGET.export_tiles(project, [None] + list(project.mappings), profile),
+                              sum(1 for frame in project.frames if frame.store_whole))
     return [issue] if issue.level != pc.INFO else []
 
 

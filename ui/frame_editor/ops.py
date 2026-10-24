@@ -129,6 +129,31 @@ def move_frame(project: Project, frame_id: str, before_id: Optional[str]) -> Non
     project.frames.insert(project.frames.index(anchor) if anchor else len(project.frames), frame)
 
 
+def store_whole(frames: Iterable[Frame], whole: bool) -> int:
+    """Marks the frames to be stored whole by the console exports (or as their parts again): how many changed."""
+    changed = 0
+    for frame in frames:
+        if frame.store_whole != bool(whole):
+            frame.store_whole = bool(whole)
+            changed += 1
+    return changed
+
+
+def group_frames(project: Project, group: str) -> List[Frame]:
+    """The frames of a group ("" : none)."""
+    return [frame for frame in project.frames if group and frame.group == group]
+
+
+def whole_comparison(project: Project, frame: Frame, mapping: Optional[ModuleMapping], calculator: Any,
+                     profile: Any) -> str:
+    """What storing the frame whole changes on the profile's console: its hardware sprites as parts and whole, and the
+    tiles its pictures take (the parts' tiles are shared with other frames)."""
+    parts, whole = calculator.whole_or_parts(project, frame, mapping, profile)
+    tiles = whole.unique_tiles if profile.vram_model else whole.tile_count
+    return (f"{profile.name}: {parts.sprite_count} hardware sprite{'s' if parts.sprite_count != 1 else ''} as parts, "
+            f"{whole.sprite_count} whole (its pictures: {tiles} tile{'s' if tiles != 1 else ''})")
+
+
 def summary(frame: Frame) -> str:
     bits = [f"{len(frame.fmodules)} part{'s' if len(frame.fmodules) != 1 else ''}"]
     if frame.collision_rects:

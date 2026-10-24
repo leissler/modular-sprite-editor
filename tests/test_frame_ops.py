@@ -177,5 +177,40 @@ class TestFramesAndTypes(unittest.TestCase):
         self.assertEqual(len(project.collision_types), 1)  # a default type always remains
 
 
+class TestStoreWhole(unittest.TestCase):
+    def test_a_frame_and_a_group(self):
+        project, frame, holder = _project()
+        frame.group = holder.group = "Traps"
+        project.frames.append(Frame("f3", "Other", group="Props"))
+        self.assertEqual(ops.store_whole([frame], True), 1)
+        self.assertEqual(ops.store_whole([frame], True), 0, "already whole")
+        self.assertEqual([f.id for f in ops.group_frames(project, "Traps")], ["f1", "f2"])
+        self.assertEqual(ops.group_frames(project, ""), [], "no group is no group of frames")
+        self.assertEqual(ops.store_whole(ops.group_frames(project, "Traps"), True), 1)
+        self.assertEqual([f.store_whole for f in project.frames], [True, True, False])
+        duplicate = ops.duplicate_frame(project, frame.id)
+        self.assertTrue(duplicate.store_whole, "a duplicate is stored like its frame")
+
+    def test_the_comparison_names_both_ways(self):
+        import tempfile
+        from pathlib import Path
+
+        import hardware_budget as hb
+        import mixed_frames
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = mixed_frames.nested_project(Path(tmp))
+            calc = hb.BudgetCalculator()
+            nests = project.get_frame("nests")
+            parts, whole = calc.whole_or_parts(project, nests, None, hb.MEGA_DRIVE_H40)
+            self.assertGreater(parts.sprite_count, whole.sprite_count)
+            self.assertEqual([len(p.sprites) for p in whole.parts], [len(p.sprites) for p in calc.frame_parts(
+                project, nests, None, hb.MEGA_DRIVE_H40, whole_frames=True)])
+            text = ops.whole_comparison(project, nests, None, calc, hb.MEGA_DRIVE_H40)
+            self.assertIn(f"{parts.sprite_count} hardware sprites as parts, {whole.sprite_count} whole", text)
+            self.assertIn(f"(its pictures: {whole.unique_tiles} tiles)", text)
+            self.assertFalse(nests.store_whole, "comparing marks nothing")
+
+
 if __name__ == "__main__":
     unittest.main()
