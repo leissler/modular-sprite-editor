@@ -64,6 +64,8 @@
 
 **Step**: one entry of an animation: a frame, how long it holds, and its offset, flip and turn.
 
+**Store whole**: a frame the console exports keep as one picture per palette instead of its parts, shown with the fewest hardware sprites.
+
 **Tick**: the unit of animation time. **Tick rate** says how many ticks make a second.
 
 **Tile**: an 8 by 8 pixel block of graphics in a console's video memory.

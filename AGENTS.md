@@ -35,6 +35,7 @@ python3 -m pytest -q                     # unit tests (no display needed)
 python3 tools/gui_smoke.py [project]     # drives the real window (needs a display); default PoP_WW
 python3 tools/check_export_parity.py PROJECT...   # RetroAnimator export vs editor canvas, pixel-exact
 python3 tools/check_engine_exports.py             # Godot / Unity exports played inside Godot 4 and Unity 6 (installed)
+python3 tools/check_megadrive_rom.py [PROJECT...] [--mode MODE] [--c] [--release]  # the Mega Drive runtime in a ROM vs. its host build (BlastEm)
 python3 tools/check_snes_rom.py [PROJECT...] [--mode MODE]  # the SNES runtime in a ROM vs. its host build (Mesen 2)
 python3 tools/compare_snes_roms.py REF.sfc OTHER.sfc  # two builds of the SNES demo draw the same, frame by frame (Mesen 2)
 python3 tools/migrate_projects.py --dry-run DIR_OR_FILES   # upgrade project files to the current format
@@ -63,7 +64,10 @@ systems are not byte for byte the same (wlalink leaves sections of the same size
 does): the snes-kit job plays the Windows kit's ROM next to the Linux one with `tools/compare_snes_roms.py` (each with
 work RAM all zeros and all 0xFF at power-on: PVSnesLib clears no RAM, so a read of memory never written shows), which
 must draw the same on every frame; its Mesen needs a SNES controller on port 1 (`settings.json`: Mesen's defaults have
-none, and the presses would not reach the demo; the tool fails then). Publishing waits for both. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
+none, and the presses would not reach the demo; the tool fails then). Its megadrive job runs
+`tools/check_megadrive_rom.py` in the three modes on macOS (Homebrew's m68k-elf-gcc and binutils, the vendored SGDK,
+BlastEm 0.6.2's x86_64 build through Rosetta 2, pinned by its executable's SHA-256; `SDL_AUDIODRIVER=dummy`: no sound
+device needed, but BlastEm needs a window, SDL's window-less video drivers hang it). Publishing waits for all three. Pin wxPython there and in `requirements.txt` (the build scripts) to the version you test
 with; `tests/test_requirements.py` checks they agree, and `requirements.txt` says what moving to 4.3 needs. Set
 `APP_VERSION` in `app.py` to the release first: the About box and the macOS Info.plist show it, and the workflow stops if
 it releases another version.
@@ -99,8 +103,9 @@ consoles.py                The console database (wx-free): screen modes, sprite 
                            refresh rates, budget setups; hardware_budget's profiles and the Timeline's screen guides
                            come from it
 compositor.py              The reference compositor (Pillow, wx-free): 2×2 matrices, module images (key colour,
-                           shapes), leaf instances of nested frames, render_frame — previews, budget, Optimize Sprite
-                           Sheet and both exporters build on it
+                           shapes), leaf instances of nested frames, render_frame, palette_layers (a frame stored
+                           whole: a picture per palette) — previews, budget, Optimize Sprite Sheet and both exporters
+                           build on it
 hardware_budget.py         Hardware sprite budget (Mega Drive H40/H32, SNES 8/16 and 16/32, NES and Game Boy 8×8 /
                            8×16, GBA): parts placed exactly as the console exports place them, the cuts of
                            sprite_cut.py (Mega Drive and SNES: the exports'),
@@ -111,14 +116,16 @@ console_exports.py         The consoles the editor exports for (wx-free): one Co
                            named after the console's key), which File ▸ Export, its dialog, Check Project, the smoke
                            test, the editor specs and the Windows kit loop over; load() / export() run the exporter
 export_modes.py            The ways to export, measured (wx-free): parts resident (the default), parts streamed, whole
-                           frames streamed; measure() / measure_mode() bake with the console's exporter (bake_context)
-                           and report video memory (slots), cartridge, hardware sprites, busiest line, uploads (the
-                           export dialog's table and Store as row, Check Project for a streamed export)
+                           frames streamed (the frames marked Store whole are whole in every way); measure() /
+                           measure_mode() bake with the console's exporter (bake_context) and report video memory
+                           (slots), cartridge, hardware sprites, busiest line, uploads (the export dialog's table and
+                           Store as row, Check Project for a streamed export)
 console_bake.py            The console-independent half of a console export (wx-free): ConsoleBake walks the project
                            like the editor draws it (parts through nested frames with flips and turns, palette entries
                            and swaps, hitboxes / points, animation steps with the game's timing and events, scene
                            samples with each object's mapping and swap, one pass per mapping) and hands each part's
-                           picture to the console's exporter (_store_part); MegaDriveBakeContext subclasses it
+                           picture to the console's exporter (_store_part); MegaDriveBakeContext subclasses it;
+                           module_flip_offsets (the runtimes' modules mirrored in place)
 sprite_cut.py              How hardware sprites cover a part (wx-free, Pillow only), one implementation for the SGDK
                            exporter, the budget and Auto Modularize: export_cut (Mega Drive: fewest sprites, then fewest
                            tiles, at any pixel; the 32 px grid where that is as good), cut per console (cells, squares,
@@ -177,11 +184,13 @@ ui/
   frame_editor/            Frames tab, redesigned from scratch:
     ops.py                 wx-free: frames (new/duplicate/delete/move/references), items (paste with cycle
                            check, nudge, delete, reorder), group flip, mirror/rotate frame, origin, hitbox /
-                           point copy to frames, types — unit-tested
+                           point copy to frames, types, Store whole (a frame, a group; the parts / whole comparison)
+                           — unit-tested
     stage.py               FrameStage (FrameCanvas): all mouse editing — parts (select, click-cycle, drag),
                            hitboxes (draw, move, corner handles), points (click places, drag) — pixel hit-testing,
                            marquee, origin marker, drops, selection look (handles, roles, dimming)
-    inspector.py           FrameInspector: frame tools, part(s), hitbox/point, types (inline)
+    inspector.py           FrameInspector: frame tools (Store whole with its sprites both ways), part(s),
+                           hitbox/point, types (inline)
     library.py             PartLibrary: modules (per image) and frames to drag or double-click
     panel.py               FrameEditorPanel: Frames list (group filter and sort) + library, mode bar, stage, inspector +
                            contents list
@@ -241,6 +250,8 @@ ui/
                            cached by content (frame_signature); SHARED instance, to_bitmap / fit_bitmap
 tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (auto-modularize benchmark),
                            check_engine_exports.py (+ engine_checks/: the Godot / Unity exports checked in the engines),
+                           check_megadrive_rom.py (the Mega Drive runtime in a ROM: a probe program played in
+                           BlastEm through its GDB stub, every sprite table against the host build),
                            check_snes_rom.py (the SNES runtime in a ROM: a probe program played in Mesen 2's test
                            runner, every OAM against the host build), compare_snes_roms.py (two builds of the SNES
                            demo played side by side: the same sprite tables, palettes, video memory),
@@ -254,7 +265,8 @@ website/                   Product site + user guide for artists (MkDocs Materia
 examples/pop/, sonic/,     The example projects (console-neutral): Prince of Persia (PoP_WW.json + modules_POP.bmp),
   adventurer/              Sonic, the Adventurer sheet
 examples/megadrive/        Mega Drive exporter (tools/export_megadrive.py: one binary blob, SGDK) + runtime
-                           (megadrive_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table) + demo;
+                           (megadrive_demo/src/modsprite.c: VRAM-resident tiles, writes the sprite table; its draw
+                           loops for frames of four sprites or more in src/modsprite_draw.s, 68000 assembly) + demo;
                            see examples/megadrive/README.md
 examples/snes/             SNES exporter (tools/export_snes.py: chunks of a ROM bank + the C that finds them;
                            tools/snes_host.py: the runtime compiled for the host) + runtime (snes_demo/src/modsprite.c,
@@ -262,7 +274,8 @@ examples/snes/             SNES exporter (tools/export_snes.py: chunks of a ROM 
                            on Windows without MSYS2); see examples/snes/README.md
 tests/                     unittest/pytest suites (import/export, auto-modularisation, roles, timeline,
                            scene / animation / module / frame / mapping ops, export/canvas parity, migration,
-                           Mega Drive and SNES runtimes: player, drawing, hitboxes / points)
+                           Mega Drive and SNES runtimes: player, drawing, hitboxes / points, queries, the slot cache
+                           and give-way levels against runtime_models.py)
 docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding was done), UX_AUDIT.md,
                            CONSOLES.md (what full support of a console means: the checklist, names, adding one),
                            EXPORT_MODES.md (parts or whole frames, resident or streamed: the measured costs, how
@@ -302,6 +315,10 @@ docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding
   Project). Read a palette's colours with `palettes.colours_of(project, palette)` (what the console shows), never
   `palette.colours` directly; `palettes.stored_colours` for editing every stored slot.
 - `Frame.group` / `Animation.group` place items in the long lists ("" = no group); nothing exports them.
+- `Frame.store_whole`: the console exports store the frame as one picture per palette (`compositor.palette_layers`),
+  cut into the fewest hardware sprites, wherever it shows (on its own, as a step, in a scene, nested in a frame of
+  parts), instead of its parts; every other frame stays parts. The Frames inspector's Store whole (and the list's
+  menu for a whole group) sets it; docs/EXPORT_MODES.md ("Some frames whole").
 - A timeline object with `attach_point_role` (and a parent) sits on that point of its parent's current frame: the
   evaluated state carries `attach_offset` (and `attach_missing` while the frame has no such point); `local_matrix`
   adds the offset, and drawing code asks `models.state_shows(state)` instead of `state["visible"]`.
@@ -311,7 +328,7 @@ docs/                      AUDIT_0.7.md (the audit of 0.7.1 and how each finding
 
 ## File format
 
-Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **8**, constant
+Native projects are JSON (`Project.to_json`). Top-level `"format_version"` (currently **9**, constant
 `PROJECT_FORMAT_VERSION` in `models/migration.py`). `Project.from_dict` always runs `migrate_project_dict()` first, which upgrades
 older dicts and reports notes in `Project.load_notes` (shown to the user once). Image paths are written
 relative to the project file. Details: `docs/FILE_FORMAT.md`.
@@ -393,7 +410,12 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `export_tiles(project, mappings, profile)` (the whole export: every module, frame, step and scene sample per mapping)
   needs; the tests compare `export_tiles` with the exporters' totals. The readouts take the project's total from
   `canvas.EXPORT_TILES` (worked out again per undo checkpoint, `app_services.project_revision`); Check Project counts
-  for the project's console (`check_dialog.memory_issues`: `megadrive_tile_issue`, `snes_tile_issue`).
+  for the project's console (`check_dialog.memory_issues`: `megadrive_tile_issue`, `snes_tile_issue`). A frame stored
+  whole counts as the exports store it: `frame_parts` gives its layers as parts (`_whole_parts`: upright layers with
+  hardware flips, turned ones drawn anew, as `ConsoleBake._whole_frame_parts`), also nested in a frame of parts
+  (`compositor.collect_leaf_instances(..., whole=True)`); with `whole_frames=True` every frame counts whole, which the
+  canvases pass in the frames_streamed mode for the project's console (`canvas.whole_frames_shown`). The Animations
+  readout says how many copies fit side by side (`hardware_budget.side_by_side`: the busiest line of all steps).
 - **Palettes:** a palette's slot order is fixed once stored (swaps and cycles refer to slots); `palettes.py` maps a
   colour to its slot (exact, else nearest) the way the exporter does; the exporter, Check Project (per palette:
   `too-many-colours`, `colours-not-in-palette`, `palette-too-long`, `duplicate-palette-colour`; dead swap entries), the
@@ -412,19 +434,30 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Mega Drive runtime (SGDK):** the exporter writes everything into `modsprite_blob.bin` (`_emit_blob`) and generates the C
   record types and parser (`_emit_header`, `_emit_data_c`). Records are packed structs (`MS_RECORD`): when one
   changes, update the struct, the `struct.pack` format and the size list in `tests/test_megadrive_runtime_draw.py`, and
-  bump `BLOB_VERSION` (now 5). Animation holds are exported with `playback.console_frames`, the preview's timing.
+  bump `BLOB_VERSION` (now 7: version 5 and each module's flip offset per mapping). Animation holds are exported with
+  `playback.console_frames`, the preview's timing.
   Tiles stay in VRAM; drawing only writes `vdpSpriteCache` (no SGDK `SPR_*` engine). Streamed exports (`--mode
-  parts_streamed | frames_streamed`, `MegaDriveBakeContext(mode=...)`, docs/EXPORT_MODES.md) write blob version 6
+  parts_streamed | frames_streamed`, `MegaDriveBakeContext(mode=...)`, docs/EXPORT_MODES.md) write blob version 8
   (`STREAMED_BLOB_VERSION`) and the header defines `MS_STREAMED`: each render frame names a load list (runs of tiles,
   laid out by first use, `_stream_layout` / `_stream`) and its pieces count tiles from a slot; `modsprite.c` streams
-  under `#ifdef MS_STREAMED` only, so a resident export stays byte for byte (and its runtime path) as it was. Drawing
+  under `#ifdef MS_STREAMED` only, so a resident export's runtime path stays as it was. Drawing
   through a slot that holds another list queues the runs with `DMA_queueDmaFast` (each run costs the 68000 about 2.3
   scanlines to queue: keep runs few); a run SGDK refuses (full queue) leaves the slot at `MS_NOTHING_LOADED`, so the
   next draw queues the list again. Slots (`MS_Slot`, `ms_slot_init`, `ms_set_slot`, the default one from `ms_init`)
   exist in both modes. `tests/test_megadrive_streaming.py` draws streamed exports from the video memory the
   host stand-in keeps (`g_stub_vram`).
   `tests/test_megadrive_runtime_draw.py` compiles `modsprite.c` for the host and compares its sprite table, rasterised
-  like the VDP, with `FrameRenderer`. The active mapping is runtime state read at draw time (players keep none), so
+  like the VDP, with `FrameRenderer`. On the 68000 a render frame of `MS_ASM_SPRITES` (4) hardware sprites or more is
+  copied by `src/modsprite_draw.s` (`ms_put_parts`, `ms_put_parts_flipped`, `ms_put_parts_careful`: the fast, mirrored
+  and careful loops, GAS macros for the four flips; SGDK assembles it through cpp, C comments) and a smaller one by the
+  C loops (the call would cost more than they save); any other compiler, and `MS_PUT_FRAME_C`, builds the C loops only.
+  `modsprite.c` keeps the decisions (on screen, under the limit) in C. `tools/check_megadrive_rom.py` builds a probe
+  ROM (`make debug`) and plays it in BlastEm through its GDB stub (`blastem ROM -D`: a breakpoint after every draw,
+  memory read with `m`; symbols from `m68k-elf-nm`), the same probe compiled for the host with the tests' SGDK
+  stand-in: every sprite table (all 80 entries) and profile, the VDP's sprite table, video memory (streamed: the slots
+  and the cache's pool), colour RAM and the first scene's frames must be the host build's; run it in the three modes
+  after touching the runtime (`--c`: the C loops alone, to compare times). The active mapping is runtime state read at
+  draw time (players keep none), so
   characters with different mappings share one set of animations (`ms_draw_anim_player_mapped`, as AuroraGT games
   set the mapping per draw); scenes are baked once per mapping, objects with their own mapping keep it. Measure performance in an emulator (BlastEm is cycle-accurate) with the V
   counter, not `getSubTick()` (it only advances per scanline and jumps around vblank).
@@ -447,13 +480,17 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   `tile_issue`, `project_check.<key>_tile_issue`), the readout's "~" (`tiles_about`), the smoke test's export steps,
   the editor specs (`pathex` / `hiddenimports`) and the Windows kit loop over it; `tests/test_console_exports.py`
   checks every entry has what full support needs (exporter with `export_project` / `report_line` / `main` /
-  `bake_context`, spec, demo with the runtime, README, kit scripts, checks). For other ways to export
-  (`export_modes.py` measures them, docs/EXPORT_MODES.md) a bake can store whole frames (`ConsoleBake.whole_frames`:
-  each frame flattened into one layer per palette, drawn like `compositor.render_instance`, the part on top owning each
-  pixel) and each exporter says what a stored part is in hardware sprites and tile blocks (`_stored_part`), so
+  `bake_context`, spec, demo with the runtime, README, kit scripts, checks). A frame marked `store_whole` is stored
+  whole (`ConsoleBake.stored_whole`): flattened into one layer per palette (`compositor.palette_layers`, the part on
+  top owning each pixel, the same function the budget counts with), each layer handed to `_store_part` like a part;
+  nested in a frame of parts its layers take its place. A whole frame is an ordinary render frame, so the runtimes draw
+  it as they draw parts (the runtime draw tests export `tests/mixed_frames.py`). For other ways to export
+  (`export_modes.py` measures them, docs/EXPORT_MODES.md) a bake can store every frame whole (`ConsoleBake.whole_frames`)
+  and each exporter says what a stored part is in hardware sprites and tile blocks (`_stored_part`), so
   `render_frame_sprites` / `load_list` work for every console; `stream_slots` / `stream_upload_cost` give a streamed
   export's slots and largest upload (the SNES overrides them: whole rows, runs counted). Only an export mode sets
   `whole_frames` (`frames_streamed`); `ConsoleExport.modes` lists the modes a console's runtime plays, "parts" first.
+  The summaries carry `frames_stored_whole` when frames are marked (the report's frames line says it).
 - **Mega Drive export (SGDK):** `export_project()` in the exporter is the one entry point for the command line and File ▸ Export ▸
   Mega Drive (the editor builds carry every console's exporter: the three editor specs take `pathex` and `hiddenimports`
   from `console_exports`). It writes
@@ -467,8 +504,9 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   the command line and File ▸ Export ▸ SNES; it bakes for one pair of sprite sizes (the project's SNES setup, else
   `--setup` / snes_8_16) and stops (`ExportError`) when the tiles do not fit the 512 or a table its bank; its issues
   are `project_check`'s plus `snes_tile_issue` (streamed: `snes_stream_issues`) and the palette count. Streamed
-  exports (`--mode`, `SNESBakeContext(mode=...)`, `_stream` / `_slot_layout`, `STREAMED_DATA_VERSION` 3; a resident
-  export stays byte for byte): squares in strips by first use, each render frame's load list of DMA runs into a slot of
+  exports (`--mode`, `SNESBakeContext(mode=...)`, `_stream` / `_slot_layout`, `STREAMED_DATA_VERSION` 5, with the rows
+  each list takes in a slot, `ms_load_list_rows`, which `ms_load_list_tiles` and the slot cache use): squares in strips
+  by first use, each render frame's load list of DMA runs into a slot of
   whole sprite-table rows (squares aligned to their size: the PPU finds a square's tiles 16 to a row, so a run is a row
   of a strip's piece), its sprites' tiles counted from the slot (`ms_slot_base`, which `modsprite_draw.asm` adds to
   every sprite's tile word: an add, not an or); each list's cost (bytes plus `RUN_COST` / `GROUP_COST` / `LIST_COST`,
@@ -481,10 +519,14 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   field even; the ones the runtime indexes are padded to 8 or 16 bytes (816-tcc multiplies by other sizes with a
   library call), the render frame's 22 are multiplied in shifts (asserted); when a record changes, update the struct
   in `header_text`, the C reference and `modsprite_draw.asm` (the size list in the host test follows `RECORDS`), and
-  bump `DATA_VERSION` (now 2; `STREAM_RECORDS` and `STREAMED_DATA_VERSION` the same way). The hot loops are 65816
+  bump `DATA_VERSION` (now 4: version 2 and each module's flip offset per mapping; `STREAM_RECORDS` and
+  `STREAMED_DATA_VERSION` the same way). The hot loops are 65816
   assembly (`modsprite_draw.asm`: `ms_put_render_frame`, `ms_put_render_frame_flipped` (mirrored draws: its sprites
-  read through the data bank, which leaves the pointer registers to the mirroring), `ms_add_hw_sprite`, `ms_finish_oam`,
-  `ms_send_uploads`; tcc's direct page has r0-r5, r9, r10, f2 and f3 only) with C versions under `MS_PUT_FRAME_C`, which
+  read through the data bank, which leaves the pointer registers to the mirroring), `ms_draw_put` (every draw: plain, or
+  `ms_put_watched` with give-way levels: drawn, taken back when it drops sprites, the queue entry written there),
+  `ms_push_hw_sprite` and `ms_add_hw_sprite` (the latter waits with levels), `ms_set_give_way`, `ms_move_sprites` (MVN:
+  written draws that gave way taken out), `ms_finish_oam`, `ms_send_uploads`; the globals they share are `ms_`-named,
+  not static; tcc's direct page has r0-r5, r9, r10, f2 and f3 only) with C versions under `MS_PUT_FRAME_C`, which
   `tests/test_snes_runtime_draw.py` compiles for the host (`tools/snes_host.py`) and compares with the editor; `tests/test_snes_runtime_player.py` plays
   the Mega Drive player test's cases and every PoP animation against `playback.Player` video frame by video frame and
   checks every frame's and step's hitboxes and points (the SNES player is the Mega Drive's C: keep both in step);
@@ -495,6 +537,24 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   a global without an initial value is not zero, give it one before reading it (`ms_init_ex` does for the runtime's). CGRAM can only be written in vertical
   blank: `ms_palette_tick()` uploads what it prepared one call earlier, then prepares the next. Measure in Mesen 2 with
   the PPU's V counter (and Lua `exec` callbacks on single addresses for a breakdown), not by eye.
+- **What a game plans and shares** (both runtimes alike, docs/EXPORT_MODES.md): `ms_frame_sprites` /
+  `ms_module_sprites` and `ms_frame_bounds` / `ms_module_bounds` (with a flip) read what a draw asks for from the render
+  frame records, so a game can plan a picture without drawing it. `ms_draw_module_flipped` mirrors a module in place
+  (like a part flip): drawn mirrored around its pivot at a position moved by its flip offset (its width less twice its
+  pivot's x, under the mapping: the exports' `ms_module_flip_offsets`, `ConsoleBake.module_flip_offsets`);
+  `ms_draw_frame_flipped` mirrors around the origin, like a step. The slot cache (`ms_slot_cache_init`, streamed
+  exports): one pool, a slot per load list shared by every draw of it, first fit in tile order in one walk (the SNES:
+  rows, aligned), the slots drawn longest ago making room but never one drawn this frame, a bucket per list's low bits
+  to find one; it hands `ms_fill_slot` / `ms_slot_render` a slot, which do the rest as for the game's own. Give-way
+  levels (`ms_set_give_way`): once a level was set, draws go into the table while they fit, give-way ones noted; from
+  the first that does not, the frame waits in a queue that `ms_end_frame` resolves (level 1 first, the farthest first,
+  as many as the excess; written ones taken out, waiting ones drawn behind), the same greedy a game's measure-and-redraw
+  did, without the second submission. A game that never sets a level runs none of it. `MS_CACHE_SLOTS`,
+  `MS_GIVE_WAY_DRAWS` and `MS_QUEUED_DRAWS` size them (a game may define them when it compiles `modsprite.c`; 0 leaves
+  them out); `MS_FrameProfile` counts `slots_used`, `draws_left_out`, `draws_given_way`. `tests/runtime_models.py`
+  holds the reference models (the give-way choice, the cache) the host tests compare both runtimes with; the give-way
+  tests draw every crowd twice, as it is with only the draws that stay (before any level is set) and with its levels,
+  and want the same sprite table.
 - **Preferences** go through `wx.Config.Get()`. `SpriteEditorApp.OnInit` names the app and makes the editor's store
   (`wx.Config(APP_NAME)`, created before the vendor name is set, which on Windows would change the registry path)
   wx's default before any window exists. Up to 0.7 the view settings went to a second store named after the launched
@@ -632,7 +692,7 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 ## Transform semantics (canonical — the editor canvas is the reference)
 
 - **Part flip** (`FModule.flip_x/y` on a module): mirrors the module image *in place* — the part's bounds do
-  not move, regardless of where the pivot is.
+  not move, regardless of where the pivot is. The runtimes' `ms_draw_module_flipped` mirrors a module the same way.
 - **Part rotation**: about the pivot, 90° steps (use exact cos/sin at 90° multiples, never raw `math.cos`).
 - **Points** mark a pixel: a transform moves the pixel's centre (`x + 0.5`, `y + 0.5`) and floors, so a mirror maps
   `x` to `-x - 1` and a clockwise quarter turn `(x, y)` to `(-y - 1, x)` (`frame_editor.ops.turn_pixel`, the canvas'

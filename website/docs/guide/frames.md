@@ -58,9 +58,11 @@ Drag a frame from the library onto the stage to use it as one part. A nested fra
 With nothing selected, the inspector shows the frame. **Whole frame** mirrors or turns every part at once. **Origin** has two helpers: **Feet on origin** moves all parts so the middle of the pose's bottom edge sits on the origin, and **Centre** puts the middle of the pose there.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![The inspector for a frame: its name, contents, size and use, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="310" loading="lazy" }](../assets/images/screens/frames-whole.png)
+  [![The inspector for a frame: its name, contents, size and use, Export with Store whole and its hardware sprites as parts and whole, Whole frame with mirror and turn buttons, and Origin with Feet on origin and Centre](../assets/images/screens/frames-whole.png){ width="301" height="382" loading="lazy" }](../assets/images/screens/frames-whole.png)
   <figcaption>With nothing selected, the inspector shows the frame.</figcaption>
 </figure>
+
+**Store whole** under **Export** makes the console exports keep the frame as one picture instead of its parts, so the console shows it with the fewest hardware sprites. Use it for a frame of many parts that shows often, such as a platform, a crusher or a torch, and keep characters as parts. The line under it compares the frame both ways on your project's console. To store every frame of a group whole, right-click one of them in the list and choose **Store Every Frame of '...' Whole**. [Stay within the console's limits](hardware-budget.md#store-a-frame-whole) explains what it costs.
 
 Right-click a frame in the list for the same tools, and for **Rename**, **Duplicate** and **Delete**. When animations, other frames or scenes still use a frame you delete, the editor asks whether to remove those uses too or to keep them as missing.
 

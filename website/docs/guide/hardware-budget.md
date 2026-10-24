@@ -51,7 +51,7 @@ The readout in the corner counts:
 
 These limits are for everything on screen together, not for one character. Leave room for enemies, effects and the player's shots.
 
-In the **Animations** tab, the inspector names the animation's worst step. In the **Timeline** tab, the readout counts everything in the scene at the playhead.
+In the **Animations** tab, the inspector names the animation's worst step, and how many characters playing it fit side by side before sprites drop: on the lines they share, their sprites add up, so a few fighters at once is the real limit, not one pose. In the **Timeline** tab, the readout counts everything in the scene at the playhead.
 
 ## Video memory
 
@@ -65,11 +65,21 @@ Every tile a sprite shows is stored in the console's video memory. On the Mega D
 In the **Animations** tab, the inspector also counts the tiles of all the animation's steps together.
 
 <figure class="ms-shot ms-shot--part" markdown="span">
-  [![Budget in the Animations tab's inspector: worst step 8 with 16 sprites, busiest line 11 of 20 sprites and 144 of 320 pixels, video memory 87 tiles for the animation](../assets/images/screens/budget-animation.png){ width="311" height="64" loading="lazy" }](../assets/images/screens/budget-animation.png)
+  [![Budget in the Animations tab's inspector: worst step 8 with 16 sprites, busiest line 11 of 20 sprites and 144 of 320 pixels, side by side 1 fits before sprites drop, video memory 87 tiles for the animation](../assets/images/screens/budget-animation.png){ width="311" height="96" loading="lazy" }](../assets/images/screens/budget-animation.png)
   <figcaption><strong>Budget</strong> in the inspector of the <strong>Animations</strong> tab, for a whole attack.</figcaption>
 </figure>
 
 **Tools ▸ Check Project** warns, for the project's console, when the project needs more than three quarters of the free tiles, and reports an error when they do not fit: the game could not load the sprites. The other consoles have no exporter yet, so their readouts count sprites only.
+
+## Store a frame whole
+
+Some frames are built from many small parts but show as one solid thing: a platform, a crusher, a pressure plate, a torch. As parts, every piece is a hardware sprite of its own, and the pieces pile up on the same lines. Tick **Store whole** in the frame's inspector (the **Frames** tab, with nothing selected), and the console exports store the frame as one picture for each palette it uses, cut into as few hardware sprites as the console allows. Every other frame stays parts. To change a whole group at once, right-click a frame of the group in the list.
+
+- The line under **Store whole** compares the frame as parts and whole on your project's console: the Prince of Persia example's **stab3** pose takes 17 hardware sprites as parts and 2 whole, for 21 tiles of its own.
+- The overlay, the readouts and **Check Project** count the frame the way the export stores it, wherever it shows: on its own, in animations, in scenes and inside other frames.
+- The picture costs tiles of its own. The parts keep theirs, since a game can still draw every module on its own. A mapping that changes the frame's parts stores its picture again.
+- Mirrored, the console flips the picture for free. Turned by 90°, it needs a picture of its own, as a turned part does.
+- Keep characters as parts: their poses share parts, and mappings re-skin them for free. Stored whole, every pose and every mapping would be a picture of its own, many times the cartridge space.
 
 ## Tips for artists
 

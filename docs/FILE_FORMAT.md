@@ -16,7 +16,8 @@ ignored on load (and dropped when the editor saves).
 | `5` | Timeline objects play animations "as animated" (`playback_mode: "as_animated"`, the default for new objects; `"backward"` joins the overrides); flips and visibility switch at a key. Added 2026-10-13. |
 | `6` | Every image belongs to one of four Mega Drive palettes (`images[].palette`, 0–3). Added 2026-10-13. |
 | `7` | The target console (`console`); palettes are project data with their colours in slot order and colour cycles (`palettes`, `images[].palette_id`); palette swaps (`palette_swaps`, `objects[].palette_swap_id`); scene objects that follow a point of their parent's frames (`attach_point_role`, `attach_point_type`); groups for frames and animations (`group`). Added 2026-10-14. |
-| `8` | Current. The target console's setup (`console_setup`: the screen mode and, where games pick them, the sprite sizes). Added 2026-10-15. |
+| `8` | The target console's setup (`console_setup`: the screen mode and, where games pick them, the sprite sizes). Added 2026-10-15. |
+| `9` | Current. Frames the console exports store whole (`frames[].store_whole`: one picture per palette, cut into the fewest hardware sprites, instead of the frame's parts). Added 2026-10-19. |
 
 `Project.from_dict()` runs `migrate_project_dict()` first. Migration works on a deep copy of the raw
 dict and returns notes (shown once when a file is opened). Files with a newer version load with a
@@ -24,7 +25,7 @@ warning. v3, v4 and v6 are additive: older builds open them with a warning and d
 set to "as_animated" or "backward" plays as Loop in an older build; an older build exports every image with one
 merged palette. A v7 file opened by a v6 build puts every image into the first palette (the `palette` key is gone)
 and drops swaps, cycles, attachments and groups. v8 is additive: an older build drops `console_setup` and works with the
-console's usual setup.
+console's usual setup. v9 is additive: an older build drops `store_whole` and exports those frames as their parts.
 
 v7 → v8 adds `console_setup`, the console's first setup (`md_h40`, `snes_8_16`, `nes_8x8`, `gba`, `gb_8x8`; see
 `consoles.py`, one `BudgetSetup` each). The editor keeps the key as it is and reads it through `consoles.target`, which
@@ -111,11 +112,15 @@ in `~/Downloads/ModularSpriteEditor_format_v6_backup_2026-10-14.zip`); each was 
 without the added keys (with `palette_id` read back as the old number) and to load to the same project.
 `~/Downloads/PoP_WW.json` then got the example's palette and swap, so it equals the repo's copy again.
 
-## Schema (v8)
+On 2026-10-19 the same 19 files were migrated to v9 (originals in
+`~/Downloads/ModularSpriteEditor_format_v8_backup_2026-10-19.zip`); each was checked to equal its original except for
+`format_version` and `store_whole: false` on every frame, and to load to the same project.
+
+## Schema (v9)
 
 ```jsonc
 {
-  "format_version": 8,
+  "format_version": 9,
   "name": "New Project",
   "console": "megadrive",                                // the target console (consoles.py): palette rules, limits
   "console_setup": "md_h40",                             // its setup: screen mode, sprite sizes (SNES "snes_16_32")
@@ -150,6 +155,7 @@ without the added keys (with `palette_id` read back as the old number) and to lo
   "frames": [
     {"id": "frm_…", "name": "stand01",
      "group": "",                                        // where it sits in long lists ("" = no group)
+     "store_whole": false,                               // console exports store it as a picture per palette
      "fmodules": [
        {"id": "fmod_…", "ref_type": "module",            // or "frame" (nested frame)
         "ref_id": "mod_…", "position": [x, y],           // where the pivot lands, frame space

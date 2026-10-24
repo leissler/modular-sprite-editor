@@ -49,6 +49,8 @@ The Mega Drive was the first console with an exporter and a runtime; the [SNES](
 - **Parts, streamed**: video memory holds only what each character shows, and a step's tiles are copied in when it starts. This is for projects bigger than video memory: the Prince of Persia example needs 39 tiles a character instead of 305.
 - **Whole frames, streamed**: each frame becomes one picture, so parts drawn over each other cost no extra hardware sprites, for many times the cartridge space.
 
+Frames the artist marked **Store whole** (in the **Frames** tab) are single pictures in every way, and the other frames stay parts: the fewest sprites where a frame of many parts shows often, such as a platform or a torch. The runtime draws them like any frame; the report says how many frames were stored whole.
+
 When the game streams, it gives each character on screen a slot of its own; the Mega Drive guide in the repository (below) shows how.
 
 The game's folder needs the runtime from the source code. The demo project in `examples/megadrive/megadrive_demo` has it and shows every module, frame, animation and scene with live profiling. `export_megadrive` does the same from the command line, for build scripts; `--mode parts_streamed` or `--mode frames_streamed` streams, and `--strict` makes it fail when the project has errors:
@@ -57,7 +59,7 @@ The game's folder needs the runtime from the source code. The demo project in `e
 export_megadrive --project-json my_project.json --output-dir path/to/megadrive_game
 ```
 
-The [Mega Drive guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/megadrive/README.md) covers the runtime, its functions and its limits.
+The demo builds with SGDK's `make release`. On macOS and Linux the first build also compiles SGDK's library with your own m68k GCC, because the ready-made one links only with the GCC 13 that comes with SGDK, which Windows uses. The [Mega Drive guide in the repository](https://github.com/leissler/modular-sprite-editor/blob/main/examples/megadrive/README.md) covers the runtime, its functions, its limits and how to build the demo.
 
 ## SNES (PVSnesLib)
 

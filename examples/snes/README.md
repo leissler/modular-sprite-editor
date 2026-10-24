@@ -49,16 +49,24 @@ sprite by sprite. `ms_end_frame()` hides the entries the last frame used and thi
 lines the PPU looks at) and packs the sprite table's high table (X bit 8 and size of every sprite). Add sprites of
 your own to the same list with `ms_add_hw_sprite()`; `ms_tiles_end()` says where free tiles start.
 
-`ms_draw_frame_flipped(frame, x, y, flip)` and `ms_draw_module_flipped(module, x, y, flip)` draw it mirrored about the
-point it is drawn at (a frame's origin, a module's pivot; bit 0 of `flip` mirrors left to right, bit 1 top to bottom,
-like a mirrored animation step): each sprite goes to its mirror image and gets its flip bits toggled, so a character
-facing either way needs its frames stored once. The box is mirrored too, so a mirrored frame on the screen takes the
-fast loop as well.
+`ms_draw_frame_flipped(frame, x, y, flip)` draws a frame mirrored about the point it is drawn at (its origin; bit 0 of
+`flip` mirrors left to right, bit 1 top to bottom, like a mirrored animation step): each sprite goes to its mirror image
+and gets its flip bits toggled, so a character facing either way needs its frames stored once. The box is mirrored too,
+so a mirrored frame on the screen takes the fast loop as well. `ms_draw_module_flipped(module, x, y, flip)` mirrors a
+module in place, as the editor mirrors a part in a frame: its pivot at x, y, its picture where it was (the export
+stores each module's flip offset under each mapping: its width less twice its pivot's x, its height less twice its
+pivot's y).
 
-The hot loops (`ms_put_render_frame` and, mirrored, `ms_put_render_frame_flipped`, `ms_add_hw_sprite`,
-`ms_finish_oam`, a streamed export's `ms_send_uploads`) are 65816 assembly in `src/modsprite_draw.asm`;
-`src/modsprite.c` has their C versions, which the host tests run and `tools/check_snes_rom.py` compares with the
-assembly in an emulator.
+Before drawing, `ms_frame_sprites()` / `ms_module_sprites()` and `ms_frame_bounds()` / `ms_module_bounds()` (with a
+flip) give what a draw asks for under the current mapping, from the render frame records: a game can plan a picture
+without drawing it. Past the 128 sprites, the draws marked with `ms_set_give_way(level)` give way first
+([Limits](#limits)).
+
+The hot loops (`ms_put_render_frame` and, mirrored, `ms_put_render_frame_flipped`; `ms_draw_put`, which every draw
+goes through, with give-way levels `ms_put_watched`; `ms_push_hw_sprite` and `ms_add_hw_sprite`; `ms_set_give_way`;
+`ms_move_sprites`; `ms_finish_oam`; a streamed export's `ms_send_uploads` and the slot cache's `ms_cache_hit`) are 65816
+assembly in `src/modsprite_draw.asm`; `src/modsprite.c` has their C versions, which the host tests run and
+`tools/check_snes_rom.py` compares with the assembly in an emulator.
 
 ### Streamed exports
 
@@ -73,7 +81,7 @@ project); [docs/EXPORT_MODES.md](../../docs/EXPORT_MODES.md) compares the three 
   21), but the cartridge holds every frame's picture (PoP: 4912 tiles instead of 300) and each mapping is baked again.
 
 The cartridge then holds the squares in strips: each frame's new squares, in the order frames first use them, side by
-side in rows of at most 16 tiles. Every render frame names a load list (data version 3): its strips' pieces placed in a
+side in rows of at most 16 tiles. Every render frame names a load list (data version 5): its strips' pieces placed in a
 slot of whole sprite-table rows, each square aligned to its size as the PPU finds its tiles 16 to a row, as DMA runs (a
 row of a piece each, neighbours merged), with what uploading it costs in vertical blank; identical lists once. Its
 sprites count their tiles from the slot. The generated header defines `MS_STREAMED`, `MS_SLOT_TILES` (a player's slot),
@@ -112,11 +120,27 @@ what its slot holds (the step before) and uploads in a later frame; the first li
 text rows only when that leaves room). In a resident export the slot functions do nothing (`ms_slot_tiles()` is 0), so
 the same game code builds with either.
 
-A game with many actors can keep a cache of slots of its own instead of one per actor: `ms_frame_load_list(frame)` and
-`ms_module_load_list(module)` name the load list a frame or module draws with (under the current mapping;
-`MS_NOTHING_LOADED` when it shows nothing, and in a resident export), `ms_load_list_tiles(list)` the tiles it takes in a
-slot. Actors showing the same frame then share one slot, loaded once: a slot that holds a list draws it as often as a
-frame asks, mirrored or not.
+A game with many actors lets the runtime keep the slots: `ms_slot_cache_init(tile_index, tile_count)` makes one pool
+(from a multiple of `MS_SLOT_ALIGN`) that every draw takes its slot from. A load list (a frame or module under a mapping)
+gets a slot of whole rows there the first time it is drawn, at the first place in tile order where its rows fit, and
+every draw of it uses that slot, so actors showing the same frame share it and it is uploaded once (a slot that holds a
+list draws it as often as a frame asks, mirrored or not). When there is no room, the slots drawn longest ago make room
+(never one drawn this frame); a draw that still finds none is left out, and a new slot whose upload has no room in the
+budget shows nothing until it is uploaded. `MS_FrameProfile` counts `slots_used`, `tiles_uploaded`, `uploads_waiting`
+and `draws_left_out`; `ms_slot_cache_clear()` forgets what the pool holds, `ms_set_slot()` / `ms_use_slot_cache()`
+switch between slots of the game's own and the cache. `MS_CACHE_SLOTS` (48; define another number when compiling
+`modsprite.c`, 0 leaves the cache out) caps the slots:
+
+```c
+ms_slot_cache_init(ms_tiles_end(), 512 - ms_tiles_end());
+ms_set_mapping(guard_mapping);
+ms_draw_frame_flipped(frame, x, y, flip);   /* through the slot that holds that frame under that mapping */
+```
+
+A game that keeps its own slots after all asks `ms_frame_load_list(frame)` and `ms_module_load_list(module)` for the
+load list a frame or module draws with (under the current mapping; `MS_NOTHING_LOADED` when it shows nothing, and in a
+resident export) and `ms_load_list_tiles(list)` for the tiles it takes in a slot: the rows its squares need, 16 tiles
+each (the export's `ms_load_list_rows`), from a multiple of `MS_SLOT_ALIGN`.
 
 ### Performance
 
@@ -146,7 +170,13 @@ Streamed exports, with the demo playing PoP's Swordfight (600 frames in Mesen 2)
 
 A draw through a slot costs about 3 lines more with parts (finding and queueing its list); whole frames have fewer
 sprites to draw. The uploads use the vertical blank after PVSnesLib's interrupt: scanlines 230 to 261 (242 to 261 when
-it sends the text map too). Each byte costs 8.5 master cycles, each run 533, each list 939 (1364 a scanline).
+it sends the text map too). Each byte costs 8.5 master cycles, each run 533, each list 939 (1364 a scanline). Through
+the slot cache a draw takes about 1.5 lines more than through a slot of the game's own that holds its list.
+
+Crowds of PoP's frames, modules and sprites of the game's own (`tools/check_snes_rom.py`, docs/EXPORT_MODES.md): a
+picture that fits takes 140 lines as it is, 160 with give-way levels (154 with levels on and none set: a draw is drawn,
+and taken back only when it dropped sprites); pictures over the 128 sprites take 371 to 554 lines with give-way levels,
+where measuring and drawing them again takes 456 to 783.
 
 ### Limits
 
@@ -168,7 +198,12 @@ it sends the text map too). Each byte costs 8.5 master cycles, each run 533, eac
   into CGRAM first (CGRAM can only be written in vertical blank), then prepares the next ones in RAM.
 - **128 hardware sprites** per screen, 32 and 34 tiles (272 px) a line; `ms_set_sprite_limit()` leaves the entries
   from the limit on to the game (a multiple of 4: the high table's bytes from there are the game's too). Sprites that
-  do not fit are counted in `MS_FrameProfile.sprites_dropped`.
+  do not fit are counted in `MS_FrameProfile.sprites_dropped`: the sprites drawn last drop. Draws a game marks with
+  `ms_set_give_way(level)` (shadows, decorations, effects) give way first, level 1 first and the farthest first, as
+  many as the picture asks too much (`draws_given_way`); `ms_end_frame()` resolves it without drawing the picture twice
+  ([docs/EXPORT_MODES.md](../../docs/EXPORT_MODES.md#when-a-picture-asks-for-too-many-sprites)). `MS_QUEUED_DRAWS` (32)
+  draws can wait from the first that does not fit, `MS_GIVE_WAY_DRAWS` (32) written give-way draws make room (define
+  others when compiling `modsprite.c`).
 - **Scenes** are baked as one render frame per tick, once per mapping, as for the Mega Drive.
 - **Timing**: as for the Mega Drive, the runtime counts video frames (60 a second; a PAL console plays at 5/6 of the
   speed, which the editor previews with View ▸ Play at 50 Hz).
@@ -258,7 +293,9 @@ second character through a slot of its own.
 `tools/check_snes_rom.py` (repository root) builds the runtime with a probe program in place of the demo's `main.c`
 and plays it in Mesen 2's headless test runner: every frame at three positions as it is and mirrored, every module,
 frames drawn until the 128 sprites run out, the scenes with every mapping, an animation drawn through another mapping
-and swap, a game's own sprites across the screen's edges, the colour cycles;
+and swap, a game's own sprites across the screen's edges, the sum of every frame's and module's sprite counts and
+bounds, pictures of many draws with give-way levels (one that fits, some over the 128 sprites: as they are, only the
+draws that would stay, with their levels; streamed, through the slot cache too), the colour cycles;
 each sprite table must equal the host build's byte for byte (which `tests/test_snes_runtime_draw.py` checks against
 the editor; `tests/test_snes_runtime_player.py` checks the host build's animation player, hitboxes and points against
 the editor's), video memory the export's tiles. It prints the slowest draw in scanlines and the lag frames of the first
@@ -277,7 +314,8 @@ With `--mode parts_streamed` or `--mode frames_streamed` it checks a streamed ex
 (`ms_upload_tiles`, timed too), and the slots' video memory after every draw must equal the host build's
 (`tests/test_snes_streaming.py` checks the host build against the editor: every frame of the testbeds, mirrored ones,
 two characters in two slots, modules and the Swordfight as the resident export draws them, uploads waiting for the
-budget or cut off by the end of the blank, the load lists a game's own slots ask for). `--timings FILE` writes each draw's scanlines and its upload's, with what it uploaded. The
+budget or cut off by the end of the blank, the load lists a game's own slots ask for, the slot cache against a reference
+cache, `tests/runtime_models.py`). `--timings FILE` writes each draw's scanlines and its upload's, with what it uploaded. The
 release workflow checks PoP and Sonic both ways.
 
 `tools/compare_snes_roms.py` carries that over to a demo ROM built elsewhere: it plays two builds in Mesen with the same
@@ -307,6 +345,9 @@ quirks the runtime works around:
   (`sep #$20 / pha`).
 - A multiplication by anything but a power of two is a library call: records the runtime indexes are padded to 8 or
   16 bytes, and a render frame's 22 are multiplied in shifts.
+- Writing a struct's fields through a pointer costs many times storing into an array (about 120 instructions to note
+  a give-way draw): the per-draw work of give-way levels and the slot cache's lookup are in the assembly, the C keeps
+  the rare paths (making room, resolving a frame that waits).
 - A ternary choosing between an array and a pointer argument crashed the compiler (`ICE 2`).
 - PVSnesLib's start-up code clears no RAM: a global without an initial value starts with whatever the console's RAM
   held at power-on, not zero (initialised globals are copied from the ROM). The runtime gives everything it reads a

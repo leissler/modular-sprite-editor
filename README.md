@@ -181,11 +181,13 @@ macOS right-click › Open the first time.
   colours and anything Check Project finds. **Store as** (`--mode`) keeps every tile in video memory (the default) or
   streams: video memory holds only what each character shows and a step uploads its tiles when it starts, as parts or
   as whole frames, flattened into the fewest hardware sprites ([`docs/EXPORT_MODES.md`](docs/EXPORT_MODES.md)).
+  Frames marked **Store whole** (a platform, a torch) are stored flattened that way while the rest stay parts.
 - **Runtime** (`examples/megadrive/megadrive_demo`): tiles stay in VRAM and drawing only writes the sprite table (on
-  average 7 % of a frame for the Prince of Persia animations, measured in BlastEm). It draws modules, frames, animations and
+  average 7 % of a frame for the Prince of Persia animations, measured in BlastEm), its draw loops in 68000 assembly
+  for frames of four sprites or more (a fifth less time in the Swordfight). It draws modules, frames, animations and
   scenes; characters can share animations and differ by mapping and palette swap (`ms_draw_anim_player_as`), colour
   cycles turn with `ms_palette_tick`. Tests compile it for the host and compare what it draws with the editor pixel
-  by pixel.
+  by pixel, and `tools/check_megadrive_rom.py` compares the ROM with that host build in BlastEm.
 - **Demo ROM**: browse every module, frame, animation and scene with live profiling.
 
 ### SNES / PVSnesLib

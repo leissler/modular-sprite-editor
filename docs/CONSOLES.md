@@ -29,20 +29,24 @@ listed under [Gaps](#gaps).
 | Command line | `console_bake.export_arguments` (`--project-json`, `--output-dir`, `--mapping`, `--copy-assets`, `--strict`) plus the console's own options | `export_megadrive` | `export_snes` (`--setup`) |
 | Command-line download | `build_<console>_exporter.spec`; the release workflow builds it on three platforms and checks it writes what the script writes | `export_megadrive-*` | `export_snes-*` |
 | Editor | File ▸ Export ▸ *Console (SDK)*...: the dialog every console shares (`ui/console_export_dialog.py`), remembered choices, report; the editor's builds carry the exporter | from the entry | from the entry, with the sprite sizes |
-| Runtime | the common C API (`ms_*`): players, mappings and palette swaps per draw, colour cycles, hitboxes, points and events, scenes | `megadrive_demo/src/modsprite.c` | `snes_demo/src/modsprite.c`, `modsprite_draw.asm` |
-| Streamed export | [parts or whole frames streamed](EXPORT_MODES.md): load lists, slots (`ms_slot_init`, `ms_set_slot`), the uploads in vertical blank, `<console>_stream_issues`, host tests | yes (`MS_STREAMED`, `tests/test_megadrive_streaming.py`) | yes (`MS_STREAMED`, `ms_upload_tiles`, `tests/test_snes_streaming.py`, `tools/check_snes_rom.py --mode`) |
+| Runtime | the common C API (`ms_*`): players, mappings and palette swaps per draw, colour cycles, hitboxes, points and events, scenes | `megadrive_demo/src/modsprite.c`, `modsprite_draw.s` | `snes_demo/src/modsprite.c`, `modsprite_draw.asm` |
+| Streamed export | [parts or whole frames streamed](EXPORT_MODES.md): load lists, slots (`ms_slot_init`, `ms_set_slot`), the uploads in vertical blank, `<console>_stream_issues`, host tests | yes (`MS_STREAMED`, `tests/test_megadrive_streaming.py`, `tools/check_megadrive_rom.py --mode`) | yes (`MS_STREAMED`, `ms_upload_tiles`, `tests/test_snes_streaming.py`, `tools/check_snes_rom.py --mode`) |
+| Slot cache | [one slot cache for every actor](EXPORT_MODES.md#one-slot-cache-for-every-actor) (`ms_slot_cache_init`): a slot per load list shared by every draw of it, first fit in tile order, the slots drawn longest ago making room; host tests against the reference cache (`tests/runtime_models.py`) | yes (`tests/test_megadrive_streaming.py`, `tools/check_megadrive_rom.py --mode`) | yes (whole rows; `tests/test_snes_streaming.py`, `tools/check_snes_rom.py --mode`) |
+| Give-way levels | [what gives way](EXPORT_MODES.md#when-a-picture-asks-for-too-many-sprites) when a picture asks for more than the sprite limit (`ms_set_give_way`), resolved by `ms_end_frame` without a second submission; host tests against the reference choice; measured in an emulator | yes (`tests/test_megadrive_runtime_draw.py`, `tools/check_megadrive_rom.py`) | yes (`tests/test_snes_runtime_draw.py`, `tools/check_snes_rom.py`) |
+| Planning a picture | what a draw asks for before it is drawn: `ms_frame_sprites` / `ms_module_sprites`, `ms_frame_bounds` / `ms_module_bounds` from the records; modules mirrored in place (`ms_draw_module_flipped`, the exports' module flip offsets), frames around their origin | yes | yes |
+| Frames stored whole | [some frames whole](EXPORT_MODES.md#some-frames-whole) (`Frame.store_whole`), every other frame parts: the exporter stores their layers like parts (`ConsoleBake`), the budget and Check Project count them so, the host tests draw a mixed export | yes (`tests/test_megadrive_runtime_draw.py`) | yes (`tests/test_snes_runtime_draw.py`) |
 | Host tests | the runtime compiled for the host against the editor: drawing pixel for pixel, the player tick by tick, hitboxes and points | `tests/test_megadrive_runtime_draw.py`, `_runtime_player.py`, `_markers.py`, `_scenes.py` | `tests/test_snes_runtime_draw.py`, `_runtime_player.py` |
 | Demo | `examples/<console>/<console>_demo`: starts on the first scene, one button per feature, scenes drawn where the Timeline's screen outline puts them (`tests/test_scene_ops.py`) | yes | yes |
-| Emulator check in CI | the demo's runtime in a ROM, run in an emulator against the host build | no | `tools/check_snes_rom.py`, `tools/compare_snes_roms.py` (Mesen 2) |
+| Emulator check in CI | the demo's runtime in a ROM, run in an emulator against the host build (the runtime's assembly against its C) | `tools/check_megadrive_rom.py` (BlastEm, the `megadrive` job) | `tools/check_snes_rom.py`, `tools/compare_snes_roms.py` (Mesen 2) |
 | Demo download | `ModularSpriteEditor-<console>-demo.zip` on the release page: the ROM and its project | no | `ModularSpriteEditor-snes-demo.zip` |
 | Windows kit | the demo with its SDK, `export_to_<console>.bat`, `build_<console>_demo.bat` | yes | yes |
 | Docs | `examples/<console>/README.md`, a section of the guide's programmers page, README, AGENTS | yes | yes |
 
 ## Gaps
 
-- The Mega Drive has no emulator check in CI and no demo download yet; the SNES has both (its ROM check covers the
-  streamed exports too). Its runtime is plain C, so the host tests cover more of it than of the SNES's, but nothing runs
-  its ROM automatically (its streamed ROMs were checked by hand in MAME and BlastEm, docs/EXPORT_MODES.md).
+- The Mega Drive has no demo download yet; the SNES has one. Its emulator check (`tools/check_megadrive_rom.py`)
+  covers what the SNES's does (every draw against the host build, the three modes, the slot cache and give-way levels)
+  but plays no demo next to a Windows kit's build: SGDK is the same files on every system.
 - Resident, the SNES keeps every tile in its 512, so a bigger project (Sonic, 565 tiles at best) exports for it only
   streamed.
 
@@ -63,7 +67,7 @@ exporters of their own. An entry holds what differs in substance:
 | Field | What it is | Mega Drive | SNES |
 |---|---|---|---|
 | `console`, `sdk` | the `consoles.py` entry, the SDK the menus name (`Console.exporter` reads it) | `MEGA_DRIVE`, SGDK | `SNES`, PVSnesLib |
-| `runtime` | the files a game folder needs (the demo has them) | `src/modsprite.c`, `inc/modsprite.h` | the same and `src/modsprite_draw.asm` |
+| `runtime` | the files a game folder needs (the demo has them) | `src/modsprite.c`, `src/modsprite_draw.s`, `inc/modsprite.h` | `src/modsprite.c`, `src/modsprite_draw.asm`, `inc/modsprite.h` |
 | `intro` | the dialog's text: what the export writes where (`{runtime}` names the runtime's files) | the blob, the header and parser, a line in `res/resources.res` | the ROM bank chunks, `modsprite_chunks.asm`, the header and parser, `modsprite_rom.mk` |
 | `preference` | where the editor remembers the folder, mappings and setup per project (keep it when renaming) | `MegaDriveExport` (earlier `SGDKExport`) | `SNESExport` |
 | `setups` | the export bakes for one of the console's setups: the dialog's row for them | none | Sprite sizes |
@@ -110,8 +114,9 @@ Code and files that are the console's own, by design or because hand-written is 
   - the build job's *Build and test the ... exporter* step (the projects it compares, what must fail);
   - on Windows, for an SDK not in git: its download, cache and unpack steps and `--sdk <console>=DIR` on the kit's
     line; the kit test's ROM builds with the two scripts;
-  - the console's own jobs: today `snes` (the demo's data exported again, the ROM, the emulator check, the demo zip)
-    and `snes-kit` (the Windows kit's ROM against the Linux one), and the release job's `needs`;
+  - the console's own jobs: today `snes` (the demo's data exported again, the ROM, the emulator check, the demo zip),
+    `snes-kit` (the Windows kit's ROM against the Linux one) and `megadrive` (the emulator check on macOS: Homebrew's
+    m68k-elf-gcc, BlastEm), and the release job's `needs`;
   - the demo download: `tools/make_snes_demo_zip.py` and `packaging/snes_demo/` (the SNES only so far).
 - Docs: README, AGENTS, the guide's programmers page, `examples/<console>/README.md`, this page's columns.
 
