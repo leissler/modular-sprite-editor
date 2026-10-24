@@ -566,7 +566,9 @@ static void demo_init_markers(void)
         }
     }
     g_marker_tile = ms_tile_base() + ms_tiles_used();
-    VDP_loadTileData(tiles, g_marker_tile, 5, DMA);
+    /* CPU, not DMA: a release build (link-time optimisation) sees that SGDK's DMA never reads this array in C and
+       drops the stores that fill it. */
+    VDP_loadTileData(tiles, g_marker_tile, 5, CPU);
     PAL_setColor(PAL0 * 16 + MARK_BOX_COLOUR, RGB24_TO_VDPCOLOR(0xFF4040));
     PAL_setColor(PAL0 * 16 + MARK_POINT_COLOUR, RGB24_TO_VDPCOLOR(0x40FF60));
 }
@@ -700,7 +702,7 @@ static void demo_input(void)
     }
 }
 
-int main(void)
+int main(bool hardReset)
 {
     u16 view;
 
