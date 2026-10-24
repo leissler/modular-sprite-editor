@@ -2,6 +2,18 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.12, October 2026
+
+**Store a frame whole.** Some frames are built from many small parts but show as one solid thing: a platform, a crusher, a torch. Tick **Store whole** in the frame's inspector, and the console exports keep it as one picture, shown with the fewest hardware sprites; the line under the box compares the frame as parts and whole. On the Mega Drive the Prince of Persia example's **stab3** pose takes 17 hardware sprites as parts and 2 whole. The budget overlay, the readouts and **Check Project** count the frame the way the export stores it. Keep characters as parts. See [Store a frame whole](../guide/hardware-budget.md#store-a-frame-whole).
+
+**How many fit side by side.** The **Animations** tab's budget says how many characters playing the animation fit next to each other before sprites drop: a few fighters at once is the real limit, not one pose. See [Read it](../guide/hardware-budget.md#read-it).
+
+**Ways to store the sprites.** The Mega Drive and SNES exports have **Store as**: every tile in video memory, as before; parts streamed, where video memory holds only what each character shows, for projects bigger than it (the Sonic example now exports to the SNES); or whole frames streamed. A table shows what each way costs for your project, and **Check Project** and the budget readout follow the way you choose. See [Mega Drive (SGDK)](programmers.md#mega-drive-sgdk).
+
+**For programmers.** The runtimes draw frames and modules mirrored, so a character facing either way needs its frames once. A game can ask what a frame needs before it draws it, share streamed slots between characters, and say what gives way first when a picture asks for more sprites than the console shows. On the Mega Drive, frames of four or more hardware sprites are drawn by new loops in 68000 assembly. The exported data has changed, so a game needs the runtime from this version when it exports again. See [For your programmer](programmers.md).
+
+Projects are saved in file format 9. Older projects are upgraded when you open them. Version 0.11 opens format 9 projects with a warning, stores frames marked **Store whole** as their parts and forgets the mark when it saves.
+
 ## 0.11, October 2026
 
 **Every supported console is treated the same.** The Mega Drive's command-line exporter is now called `export_megadrive`, the way the SNES's is called `export_snes`; up to 0.10.2 it was `export_sgdk`, so scripts that call it need the new name. Both take the same options. See [Mega Drive (SGDK)](programmers.md#mega-drive-sgdk).
