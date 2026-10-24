@@ -81,7 +81,8 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual([e.title for e in console_exports.EXPORTS], ["Mega Drive (SGDK)", "SNES (PVSnesLib)"])
         self.assertEqual(console_exports.SNES.runtime_names(),
                          "src/modsprite.c, src/modsprite_draw.asm and inc/modsprite.h")
-        self.assertEqual(console_exports.MEGA_DRIVE.runtime_names(), "src/modsprite.c and inc/modsprite.h")
+        self.assertEqual(console_exports.MEGA_DRIVE.runtime_names(),
+                         "src/modsprite.c, src/modsprite_draw.s and inc/modsprite.h")
 
     def test_every_entry_has_what_full_support_needs(self):
         tracked = set(subprocess.run(["git", "ls-files", "-z"], cwd=REPO, capture_output=True,

@@ -17,6 +17,29 @@
 #if MS_CACHE_SLOTS > 254 || MS_GIVE_WAY_DRAWS > 80
 #error "MS_CACHE_SLOTS goes up to 254, MS_GIVE_WAY_DRAWS to 80"
 #endif
+/* The draw loops: on the 68000 a frame of MS_ASM_SPRITES hardware sprites or more goes through those of
+   modsprite_draw.s (a smaller one draws faster in C: the call costs more than its loops save), elsewhere (the host
+   tests) and with MS_PUT_FRAME_C defined every frame through the C ones here, which write the same sprite table
+   (tools/check_megadrive_rom.py compares the two). */
+#if !defined(MS_PUT_FRAME_C) && !defined(__m68k__)
+#define MS_PUT_FRAME_C
+#endif
+#ifndef MS_PUT_FRAME_C
+#ifndef MS_ASM_SPRITES
+#define MS_ASM_SPRITES 4
+#endif
+/* modsprite_draw.s: the count parts before end into the sprite table from sprite on (link: the sprites before it),
+   drawn at (x, y) as they are or mirrored by flip, their tiles from attribute; each returns the sprites in the table
+   then. ms_put_parts and ms_put_parts_flipped copy every piece (x and y with 0x80 added: the frame lies on the screen
+   and fits), ms_put_parts_careful tests each one as ms_push_sprite does. */
+u16 ms_put_parts(const MS_Part *end, u16 count, VDPSprite *sprite, u16 link, s16 x, s16 y, u16 attribute,
+                 const u16 *entry_bits, const MS_Piece *pieces);
+u16 ms_put_parts_flipped(const MS_Part *end, u16 count, VDPSprite *sprite, u16 link, s16 x, s16 y, u16 attribute,
+                         const u16 *entry_bits, const MS_Piece *pieces, u8 flip);
+u16 ms_put_parts_careful(const MS_Part *end, u16 count, VDPSprite *sprite, u16 link, s16 x, s16 y, u16 attribute,
+                         const u16 *entry_bits, const MS_Piece *pieces, u8 flip, u16 limit, s16 screen_w,
+                         s16 screen_h, u16 *dropped);
+#endif
 
 static u8 g_initialized = FALSE;
 static u8 g_tiles_fit = FALSE;
@@ -231,6 +254,12 @@ static void ms_put_render_frame(const MS_RenderFrame *frame, s16 ox, s16 oy)
         VDPSprite *sprite = &vdpSpriteCache[g_hw_count];
         u16 link = g_hw_count;
 
+#ifndef MS_PUT_FRAME_C
+        if (frame->sprite_count >= MS_ASM_SPRITES)
+            link = ms_put_parts(part, frame->part_count, sprite, link, ox + 0x80, oy + 0x80, g_attr_base,
+                                g_entry_bits, ms_pieces);
+        else
+#endif
         for (n = frame->part_count; n > 0; n--)
         {
             const MS_Piece *piece;
@@ -255,6 +284,13 @@ static void ms_put_render_frame(const MS_RenderFrame *frame, s16 ox, s16 oy)
         g_frame_profile.hw_sprites = g_hw_count;
         return;
     }
+#ifndef MS_PUT_FRAME_C
+    if (frame->sprite_count >= MS_ASM_SPRITES)
+        g_hw_count = ms_put_parts_careful(part, frame->part_count, &vdpSpriteCache[g_hw_count], g_hw_count, ox, oy,
+                                          g_attr_base, g_entry_bits, ms_pieces, 0, g_sprite_limit, g_screen_w,
+                                          g_screen_h, &g_frame_profile.sprites_dropped);
+    else
+#endif
     for (n = frame->part_count; n > 0; n--)
     {
         const MS_Piece *piece;
@@ -291,6 +327,12 @@ static void ms_put_render_frame_flipped(const MS_RenderFrame *frame, s16 ox, s16
         VDPSprite *sprite = &vdpSpriteCache[g_hw_count];
         u16 link = g_hw_count;
 
+#ifndef MS_PUT_FRAME_C
+        if (frame->sprite_count >= MS_ASM_SPRITES)
+            link = ms_put_parts_flipped(part, frame->part_count, sprite, link, ox + 0x80, oy + 0x80, g_attr_base,
+                                        g_entry_bits, ms_pieces, flip);
+        else
+#endif
         for (n = frame->part_count; n > 0; n--)
         {
             const MS_Piece *piece;
@@ -319,6 +361,13 @@ static void ms_put_render_frame_flipped(const MS_RenderFrame *frame, s16 ox, s16
         g_frame_profile.hw_sprites = g_hw_count;
         return;
     }
+#ifndef MS_PUT_FRAME_C
+    if (frame->sprite_count >= MS_ASM_SPRITES)
+        g_hw_count = ms_put_parts_careful(part, frame->part_count, &vdpSpriteCache[g_hw_count], g_hw_count, ox, oy,
+                                          g_attr_base, g_entry_bits, ms_pieces, flip, g_sprite_limit, g_screen_w,
+                                          g_screen_h, &g_frame_profile.sprites_dropped);
+    else
+#endif
     for (n = frame->part_count; n > 0; n--)
     {
         const MS_Piece *piece;

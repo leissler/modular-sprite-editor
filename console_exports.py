@@ -165,7 +165,7 @@ class ConsoleExport:
 
 MEGA_DRIVE = ConsoleExport(
     consoles.MEGA_DRIVE, "SGDK",
-    runtime=("src/modsprite.c", "inc/modsprite.h"),
+    runtime=("src/modsprite.c", "src/modsprite_draw.s", "inc/modsprite.h"),
     intro=("The data goes into the game's SGDK project folder: res/gen/modsprite_blob.bin, inc/modsprite_data.h, "
            "src/modsprite_data.c and one line in res/resources.res (the game's other resources stay). The folder needs "
            "the runtime, {runtime}; the SGDK demo in the source code has it."),

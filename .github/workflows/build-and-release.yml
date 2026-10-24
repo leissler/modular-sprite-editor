@@ -8,7 +8,8 @@ name: Build And Release
 # On Windows it also assembles and tests the kit to hand to a developer directly (not released, a run
 # artifact): editor, exporters, examples, the SGDK demo built into ROMs with the bundled SGDK, and the SNES demo built
 # with the bundled PVSnesLib (its Windows tools, no make), which the snes-kit job plays next to the Linux ROM.
-# The SNES job builds the SNES demo ROM with PVSnesLib and checks the runtime in it in Mesen 2.
+# The SNES job builds the SNES demo ROM with PVSnesLib and checks the runtime in it in Mesen 2; the Mega Drive job
+# builds the Mega Drive runtime into probe ROMs with the vendored SGDK and checks every draw in BlastEm.
 # With "publish" off it only builds and tests. The version has to be APP_VERSION in app.py (the About box shows it).
 
 on:
@@ -457,9 +458,87 @@ jobs:
           path: test-results
           if-no-files-found: ignore
 
+  megadrive:
+    # The Mega Drive runtime (examples/megadrive): probe ROMs of the example projects, built with the vendored SGDK
+    # (make debug) and played in BlastEm through its GDB stub against the host build of the runtime
+    # (tools/check_megadrive_rom.py: every draw's sprite table and profile, the VDP's sprite table, video memory,
+    # colour RAM, the first scene's frames), resident and streamed (--mode). It keeps the runtime's 68000 draw loops
+    # (src/modsprite_draw.s) drawing what the C ones do, which the host tests run with the unit tests of the build job.
+    # On macOS: Homebrew bottles m68k-elf-gcc (Linux has no packaged m68k-elf toolchain), and BlastEm needs a window
+    # (SDL's window-less video drivers hang it). BlastEm's macOS build is x86_64: Rosetta 2 runs it.
+    name: Mega Drive runtime
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      BLASTEM_TGZ: https://www.retrodev.com/blastem/blastem-osx-0.6.2.tar.gz
+      BLASTEM_SHA256: d03baadbeec7910a423f35abd6a7a04e4d1b64c8eb9ff054a4947b277205ac1c  # its blastem executable
+      SDL_AUDIODRIVER: dummy  # no sound device needed: BlastEm keeps time by SDL's dummy audio
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Java (SGDK's resource compiler)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install the m68k toolchain and Rosetta 2
+        run: |
+          brew install m68k-elf-binutils m68k-elf-gcc
+          m68k-elf-gcc --version | head -n 1
+          if [ "$(uname -m)" = "arm64" ]; then
+            sudo softwareupdate --install-rosetta --agree-to-license || true
+            arch -x86_64 /usr/bin/true
+          fi
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+
+      - name: Cache BlastEm
+        uses: actions/cache@v4
+        with:
+          path: megadrive-downloads
+          key: blastem-0.6.2-osx
+
+      - name: Unpack BlastEm
+        run: |
+          mkdir -p megadrive-downloads megadrive-tools
+          tgz="megadrive-downloads/$(basename "$BLASTEM_TGZ")"
+          [ -f "$tgz" ] || curl -fL --retry 6 --retry-delay 20 --retry-all-errors --max-time 600 -o "$tgz" "$BLASTEM_TGZ"
+          tar -xzf "$tgz" -C megadrive-tools
+          blastem=$(find "$PWD/megadrive-tools" -name blastem -type f -perm -u+x | head -n 1)
+          if [ -z "$blastem" ] || [ "$(shasum -a 256 "$blastem" | cut -d ' ' -f 1)" != "$BLASTEM_SHA256" ]; then
+            echo "::error::BlastEm 0.6.2's macOS executable is not the one expected (BLASTEM_SHA256)"
+            exit 1
+          fi
+          echo "BLASTEM=$blastem" >> "$GITHUB_ENV"
+
+      - name: Check the runtime in ROMs (BlastEm)
+        run: |
+          set -o pipefail
+          mkdir -p test-results
+          # PoP, Sonic and the Adventurer, resident and streamed (docs/EXPORT_MODES.md)
+          for mode in parts parts_streamed frames_streamed; do
+            python tools/check_megadrive_rom.py --mode "$mode" | tee -a test-results/megadrive-rom-check.txt
+          done
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-megadrive
+          path: test-results
+          if-no-files-found: ignore
+
   release:
     name: Publish Release
-    needs: [build, snes, snes-kit]
+    needs: [build, snes, snes-kit, megadrive]
     if: ${{ github.event.inputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:

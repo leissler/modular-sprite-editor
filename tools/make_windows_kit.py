@@ -54,6 +54,9 @@ def demo_files(export: ConsoleExport) -> List[str]:
     sdk = export.sdk_path
     files = [path for path in _tracked_items([export.readme, export.demo + "/"])
              if not path.startswith(sdk) or path[len(sdk):].startswith(export.sdk_keep)]
+    for name in export.runtime:  # the demo builds with every file of the runtime (console_exports)
+        if f"{export.demo}/{name}" not in files:
+            raise SystemExit(f"not in git: {export.demo}/{name} ({export.name}'s runtime)")
     if export.sdk_in_git:
         for need in export.sdk_needs:
             if not any(path == sdk + need or path.startswith(sdk + need) for path in files):
