@@ -46,6 +46,6 @@ Most engines start with the first: the runtime is written to live next to an eng
 
 ## Versions
 
-These pages describe version 0.12, project file format 9. Each console's data has a version of its own, given on its data page. The data, the generated code and the runtime belong together: after exporting with a newer editor, copy that version's runtime files into the game; an older runtime does not compile against newer data. Every release lists what changed for programmers in its [release notes](https://github.com/leissler/modular-sprite-editor/releases).
+These pages describe version 0.12.1, project file format 9. Each console's data has a version of its own, given on its data page; 0.12.1 exports the same data as 0.12, and its runtimes add the calls that draw animation players mirrored. The data, the generated code and the runtime belong together: after exporting with a newer editor, copy that version's runtime files into the game; an older runtime does not compile against newer data. Every release lists what changed for programmers in its [release notes](https://github.com/leissler/modular-sprite-editor/releases).
 
 The [source repository](https://github.com/leissler/modular-sprite-editor) is the reference behind these pages: the runtimes' headers (`inc/modsprite.h`), each console's guide (`examples/<console>/README.md`) and the documents in `docs/`.

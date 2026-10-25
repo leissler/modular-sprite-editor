@@ -199,8 +199,8 @@ The first sprite put is the first in the VDP's list, in front. A part's pieces a
 
 | Version | What changed |
 |---|---|
-| 8 (0.12) | streamed exports: version 6 with the module flip offsets of version 7 |
-| 7 (0.12) | resident exports: version 5 with each module's flip offset under each mapping (`ms_draw_module_flipped` mirrors in place) |
+| 8 (since 0.12) | streamed exports: version 6 with the module flip offsets of version 7 |
+| 7 (since 0.12) | resident exports: version 5 with each module's flip offset under each mapping (`ms_draw_module_flipped` mirrors in place) |
 | 6 | streamed exports only, never in a release: a load list per render frame; pieces count their tiles from the slot |
 | 5 (0.9 to 0.11) | palette entries with their colour cycles, the swaps' entry table, each piece's palette entry |
 | 4 (0.8) | several palettes |

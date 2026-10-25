@@ -64,4 +64,4 @@ The export takes a few seconds for a project like the Prince of Persia example, 
 
 ## After an editor update
 
-Export again with the new version, and copy the new version's runtime files into the game: data, generated code and runtime belong together ([versions](index.md#versions)). The release notes say when a console's data changed. In 0.12 both did: the Mega Drive's data is version 7 (it was 5), the SNES's version 4 (it was 2), and the Mega Drive's runtime gained a file, `src/modsprite_draw.s`.
+Export again with the new version, and copy the new version's runtime files into the game: data, generated code and runtime belong together ([versions](index.md#versions)). The release notes say when a console's data changed. In 0.12 both did: the Mega Drive's data is version 7 (it was 5), the SNES's version 4 (it was 2), and the Mega Drive's runtime gained a file, `src/modsprite_draw.s`. 0.12.1 changed only the runtimes (new calls): its data is 0.12's, so a game keeps its export and copies the new runtime files for the new calls.

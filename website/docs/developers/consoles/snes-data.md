@@ -140,8 +140,8 @@ The sprites are stored in OAM order, the first in front. The palette bits come f
 
 | Version | What changed |
 |---|---|
-| 5 (0.12) | streamed exports: version 3 with the module flip offsets of version 4, and each load list's rows (`ms_load_list_rows`) |
-| 4 (0.12) | resident exports: version 2 with each module's flip offset under each mapping |
+| 5 (since 0.12) | streamed exports: version 3 with the module flip offsets of version 4, and each load list's rows (`ms_load_list_rows`) |
+| 4 (since 0.12) | resident exports: version 2 with each module's flip offset under each mapping |
 | 3 | streamed exports only, never in a release: load lists, sprites counted from a slot |
 | 2 (0.10 to 0.11) | the first released version |
 

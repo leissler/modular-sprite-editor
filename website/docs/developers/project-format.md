@@ -1,6 +1,6 @@
 # The project file
 
-A project is one UTF-8 JSON file (`.json`, 2-space indent) with the sprite sheets it names. This page documents format 9, the format of version 0.12, and the rules that turn it into pictures and motion. The editor is the reference: what it shows is what these rules give.
+A project is one UTF-8 JSON file (`.json`, 2-space indent) with the sprite sheets it names. This page documents format 9, the format since version 0.12, and the rules that turn it into pictures and motion. The editor is the reference: what it shows is what these rules give.
 
 ## Basics
 
