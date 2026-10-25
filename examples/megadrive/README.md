@@ -319,8 +319,9 @@ console against the host build that the tests compare with the editor. For each 
 copy of the demo with a probe program as its `main.c`, builds it (`make debug`) and plays it in BlastEm through its GDB
 stub (`blastem ROM -D`), stopped after every draw: every frame at three places, as it is and mirrored, every module,
 crowds of one frame past the 80 sprites, each scene at a few moments with every mapping, an animation drawn twice
-(the second time with another mapping and palette swap), a game's own sprites across the edges, the planning queries'
-answers, copies of a few frames, and pictures of many draws as they are, as a game that measures them would draw them
+(the second time with another mapping and palette swap) and twice facing itself, mirrored each way, a game's own
+sprites across the edges, the planning queries' answers and every frame's hitboxes and points mirrored, copies of a
+few frames, and pictures of many draws as they are, as a game that measures them would draw them
 again and with give-way levels (streamed also through the slot cache). The same probe compiled for the host makes the
 same calls. Every sprite table (all 80 entries) and profile must be the host build's, the VDP's sprite table (read
 back from video memory) the sprite table cache, video memory the export's tiles (streamed: the slots and the slot
@@ -363,6 +364,11 @@ toolchain (`m68k-elf-gcc`, `make`, Java; the SGDK in `third_party`), the host's 
   (`tests/test_megadrive_runtime_player.py`): *Loop* plays the steps before `loop_start` once and then loops the rest,
   repeat counts end an animation, and an animation that ends continues with its follow-up
   (`player.animation_index` changes; `player.finished` is set only when there is none).
+- `ms_draw_anim_player_flipped(&player, x, y, flip)` draws the step mirrored about the draw point (`flip` as for
+  frames), as the Animations tab's **Mirror** preview shows it (H 1, V 2, H + V 3): the step's offset, flips and turn
+  are in its render frame and mirror with it, so a character that turns around needs each animation once.
+  `ms_draw_anim_player_as_flipped(&player, mapping, swap, x, y, flip)` does the same with another mapping and palette
+  swap for that draw (another mapping alone: pass `ms_get_palette_swap()`).
 - Animation events (editor: Animations ▸ step ▸ Events; `MS_EVENT_<NAME>` in `inc/modsprite_data.h`):
   - `ms_anim_player_has_event(&player, MS_EVENT_HIT_ON)` — active while the step shows (hit windows,
     invulnerability, cancel windows)
@@ -378,6 +384,14 @@ toolchain (`m68k-elf-gcc`, `make`, Java; the SGDK in `third_party`), the host's 
   if (hurt) check_overlap(x + hurt->x, y + hurt->y, hurt->w, hurt->h);
   ```
   `ms_frame_hitboxes()` / `ms_frame_points()` / `ms_anim_player_points()` / `ms_find_point()` work the same way.
+  A step or frame drawn mirrored (`ms_draw_anim_player_flipped`, `ms_draw_frame_flipped`) has its boxes and points
+  mirrored with `ms_flip_hitbox(box, flip, &out)` / `ms_flip_point(point, flip, &out)`, as the draw mirrors the art (a
+  box's `x` becomes `-x - w`, a point's `-x - 1`); they return `out`, and NULL for NULL, so they take what
+  `ms_find_hitbox()` gives:
+  ```c
+  MS_Hitbox box;
+  const MS_Hitbox *blade = ms_flip_hitbox(ms_find_hitbox(boxes, count, MS_HITBOX_ATTACK, MS_ROLE_BLADE), flip, &box);
+  ```
   Types are numbered in the editor's list order (`MS_HITBOX_<NAME>`, `MS_POINT_<NAME>`), roles alphabetically
   (`MS_ROLE_<NAME>`, `MS_NO_ROLE` for none); a box whose type was deleted has type `MS_UNKNOWN_TYPE`.
   The Prince of Persia example has them: `MS_HITBOX_HURT` boxes `head` and `body` on every frame, an
@@ -391,6 +405,7 @@ toolchain (`m68k-elf-gcc`, `make`, Java; the SGDK in `third_party`), the host's 
   ms_draw_anim_player(&hero, hero_x, hero_y);                              /* active mapping */
   ms_draw_anim_player_mapped(&guard, guard_mapping, guard_x, guard_y);    /* active one stays */
   ms_draw_anim_player_as(&guard, guard_mapping, blue_swap, guard_x, guard_y);  /* re-skinned and recoloured */
+  ms_draw_anim_player_as_flipped(&guard, guard_mapping, blue_swap, guard_x, guard_y, 1);  /* facing the hero */
   ```
 - `ms_get_frame_profile()`: render calls, parts, hardware sprites used and dropped this frame, tiles uploaded
   (streamed exports), the slot cache's slots used and draws left out, the draws that gave way
@@ -426,8 +441,11 @@ through a slot of its own.
   sizes against the blob. It also draws two players of one animation with different mappings into one sprite
   table (`ms_draw_anim_player_mapped`), and once with a palette swap (`ms_draw_anim_player_as`: the guard's sprites
   take the swap's palette line, the tiles are the same), scene objects with a swap of their own, and colour cycles
-  turned by `ms_palette_tick()` against the editor's preview. Every module of the testbeds under every mapping
-  mirrored in place, the sprite counts and bounds the queries give against the drawn sprite table, and crowds with
+  turned by `ms_palette_tick()` against the editor's preview. Every step of the testbeds' animations mirrored each
+  way (`ms_draw_anim_player_flipped`) against the editor's Mirror preview, with its hitboxes and points
+  (`ms_flip_hitbox`, `ms_flip_point`), and a guard facing the hero (`ms_draw_anim_player_as_flipped`). Every module of
+  the testbeds under every mapping mirrored in place, the sprite counts and bounds the queries give against the drawn
+  sprite table, and crowds with
   give-way levels: the draws that give way as the reference choice in `tests/runtime_models.py` says, and the sprite
   table exactly the one the runtime draws without levels from the draws that stay.
 - `tests/test_megadrive_streaming.py` does the same with streamed exports, rasterising from the video memory the

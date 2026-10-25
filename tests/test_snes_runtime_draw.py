@@ -7,8 +7,10 @@ buffer (in the middle of the screen and across its edges; as it is and mirrored 
 decodes that buffer like the PPU does (the high table's
 X bit and size bit, the setup's two sprite sizes, 4 bpp planar tiles from the 16-tile-wide sprite tables, flips, lower
 entries in front) and compares the visible pixels with the editor's renderer as (palette entry, colour slot). Also
-draws the Swordfight scene (the guard keeps his own palette swap) and one animation twice with
-ms_draw_anim_player_as. Skipped without a C compiler.
+draws the Swordfight scene (the guard keeps his own palette swap), one animation twice with
+ms_draw_anim_player_as, every animation step mirrored each way (ms_draw_anim_player_flipped) against the editor's
+mirror preview with its hitboxes and points mirrored (ms_flip_hitbox, ms_flip_point), and a guard facing the hero
+(ms_draw_anim_player_as_flipped). Skipped without a C compiler.
 """
 
 import sys
@@ -119,6 +121,91 @@ class SNESRuntimeTest(unittest.TestCase):
                     shown = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
                     self.assertEqual(shown, _editor_pixels(ctx, image, hx, hy, x, y),
                                      f"{path.name}: '{project.frames[f].name}' mirrored {flip} at {x},{y}")
+
+    def test_every_step_mirrored(self):
+        """ms_draw_anim_player_flipped draws every step of every animation, as it is and mirrored each way, as the
+        editor's mirror preview shows it (StepRenderer mirrored: the step's offset, flips and turn mirrored with it), in
+        the middle of the screen and across the edge; ms_flip_hitbox / ms_flip_point put the step's hitboxes and points
+        where the mirrored step has them (step_markers under the mirrored step's transform), also mirrored in place."""
+        from exporters.sheet import step_markers
+        from ui.animation_editor.render import StepRenderer, step_affine
+
+        sys.path.insert(0, str(REPO_ROOT / "tests"))
+        from test_snes_runtime_player import _baked_markers, _step_render_frame
+
+        renderer = StepRenderer()
+        project = Project.from_json(str(PROJECTS[0]))  # the Adventurer has no animations
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder, "none")
+            draws = [(a, s, flip, x, y) for a, anim in enumerate(project.animations) for s in range(len(anim.aframes))
+                     for flip in range(4) for x, y in POSITIONS[:2]]
+            head, lines = snes_host.run(exe, folder, [f"step {a} {s} {flip} {x} {y}" for a, s, flip, x, y in draws])
+            vram = snes_host.vram_bytes(head)
+        self.assertEqual(len(lines), len(draws))
+        expected, shown, marked = {}, {}, 0
+        for (a, s, flip, x, y), line in zip(draws, lines):
+            anim = project.animations[a]
+            af = anim.aframes[s]
+            mirror = (bool(flip & 1), bool(flip & 2))
+            label = f"'{anim.name}' step {s} mirrored {flip}"
+            what, text, rest = line.split(" ", 2)
+            self.assertEqual(what, "marks")
+            boxes, points = _baked_markers(ctx, _step_render_frame(ctx, a, s))
+            got_boxes, got_points = ([tuple(int(v) for v in item.split(",")) for item in part.split(";") if item]
+                                     for part in text.split("|"))
+            want_boxes, want_points = step_markers(project, project.get_frame(af.frame_id), *step_affine(af, *mirror))
+            self.assertEqual((len(want_boxes), len(want_points)), (len(boxes), len(points)), label)
+            self.assertEqual(got_boxes, [(t, r, w.x, w.y, w.w, w.h, 1) for (t, r, *_box), w in zip(boxes, want_boxes)],
+                             f"{label}: its hitboxes")
+            self.assertEqual(got_points, [(t, r, w.x, w.y, 1) for (t, r, *_point), w in zip(points, want_points)],
+                             f"{label}: its points")
+            marked += len(boxes) + len(points)
+            draw = snes_host.parse_draw(rest)
+            self.assertEqual((draw["what"], draw["dropped"]), ("step", 0), label)
+            key = (af.frame_id, af.flip_x, af.flip_y, af.rotation_degrees, tuple(af.offset), flip, x, y)
+            if key not in expected:
+                image, hx, hy = renderer.render(project, af, None, mirror)
+                expected[key] = _editor_pixels(ctx, image, hx, hy, x, y)
+            if draw["oam"] not in shown:
+                shown[draw["oam"]] = snes_host.rasterise(snes_host.decode_oam(draw["oam"]), vram, ctx.small, ctx.large)
+            self.assertEqual(shown[draw["oam"]], expected[key], f"{label} at {x},{y}")
+        self.assertGreater(marked, 1000, "PoP's steps have hitboxes and points to mirror")
+
+    def test_a_guard_facing_the_hero(self):
+        """The hero mirrored with ms_draw_anim_player_flipped and the guard with his mapping and palette swap mirrored
+        the other way left to right with ms_draw_anim_player_as_flipped, each way: both as the editor's mirror preview
+        shows the step, the guard in the swap's palette, and the active mapping and swap stay as they were."""
+        from ui.animation_editor.render import StepRenderer
+
+        renderer = StepRenderer()
+        project = Project.from_json(str(PROJECTS[0]))
+        guard = next(m for m in project.mappings if m.name == "Normal")
+        names = ["C34 Attack", "C46 quick attack", "C21 multi stab throw enemy"]  # offsets, step flips
+        animations = [next(i for i, a in enumerate(project.animations) if a.name == n) for n in names]
+        plays = [(anim, flip, tick) for anim in animations for flip in range(4) for tick in range(0, 150, 6)]
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            ctx, exe = _export_and_build(project, folder)
+            self.assertEqual(ctx.mapping_ids[1], guard.id)
+            head, lines = snes_host.run(exe, folder, [f"facing {anim} 1 1 {flip} {tick} 80 160 176 160"
+                                                      for anim, flip, tick in plays])
+            vram = snes_host.vram_bytes(head)
+        steps = set()
+        for (anim, flip, _tick), line in zip(plays, lines):
+            _label, step, mapping, swap, what, sprites, dropped, oam = line.split(" ")
+            self.assertEqual((what, mapping, swap, dropped), ("facing", "0", "0", "0"),
+                             "the active mapping and swap stay as they were")
+            af = project.animations[anim].aframes[int(step)]
+            expected = {}
+            # the guard first: the hero, drawn first, is in front
+            for mapping_, entry, f, (x, y) in ((guard, 1, flip ^ 1, (176, 160)), (None, 0, flip, (80, 160))):
+                image, hx, hy = renderer.render(project, af, mapping_, (bool(f & 1), bool(f & 2)))
+                expected.update(_editor_pixels(ctx, image, hx, hy, x, y, lambda px, py, e=entry: e))
+            shown = snes_host.rasterise(snes_host.decode_oam(oam)[:int(sprites)], vram, ctx.small, ctx.large)
+            self.assertEqual(shown, expected, f"{project.animations[anim].name} step {step}, the hero mirrored {flip}")
+            steps.add((anim, int(step)))
+        self.assertEqual(len(steps), sum(len(project.animations[a].aframes) for a in animations))
 
     def test_every_module_as_it_is_and_mirrored(self):
         """ms_draw_module_flipped draws each module with its pivot where it is drawn, as it is (flip 0: ms_draw_module)

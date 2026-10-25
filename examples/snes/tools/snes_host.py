@@ -18,6 +18,12 @@ load lists it queued and, when it uploaded, video memory from tile 0 to the seco
                                              then the ones out of range ("frame:module:tiles") (no OAM)
     scene INDEX MAPPING TICKS X Y            a scene player ticked TICKS times
     versus ANIM MAPPING SWAP TICKS X Y X2 Y2 an animation drawn as it is, then with ms_draw_anim_player_as
+    facing ANIM MAPPING SWAP FLIP TICKS X Y X2 Y2  the same mirrored: by FLIP (ms_draw_anim_player_flipped), then
+                                             the other way left to right, FLIP ^ 1 (ms_draw_anim_player_as_flipped)
+    step ANIM STEP FLIP X Y                  an animation's step (its player's step_index set) drawn mirrored with
+                                             ms_draw_anim_player_flipped, after "marks" and the step's hitboxes and
+                                             points through ms_flip_hitbox / ms_flip_point (each with 1 when it came
+                                             back in *out and a copy mirrored in place came out the same)
     sprite X Y TILE ATTRIBUTE LARGE          a game's own sprite (ms_add_hw_sprite)
     cycle                                    the sprite palettes in CGRAM (128 words), then one ms_palette_tick
     budget BYTES                             ms_set_upload_budget (streamed)
@@ -40,7 +46,8 @@ load lists it queued and, when it uploaded, video memory from tile 0 to the seco
     usecache                                 ms_use_slot_cache: the cache again (streamed)
     uncached                                 ms_set_slot(NULL): the default slot again
     checksum                                 a sum of every frame's and module's sprites and bounds under every
-                                             mapping and flip ("sum N"), then an empty frame drawn
+                                             mapping and flip and of every frame's hitboxes and points mirrored each
+                                             way ("sum N"), then an empty frame drawn
     vramdump TILES                           a streamed draw's line shows video memory up to that tile (0: as above)
 
 Hitboxes print as "type,role,x,y,w,h" and points as "type,role,x,y", separated by ";".
@@ -118,6 +125,35 @@ static void print_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Point 
         printf("%s%u,%u,%d,%d", i ? ";" : "", points[i].type, points[i].role, points[i].x, points[i].y);
 }
 
+/* The same through ms_flip_hitbox / ms_flip_point, each with 1 when it came back in *out and a copy mirrored in place
+   came out the same. */
+static void print_flipped_markers(const MS_Hitbox *boxes, u16 box_count, const MS_Point *points, u16 point_count,
+                                  u8 flip)
+{
+    MS_Hitbox box, again;
+    MS_Point point, same;
+    u16 i;
+    u8 out;
+    for (i = 0; i < box_count; i++)
+    {
+        out = ms_flip_hitbox(&boxes[i], flip, &box) == &box;
+        again = boxes[i];
+        ms_flip_hitbox(&again, flip, &again);
+        printf("%s%u,%u,%d,%d,%d,%d,%u", i ? ";" : "", box.type, box.role, box.x, box.y, box.w, box.h,
+               out && again.type == box.type && again.role == box.role && again.x == box.x && again.y == box.y
+               && again.w == box.w && again.h == box.h);
+    }
+    printf("|");
+    for (i = 0; i < point_count; i++)
+    {
+        out = ms_flip_point(&points[i], flip, &point) == &point;
+        same = points[i];
+        ms_flip_point(&same, flip, &same);
+        printf("%s%u,%u,%d,%d,%u", i ? ";" : "", point.type, point.role, point.x, point.y,
+               out && same.type == point.type && same.role == point.role && same.x == point.x && same.y == point.y);
+    }
+}
+
 #ifdef MS_STREAMED
 static MS_Slot g_second_slot;
 static u16 g_vblank_checks = 0xFFFF;
@@ -165,12 +201,16 @@ static void dump(const char *what)
     printf("\n");
 }
 
-/* What tools/check_snes_rom.py's probe sums too: every frame's and module's sprites and bounds, every mapping and flip
-   (the active mapping left at 0). */
+/* What tools/check_snes_rom.py's probe sums too: every frame's and module's sprites and bounds, every mapping and flip,
+   and every frame's hitboxes and points mirrored each way (the active mapping left at 0). */
 static u16 query_sum(void)
 {
-    u16 m, n, flip, sum = 0;
+    u16 m, n, k, flip, count, sum = 0;
     MS_Bounds box;
+    const MS_Hitbox *boxes;
+    const MS_Point *points;
+    MS_Hitbox hitbox;
+    MS_Point point;
 
     for (m = 0; m < MS_MAPPING_COUNT; m++)
     {
@@ -183,6 +223,23 @@ static u16 query_sum(void)
                 sum = (u16)(sum * 31u + (n < MS_FRAME_COUNT ? ms_frame_sprites(n) : ms_module_sprites(n - MS_FRAME_COUNT))
                             + shows + (u16)box.min_x * 3u + (u16)box.min_y * 5u + (u16)box.max_x * 7u
                             + (u16)box.max_y * 11u);
+            }
+        for (n = 0; n < MS_FRAME_COUNT; n++)
+            for (flip = 0; flip < 4; flip++)
+            {
+                count = ms_frame_hitboxes(n, &boxes);
+                for (k = 0; k < count; k++)
+                {
+                    ms_flip_hitbox(&boxes[k], (u8)flip, &hitbox);
+                    sum = (u16)(sum * 31u + hitbox.type + hitbox.role * 3u + (u16)hitbox.x * 5u + (u16)hitbox.y * 7u
+                                + (u16)hitbox.w * 11u + (u16)hitbox.h * 13u);
+                }
+                count = ms_frame_points(n, &points);
+                for (k = 0; k < count; k++)
+                {
+                    ms_flip_point(&points[k], (u8)flip, &point);
+                    sum = (u16)(sum * 31u + point.type + point.role * 3u + (u16)point.x * 5u + (u16)point.y * 7u);
+                }
             }
     }
     ms_set_mapping(0);
@@ -226,7 +283,7 @@ int main(int argc, char **argv)
     printf("\n");
     while (fgets(line, sizeof(line), stdin))
     {
-        unsigned index, mapping, swap, ticks, t;
+        unsigned index, mapping, swap, flip, ticks, t;
         int x, y, x2, y2;
         if (sscanf(line, "frame %u %u %d %d", &index, &mapping, &x, &y) == 4)
         {
@@ -305,6 +362,48 @@ int main(int argc, char **argv)
             ms_end_frame();
             printf("step %u %u %u ", player.step_index, ms_get_mapping(), ms_get_palette_swap());
             dump("versus");
+        }
+        else if (sscanf(line, "facing %u %u %u %u %u %d %d %d %d", &index, &mapping, &swap, &flip, &ticks, &x, &y, &x2,
+                        &y2) == 9)
+        {
+            MS_AnimPlayer player;
+            ms_set_mapping(0);
+            ms_set_palette_swap(0);
+            ms_anim_player_init(&player, index);
+            for (t = 0; t < ticks; t++)
+                ms_anim_player_tick(&player);
+            ms_begin_frame();
+            ms_draw_anim_player_flipped(&player, x, y, (u8)flip);
+#ifdef MS_STREAMED
+            ms_set_slot(&g_second_slot);
+#endif
+            ms_draw_anim_player_as_flipped(&player, mapping, swap, x2, y2, (u8)(flip ^ 1));
+#ifdef MS_STREAMED
+            ms_set_slot(NULL);
+#endif
+            ms_end_frame();
+            printf("step %u %u %u ", player.step_index, ms_get_mapping(), ms_get_palette_swap());
+            dump("facing");
+        }
+        else if (sscanf(line, "step %u %u %u %d %d", &index, &ticks, &flip, &x, &y) == 5)
+        {
+            MS_AnimPlayer player;
+            const MS_Hitbox *boxes;
+            const MS_Point *points;
+            u16 box_count, point_count;
+            ms_set_mapping(0);
+            ms_set_palette_swap(0);
+            ms_anim_player_init(&player, index);
+            player.step_index = (u16)ticks;
+            box_count = ms_anim_player_hitboxes(&player, &boxes);
+            point_count = ms_anim_player_points(&player, &points);
+            printf("marks ");
+            print_flipped_markers(boxes, box_count, points, point_count, (u8)flip);
+            printf(" ");
+            ms_begin_frame();
+            ms_draw_anim_player_flipped(&player, x, y, (u8)flip);
+            ms_end_frame();
+            dump("step");
         }
         else if (sscanf(line, "sprite %d %d %u %u %u", &x, &y, &index, &mapping, &swap) == 5)
         {

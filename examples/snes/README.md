@@ -57,6 +57,15 @@ module in place, as the editor mirrors a part in a frame: its pivot at x, y, its
 stores each module's flip offset under each mapping: its width less twice its pivot's x, its height less twice its
 pivot's y).
 
+`ms_draw_anim_player_flipped(&player, x, y, flip)` draws an animation's step mirrored like a frame, as the Animations
+tab's **Mirror** preview shows it (H 1, V 2, H + V 3): the step's offset, flips and turn are in its render frame and
+mirror with it, so a character that turns around needs each animation once.
+`ms_draw_anim_player_as_flipped(&player, mapping, swap, x, y, flip)` does the same with another mapping and palette swap
+for that draw (a guard drawn from the hero's animations, facing him). What is drawn mirrored has its hitboxes and
+points mirrored with `ms_flip_hitbox(box, flip, &out)` / `ms_flip_point(point, flip, &out)`: a box's x becomes -x - w,
+a point's -x - 1 (the pixel it marks, mirrored); NULL gives NULL, so they take what `ms_find_hitbox()` /
+`ms_find_point()` give.
+
 Before drawing, `ms_frame_sprites()` / `ms_module_sprites()` and `ms_frame_bounds()` / `ms_module_bounds()` (with a
 flip) give what a draw asks for under the current mapping, from the render frame records: a game can plan a picture
 without drawing it. Past the 128 sprites, the draws marked with `ms_set_give_way(level)` give way first
@@ -293,9 +302,10 @@ second character through a slot of its own.
 `tools/check_snes_rom.py` (repository root) builds the runtime with a probe program in place of the demo's `main.c`
 and plays it in Mesen 2's headless test runner: every frame at three positions as it is and mirrored, every module,
 frames drawn until the 128 sprites run out, the scenes with every mapping, an animation drawn through another mapping
-and swap, a game's own sprites across the screen's edges, the sum of every frame's and module's sprite counts and
-bounds, pictures of many draws with give-way levels (one that fits, some over the 128 sprites: as they are, only the
-draws that would stay, with their levels; streamed, through the slot cache too), the colour cycles;
+and swap and twice facing itself, mirrored each way, a game's own sprites across the screen's edges, the sum of every
+frame's and module's sprite counts and bounds and of every frame's hitboxes and points mirrored, pictures of many
+draws with give-way levels (one that fits, some over the 128 sprites: as they are, only the draws that would stay,
+with their levels; streamed, through the slot cache too), the colour cycles;
 each sprite table must equal the host build's byte for byte (which `tests/test_snes_runtime_draw.py` checks against
 the editor; `tests/test_snes_runtime_player.py` checks the host build's animation player, hitboxes and points against
 the editor's), video memory the export's tiles. It prints the slowest draw in scanlines and the lag frames of the first

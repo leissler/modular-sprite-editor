@@ -10,9 +10,11 @@ it after every draw, and the script reads the sprite table cache (vdpSpriteCache
 table read back from video memory and the draw's time. The probe draws every frame at three positions, as it is and
 mirrored (ms_draw_frame_flipped, the three ways in turn), every module (ms_draw_module_flipped: as it is or mirrored,
 in turn), crowds of one frame past the 80 sprites, each scene at a few moments with every mapping, one animation twice
-with ms_draw_anim_player_as (the second time with another mapping and palette swap), a game's own sprites
-(ms_add_hw_sprite) across the screen's edges, the sum of every frame's and module's sprites and bounds
-(ms_frame_sprites, ms_frame_bounds, ...), copies of a few frames in one picture each (what one draw takes, as it is,
+with ms_draw_anim_player_as (the second time with another mapping and palette swap) and twice facing itself
+(ms_draw_anim_player_flipped each way, then ms_draw_anim_player_as_flipped the other way left to right), a game's own
+sprites (ms_add_hw_sprite) across the screen's edges, the sum of every frame's and module's sprites and bounds
+(ms_frame_sprites, ms_frame_bounds, ...) and of every frame's hitboxes and points mirrored each way (ms_flip_hitbox,
+ms_flip_point), copies of a few frames in one picture each (what one draw takes, as it is,
 mirrored and across an edge) and pictures of many draws, one that fits and some past the 80 sprites: as they are, only
 the draws that would stay, and with give-way levels, timing each draw with the VDP's V counter; then it turns
 the colour cycles (two added to the first palette when it has none) for 47 video frames and plays the first scene for
@@ -94,8 +96,9 @@ PROBE_SHARED = r"""
 /* kind (0 frame, 1 scene, 2 versus, 3 a sprite of the game's own: index = size, mapping = attribute, 4 a frame mirrored
    and 5 a module as it is or mirrored: swap = flip, 6 a crowd: a frame swap times, x2 apart, the flips 0 to 3 in turn,
    7 a picture: the draws index .. index + mapping - 1 of probe_draws, swap bit 0 with their give-way levels, bit 1
-   through the slot cache, 8 the sum of every frame's and module's sprites, bounds and load lists), index, mapping,
-   swap, ticks, x, y, x2, y2 */
+   through the slot cache, 8 the sum of every frame's and module's sprites, bounds and load lists and of every frame's
+   hitboxes and points mirrored each way, 9 versus facing: mirrored by y2, the second at (x2, y) the other way left to
+   right), index, mapping, swap, ticks, x, y, x2, y2 */
 static const s16 probe_items[PROBE_COUNT * 9] = {
 @ITEMS@
 };
@@ -113,8 +116,12 @@ static void probe_stop(void);
 
 static u16 probe_query_sum(void)
 {
-    u16 m, n, flip, sum = 0;
+    u16 m, n, k, flip, count, sum = 0;
     MS_Bounds box;
+    const MS_Hitbox *boxes;
+    const MS_Point *points;
+    MS_Hitbox hitbox;
+    MS_Point point;
 
     for (m = 0; m < MS_MAPPING_COUNT; m++)
     {
@@ -134,6 +141,23 @@ static u16 probe_query_sum(void)
                             + (u16)box.min_x * 3u + (u16)box.min_y * 5u + (u16)box.max_x * 7u + (u16)box.max_y * 11u);
             }
         }
+        for (n = 0; n < MS_FRAME_COUNT; n++)
+            for (flip = 0; flip < 4; flip++)
+            {
+                count = ms_frame_hitboxes(n, &boxes);
+                for (k = 0; k < count; k++)
+                {
+                    ms_flip_hitbox(&boxes[k], (u8)flip, &hitbox);
+                    sum = (u16)(sum * 31u + hitbox.type + hitbox.role * 3u + (u16)hitbox.x * 5u + (u16)hitbox.y * 7u
+                                + (u16)hitbox.w * 11u + (u16)hitbox.h * 13u);
+                }
+                count = ms_frame_points(n, &points);
+                for (k = 0; k < count; k++)
+                {
+                    ms_flip_point(&points[k], (u8)flip, &point);
+                    sum = (u16)(sum * 31u + point.type + point.role * 3u + (u16)point.x * 5u + (u16)point.y * 7u);
+                }
+            }
     }
     ms_set_mapping(0);
     return sum;
@@ -170,7 +194,7 @@ static void probe_draw(u16 i)
         for (t = 0; t < (u16)item[4]; t++)
             ms_scene_player_tick(&scene);
     }
-    else if (item[0] == 2)
+    else if (item[0] == 2 || item[0] == 9)
     {
         ms_anim_player_init(&player, (u16)item[1]);
         for (t = 0; t < (u16)item[4]; t++)
@@ -233,6 +257,12 @@ static void probe_draw(u16 i)
         }
         if (level)
             ms_set_give_way(0);
+        break;
+    case 9:
+        ms_draw_anim_player_flipped(&player, item[5], item[6], (u8)item[8]);
+        ms_set_slot(&probe_second);
+        ms_draw_anim_player_as_flipped(&player, (u16)item[2], (u16)item[3], item[7], item[6], (u8)(item[8] ^ 1));
+        ms_set_slot(NULL);
         break;
     default:
         break;
@@ -615,12 +645,18 @@ def probe_items(project: Project, mapping_count: int, bake: export_megadrive.Meg
         for ticks in (0, 30):
             items.append(([2, anim, mapping, swap, ticks, SCENE_X - 40, SCENE_Y, SCENE_X + 40, SCENE_Y],
                           f"animation {project.animations[anim].name} twice, tick {ticks}"))
+        for flip in range(4):  # the second the other way left to right: they face each other
+            for ticks in (0, 30):
+                items.append(([9, anim, mapping, swap, ticks, SCENE_X - 40, SCENE_Y, SCENE_X + 40, flip],
+                              f"animation {project.animations[anim].name} twice facing, the first mirrored {flip}, "
+                              f"tick {ticks}"))
     for size in (0, 15):  # 8 x 8 and 32 x 32
         for x, y in ((0, 0), (-3, 5), (310, 220), (-20, 100), (100, -10), (330, 50), (319, 223), (-15, -15)):
             attribute = 0x2000 | 0x8000 * (size == 15) | 0x0800 | 0x123
             items.append(([3, size, word(attribute), 0, 0, x, y, 0, 0],
                           f"a game's {'32x32' if size else '8x8'} sprite at {x},{y}"))
-    items.append(([8, 0, 0, 0, 0, 0, 0, 0, 0], "every frame's and module's sprites, bounds and load lists"))
+    items.append(([8, 0, 0, 0, 0, 0, 0, 0, 0], "every frame's and module's sprites, bounds and load lists, every "
+                  "frame's hitboxes and points mirrored"))
     draws: List[List[int]] = []
     items.append(([7, 0, 0, 0, 0, 0, 0, 0, 0], "picture empty"))  # what drawing nothing takes
     if not project.frames:

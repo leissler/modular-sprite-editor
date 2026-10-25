@@ -1662,6 +1662,16 @@ void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y)
         ms_draw_render(step->frame_index, x, y, 0);
 }
 
+/* The step's render frame holds its offset, flips and turn: mirrored around the point drawn at, it is the step as the
+   editor's mirror preview shows it (AnimationStage.step_transform). */
+void ms_draw_anim_player_flipped(const MS_AnimPlayer *player, s16 x, s16 y, u8 flip)
+{
+    const MS_AnimStep *step = ms_anim_current_step(player);
+
+    if (step)
+        ms_draw_render(step->frame_index, x, y, flip);
+}
+
 void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y)
 {
     u16 active = g_active_mapping;
@@ -1679,6 +1689,19 @@ void ms_draw_anim_player_as(const MS_AnimPlayer *player, u16 mapping_index, u16 
     ms_set_mapping(mapping_index);
     ms_set_palette_swap(swap_index);
     ms_draw_anim_player(player, x, y);
+    ms_set_mapping(mapping);
+    ms_set_palette_swap(swap);
+}
+
+void ms_draw_anim_player_as_flipped(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y,
+                                    u8 flip)
+{
+    u16 mapping = g_active_mapping;
+    u16 swap = g_active_swap;
+
+    ms_set_mapping(mapping_index);
+    ms_set_palette_swap(swap_index);
+    ms_draw_anim_player_flipped(player, x, y, flip);
     ms_set_mapping(mapping);
     ms_set_palette_swap(swap);
 }
@@ -1805,6 +1828,50 @@ const MS_Point *ms_find_point(const MS_Point *points, u16 count, u16 type, u16 r
             return &points[i];
     }
     return NULL;
+}
+
+/* As the export moves them for a mirrored step: a box's corners mirror (the area from -x - w to -x), a point's pixel
+   centre (x + 0.5 to -x - 0.5: the pixel at -x - 1). Field by field: 816-tcc copies a struct with a memcpy call. */
+MS_Hitbox *ms_flip_hitbox(const MS_Hitbox *box, u8 flip, MS_Hitbox *out)
+{
+    s16 x, y;
+
+    if (!box || !out)
+        return NULL;
+    x = box->x;
+    y = box->y;
+    if (flip & 1)
+        x = -x - box->w;
+    if (flip & 2)
+        y = -y - box->h;
+    out->type = box->type;
+    out->reserved = box->reserved;
+    out->role = box->role;
+    out->w = box->w;
+    out->h = box->h;
+    out->x = x;
+    out->y = y;
+    return out;
+}
+
+MS_Point *ms_flip_point(const MS_Point *point, u8 flip, MS_Point *out)
+{
+    s16 x, y;
+
+    if (!point || !out)
+        return NULL;
+    x = point->x;
+    y = point->y;
+    if (flip & 1)
+        x = -x - 1;
+    if (flip & 2)
+        y = -y - 1;
+    out->type = point->type;
+    out->reserved = point->reserved;
+    out->role = point->role;
+    out->x = x;
+    out->y = y;
+    return out;
 }
 
 const char *ms_hitbox_type_name(u16 type)

@@ -544,7 +544,12 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
   frame records, so a game can plan a picture without drawing it. `ms_draw_module_flipped` mirrors a module in place
   (like a part flip): drawn mirrored around its pivot at a position moved by its flip offset (its width less twice its
   pivot's x, under the mapping: the exports' `ms_module_flip_offsets`, `ConsoleBake.module_flip_offsets`);
-  `ms_draw_frame_flipped` mirrors around the origin, like a step. The slot cache (`ms_slot_cache_init`, streamed
+  `ms_draw_frame_flipped` mirrors around the origin, like a step. `ms_draw_anim_player_flipped` (and
+  `ms_draw_anim_player_as_flipped`, with a mapping and swap for the draw) mirrors the shown step's render frame the same
+  way, which is the Animations tab's mirror preview (`AnimationStage.step_transform`: the step's offset, flips and turn
+  are baked into the render frame); `ms_flip_hitbox` / `ms_flip_point` mirror a box's corners and a point's pixel with
+  it (the runtime draw tests draw every step mirrored against `StepRenderer` and check its markers against
+  `exporters.sheet.step_markers` under the mirrored transform). The slot cache (`ms_slot_cache_init`, streamed
   exports): one pool, a slot per load list shared by every draw of it, first fit in tile order in one walk (the SNES:
   rows, aligned), the slots drawn longest ago making room but never one drawn this frame, a bucket per list's low bits
   to find one; it hands `ms_fill_slot` / `ms_slot_render` a slot, which do the rest as for the game's own. Give-way
@@ -698,7 +703,8 @@ copies, e.g. `~/Downloads`) after verifying the migration is lossless.
 - **Part rotation**: about the pivot, 90° steps (use exact cos/sin at 90° multiples, never raw `math.cos`).
 - **Points** mark a pixel: a transform moves the pixel's centre (`x + 0.5`, `y + 0.5`) and floors, so a mirror maps
   `x` to `-x - 1` and a clockwise quarter turn `(x, y)` to `(-y - 1, x)` (`frame_editor.ops.turn_pixel`, the canvas'
-  `_draw_control_point`, the exporter's `_frame_markers`). Hitboxes are areas: their corners transform as they are.
+  `_draw_control_point`, the exporter's `_frame_markers`, the runtimes' `ms_flip_point`). Hitboxes are areas: their
+  corners transform as they are (`ms_flip_hitbox`: `x` to `-x - w`).
 - **Nested frame part, animation step, mirror preview, timeline object**: geometric transform about the
   anchor/origin — flip first, then rotate. A mirrored parent (odd number of flips) reverses the direction of
   its children's rotation (`final_rot = parent_rot - child_rot`). A timeline object's root motion (the step's

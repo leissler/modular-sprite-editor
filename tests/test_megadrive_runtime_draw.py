@@ -5,7 +5,10 @@ host (with the exporter's tables as C arrays), lets the runtime draw each frame 
 middle of the screen, where it copies whole frames, and across the edges, where it culls sprite by sprite),
 then rasterises that sprite table from the exported tiles like the VDP does (column-major tiles, flips, list
 order = priority) and compares the visible pixels with the editor's renderer, quantised to the exported
-palette. Also checks that the blob's records have the size the C structs have. Skipped without a C compiler.
+palette. Every animation step is drawn mirrored each way too (ms_draw_anim_player_flipped, the guard with
+ms_draw_anim_player_as_flipped) against the editor's mirror preview, its hitboxes and points mirrored with
+ms_flip_hitbox / ms_flip_point. Also checks that the blob's records have the size the C structs have. Skipped without
+a C compiler.
 """
 
 import shutil
@@ -42,8 +45,10 @@ def _tables(ctx, frame_count: int, mapping_count: int = 1, animation_count: int 
     variants = rows(ctx.variants, lambda v: f"{v.first_piece}, {v.piece_count}, {v.tile_w}, {v.tile_h}")
     pieces = rows(ctx.packed_pieces(), lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[4]}, {p[3]}")
     parts = rows(ctx.packed_parts(), lambda p: f"{p[0]}, {p[1]}, {p[2]}, {p[3]}, {p[4]}")
-    frames = rows(ctx.render_frames, lambda r: f"{r.first_part}, {r.part_count}, 0, 0, 0, 0, "
-                  + ", ".join(str(v) for v in ctx.render_frame_extent(r)))
+    frames = rows(ctx.render_frames, lambda r: f"{r.first_part}, {r.part_count}, {r.box_count}, {r.first_box}, "
+                  f"{r.first_point}, {r.point_count}, " + ", ".join(str(v) for v in ctx.render_frame_extent(r)))
+    boxes = rows(ctx.boxes, lambda b: f"{b[0]}, 0, {b[1]}, {b[2]}, {b[3]}, {b[4]}, {b[5]}")
+    points = rows(ctx.points, lambda p: f"{p[0]}, 0, {p[1]}, {p[2]}, {p[3]}")
     positions = ", ".join(f"{{{x}, {y}}}" for x, y in POSITIONS)
     frame_render = ", ".join(str(i) for i in ctx.frame_render_frames) or "0"
     module_render = ", ".join(str(i) for i in ctx.module_render_frames) or "0"
@@ -101,6 +106,12 @@ static const MS_Animation g_records[] = {{
 static const MS_StepEvent g_events[] = {{
 {events}
 }};
+static const MS_Hitbox g_boxes[] = {{
+{boxes}
+}};
+static const MS_Point g_points[] = {{
+{points}
+}};
 static const u16 g_frame_render[] = {{ {frame_render} }};
 static const u16 g_module_render[] = {{ {module_render} }};
 static const s16 g_module_flips[] = {{ {module_flips} }};
@@ -131,9 +142,9 @@ u16 ms_palette_entry_count = {len(ctx.palette_entries)}; u16 ms_base_palette_cou
 u16 ms_palette_swap_count = {len(ctx.swaps) + 1}; u16 ms_colour_cycle_count = {len(ctx.packed_colour_cycles())};
 const MS_PaletteEntry *ms_palette_entries = g_entries; const MS_ColourCycle *ms_colour_cycles = g_cycles;
 const u8 *ms_swap_entries = g_swap_entries;
-u16 ms_hitbox_count = 0; u16 ms_point_count = 0; u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
+u16 ms_hitbox_count = {len(ctx.boxes)}; u16 ms_point_count = {len(ctx.points)}; u16 ms_hitbox_type_count = 0; u16 ms_point_type_count = 0; u16 ms_role_count = 0;
 const MS_Variant *ms_variants = g_variants; const MS_Piece *ms_pieces = g_pieces; const u32 *ms_tiles = {tiles_pointer};
-const u16 *ms_palette = g_palette; const MS_Hitbox *ms_hitboxes = NULL; const MS_Point *ms_points = NULL;
+const u16 *ms_palette = g_palette; const MS_Hitbox *ms_hitboxes = g_boxes; const MS_Point *ms_points = g_points;
 const MS_Part *ms_parts = g_parts; const MS_RenderFrame *ms_render_frames = g_frames;
 const u16 *ms_module_render_frames = g_module_render; const u16 *ms_frame_render_frames = g_frame_render;
 const s16 *ms_module_flip_offsets = g_module_flips;
@@ -210,6 +221,71 @@ int main(void)
 """
 
 
+def _steps_harness(ctx, frame_count: int, animation_count: int) -> str:
+    """Every step of every animation through ms_draw_anim_player_flipped, as it is and mirrored each way, in the middle
+    of the screen and across the top-left edge; first the step's hitboxes and points through ms_flip_hitbox and
+    ms_flip_point ("marks", with 1 where each came back in *out and a copy mirrored in place came out the same)."""
+    return _tables(ctx, frame_count, animation_count=animation_count) + f"""
+int main(void)
+{{
+    u16 a, s, flip, i, p;
+    MS_Hitbox box;
+    MS_Point point;
+    ms_init();
+    for (a = 0; a < ms_animation_count; a++)
+        for (s = 0; s < ms_animations[a].step_count; s++)
+            for (flip = 0; flip < 4; flip++)
+            {{
+                MS_AnimPlayer player;
+                const MS_Hitbox *boxes;
+                const MS_Point *points;
+                u16 box_count, point_count;
+
+                ms_anim_player_init(&player, a);
+                player.step_index = s;
+                box_count = ms_anim_player_hitboxes(&player, &boxes);
+                point_count = ms_anim_player_points(&player, &points);
+                printf("marks %u %u %u ", a, s, flip);
+                for (i = 0; i < box_count; i++)
+                {{
+                    MS_Hitbox again = boxes[i];
+                    u8 out = ms_flip_hitbox(&boxes[i], (u8)flip, &box) == &box;
+                    ms_flip_hitbox(&again, (u8)flip, &again);
+                    printf("%s%u,%u,%d,%d,%d,%d,%u", i ? ";" : "", box.type, box.role, box.x, box.y, box.w, box.h,
+                           out && again.type == box.type && again.role == box.role && again.x == box.x
+                           && again.y == box.y && again.w == box.w && again.h == box.h);
+                }}
+                printf("|");
+                for (i = 0; i < point_count; i++)
+                {{
+                    MS_Point again = points[i];
+                    u8 out = ms_flip_point(&points[i], (u8)flip, &point) == &point;
+                    ms_flip_point(&again, (u8)flip, &again);
+                    printf("%s%u,%u,%d,%d,%u", i ? ";" : "", point.type, point.role, point.x, point.y,
+                           out && again.type == point.type && again.role == point.role && again.x == point.x
+                           && again.y == point.y);
+                }}
+                printf("\\n");
+                for (p = 0; p < 2; p++)
+                {{
+                    MS_FrameProfile profile;
+                    ms_begin_frame();
+                    ms_draw_anim_player_flipped(&player, g_positions[p][0], g_positions[p][1], (u8)flip);
+                    ms_get_frame_profile(&profile);
+                    ms_end_frame();
+                    printf("step %u %u %u %u %u", a, s, flip, profile.hw_sprites, profile.sprites_dropped);
+                    for (i = 0; i < profile.hw_sprites; i++)
+                        printf(" %d,%d,%u,%u", vdpSpriteCache[i].x - 0x80, vdpSpriteCache[i].y - 0x80,
+                               vdpSpriteCache[i].size, vdpSpriteCache[i].attribut);
+                    printf("\\n");
+                }}
+            }}
+    printf("none %u %u\\n", ms_flip_hitbox(NULL, 1, &box) == NULL, ms_flip_point(NULL, 3, &point) == NULL);
+    return 0;
+}}
+"""
+
+
 def _rasterise(sprites, tiles: bytes, base: int = TILE_BASE):
     """{{(x, y): (palette entry, colour index)}} of the sprite list as the VDP shows it (earlier sprites in front); the
     runtime loads the palette entries into consecutive lines from FIRST_LINE. ``tiles`` start at tile ``base``."""
@@ -232,12 +308,14 @@ def _rasterise(sprites, tiles: bytes, base: int = TILE_BASE):
 
 
 def _versus_harness(ctx, frame_count: int, animation_count: int, animations, ticks: int,
-                    guard_draw: str = "ms_draw_anim_player_mapped(&guard, 1, {x}, {y})") -> str:
+                    guard_draw: str = "ms_draw_anim_player_mapped(&guard, 1, {x}, {y})",
+                    hero_draw: str = "ms_draw_anim_player(&hero, {x}, {y})") -> str:
     """Two players of the same animation in one sprite table: the hero with the active mapping (0), the guard
-    with mapping 1 through ms_draw_anim_player_mapped (or ``guard_draw``). Prints both steps, the mapping (plus the
-    palette swap) left active and the list."""
+    with mapping 1 through ms_draw_anim_player_mapped (or ``guard_draw``; ``hero_draw`` for the hero's, both may use
+    the tick ``t``). Prints both steps, the mapping (plus the palette swap) left active and the list."""
     anim_list = ", ".join(str(i) for i in animations)
     guard_call = guard_draw.format(x=VERSUS[1][0], y=VERSUS[1][1])
+    hero_call = hero_draw.format(x=VERSUS[0][0], y=VERSUS[0][1])
     return _tables(ctx, frame_count, mapping_count=2, animation_count=animation_count) + f"""
 int main(void)
 {{
@@ -253,7 +331,7 @@ int main(void)
         {{
             MS_FrameProfile profile;
             ms_begin_frame();
-            ms_draw_anim_player(&hero, {VERSUS[0][0]}, {VERSUS[0][1]});
+            {hero_call};
             {guard_call};
             ms_get_frame_profile(&profile);
             ms_end_frame();
@@ -409,6 +487,72 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                                              _palette_pixels(ctx, mirrored, mx, my, draw_x, draw_y),
                                              f"{project_path.name}: frame '{frame.name}' mirrored {flip} at "
                                              f"{draw_x},{draw_y} differs on the console")
+
+    def test_every_step_mirrored(self):
+        """ms_draw_anim_player_flipped draws every step of every animation, as it is and mirrored each way, as the
+        editor's mirror preview shows it (StepRenderer mirrored: the step's offset, flips and turn mirrored with it), on
+        screen and across the edge; ms_flip_hitbox / ms_flip_point put the step's hitboxes and points where the mirrored
+        step has them (step_markers under the mirrored step's transform), also mirrored in place."""
+        import export_megadrive as sg
+        from exporters.sheet import step_markers
+        from ui.animation_editor.render import StepRenderer, step_affine
+
+        renderer = StepRenderer()
+        for project_path in PROJECTS[:2]:  # the Adventurer has no animations
+            project = Project.from_json(str(project_path))
+            with self.subTest(project=project_path.name), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                ctx = sg.MegaDriveBakeContext(project, [None], tmp_path)
+                ctx.bake()
+                lines = iter(_build_and_run(self, ctx, tmp_path,
+                                            _steps_harness(ctx, len(project.frames), len(project.animations))))
+                tiles = bytes(ctx.tile_data)
+                expected, shown, drawn, marked = {}, {}, 0, 0
+                for a, anim in enumerate(project.animations):
+                    record = ctx.anim_records[a]
+                    self.assertEqual(record.step_count, len(anim.aframes), anim.name)
+                    for s, af in enumerate(anim.aframes):
+                        frame = project.get_frame(af.frame_id)
+                        span = ctx.render_frames[ctx.anim_steps[record.first_step + s][0]]
+                        boxes = ctx.boxes[span.first_box:span.first_box + span.box_count]
+                        points = ctx.points[span.first_point:span.first_point + span.point_count]
+                        for flip in range(4):
+                            mirror = (bool(flip & 1), bool(flip & 2))
+                            label = f"{project_path.name}: '{anim.name}' step {s} mirrored {flip}"
+                            what, *at, text = next(lines).split(" ")
+                            self.assertEqual([what] + at, ["marks", str(a), str(s), str(flip)])
+                            got_boxes, got_points = (
+                                [tuple(int(v) for v in item.split(",")) for item in part.split(";") if item]
+                                for part in text.split("|"))
+                            want_boxes, want_points = step_markers(project, frame, *step_affine(af, *mirror))
+                            self.assertEqual((len(want_boxes), len(want_points)), (len(boxes), len(points)), label)
+                            self.assertEqual(got_boxes, [(t, r, w.x, w.y, w.w, w.h, 1)
+                                                         for (t, r, *_box), w in zip(boxes, want_boxes)],
+                                             f"{label}: its hitboxes")
+                            self.assertEqual(got_points, [(t, r, w.x, w.y, 1) for (t, r, *_point), w
+                                                          in zip(points, want_points)], f"{label}: its points")
+                            marked += len(boxes) + len(points)
+                            for draw_x, draw_y in POSITIONS[:2]:
+                                fields = next(lines).split()
+                                self.assertEqual(fields[:4], ["step", str(a), str(s), str(flip)])
+                                self.assertEqual(int(fields[5]), 0, f"{label}: sprites dropped")
+                                key = (af.frame_id, af.flip_x, af.flip_y, af.rotation_degrees, tuple(af.offset), flip,
+                                       draw_x, draw_y)
+                                if key not in expected:
+                                    image, hx, hy = renderer.render(project, af, None, mirror)
+                                    expected[key] = _palette_pixels(ctx, image, hx, hy, draw_x, draw_y)
+                                table = " ".join(fields[6:])
+                                if table not in shown:
+                                    sprites = [tuple(int(v) for v in item.split(",")) for item in fields[6:]]
+                                    self.assertEqual(len(sprites), int(fields[4]))
+                                    shown[table] = _rasterise(sprites, tiles)
+                                self.assertEqual(shown[table], expected[key],
+                                                 f"{label} at {draw_x},{draw_y} differs on the console")
+                                drawn += 1
+                self.assertEqual(next(lines), "none 1 1", "NULL (no such hitbox or point) gives NULL")
+                self.assertEqual(drawn, 8 * sum(len(anim.aframes) for anim in project.animations))
+                if project_path == PROJECTS[0]:
+                    self.assertGreater(marked, 1000, "PoP's steps have hitboxes and points to mirror")
 
     def test_frames_stored_whole(self):
         """Frames stored whole are drawn as their pictures, the others as parts: PoP's frames as they are and
@@ -622,6 +766,49 @@ class TestRuntimeDrawsLikeTheEditor(unittest.TestCase):
                     image, hx, hy = renderer.render(project, project.get_frame(af.frame_id), mapping, a, b)
                     expected.update(_palette_pixels(ctx, image, hx, hy, draw_x, draw_y, palette_at=lambda x, y, e=entry: e))
                 self.assertEqual(_rasterise(sprites, tiles), expected, f"'{anim.name}' step {hero_step}")
+
+    def test_a_guard_facing_the_hero(self):
+        """The hero mirrored with ms_draw_anim_player_flipped and the guard with his mapping and palette swap mirrored
+        with ms_draw_anim_player_as_flipped, each way in turn (the flips change with the tick): both as the editor's
+        mirror preview shows the step, the guard in his clothes and colours, and the active mapping and swap stay."""
+        import export_megadrive as sg
+        from ui.animation_editor.render import StepRenderer
+
+        project = Project.from_json(str(PROJECTS[0]))
+        guard_mapping = next(m for m in project.mappings if m.name == "Normal")
+        names = ["C34 Attack", "C46 quick attack", "C21 multi stab throw enemy"]  # offsets, step flips
+        animations = [next(i for i, a in enumerate(project.animations) if a.name == n) for n in names]
+        ticks = 150
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ctx = sg.MegaDriveBakeContext(project, [None, guard_mapping], tmp_path)
+            ctx.bake()
+            lines = _build_and_run(self, ctx, tmp_path, _versus_harness(
+                ctx, len(project.frames), len(project.animations), animations, ticks=ticks,
+                hero_draw="ms_draw_anim_player_flipped(&hero, {x}, {y}, (u8)(t & 3))",
+                guard_draw="ms_draw_anim_player_as_flipped(&guard, 1, 1, {x}, {y}, (u8)((t >> 2) & 3))"))
+        renderer = StepRenderer()
+        tiles = bytes(ctx.tile_data)
+        seen = set()
+        self.assertEqual(len(lines), ticks * len(animations))
+        for n, line in enumerate(lines):
+            t = n % ticks
+            fields = line.split()
+            anim = project.animations[int(fields[1])]
+            hero_step, _guard_step, active, count, dropped = (int(v) for v in fields[2:7])
+            self.assertEqual(active, 0, "the active mapping and swap stay as they were")
+            sprites = [tuple(int(v) for v in item.split(",")) for item in fields[7:]]
+            self.assertEqual((len(sprites), dropped), (count, 0))
+            af = anim.aframes[hero_step]
+            expected = {}
+            for mapping, entry, flip, (draw_x, draw_y) in reversed(list(zip(
+                    (None, guard_mapping), (0, 1), (t & 3, (t >> 2) & 3), VERSUS))):
+                image, hx, hy = renderer.render(project, af, mapping, (bool(flip & 1), bool(flip & 2)))
+                expected.update(_palette_pixels(ctx, image, hx, hy, draw_x, draw_y, palette_at=lambda x, y, e=entry: e))
+                seen.add(("guard" if mapping else "hero", flip))
+            self.assertEqual(_rasterise(sprites, tiles), expected,
+                             f"'{anim.name}' step {hero_step}, the hero mirrored {t & 3}, the guard {(t >> 2) & 3}")
+        self.assertEqual(seen, {(who, flip) for who in ("hero", "guard") for flip in range(4)})
 
     def test_scene_objects_keep_their_own_swap(self):
         """A scene object with a palette swap of its own has the swap's entry fixed in its pieces; one that inherits

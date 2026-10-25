@@ -99,7 +99,8 @@ frames at the preview's refresh rate (60 Hz, or 50 Hz for PAL).
 - The runtime loads the entries into consecutive lines from the first one it is given, as many as fit
   (`ms_palettes_fit()` says whether all did), and keeps a table from entry to line. `ms_load_palette(entry, line)`
   lets a game manage the lines itself. `ms_set_palette_swap(swap)` recolours what is drawn afterwards, like
-  `ms_set_mapping`; `ms_draw_anim_player_as(player, mapping, swap, x, y)` draws with both without changing them.
+  `ms_set_mapping`; `ms_draw_anim_player_as(player, mapping, swap, x, y)` draws with both without changing them
+  (`ms_draw_anim_player_as_flipped(..., flip)` mirrored).
   A sprite's palette bits come from that table at draw time (one table read per hardware sprite).
 - `ms_palette_tick()` advances the colour cycles of the loaded entries once per video frame.
 - Scenes are baked once per mapping; an object with a swap of its own gets the swap's entries in its pieces, the

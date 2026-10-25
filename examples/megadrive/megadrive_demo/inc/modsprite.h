@@ -151,9 +151,16 @@ u16 ms_load_list_tiles(u16 load_list);
 void ms_anim_player_init(MS_AnimPlayer *player, u16 animation_index);
 void ms_anim_player_tick(MS_AnimPlayer *player);
 void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y);
-/* Draw with another mapping (and palette swap); the active ones are left as they were. */
+/* Mirrored (flip as ms_draw_frame_flipped's) around the point drawn at: the step as the editor's mirror preview shows
+   it, its offset, flips and turn mirrored with it, so a character facing either way needs its animations once. */
+void ms_draw_anim_player_flipped(const MS_AnimPlayer *player, s16 x, s16 y, u8 flip);
+/* Draw with another mapping (and palette swap); the active ones are left as they were. _as_flipped mirrors the draw
+   (with another mapping alone: the swap ms_get_palette_swap() gives), a guard drawn from the hero's animations who
+   faces him. */
 void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y);
 void ms_draw_anim_player_as(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y);
+void ms_draw_anim_player_as_flipped(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y,
+                                    u8 flip);
 
 /* Animation events (MS_EVENT_* from modsprite_data.h) on the step being shown.
    has_event: active while the step shows (hit windows, invulnerability, cancel windows).
@@ -174,6 +181,11 @@ u16 ms_anim_player_points(const MS_AnimPlayer *player, const MS_Point **out);
 /* First one of a type (MS_HITBOX_* / MS_POINT_*) and role (MS_ROLE_*, MS_NO_ROLE = any role), or NULL. */
 const MS_Hitbox *ms_find_hitbox(const MS_Hitbox *boxes, u16 count, u16 type, u16 role);
 const MS_Point *ms_find_point(const MS_Point *points, u16 count, u16 type, u16 role);
+/* One of a frame or step drawn mirrored (flip as the draw's), mirrored with it into *out: a box's x becomes -x - w (its
+   y -y - h), a point's x -x - 1 (its y -y - 1: it marks a pixel, which goes to its mirror image). Returns out, NULL
+   for NULL (what ms_find_hitbox / ms_find_point give when there is none). */
+MS_Hitbox *ms_flip_hitbox(const MS_Hitbox *box, u8 flip, MS_Hitbox *out);
+MS_Point *ms_flip_point(const MS_Point *point, u8 flip, MS_Point *out);
 const char *ms_hitbox_type_name(u16 type);
 const char *ms_point_type_name(u16 type);
 const char *ms_role_name(u16 role);
