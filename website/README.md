@@ -46,7 +46,7 @@ Every picture comes from the editor and the example projects; regenerate them wh
 | `docs/assets/images/screens/*.png`: editor screenshots, whole windows, parts of them and dialogs | `python3 website/scripts/capture_screenshots.py [NAME or GROUP ...]` (macOS, needs the screen; groups `pop`, `sonic`, `lesson`, `automod`; quantized to 256 colours) |
 | `docs/assets/images/art/*`: the Swordfight loop, the step pictures and `attack.gif` | `python3 website/scripts/make_site_art.py` (the editor's renderer and its GIF export) |
 | `docs/assets/images/art/lesson-run.gif`: the first lesson's run | `python3 website/scripts/capture_screenshots.py lesson` (made in the editor, step by step) |
-| `docs/assets/images/logo.svg` (the header's 32 px M), `favicon-16.png`, `favicon-32.png` and `docs/favicon.ico` (16, 32 and 48 px), each size drawn for it | `python3 tools/make_app_icon.py` (also writes the app icons) |
+| `docs/assets/images/logo.svg` (the header's 32 px M), `favicon-16.png`, `favicon-32.png` and `docs/favicon.ico` (16, 32 and 48 px), each size drawn for it; `favicon.png`, the 32 px one again, keeps Material's own favicon out of the site | `python3 tools/make_app_icon.py` (also writes the app icons) |
 | `docs/assets/images/logo-title.png`: the logo on the landing page | `python3 tools/make_logo.py` (the app icon's mannequin over a pixel wordmark) |
 | `docs/reference/shortcuts.md` | `python3 website/scripts/make_shortcuts_page.py` (from `ui/shortcuts_dialog.py`) |
 | `docs/reference/consoles.md` | `python3 website/scripts/make_consoles_page.py` (from `consoles.py`) |

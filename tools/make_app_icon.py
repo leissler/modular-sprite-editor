@@ -9,7 +9,8 @@ of the three drawings with nearest-neighbour sampling, so every size keeps squar
 
 Writes assets/icon_source.png (1024 px), assets/icon.png (256 px, the window icon), assets/icon.ico,
 assets/icon.iconset + assets/icon.icns (macOS, needs iconutil), and for the website logo.svg (the header's 32 px M),
-favicon.ico (16, 32 and 48 px) and favicon-16.png / favicon-32.png.
+favicon.ico (16, 32 and 48 px), favicon-16.png / favicon-32.png and favicon.png (the 32 px one again, in place of the
+theme's own).
 
 Usage:
     python3 tools/make_app_icon.py [--preview OUT.png]
@@ -335,6 +336,9 @@ def main() -> None:
                      append_images=favicons[1:])
     for size in (16, 32):
         sized(size).save(os.path.join(images, f"favicon-{size}.png"))
+    # Material copies a favicon.png of its own (a book) to this path unless the docs have one. No page links it any
+    # more: ours keeps the theme's out of the site, and old links to it get the M.
+    sized(32).save(os.path.join(images, "favicon.png"))
     print("Wrote assets/icon_source.png, icon.png, icon.ico, icon.iconset, icon.icns and the website logo and favicons")
 
 
