@@ -2,6 +2,14 @@
 
 Downloads for every version are on the [releases page](https://github.com/leissler/modular-sprite-editor/releases).
 
+## 0.12.1, October 2026
+
+**For programmers: characters face either way.** The runtime draws an animation mirrored, as the Animations tab's **Mirror** preview shows it, with its hitboxes and points, so a character that turns around needs each animation once. The exported data is the same as in 0.12. See [Facing either way](../developers/runtime.md#facing-either-way).
+
+**Documentation for programmers.** The site has a new **Developers** section: how the data works, the runtime and every function, video memory and the sprite limits, the file formats, and each console in detail. Send your programmer to the [developer documentation](../developers/index.md).
+
+Projects are saved in file format 9, as in 0.12.
+
 ## 0.12, October 2026
 
 **Store a frame whole.** Some frames are built from many small parts but show as one solid thing: a platform, a crusher, a torch. Tick **Store whole** in the frame's inspector, and the console exports keep it as one picture, shown with the fewest hardware sprites; the line under the box compares the frame as parts and whole. On the Mega Drive the Prince of Persia example's **stab3** pose takes 17 hardware sprites as parts and 2 whole. The budget overlay, the readouts and **Check Project** count the frame the way the export stores it. Keep characters as parts. See [Store a frame whole](../guide/hardware-budget.md#store-a-frame-whole).
