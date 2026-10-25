@@ -1,13 +1,15 @@
 """Draw the app icon as pixel art and write every icon file the builds and the website use.
 
 The icon is an artist's wooden mannequin leaping on its stand: a figure built from parts joined at pivots, posed
-into any position, which is what a modular sprite is. It is drawn three times, on a dark tile: the logo's mannequin
-(MANNEQUIN, also used by tools/make_logo.py) on a 128x128 tile for the large sizes, and simplified hand-drawn
-versions on 32x32 and 16x16 tiles for the small ones. Every size is a whole-number scaling of one of them with
-nearest-neighbour sampling, so every size keeps square pixels.
+into any position, which is what a modular sprite is. The logo's mannequin (MANNEQUIN, also used by tools/make_logo.py)
+is drawn on a 128x128 tile for 128 px and up. Below that its limbs are a pixel or two thin and the figure stops
+reading, so the small sizes show an M built from the same wooden parts instead: limbs joined by ball joints, in the
+same wood and light, hand-drawn on a 32x32 and a 16x16 tile (M_32, M_16). Every size is a whole-number scaling of one
+of the three drawings with nearest-neighbour sampling, so every size keeps square pixels.
 
 Writes assets/icon_source.png (1024 px), assets/icon.png (256 px, the window icon), assets/icon.ico,
-assets/icon.iconset + assets/icon.icns (macOS, needs iconutil) and the website's logo.svg and favicon.png.
+assets/icon.iconset + assets/icon.icns (macOS, needs iconutil), and for the website logo.svg (the header's 32 px M),
+favicon.ico (16, 32 and 48 px) and favicon-16.png / favicon-32.png.
 
 Usage:
     python3 tools/make_app_icon.py [--preview OUT.png]
@@ -126,62 +128,63 @@ MANNEQUIN = [  # the far arm and leg are a tone darker
 ]
 assert all(len(row) == 41 for row in MANNEQUIN), [len(row) for row in MANNEQUIN]
 
-# 32x32 and 16x16: the same mannequin with fewer pixels, over the tile ('.' keeps the tile).
-FIGURE_32 = [  # two-pixel limbs where they fit
+# 32x32 and 16x16: an M of the mannequin's wooden limbs, over the tile ('.' keeps the tile). Ball joints sit at the
+# M's three bends, lit like the mannequin from the top left, each leaving a crevice on the limbs it sits in front of.
+M_32 = [  # five-pixel legs, seven-pixel balls
     "................................",
     "................................",
     "................................",
-    ".....................32.........",
-    "...................221..........",
-    ".................221............",
-    "................21..34..........",
-    "................1.34433.........",
-    "................1.33322.........",
-    "..............3432.221..........",
-    ".............34432..............",
-    ".......34....34322..............",
-    ".......43333123221..............",
-    ".......221111.221...............",
-    "..............10................",
-    ".............3432...221.........",
-    ".............2321..21...........",
-    "..............m3221.............",
-    "..............m32...............",
-    "..............m.32..............",
-    "..............m.21..............",
-    "..............m..32.............",
-    "..............m..32.............",
-    "..............m...32............",
-    "..............m...21............",
-    "..............m....32...........",
-    "...........3333333.32...........",
-    "..........22222111121...........",
-    "...........0000000..............",
+    "................................",
+    ".......332............332.......",
+    "......34432..........34432......",
+    ".....3443221........3443221.....",
+    ".....3332211........3332211.....",
+    ".....2322211........2322211.....",
+    "......221110........022111......",
+    "......0111021......4301110......",
+    "......2000121......4320001......",
+    "......23321221....43223321......",
+    "......233212221..432123321......",
+    "......233212221..432123321......",
+    "......23321222000021123321......",
+    "......23321.20333201.23321......",
+    "......23321.03443210.23321......",
+    "......23321..343221..23321......",
+    "......23321..232211..23321......",
+    "......23321..222111..23321......",
+    "......23321...1111...23321......",
+    "......23321..........23321......",
+    "......23321..........23321......",
+    "......23321..........23321......",
+    "......23321..........23321......",
+    "......22211..........22211......",
+    ".......111............111.......",
+    "................................",
     "................................",
     "................................",
     "................................",
 ]
-assert len(FIGURE_32) == 32 and all(len(row) == 32 for row in FIGURE_32)
+assert len(M_32) == 32 and all(len(row) == 32 for row in M_32)
 
-FIGURE_16 = [  # a silhouette: head, arms, legs, rod and base
+M_16 = [  # two-pixel limbs, the joints as caps and a ball
     "................",
     "................",
-    "...........3....",
-    ".........22.....",
-    "........1.343...",
-    ".......342221...",
-    "......3432......",
-    "..43323321......",
-    ".......21.21....",
-    ".......322......",
-    ".......m32......",
-    ".......m.21.....",
-    ".....333..3.....",
-    "....22211.2.....",
+    "................",
+    "...332....332...",
+    "...342....342...",
+    "...221....221...",
+    "...0021..3100...",
+    "...31.2131.31...",
+    "...31.3432.31...",
+    "...31.2321.31...",
+    "...31..11..31...",
+    "...31......31...",
+    "...21......21...",
+    "................",
     "................",
     "................",
 ]
-assert len(FIGURE_16) == 16 and all(len(row) == 16 for row in FIGURE_16)
+assert len(M_16) == 16 and all(len(row) == 16 for row in M_16)
 
 
 def tile(size: int) -> List[List[str]]:
@@ -245,13 +248,13 @@ def icon_128() -> List[List[str]]:
 
 def icon_32() -> List[List[str]]:
     grid = tile_32()
-    paste(grid, FIGURE_32, 0, 0)
+    paste(grid, M_32, 0, 0)
     return grid
 
 
 def icon_16() -> List[List[str]]:
     grid = tile(16)
-    paste(grid, FIGURE_16, 0, 0)
+    paste(grid, M_16, 0, 0)
     return grid
 
 
@@ -321,10 +324,18 @@ def main() -> None:
     else:
         print("assets/icon.icns not updated: iconutil needs macOS")
 
-    images = os.path.join(REPO, "website", "docs", "assets", "images")
+    docs = os.path.join(REPO, "website", "docs")
+    images = os.path.join(docs, "assets", "images")
     write_svg(grid, os.path.join(images, "logo.svg"))
-    sized(64).save(os.path.join(images, "favicon.png"))
-    print("Wrote assets/icon_source.png, icon.png, icon.ico, icon.iconset, icon.icns and the website logo and favicon")
+    # A browser shrinks a favicon larger than its tab with smoothing, so each size a tab shows is here as drawn: the
+    # pages link the PNGs (website/mkdocs.yml, website/overrides/main.html), the site's root favicon.ico has them all.
+    favicon_sizes = [48, 32, 16]
+    favicons = [sized(size) for size in favicon_sizes]
+    favicons[0].save(os.path.join(docs, "favicon.ico"), format="ICO", sizes=[(size, size) for size in favicon_sizes],
+                     append_images=favicons[1:])
+    for size in (16, 32):
+        sized(size).save(os.path.join(images, f"favicon-{size}.png"))
+    print("Wrote assets/icon_source.png, icon.png, icon.ico, icon.iconset, icon.icns and the website logo and favicons")
 
 
 if __name__ == "__main__":

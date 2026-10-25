@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{#- The favicon at the sizes a tab shows, each drawn for its size (tools/make_app_icon.py), so no browser shrinks it:
+    a browser that reads sizes takes the exact one, one that takes the first or largest gets theme.favicon's 32 px,
+    which a retina tab shows as drawn. favicon.ico at the site's root has 16, 32 and 48 px for everything else. -#}
+{% block extrahead %}
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ 'assets/images/favicon-16.png' | url }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ 'assets/images/favicon-32.png' | url }}">
+{% endblock %}

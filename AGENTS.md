@@ -258,7 +258,8 @@ tools/                     migrate_projects.py, gui_smoke.py, automod_bench.py (
                            make_windows_kit.py, make_examples_zip.py (the examples download of a release),
                            make_snes_demo_zip.py (the SNES demo download: ROM + its PVSnesLib project),
                            make_readme_banner.py (README banner from the PoP example),
-                           make_app_icon.py (the pixel-art app icon, a wooden mannequin: every size, nearest-neighbour only),
+                           make_app_icon.py (the pixel-art app icon: a wooden mannequin, below 128 px an M of its
+                           jointed limbs; every size and the site's favicons, nearest-neighbour only),
                            make_logo.py (the product logo: the icon's mannequin over a pixel wordmark, no example art)
 website/                   Product site + user guide for artists (MkDocs Material, deployed to
                            modularsprites.bionic-productions.com): see website/README.md

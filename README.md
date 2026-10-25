@@ -282,7 +282,7 @@ python3 tools/check_snes_rom.py [PROJECT...]       # the SNES runtime in a ROM v
 python3 tools/migrate_projects.py --dry-run DIR    # upgrade project files to the current format
 python3 tools/automod_bench.py PROJECT.json        # Auto Modularize benchmark: exactness, tiles, hardware sprites
 python3 tools/make_readme_banner.py                # this README's banner, rendered from the PoP example
-python3 tools/make_app_icon.py                     # the app icon (pixel art), every size, and the website logo
+python3 tools/make_app_icon.py                     # the app icon (pixel art), every size, the website logo and favicons
 python3 tools/make_logo.py                         # the product logo: the icon's mannequin over a pixel wordmark
 ```
 
