@@ -69,13 +69,13 @@ Mapping 0 is no mapping, then the exported mappings in their order; look mapping
 ## Facing either way
 
 ```c
-ms_draw_frame_flipped(frame, x, y, 1);     /* bit 0 mirrors left to right, bit 1 top to bottom */
+ms_draw_anim_player_flipped(&hero, hero_x, hero_y, 1);   /* bit 0 mirrors left to right, bit 1 top to bottom */
+ms_draw_anim_player_as_flipped(&guard, guard_mapping, blue_swap, guard_x, guard_y, 1);  /* facing the hero */
+ms_draw_frame_flipped(frame, x, y, 1);
 ms_draw_module_flipped(module, x, y, 1);
 ```
 
-A frame is mirrored about its origin, like a mirrored animation step: each hardware sprite moves to its mirror image and gets its flip bits, so the export stores the frame once for both directions. A module is mirrored in place, like a mirrored part in a frame: its pivot at (x, y), its picture where it was.
-
-An animation player is drawn as the artist made the animation; the runtime has no mirrored player draw yet. For a character that turns around, the artist duplicates the animation and mirrors the copy (the **Whole** buttons in the Animations tab's inspector; it costs no tiles, the flips are free), or the game draws the current step's frame with `ms_draw_frame_flipped`, which matches only when the steps have no offsets, flips or turns of their own.
+A player is drawn mirrored as the Animations tab's **Mirror** preview shows the animation (H is 1, V 2, H + V 3): the step's offset, flips and turn are in its render frame and mirror with it, so a character that turns around needs each animation once. `_as_flipped` draws with another mapping and palette swap for that draw (another mapping alone: pass `ms_get_palette_swap()`). A frame is mirrored about its origin the same way: each hardware sprite moves to its mirror image and gets its flip bits, so the export stores it once for both directions. A module is mirrored in place, like a mirrored part in a frame: its pivot at (x, y), its picture where it was.
 
 ## Hitboxes, points and events
 
@@ -98,7 +98,14 @@ if (ms_anim_player_has_event(&guard, MS_EVENT_HIT))             /* every video f
     check_hits();
 ```
 
-`MS_HITBOX_*`, `MS_POINT_*`, `MS_ROLE_*` and `MS_EVENT_*` are generated from the project's lists into `modsprite_data.h`; `MS_NO_ROLE` finds a box or point of any role. A frame drawn mirrored with `ms_draw_frame_flipped` has the frame's boxes and points as `ms_frame_hitboxes` gives them unmirrored: mirror them yourself (a box's `x` becomes `-x - w`, a point's `x` becomes `-x - 1`).
+`MS_HITBOX_*`, `MS_POINT_*`, `MS_ROLE_*` and `MS_EVENT_*` are generated from the project's lists into `modsprite_data.h`; `MS_NO_ROLE` finds a box or point of any role.
+
+A step or frame drawn mirrored has its boxes and points as the functions above give them, unmirrored: `ms_flip_hitbox` and `ms_flip_point` mirror one with the draw's `flip` (a box's `x` becomes `-x - w`, a point's `-x - 1`) and pass `NULL` on, so they take what the find functions give:
+
+```c
+MS_Hitbox box;
+const MS_Hitbox *blade = ms_flip_hitbox(ms_find_hitbox(boxes, count, MS_HITBOX_ATTACK, MS_ROLE_BLADE), facing, &box);
+```
 
 ## Several characters in a streamed export
 

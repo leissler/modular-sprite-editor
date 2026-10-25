@@ -136,9 +136,12 @@ void ms_anim_player_tick(MS_AnimPlayer *player);
 void ms_draw_anim_player(const MS_AnimPlayer *player, s16 x, s16 y);
 void ms_draw_anim_player_mapped(const MS_AnimPlayer *player, u16 mapping_index, s16 x, s16 y);
 void ms_draw_anim_player_as(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y);
+void ms_draw_anim_player_flipped(const MS_AnimPlayer *player, s16 x, s16 y, u8 flip);
+void ms_draw_anim_player_as_flipped(const MS_AnimPlayer *player, u16 mapping_index, u16 swap_index, s16 x, s16 y,
+                                    u8 flip);
 ```
 
-`ms_anim_player_init` starts an animation at its first step (playing backwards: its last). `ms_anim_player_tick` advances one video frame: the step holds for its duration in video frames, then playback moves on by the animation's rules ([animation playback](project-format.md#animation-playback)) and hands over to the follow-up when the animation ends. `ms_draw_anim_player` draws the shown step's render frame (the frame with the step's offset, flips and turn) with its origin at (x, y). `_mapped` and `_as` draw with another mapping, and palette swap, for this draw only; the active ones stay.
+`ms_anim_player_init` starts an animation at its first step (playing backwards: its last). `ms_anim_player_tick` advances one video frame: the step holds for its duration in video frames, then playback moves on by the animation's rules ([animation playback](project-format.md#animation-playback)) and hands over to the follow-up when the animation ends. `ms_draw_anim_player` draws the shown step's render frame (the frame with the step's offset, flips and turn) with its origin at (x, y). `_mapped` and `_as` draw with another mapping, and palette swap, for this draw only; the active ones stay. `ms_draw_anim_player_flipped` draws it mirrored about (x, y), `flip` as the flipped draws take it: the step as the Animations tab's Mirror preview shows it. `_as_flipped` does that with another mapping and palette swap for this draw.
 
 The playback modes are `MS_PLAY_LOOP` (0), `MS_PLAY_ONCE` (1), `MS_PLAY_PING_PONG` (2) and `MS_PLAY_BACKWARD` (3).
 
@@ -169,6 +172,8 @@ const MS_Point *ms_find_point(const MS_Point *points, u16 count, u16 type, u16 r
 const char *ms_hitbox_type_name(u16 type);
 const char *ms_point_type_name(u16 type);
 const char *ms_role_name(u16 role);
+MS_Hitbox *ms_flip_hitbox(const MS_Hitbox *box, u8 flip, MS_Hitbox *out);
+MS_Point *ms_flip_point(const MS_Point *point, u8 flip, MS_Point *out);
 ```
 
 The functions return how many there are and point `*out` at the first. Coordinates are relative to the draw position; a player's are those of the shown step, already moved like it (offset, flips, turn). `ms_find_hitbox` and `ms_find_point` return the first of a type and role (`MS_NO_ROLE`: any role), or `NULL`.
@@ -180,7 +185,7 @@ The functions return how many there are and point `*out` at the first. Coordinat
 | `x`, `y` | the box's top left | the pixel |
 | `w`, `h` | its size | |
 
-A frame drawn mirrored has its boxes and points unmirrored here: a mirrored box's `x` is `-x - w`, a mirrored point's `-x - 1` (and likewise `y` for bit 1).
+A frame or step drawn mirrored has its boxes and points unmirrored here; `ms_flip_hitbox` and `ms_flip_point` copy one into `*out` mirrored with the draw's `flip` (a box's `x` becomes `-x - w`, a point's `-x - 1`, likewise `y` for bit 1) and return `out`, or `NULL` for `NULL`.
 
 ## Scenes
 

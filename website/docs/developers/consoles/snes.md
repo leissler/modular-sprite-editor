@@ -114,5 +114,5 @@ The runtime uses `oamMemory` (PVSnesLib's 544-byte OAM buffer: 128 entries of 4 
 
 ## How it is checked
 
-- `tests/test_snes_runtime_draw.py` compiles the runtime's C for a PC and compares what it writes into the OAM, rasterised, with the editor's pictures pixel for pixel; `test_snes_streaming.py` does the same with streamed exports, `test_snes_runtime_player.py` checks the player, hitboxes and points against the editor's.
+- `tests/test_snes_runtime_draw.py` compiles the runtime's C for a PC and compares what it writes into the OAM, rasterised, with the editor's pictures pixel for pixel: every frame and module as it is and mirrored, and every animation step mirrored each way (with the Animations tab's Mirror preview, its hitboxes and points too); `test_snes_streaming.py` does the same with streamed exports, `test_snes_runtime_player.py` checks the player, hitboxes and points against the editor's.
 - `tools/check_snes_rom.py` builds the runtime, its assembly included, into a ROM and plays it in Mesen 2: every sprite table must equal the PC build's byte for byte, video memory the export's tiles, in the three export modes. `tools/compare_snes_roms.py` plays two builds of the demo side by side. Every release runs both.

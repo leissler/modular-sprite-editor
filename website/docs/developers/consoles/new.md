@@ -37,7 +37,7 @@ A budget profile with a video memory model (`hardware_budget.py`) that counts ti
 
 ### 6. Tests and a demo
 
-- The runtime compiled for a PC against a stand-in for the SDK, drawing every frame and module of the example projects as they are and mirrored, compared with the editor's pictures pixel for pixel; the animation player compared tick by tick; hitboxes and points.
+- The runtime compiled for a PC against a stand-in for the SDK, drawing every frame and module of the example projects as they are and mirrored, and every animation step mirrored each way, compared with the editor's pictures pixel for pixel; the animation player compared tick by tick; hitboxes and points, as they are and mirrored.
 - A demo, `examples/<key>/<key>_demo`, that starts on the first scene with one button per feature, and a README.
 - The runtime in a ROM, played in an emulator against the PC build in the release workflow.
 - A command-line exporter built for Windows, macOS and Linux, checked to write exactly what the script writes.
