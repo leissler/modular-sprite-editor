@@ -1,6 +1,6 @@
 # For your programmer
 
-This page is for the moment your sprites go into a game. Share it with your programmer, or send them straight to the technical documentation in the [source code repository](https://github.com/leissler/modular-sprite-editor).
+This page is for the moment your sprites go into a game. Share it with your programmer, or send them straight to the [developer documentation](../developers/index.md): how the data works, the runtime and its functions, the file formats, and each console in detail.
 
 ## What to hand over
 

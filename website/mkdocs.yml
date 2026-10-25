@@ -70,6 +70,22 @@ nav:
       - Release notes: reference/releases.md
       - Get help: reference/support.md
       - Credits: reference/credits.md
+  - Developers:
+      - developers/index.md
+      - How the data works: developers/concepts.md
+      - Use the runtime: developers/runtime.md
+      - Runtime API reference: developers/api.md
+      - Video memory and limits: developers/memory-and-limits.md
+      - Integrate with your engine: developers/engine.md
+      - Export from your build: developers/exporting.md
+      - The project file: developers/project-format.md
+      - Consoles:
+          - developers/consoles/index.md
+          - Mega Drive (SGDK): developers/consoles/megadrive.md
+          - Mega Drive data: developers/consoles/megadrive-data.md
+          - SNES (PVSnesLib): developers/consoles/snes.md
+          - SNES data: developers/consoles/snes-data.md
+          - Adding a console: developers/consoles/new.md
 
 plugins:
   - search
